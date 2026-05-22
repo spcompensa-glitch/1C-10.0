@@ -3,10 +3,20 @@ import asyncio
 import logging
 import time
 import json
+import sys
+import os
 from typing import List, Dict, Any, Optional
 import paho.mqtt.client as mqtt
 import grpc
 from config import settings
+
+# Adiciona o diretório backend e services ao sys.path para garantir a correta importação de gRPC stubs
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("HermesBroker")

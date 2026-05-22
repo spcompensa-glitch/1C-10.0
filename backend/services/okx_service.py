@@ -85,23 +85,23 @@ class OKXService:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        
+
         if self.testnet:
-            headers["x-simulated-option"] = "1"
-            
+            headers["x-simulated-trading"] = "1"
+
         if self.is_mock:
             return headers
 
         timestamp = self._get_timestamp()
         signature = self._generate_signature(timestamp, method, request_path, body)
-        
+
         headers.update({
             "OK-ACCESS-KEY": self.api_key,
             "OK-ACCESS-SIGN": signature,
             "OK-ACCESS-TIMESTAMP": timestamp,
             "OK-ACCESS-PASSPHRASE": self.passphrase
         })
-        
+
         return headers
 
     async def get_positions(self) -> List[Dict[str, Any]]:

@@ -21,6 +21,8 @@ class OKXWebSocket:
         self.testnet = settings.OKX_TESTNET
         
         # Endpoint do WebSocket privado da OKX V5
+        # Para Demo Trading (Paper): wss://wspap.okx.com:8443/ws/v5/private
+        # Para Live (Mainnet): wss://ws.okx.com:8443/ws/v5/private
         if self.testnet:
             self.endpoint = "wss://wspap.okx.com:8443/ws/v5/private"
         else:

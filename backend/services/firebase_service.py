@@ -233,13 +233,13 @@ class FirebaseService:
             if not self._reconnect_task or self._reconnect_task.done():
                 self._reconnect_task = asyncio.create_task(self._reconnection_loop())
 
-    @with_circuit_breaker(breaker_name="firebase_rest", fallback_return={"saldo_total": 1000.0, "risco_real_percent": 2.0, "slots_disponiveis": 4, "status": "ERROR"})
+    @with_circuit_breaker(breaker_name="firebase_rest", fallback_return={"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "ERROR"})
     async def get_banca_status(self, username: str = None):
         """[V120] Busca o status da banca isolado por usuário ou global."""
         if not self.is_active:
             await self.initialize()
             if not self.is_active:
-                return {"saldo_total": 1000.0, "risco_real_percent": 2.0, "slots_disponiveis": 4, "status": "OFFLINE"}
+                return {"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "OFFLINE"}
             
         try:
             if username:
@@ -271,11 +271,11 @@ class FirebaseService:
             if self._consecutive_failures >= 5:
                 logger.error("🚨 5+ consecutive Firebase failures. Triggering health check...")
                 asyncio.create_task(self._health_check())
-            return {"saldo_total": 1000.0, "risco_real_percent": 2.0, "slots_disponiveis": 4, "status": "TIMEOUT"}
+            return {"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "TIMEOUT"}
         except Exception as e:
             self._consecutive_failures += 1
             logger.error(f"Error fetching banca (failures: {self._consecutive_failures}): {e}")
-        return {"saldo_total": 1000.0, "risco_real_percent": 2.0, "slots_disponiveis": 4, "status": "ERROR"}
+        return {"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "ERROR"}
 
     async def update_bankroll(self, balance: float):
         """[V110.29.0] Updates the bankroll baseline in Firestore and RTDB."""

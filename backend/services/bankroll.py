@@ -1440,9 +1440,9 @@ class BankrollManager:
                 margin = await self._calculate_target_margin(balance, current_leverage, dna_margin_pct)
                 
                 if settings.OKX_API_KEY_MASTER:
-                    margin = 10.0
+                    margin = round(balance * 0.10, 2)
                     current_leverage = 50.0
-                    logger.info(f"💰 [OKX BANCA VIRTUAL] Calibrado slot para exatamente ${margin} de margem com {current_leverage}x alavancagem.")
+                    logger.info(f"💰 [OKX BANCA VIRTUAL] Calibrado slot para exatamente 10% da banca (${margin:.2f}) com {current_leverage}x alavancagem.")
 
                 cycle_status = await vault_service.get_cycle_status()
                 cycle_bankroll = cycle_status.get("cycle_start_bankroll", 0)

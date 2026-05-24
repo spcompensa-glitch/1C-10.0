@@ -98,6 +98,23 @@ async def run_backtest(req: BacktestRunRequest):
         # Pega a primeira timeframe da lista (V1.0)
         interval = req.timeframes[0] if req.timeframes else "1h"
         
+        # [AUTO-DOWNLOAD OKX] Se o banco de dados tem menos de 50 klines para o par/intervalo,
+        # fazemos o download na hora a partir da OKX Mainnet pública de forma síncrona
+        try:
+            symbol_clean = req.symbol.replace('.P', '').replace('.p', '').replace('-SWAP', '').replace('-', '').upper()
+            data_extractor.init_db()
+            conn = data_extractor.get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT count(*) FROM klines WHERE symbol = ? AND interval = ?", (symbol_clean, interval))
+            count = c.fetchone()[0]
+            conn.close()
+            
+            if count < 50:
+                logger.info(f"Dados insuficientes no banco SQLite ({count} klines) para {symbol_clean} ({interval}). Baixando na hora da OKX...")
+                data_extractor.download_klines(symbol_clean, interval, limit=100)
+        except Exception as ex:
+            logger.error(f"Falha ao executar auto-download de klines para {req.symbol}: {ex}")
+
         results = backtest_engine.simulate(
             symbol=req.symbol,
             interval=interval,

@@ -15,6 +15,8 @@ from services.resilience import with_circuit_breaker
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OKXRest")
 
+_GLOBAL_KLINES_CACHE = {}
+
 class OKXRest:
     def __init__(self):
         self._global_session = None # Sessão padrão do admin (legado/fallback)
@@ -1177,8 +1179,6 @@ class OKXRest:
         except Exception as e:
             logger.error(f"Error fetching orderbook for {symbol}: {e}")
             return {}
-
-_GLOBAL_KLINES_CACHE = {}
 
     async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20, *args, **kwargs):
         """Fetches historical klines for ATR and variation calculations from OKX Mainnet public API."""

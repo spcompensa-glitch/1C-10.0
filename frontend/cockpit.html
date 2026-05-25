@@ -4745,7 +4745,7 @@
                                         { to: '/', icon: 'space_dashboard', label: 'Banca' },
                                         { to: '/neural-chat', icon: 'psychology', label: 'Neural Chat' },
                                         { to: '/config', icon: 'settings', label: 'Configurações' },
-                                        { to: 'kanban-hermes.html', icon: 'view_kanban', label: 'Hermes Kanban', external: true }
+                                        { to: '/kanban', icon: 'view_kanban', label: 'Hermes Kanban' }
                                     ].map(item => (
                                         <button key={item.to} onClick={() => { if (item.external) { window.location.href = item.to; } else { navigate(item.to); } setIsMenuOpen(false); }}
                                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-primary/10 text-gray-300 hover:text-white transition-all group border border-transparent hover:border-primary/20">
@@ -7429,13 +7429,7 @@
                                 <span className="material-icons-round" style={{ fontSize: '24px' }}>psychology</span>
                                 <span className="text-[9px] font-bold tracking-widest hidden lg:block uppercase mt-1">Neural Chat</span>
                             </Link>
-                            <a
-                                href="kanban-hermes.html"
-                                className="flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition-all w-full text-gray-400 hover:text-white hover:bg-white/5"
-                            >
-                                <span className="material-icons-round" style={{ fontSize: '24px' }}>view_kanban</span>
-                                <span className="text-[9px] font-bold tracking-widest hidden lg:block uppercase mt-1">Kanban</span>
-                            </a>
+                            <NavItem to="/kanban" icon="view_kanban" label="Kanban" isActive={location.pathname === '/kanban'} />
                             <NavItem to="/config" icon="settings" label="Config" isActive={location.pathname === '/config'} />
 
                         </div>
@@ -7953,6 +7947,7 @@
                             <Route path="/" element={<Page10D />} />
                             <Route path="/10d" element={<Page10D />} />
                             <Route path="/neural-chat" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/neural-chat.html" className="w-full h-full border-none" title="Neural Chat Interface" /></div>} />
+                            <Route path="/kanban" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/kanban-hermes.html" className="w-full h-full border-none" title="Hermes Kanban" /></div>} />
                             <Route path="/config" element={<SettingsPage onLogout={handleLogout} theme={theme} setTheme={setTheme} />} />
 
                         </ReactRouterDOM.Routes>

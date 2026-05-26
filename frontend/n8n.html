@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>1CRYPTEN — N8N Macro-Orquestrador</title>
+    <style>
+        body { margin: 0; background: #000; color: #06b6d4; font-family: monospace; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .login-box { border: 1px solid #06b6d4; padding: 2rem; background: rgba(0,0,0,0.8); text-align: center; border-radius: 8px; box-shadow: 0 0 20px rgba(6, 182, 212, 0.2); }
+        input { background: #111; color: #06b6d4; border: 1px solid #06b6d4; padding: 10px; margin-top: 10px; width: 100%; border-radius: 4px; outline: none; }
+        button { background: #06b6d4; color: #000; border: none; padding: 10px 20px; margin-top: 15px; cursor: pointer; width: 100%; font-weight: bold; border-radius: 4px; }
+        button:hover { background: #0891b2; }
+        iframe { width: 100%; height: 100vh; border: none; display: none; }
+        #auth { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100%; }
+        .back-link { display: block; margin-top: 15px; color: #06b6d4; text-decoration: none; font-size: 12px; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div id="auth">
+    <div class="login-box">
+        <h2>🔒 ACESSO RESTRITO</h2>
+        <p style="margin-top: 10px; font-size: 14px; opacity: 0.8;">Informe a senha do ADM para acessar o N8N</p>
+        <input type="password" id="pwd" placeholder="Senha..." autofocus>
+        <button onclick="check()">ENTRAR</button>
+        <a href="cockpit.html" class="back-link">← Voltar ao Cockpit</a>
+    </div>
+</div>
+
+<iframe id="n8n-frame" src=""></iframe>
+
+<script>
+function check() {
+    var p = document.getElementById('pwd').value;
+    if (p === '123') { // Senha temporária
+        document.getElementById('auth').style.display = 'none';
+        var frame = document.getElementById('n8n-frame');
+        
+        // URL de Produção do N8N no Railway
+        frame.src = 'https://n8n-production-8e2d4.up.railway.app';
+        frame.style.display = 'block';
+    } else {
+        alert('Senha incorreta!');
+        document.getElementById('pwd').value = '';
+    }
+}
+document.getElementById('pwd').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') check();
+});
+</script>
+
+</body>
+</html>

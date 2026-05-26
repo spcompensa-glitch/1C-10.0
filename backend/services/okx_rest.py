@@ -370,7 +370,7 @@ class OKXRest:
             
             # Se a lista estiver vazia por alguma falha de rede temporária, usa o fallback da Elite Matrix do config
             if not final_symbols:
-                final_symbols = [f"{s}.P" for s in settings.ELITE_30_MATRIX if f"{s}.P" not in settings.ASSET_BLOCKLIST]
+                final_symbols = [f"{s}.P" for s in settings.ELITE_40_MATRIX if f"{s}.P" not in settings.ASSET_BLOCKLIST]
                 
             logger.info(f"BybitREST: Mass Sniper Elite Scan Successful (OKX Source). Monitoring Top {len(final_symbols)} high-leverage assets.")
             
@@ -381,7 +381,7 @@ class OKXRest:
         except Exception as e:
             logger.error(f"Error in Elite 50x scan from OKX: {e}")
             # Fallback seguro com a matriz elite definida nas configurações
-            fallback = [f"{s}.P" for s in settings.ELITE_30_MATRIX if f"{s}.P" not in settings.ASSET_BLOCKLIST]
+            fallback = [f"{s}.P" for s in settings.ELITE_40_MATRIX if f"{s}.P" not in settings.ASSET_BLOCKLIST]
             return fallback[:20]
 
     def get_top_200_usdt_pairs(self):

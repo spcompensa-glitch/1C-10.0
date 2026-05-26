@@ -1714,13 +1714,14 @@ function select(s) {
   }, 500);
 }
 
-const ELITE_30_PAIRS = [
+const ELITE_40_PAIRS = [
     "BTCUSDT", "ETHUSDT",
     "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT", "ARBUSDT", "RENDERUSDT", 
     "NEARUSDT", "INJUSDT", "TIAUSDT", "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", 
     "ATOMUSDT", "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT", "SEIUSDT", 
     "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT", "IMXUSDT", "GALAUSDT", "GRTUSDT", 
-    "CRVUSDT", "EGLDUSDT"
+    "CRVUSDT", "EGLDUSDT", "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT",
+    "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
 ];
 
 function renderSievePairs(decisions) {
@@ -1738,8 +1739,8 @@ function renderSievePairs(decisions) {
     });
   }
   
-  // Renderiza/Atualiza de forma estável baseada nos ELITE_30_PAIRS fixos!
-  ELITE_30_PAIRS.forEach(symbol => {
+  // Renderiza/Atualiza de forma estável baseada nos ELITE_40_PAIRS fixos!
+  ELITE_40_PAIRS.forEach(symbol => {
     const s = symbol.toUpperCase();
     let div = document.getElementById('p-' + s);
     

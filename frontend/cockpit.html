@@ -4746,7 +4746,7 @@
                                         { to: '/neural-chat', icon: 'psychology', label: 'Neural Chat' },
                                         { to: '/config', icon: 'settings', label: 'Configurações' },
                                         { to: '/kanban', icon: 'view_kanban', label: 'Hermes Kanban' },
-                                        { to: 'https://1crypten.space/n8n', icon: 'account_tree', label: 'N8N (Macro-Orquestrador)', external: true }
+                                        { to: 'https://n8n-production-8e2d4.up.railway.app', icon: 'account_tree', label: 'N8N (Macro-Orquestrador)', external: true }
                                     ].map(item => (
                                         <button key={item.to} onClick={() => { if (item.external) { window.location.href = item.to; } else { navigate(item.to); } setIsMenuOpen(false); }}
                                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-primary/10 text-gray-300 hover:text-white transition-all group border border-transparent hover:border-primary/20">
@@ -7443,7 +7443,7 @@
                             <NavItem to="/kanban" icon="view_kanban" label="Kanban" isActive={location.pathname === '/kanban'} />
                             
                             <a
-                                href="https://1crypten.space/n8n"
+                                href="https://n8n-production-8e2d4.up.railway.app"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition-all w-full text-gray-400 hover:text-white hover:bg-white/5"

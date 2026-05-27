@@ -1,6 +1,0 @@
-
-=== ATUAL ESTADO DOS SLOTS NO BANCO ===
-Slot 1: FILUSDT | Strategy: N/A | Type: BLITZ_SNIPER | ROI: -47.7% | SL: 0.9795
-Slot 2: AVAXUSDT | Strategy: N/A | Type: BLITZ_SNIPER | ROI: -36.9% | SL: 9.362
-Slot 3: SEIUSDT | Strategy: N/A | Type: BLITZ_SNIPER | ROI: -50.8% | SL: 0.06295
-Slot 4: SUIUSDT | Strategy: N/A | Type: BLITZ | ROI: -75.1% | SL: 1.0675

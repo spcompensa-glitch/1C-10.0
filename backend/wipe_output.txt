@@ -1,6 +1,0 @@
---- START PG WIPE 2026-05-01 10:37:31.840884 ---
-DB Initialized
-Slots table wiped
-Paper engine state deleted
-Changes committed successfully
---- END PG WIPE ---

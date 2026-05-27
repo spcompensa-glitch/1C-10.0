@@ -3,6 +3,12 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
+*   **V110.800: N8N HYBRID MACRO-ORCHESTRATOR & NATIVE TELEGRAM [MAY 26]**
+    - **N8N DAG Orchestration**: Desacoplamento do motor de loop infinito centralizado (main.py) em prol de uma orquestração reativa (DAG) via n8n. O n8n passa a acionar o `SignalGenerator` (Radar), `Captain` e o `ExecutionProtocol` em um ciclo rigoroso de 5 minutos, garantindo total previsibilidade.
+    - **4 Independent Slots Flow**: O fluxo do n8n foi redesenhado para ter 4 caminhos paralelos, mapeados fisicamente para as vagas de slot (1, 2, 3 e 4). Cada slot é processado e liberado de forma totalmente paralela e imune a gargalos assíncronos do Python.
+    - **HTTP Telegram Push**: Integração de alertas nativos disparados via requisições HTTP REST diretamente do n8n (Node Telegram) para envio de relatórios de orquestração e abertura de ordens, complementando a telemetria do Hermes.
+    - **Clean Slate Protocol**: Purga massiva de `.db` legados, logs velhos (40MB+) e scripts `.bat`/`.py` de build local que atulhavam a raiz do projeto, consolidando a infraestrutura 100% cloud.
+
 *   **V110.701: OKX MASTER BYPASS & ANTI-FACÃO (MOONBAG SHIELD) [MAY 25]**
     - **Captain Master Bypass**: O Capitão (Agente de Execução) agora possui um bypass nativo em `_process_single_signal`. Se `OKX_API_KEY_MASTER` estiver no `.env`, o motor descarta a busca vazia do multitenant da Bybit e força a execução cirúrgica global diretamente na conta Master (mock tenant "master").
     - **Guardian Anti-Facão**: O `portfolio_guardian.py` (Knife-Drop) agora faz cross-check em tempo real com os Slots Emancipados (Moonbags) via `firebase_service.get_moonbags()`. Posições marcadas como emancipada são ocultadas do cálculo de ROI unificado e blindadas contra encerramento abrupto, corrigindo o erro de encerramento precoce de ordens bem-sucedidas.

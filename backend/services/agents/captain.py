@@ -1275,9 +1275,12 @@ class CaptainAgent(AIOSAgent):
             if time.time() - sym_trades.get('first_trade_at', 0) > 86400:
                 sym_trades = {'count': 0, 'first_trade_at': time.time()}
             if sym_trades['count'] >= 3:
-                logger.info(f"🚫 [ANTI-CONCENTRATION] {symbol} bloqueado (limite 3 trades/dia).")
-                await firebase_service.update_signal_outcome(best_signal["id"], "CONCENTRATION_BLOCK")
-                return
+                if getattr(settings, "PAPER_MODE", False):
+                    logger.info(f"💎 [PAPER-BYPASS] Ignorando ANTI-CONCENTRATION (3 trades/dia) para {symbol} em modo simulado.")
+                else:
+                    logger.info(f"🚫 [ANTI-CONCENTRATION] {symbol} bloqueado (limite 3 trades/dia).")
+                    await firebase_service.update_signal_outcome(best_signal["id"], "CONCENTRATION_BLOCK")
+                    return
                 
             # [V110.12.10] ATOMIC SLOT RE-VERIFICATION (Anti-Slot Overwrite)
             # Antes de enviar o sinal para o Bankroll, verificamos se o slot ainda está LIVRE no Firebase.

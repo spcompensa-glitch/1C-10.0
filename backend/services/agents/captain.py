@@ -871,6 +871,8 @@ class CaptainAgent(AIOSAgent):
                     )
                     logger.info(msg)
                     await firebase_service.log_event("SENTINELA", msg, "SUCCESS")
+                elif bybit_rest_service.execution_mode == "PAPER":
+                    logger.info(f"💎 [PAPER-TEST-FIRE] Forçando bypass lateral para {symbol} em modo PAPER para forçar disparo.")
                 else:
                     if not is_warming_up and (is_elite_nectar or is_elite_score):
                         block_reason = f"ADX Slope Estagnado ({adx_slope:+.2f}) e ADX Baixo ({current_btc_adx:.1f})"
@@ -949,6 +951,8 @@ class CaptainAgent(AIOSAgent):
                     await firebase_service.update_signal_outcome(best_signal["id"], "LIBRARIAN_TRAP_BLOCK")
                 self.active_tocaias.discard(symbol)
                 return
+            elif "TRAP" in nectar_seal and bybit_rest_service.execution_mode == "PAPER":
+                logger.info(f"💎 [PAPER-TEST-FIRE] Ignorando TRAP SHIELD para {symbol} em modo PAPER para forçar disparo.")
 
             # --- [V110.135] QUARTERMASTER ARMORY CHECK ---
             armory = await quartermaster_agent.check_armory(

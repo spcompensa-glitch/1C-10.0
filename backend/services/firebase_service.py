@@ -557,12 +557,13 @@ class FirebaseService:
 
     async def update_slot(self, slot_id: int, data: dict, username: str = None):
         """[V120] Atualiza o estado de um slot no Firestore e RTDB com isolamento multitenant."""
+        try:
+            from services.database_service import database_service
+            await database_service.update_slot(slot_id, data)
+        except Exception as e:
+            logger.error(f"Error updating Postgres slot from Firebase proxy: {e}")
+        
         if not self.is_active: 
-            try:
-                from services.database_service import database_service
-                await database_service.update_slot(slot_id, data)
-            except Exception as e:
-                logger.error(f"Error updating Postgres slot from Firebase proxy: {e}")
             return data
         
         try:

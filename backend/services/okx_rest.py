@@ -397,7 +397,7 @@ class OKXRest:
     async def get_wallet_balance(self):
         """Fetches the total equity from the Bybit account (UNIFIED or CONTRACT)."""
         # logger.info(f"[DEBUG] get_wallet_balance called. Mode: {self.execution_mode}")
-        if settings.OKX_API_KEY_MASTER:
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             try:
                 request_path = "/api/v5/account/balance"
@@ -463,7 +463,7 @@ class OKXRest:
         """
         [V120] Busca posições ativas isoladas por usuário.
         """
-        if settings.OKX_API_KEY_MASTER:
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             try:
                 okx_positions = await okx_service.get_positions()
@@ -589,7 +589,7 @@ class OKXRest:
     @with_circuit_breaker(breaker_name="bybit_rest_public", fallback_return={})
     async def get_instrument_info(self, symbol: str):
         """Fetches precision and lot size filtering for a symbol with local caching."""
-        if settings.OKX_API_KEY_MASTER:
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             try:
                 api_symbol = self._strip_p(symbol)
@@ -731,7 +731,7 @@ class OKXRest:
         """
         [V120] Envio de Ordem Atômica com isolamento de sessão por usuário.
         """
-        if settings.OKX_API_KEY_MASTER:
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             logger.info(f"🔌 [OKX] Direcionando Ordem Atômica: {side} {qty} {symbol} para OKX Testnet...")
             res = await okx_service.place_atomic_order(symbol, side, qty, sl_price, tp_price, slot_id, leverage, username, **kwargs)
@@ -871,7 +871,7 @@ class OKXRest:
         """
         [V120] Encerramento Multitenant Soberano.
         """
-        if settings.OKX_API_KEY_MASTER:
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             logger.info(f"🔌 [OKX] Direcionando Fechamento de Posição de {symbol} para OKX Testnet...")
             success = await okx_service.close_position(symbol, side, qty, reason, username)

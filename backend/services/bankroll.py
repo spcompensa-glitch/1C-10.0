@@ -1564,7 +1564,7 @@ class BankrollManager:
                 
                 order = await asyncio.wait_for(bybit_rest_service.place_atomic_order(symbol, side, qty, final_sl, final_tp, slot_id=slot_id, leverage=current_leverage, ambush_price=ambush_price), timeout=10.0)
                 
-                if order:
+                if order and order.get("retCode") == 0:
                     # [V58.0] Refresh opening timestamp on success
                     self.recent_openings[norm_symbol] = time.time()
                     

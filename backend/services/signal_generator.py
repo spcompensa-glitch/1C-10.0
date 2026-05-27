@@ -2879,16 +2879,16 @@ class SignalGenerator:
                         reason = f"Low Volume (${turnover_24h/1000000:.1f}M < ${volume_min/1000000:.1f}M)"
                         # logger.info(f"🚫 [V15.6] {symbol} rejected: {reason}")
                         self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                        return None
+                        # return None
                     
                     # LS Ratio Filter: Contradiction check (V15.6 Hardening)
                     # Se varejo está muito comprado (LS > 1.5), evitamos Longs. Se muito vendido (LS < 0.8), evitamos Shorts.
                     if side_label == "Long" and ls_ratio > 1.5: # V16.1: Slightly relaxed (was 1.3)
                         logger.info(f"🚫 [V15.6] {symbol} rejected: Very high LS Ratio ({ls_ratio:.2f})")
-                        return None
+                        # return None
                     if side_label == "Short" and ls_ratio < 0.7: # V16.1: Slightly relaxed (was 0.8)
                         logger.info(f"🚫 [V15.6] {symbol} rejected: Very low LS Ratio ({ls_ratio:.2f})")
-                        return None
+                        # return None
                         
                     # 1. Macro & Trend Confluence
                     trend_1h = candidate.get('trend', 'sideways')
@@ -3048,10 +3048,9 @@ class SignalGenerator:
                                     btc_penalty = -40  # [V42.0] Increased from -20 to -40
                                     logger.warning(f"⚠️ [V42.0] {symbol} {side_label} CONTRA BTC ({btc_aligned}) mas SCORE FORTE ({projected_score}). Penalidade -40 aplicada.")
                                 else:
-                                    reason = f"BTC_CONTRA: Score {projected_score} < 65"
                                     logger.warning(f"🚫 [V42.0] {symbol} {side_label} CONTRA BTC ({btc_aligned}). {reason}. ABORTADO.")
                                     self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                                    return None  # 💀 Score fraco + contra BTC = morte
+                                    # return None  # 💀 Score fraco + contra BTC = morte
                         elif (side_label == 'Long' and btc_aligned == 'Long') or (side_label == 'Short' and btc_aligned == 'Short'):
                             btc_penalty = 10  # BTC supports our direction
                     
@@ -3104,7 +3103,7 @@ class SignalGenerator:
                             logger.info(f"🕶️ [SHADOW] {symbol} {side_label} Score {final_score} captured for Desktop HUD.")
                         
                         logger.info(f"⏭️ [V41.1] {symbol} {side_label} Score {final_score} < {min_threshold}. Rejeitado para execução real.")
-                        return None
+                        # return None
                         
                     # V15.3: Calcular targets estruturais e espaço restante
                     current_price_now = bybit_ws_service.get_current_price(symbol)
@@ -3144,7 +3143,7 @@ class SignalGenerator:
                     
                     if move_room_pct < min_room:
                         logger.info(f"🚫 [V39.0] {symbol} rejeitado: move_room={move_room_pct:.2f}% (< {min_room}%). Target={structural_target:.6f} Price={current_price_now:.6f} | TRAP={is_trap_signal} SWING={is_swing_macro_signal}")
-                        return None
+                        # return None
                     
                     # Dedup: Skip if recently signaled with similar score (but ALWAYS allow SNIPER checks to proceed)
                     norm_cached_check = normalize_symbol(symbol)
@@ -3177,12 +3176,12 @@ class SignalGenerator:
                         # [V27.6] SNIPER-ONLY Restriction for $5M - $1M pairs
                         if turnover_24h < 1000000 and _settings.BYBIT_EXECUTION_MODE != 'PAPER' and not candidate.get('is_swing_macro'):
                             logger.info(f"🚫 [V27.6] {symbol} MOMENTUM Blocked: Pairs under $1M must be SNIPER-ONLY. turnover=${turnover_24h/1000000:.1f}M")
-                            return None
+                            # return None
                             
                         # Funding contradiction is a hard block for Momentum layer
                         if trigger_result.get('funding_contradiction'):
                             logger.info(f"🚫 [V25.1] {symbol} MOMENTUM blocked: Funding contradiction ({trigger_result['funding_rate']*100:.4f}%)")
-                            return None
+                            # return None
                     
                     
                     # Cache the normalized symbol to avoid dupe processing

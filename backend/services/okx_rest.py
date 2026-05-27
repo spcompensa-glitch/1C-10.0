@@ -1206,82 +1206,56 @@ class OKXRest:
             bar = interval_map.get(str(interval), "1H")
             url = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar={bar}&limit={limit}"
             
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                response = await client.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("code") == "0" and data.get("data"):
-                        okx_candles = data.get("data", [])
-                        # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
-                        # Bybit espera: [start_time, open, high, low, close, volume, turnover]
-                        formatted = []
-                        for c in okx_candles:
-                            if len(c) >= 5:
-                                # Blindagem contra valores nulos da OKX
-                                if c[0] is None or c[1] is None or c[2] is None or c[3] is None or c[4] is None:
-                                    continue
-                                try:
-                                    # Valida que todos os valores de preço são conversíveis para float
-                                    float(c[1])
-                                    float(c[2])
-                                    float(c[3])
-                                    float(c[4])
-                                except ValueError:
-                                    continue # Ignora candle com preços quebrados
-                                    
-                                formatted.append([
-                                    c[0], # ts
-                                    c[1], # o
-                                    c[2], # h
-                                    c[3], # l
-                                    c[4], # c
-                                    c[5] if (len(c) > 5 and c[5] is not None) else "0", # vol
-                                    c[6] if (len(c) > 6 and c[6] is not None) else "0"  # volCcy
-                                ])
-                        if formatted:
-                            _GLOBAL_KLINES_CACHE[cache_key] = (now, formatted)
-                            return formatted
+            max_retries = 3
+            for attempt in range(max_retries):
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get(url)
+                    
+                    if response.status_code == 429:
+                        wait_time = 1.5 * (attempt + 1)
+                        logger.warning(f"⚠️ [OKX-429] Rate limit atingido em get_klines para {symbol}. Tentativa {attempt+1}/{max_retries}. Aguardando {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                        
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("code") == "0" and data.get("data"):
+                            okx_candles = data.get("data", [])
+                            # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+                            # Bybit espera: [start_time, open, high, low, close, volume, turnover]
+                            formatted = []
+                            for c in okx_candles:
+                                if len(c) >= 5:
+                                    # Blindagem contra valores nulos da OKX
+                                    if c[0] is None or c[1] is None or c[2] is None or c[3] is None or c[4] is None:
+                                        continue
+                                    try:
+                                        # Valida que todos os valores de preço são conversíveis para float
+                                        float(c[1])
+                                        float(c[2])
+                                        float(c[3])
+                                        float(c[4])
+                                    except ValueError:
+                                        continue # Ignora candle com preços quebrados
+                                        
+                                    formatted.append([
+                                        c[0], # ts
+                                        c[1], # o
+                                        c[2], # h
+                                        c[3], # l
+                                        c[4], # c
+                                        c[5] if (len(c) > 5 and c[5] is not None) else "0", # vol
+                                        c[6] if (len(c) > 6 and c[6] is not None) else "0"  # volCcy
+                                    ])
+                            if formatted:
+                                _GLOBAL_KLINES_CACHE[cache_key] = (time.time(), formatted)
+                                return formatted
+                        break # Se o response foi 200 mas algo no JSON falhou, não é rate limit, quebra o retry.
+                    else:
+                        break # Status != 429 e != 200 (ex: 500, 404), quebra o retry.
+                        
         except Exception as e:
             logger.error(f"Error fetching klines from OKX public API for {symbol}: {e}")
-            
-        # Fallback sintético em modo PAPER/SIMULATION para garantir o funcionamento do Radar com 40 pares
-        if self.execution_mode == "PAPER" or settings.OKX_TESTNET:
-            logger.info(f"🔮 [PAPER-MOCK] Gerando klines sintéticas realistas para {symbol} (Intervalo {interval}, Limite {limit}) para evitar travas no Radar.")
-            import random
-            formatted = []
-            base_price = 100.0
-            if "BTC" in symbol: base_price = 90000.0
-            elif "ETH" in symbol: base_price = 3000.0
-            elif "SOL" in symbol: base_price = 150.0
-            elif "AVAX" in symbol: base_price = 35.0
-            
-            curr_time_ms = int(time.time() * 1000)
-            interval_ms = 60000
-            if interval in ["5", "5m"]: interval_ms = 5 * 60000
-            elif interval in ["15", "15m"]: interval_ms = 15 * 60000
-            elif interval in ["30", "30m"]: interval_ms = 30 * 60000
-            elif interval in ["60", "1H"]: interval_ms = 60 * 60000
-            elif interval in ["120", "2H"]: interval_ms = 120 * 60000
-            elif interval in ["240", "4H"]: interval_ms = 240 * 60000
-            elif interval in ["D", "1D"]: interval_ms = 24 * 60 * 60000
-            
-            price = base_price
-            for i in range(limit):
-                ts = curr_time_ms - (limit - i) * interval_ms
-                change = price * random.uniform(-0.015, 0.015)
-                o = price
-                c = price + change
-                h = max(o, c) * random.uniform(1.0, 1.01)
-                l = min(o, c) * random.uniform(0.99, 1.0)
-                vol = random.uniform(10000, 500000)
-                vol_ccy = vol * c
-                formatted.append([
-                    str(ts), str(o), str(h), str(l), str(c), str(vol), str(vol_ccy)
-                ])
-                price = c
-            
-            _GLOBAL_KLINES_CACHE[cache_key] = (now, formatted)
-            return formatted
 
         return []
 

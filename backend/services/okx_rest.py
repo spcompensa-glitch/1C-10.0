@@ -336,7 +336,10 @@ class OKXRest:
                             if bybit_sym_clean in settings.ASSET_BLOCKLIST:
                                 continue
                                 
-                            max_lev = float(info.get("lever", 0))
+                            lev_str = info.get("lever", "0")
+                            if not lev_str:
+                                lev_str = "0"
+                            max_lev = float(lev_str)
                             if max_lev >= 50.0:
                                 candidates[inst_id] = bybit_sym_clean
 

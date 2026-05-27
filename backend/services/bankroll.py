@@ -1070,7 +1070,8 @@ class BankrollManager:
                     slot = next((s for s in slots if s.get("id") == i), None)
                     slot_symbol = (slot.get("symbol") or "").replace(".P", "").upper() if slot else None
                     slot_status = slot.get("status") if slot else None
-                    if not slot or not slot_symbol or slot_status == "EMANCIPATED":
+                    is_ghost = slot and slot.get("symbol") and (float(slot.get("qty", 0)) <= 0 or float(slot.get("entry_price", 0)) <= 0)
+                    if not slot or not slot_symbol or is_ghost or slot_status == "EMANCIPATED":
                         if not any(k[1] == i for k in self.pending_slots):
                             logger.info(f"💎 [PAPER-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type}.")
                             return i
@@ -1117,7 +1118,7 @@ class BankrollManager:
 
             # [V12.0] Total Limit Check: Expanded to 4
             # [V110.0] Ignora slots emancipados no limite de capacidade (Real Mode)
-            occupied_count = sum(1 for s in slots if s.get("symbol") and s.get("status") != "EMANCIPATED")
+            occupied_count = sum(1 for s in slots if s.get("symbol") and float(s.get("qty", 0)) > 0 and float(s.get("entry_price", 0)) > 0 and s.get("status") != "EMANCIPATED")
             if occupied_count >= max_total_slots:
                 logger.info(f"🚫 V110.0: Limite de {max_total_slots} trades táticos atingido ({occupied_count}). Moonbags não contam.")
                 return None
@@ -1125,7 +1126,8 @@ class BankrollManager:
             # [REAL] BYPASS: Ignite ANY available slot from 1 to 4
             for i in range(1, 5):
                 slot_data = slot_map.get(i)
-                if not slot_data or not slot_data.get("symbol") or slot_data.get("status") == "EMANCIPATED":
+                is_ghost = slot_data and slot_data.get("symbol") and (float(slot_data.get("qty", 0)) <= 0 or float(slot_data.get("entry_price", 0)) <= 0)
+                if not slot_data or not slot_data.get("symbol") or is_ghost or slot_data.get("status") == "EMANCIPATED":
                     logger.info(f"💎 [REAL-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type}.")
                     return i
 

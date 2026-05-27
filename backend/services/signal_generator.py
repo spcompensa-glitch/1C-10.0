@@ -2433,7 +2433,8 @@ class SignalGenerator:
                     occupied_count = len(_brs.paper_positions)
                 else:
                     slots = await firebase_service.get_active_slots()
-                    occupied_count = sum(1 for s in slots if s.get("symbol"))
+                    # A slot is only truly occupied if it has a symbol, AND qty > 0 AND entry_price > 0.
+                    occupied_count = sum(1 for s in slots if s.get("symbol") and float(s.get("qty", 0)) > 0 and float(s.get("entry_price", 0)) > 0)
                 
                 # [V110.36.3] Usar M-ADX do bybit_ws (Fonte Única de Verdade) em vez de recalcular.
                 # Elimina conflito entre ADX 1H (22.46) e M-ADX ponderado (34.0).

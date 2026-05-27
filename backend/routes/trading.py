@@ -75,7 +75,7 @@ async def get_slots(current_user: User = Depends(get_current_user)):
 
                 if slot.get("symbol") and slot.get("entry_price", 0) > 0:
                     slot_id = int(slot.get("id", 0))
-                    slot["slot_type"] = "BLITZ" if slot_id <= 2 else "SWING"
+                    slot["slot_type"] = "BLITZ"
                     entry = float(slot.get("entry_price", 0))
                     side = slot.get("side", "Buy")
                     sym_clean = bybit_rest_service._strip_p(slot["symbol"])

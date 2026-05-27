@@ -177,25 +177,20 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(1)
             logger.info("Step 0: Service modules loaded \u2705")
             
-            # [V110.518] EMERGENCY DEEP SCRUB - REMOVED (Ensuring persistence during restarts)
-            # logger.warning("💥 [V110.518] MANDATORY DEEP SCRUB TRIGGERED!")
-            # try:
-            #     from services.bybit_rest import bybit_rest_service
-            #     # 1. Clear RAM Positions
-            #     bybit_rest_service.paper_positions.clear()
-            #     # 2. Delete Persistent Paper State
-            #     if hasattr(bybit_rest_service, 'PAPER_STORAGE_FILE') and os.path.exists(bybit_rest_service.PAPER_STORAGE_FILE):
-            #         try: os.remove(bybit_rest_service.PAPER_STORAGE_FILE)
-            #         except: pass
-            #     # 3. Nuclear Reset Bankroll
-            #     await bankroll_manager._force_paper_reset_v110()
-            #     # 4. Clear Firebase Slots
-            #     for i in range(1, 5):
-            #         try: await sovereign_service.free_slot(i, "[V110.518] ELITE RESET")
-            #         except: pass
-            #     logger.info("✅ [V110.518] MANDATORY DEEP SCRUB EXECUTED SUCCESSFULLY! 💥")
-            # except Exception as e:
-            #     logger.error(f"❌ [V110.518] DEEP SCRUB FAILED: {e}")
+            logger.warning("💥 [V110.518] DB SANITATION TRIGGERED!")
+            try:
+                from services.okx_rest import okx_rest_service
+                from services.firebase_service import firebase_service
+                okx_rest_service.paper_positions.clear()
+                # Clear Firebase/Postgres Slots unconditionally for this hotfix
+                for i in range(1, 5):
+                    try: 
+                        await firebase_service.hard_reset_slot(i, "[V110.518] GHOST SLOT PURGE")
+                    except Exception as ex: 
+                        pass
+                logger.info("✅ [V110.518] DB SANITATION EXECUTED SUCCESSFULLY! 💥")
+            except Exception as e:
+                logger.error(f"❌ [V110.518] DB SANITATION FAILED: {e}")
 
             
             logger.info("Step 2: Syncing Bybit Instruments...")

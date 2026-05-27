@@ -1122,27 +1122,14 @@ class BankrollManager:
                 logger.info(f"🚫 V110.0: Limite de {max_total_slots} trades táticos atingido ({occupied_count}). Moonbags não contam.")
                 return None
 
-            # [V110.137] DUAL BLITZ / SWING ROUTING (REAL)
-            is_blitz_signal = (slot_type == "BLITZ_30M")
-
-            if is_blitz_signal:
-                # [V110.137] BLITZ: Slots 1 e 2
-                for blitz_sid in [1, 2]:
-                    bsd = slot_map.get(blitz_sid)
-                    if not bsd or not bsd.get("symbol") or bsd.get("status") == "EMANCIPATED":
-                        logger.info(f"[V110.137 BLITZ] Slot {blitz_sid} disponivel para Blitz M30.")
-                        return blitz_sid
-                logger.warning(f"[V110.137 BLITZ] Slots 1 e 2 ocupados — aguardando liberacao.")
-                return None
-
-            # SWING: Slots 3 e 4 (Slots 1 e 2 reservados ao Blitz)
-            for i in range(3, 5):
+            # [REAL] BYPASS: Ignite ANY available slot from 1 to 4
+            for i in range(1, 5):
                 slot_data = slot_map.get(i)
                 if not slot_data or not slot_data.get("symbol") or slot_data.get("status") == "EMANCIPATED":
-                    logger.info(f"[V110.137 SWING] Slot {i} disponivel para SWING.")
+                    logger.info(f"💎 [REAL-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type}.")
                     return i
 
-            logger.info(f"[V110.137] Slots SWING (3-4) ocupados. Slots Blitz (1-2) reservados.")
+            logger.info(f"[REAL] Todos os slots disponiveis ocupados.")
             return None
         
         except Exception as e:

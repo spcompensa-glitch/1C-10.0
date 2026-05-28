@@ -743,7 +743,7 @@ class BankrollManager:
                                     "pnl_percent": pnl_percent,
                                     "close_time": close_time_str,
                                     "closed_at": close_time_str,
-                                    "pensamento": pensamiento,
+                                    "pensamento": pensamento,
                                     "reasoning_report": report,
                                     "final_roi": final_roi,
                                     "sl_phase_at_close": sl_phase,
@@ -1775,7 +1775,8 @@ class BankrollManager:
             # [V110.64 FIX] Use the updated vault service method
             # BUGFIX: get_slot_type() retorna "SWING" para todos os slots,
             # mas antes só "SNIPER" era aceito — causando ZERO registros no Vault.
-            valid_slot_types = {"SNIPER", "SWING", "TREND", "SCALP", "SURF"}
+            # [V125] BLITZ_30M incluido — antes todos os trades BLITZ eram ignorados
+            valid_slot_types = {"SNIPER", "SWING", "TREND", "SCALP", "SURF", "BLITZ_30M", "BLITZ", "MOONBAG", "PAPER_GHOST"}
             if slot_type in valid_slot_types:
                 await vault_service.register_sniper_trade(trade_data)
                 status_msg = "Win" if pnl > 0 else "Loss"

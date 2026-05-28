@@ -1677,8 +1677,43 @@ class OKXRest:
                                             await bankroll_manager.register_sniper_trade(trade_data)
                                             await firebase_service.remove_moonbag(moon_uuid, reason=reason)
                                         elif success and not is_moonbag:
-                                            # Slots normais são pegos pelo Position Reaper, mas vamos garantir o order_id
-                                            pass
+                                            # [V125] FIX: Slots táticos (BLITZ, etc) agora registram histórico no Vault
+                                            # Antes: 'pass' → histórico ficava vazio para todas as ordens paper normais
+                                            try:
+                                                entry_p = float(slot.get("entry_price", 0)) if slot else 0
+                                                qty_closed = q
+                                                roi_val = execution_protocol.calculate_roi(entry_p, current_price, p["side"], float(slot.get("leverage", 50))) if entry_p > 0 else 0
+                                                margin_used = float(slot.get("entry_margin", 0)) or ((qty_closed * entry_p) / float(slot.get("leverage", 50) or 50))
+                                                est_pnl = (roi_val / 100.0) * margin_used
+                                                from services.time_utils import get_br_iso_str
+                                                slot_type_val = slot.get("slot_type", "BLITZ_30M") if slot else "BLITZ_30M"
+                                                genesis_id = slot.get("genesis_id", f"{symbol}_{int(time.time())}") if slot else f"{symbol}_{int(time.time())}"
+                                                trade_data_paper = {
+                                                    "symbol": symbol,
+                                                    "side": p["side"],
+                                                    "entry_price": entry_p,
+                                                    "exit_price": current_price,
+                                                    "qty": qty_closed,
+                                                    "pnl": round(est_pnl, 4),
+                                                    "pnl_percent": round(roi_val, 2),
+                                                    "entry_margin": round(margin_used, 4),
+                                                    "leverage": float(slot.get("leverage", 50)) if slot else 50,
+                                                    "slot_id": slot.get("id", 0) if slot else 0,
+                                                    "slot_type": slot_type_val,
+                                                    "close_reason": reason,
+                                                    "order_id": genesis_id,
+                                                    "score": slot.get("score", 0) if slot else 0,
+                                                    "pensamento": slot.get("pensamento", "") if slot else "",
+                                                    "fleet_intel": slot.get("fleet_intel", {}) if slot else {},
+                                                    "closed_at": get_br_iso_str(),
+                                                    "final_roi": round(roi_val, 2),
+                                                    "current_stop_at_close": float(slot.get("current_stop", 0)) if slot else 0,
+                                                }
+                                                from services.bankroll import bankroll_manager
+                                                await bankroll_manager.register_sniper_trade(trade_data_paper)
+                                                logger.info(f"✅ [V125 PAPER-HISTORY] {symbol} | {reason} | ROI: {roi_val:.1f}% | PnL: ${est_pnl:.2f} registrado no Vault.")
+                                            except Exception as hist_err:
+                                                logger.error(f"❌ [V125 PAPER-HISTORY] Erro ao registrar histórico de {symbol}: {hist_err}")
                             except Exception as ce: logger.error(f"Error handling closure/harvest for {symbol}: {ce}")
 
 

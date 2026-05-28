@@ -1,8 +1,8 @@
 # Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.701)
 
 ## Resumo Executivo
-* **Versão:** `V110.701: OKX Master Bypass & Anti-Facão (Moonbag Shield)`
-* **Data:** 2026-05-26
+* **Versão:** `V110.999: Sovereign Sync, Telemetria & Telegram Pro`
+* **Data:** 2026-05-28
 * **Estado:** `OPERATIONAL ✅`
 * **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real.
 
@@ -30,9 +30,10 @@
 * **Moonbag Shield:** Posições marcadas como emancipada (T5) são blindadas no `portfolio_guardian.py` e excluídas do cálculo do Facão, evitando encerramentos prematuros.
 
 ### 4. Camada de Dados e Sincronização
-* **PostgreSQL (SSOT / Railway):** Banco de dados primário guardando banca, slots e histórico.
+* **PostgreSQL (SSOT / Railway):** Banco de dados primário guardando banca, slots, histórico de ordens (`trade_history`) e estado de persistência do Radar Pulse (`radar_pulse`).
 * **Firebase / RTDB (Espelho de Transmissão):** Transmissão reativa para o Cockpit Dashboard com latência ultra-baixa.
 * **Hermes Broker (MQTT/gRPC):** Servidor gRPC na porta `50051` e cliente MQTT para envio leve de cohorts.
+* **Fallbacks Híbridos de Rede:** Em caso de queda ou inatividade deliberada do SDK do Firebase em servidores cloud, o backend direciona de forma transparente toda a leitura de histórico e pulso de radar diretamente para o PostgreSQL, evitando vazios e preservando o funcionamento da UI.
 
 ---
 
@@ -42,6 +43,6 @@
 | :--- | :--- | :--- | :--- |
 | **FastAPI Backend** | API de sincronização e WebSockets | `8002`/`8085` | `OPERATIONAL ✅` |
 | **gRPC Hermes** | Tenancy em tempo real e gRPC Stream | `50051` | `OPERATIONAL ✅` |
-| **Cockpit UI** | Interface Cyberpunk, Lightweight Charts e D3 | `-` | `OPERATIONAL ✅` |
-| **PostgreSQL** | Banco de dados Master | `5432` | `ONLINE ✅` |
+| **Cockpit UI** | Interface Cyberpunk com Vault unificado Desktop/Mobile | `-` | `OPERATIONAL ✅` |
+| **PostgreSQL** | Banco de dados Master e persistência de pulso | `5432` | `ONLINE ✅` |
 | **Firebase RTDB** | Sincronizador reativo da UI | `-` | `ONLINE ✅` |

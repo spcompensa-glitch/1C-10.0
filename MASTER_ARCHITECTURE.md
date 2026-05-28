@@ -1,7 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.700 "SaaS v5.5.0"
+# MASTER_ARCHITECTURE.md — V110.999 "SaaS v5.5.0"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.999: RADAR PERSISTENCE & DESKTOP VAULT SYNC [MAY 28]**
+    - **Radar Pulse PostgreSQL Persistence**: Os sinais e decisões do Radar Pulse agora são salvos de forma robusta e transparente na tabela `radar_pulse` do banco de dados Postgres de produção para sobreviver a resets de RAM do contêiner Railway.
+    - **Firebase Failover & Fallbacks**: Em caso de inatividade ou queda do SDK do Firebase, o backend redireciona a leitura de pulso de radar, banca e histórico (`trade_history`) diretamente para o Postgres em tempo real, eliminando o eterno "Scanning Slot..." na UI.
+    - **Unified Desktop/Mobile Vault UI**: Alinhamento visual do histórico da Vault no cockpit Desktop com o layout Mobile (cards ricos com badges, selo de prova do Agente Visão, genesys ID e TriumphModal de briefing de triunfo por clique).
+    - **SignalGenerator Scope Fix**: Correção de escopo de variável local de `bybit_ws_service` que causava eterno status "Scanning Slot" em produção.
+    - **Telegram /banca Command & Guardian Soul Shield**: Comando `/banca` no bot de Telegram integrado com leitura em tempo real e blindagem de persona com o `GUARDIAN_PROMPT.md` ativado sob a flag `HERMES_GUARDIAN=1` no Railway, junto com permissões corretas do Dockerfile.
 
 *   **V110.800: N8N HYBRID MACRO-ORCHESTRATOR & NATIVE TELEGRAM [MAY 26]**
     - **N8N DAG Orchestration**: Desacoplamento do motor de loop infinito centralizado (main.py) em prol de uma orquestração reativa (DAG) via n8n. O n8n passa a acionar o `SignalGenerator` (Radar), `Captain` e o `ExecutionProtocol` em um ciclo rigoroso de 5 minutos, garantindo total previsibilidade.
@@ -315,19 +322,19 @@
 
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.506)
+## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.999)
 
-O sistema opera em uma arquitetura de "Espelhamento Reativo":
+O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 1.  **PostgreSQL (Mestre / SSOT):** 
     - Hospedado no Railway.
-    - Única fonte de verdade para: `slots`, `banca_status`, `paper_engine_state`, `trade_history`.
-    - Todas as decisões de abertura, fechamento e cálculo de PnL ocorrem aqui.
+    - Única fonte de verdade para: `slots`, `banca_status`, `paper_engine_state`, `trade_history` e `radar_pulse` (dados do pulso persistente).
+    - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
 
-2.  **Firebase / RTDB (Espelho Visual):**
-    - Utilizado exclusivamente para baixa latência no Dashboard (PWA/Cockpit).
+2.  **Firebase / RTDB (Espelho Visual / Fallback):**
+    - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.
     - O robô escreve no RTDB a cada ciclo de 1s para atualizar o frontend.
-    - **IMPORTANTE:** Se o RTDB mostrar dados divergentes do Postgres, o Postgres deve ser limpo primeiro, pois o robô irá sobrescrever o RTDB no próximo ciclo.
+    - **FALLBACK DE QUEDA:** Caso o SDK esteja desativado (`self.is_active = False`), o backend aciona instantaneamente a leitura direta das tabelas Postgres (`database_service.get_radar_pulse()`), restaurando a saúde visual completa da UI.
 
 3.  **Fluxo de Reset:**
     - Para remover ordens fantasmas: Limpar `slots` e `system_state` no Postgres.
@@ -335,5 +342,5 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo":
 
 ---
 
-*Documento atualizado em: 2026-05-11 (V110.650) Sincronizado*
-*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes.*
+*Documento atualizado em: 2026-05-28 (V110.999) Sincronizado*
+*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*

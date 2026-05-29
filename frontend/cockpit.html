@@ -5326,7 +5326,7 @@
         // =========================================================================
         const GridChartItem = ({ 
             symbol, slots, index, totalCharts,
-            onSymbolChange, focusedAsset, pulseStatus 
+            onSymbolChange, focusedAsset, pulseStatus, moonbags = [] 
         }) => {
             const chartContainerRef = React.useRef(null);
             const chartInstance = React.useRef(null);
@@ -5520,9 +5520,22 @@
 
                 // Price Lines
                 const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
+                const activeMoon = moonbags && moonbags.find(m => m && m.symbol && m.symbol.replace('.P','').replace('.p','').replace('USDT','').toUpperCase() === localSymbol.replace('USDT','').toUpperCase());
                 let points = null;
                 
-                if (activeSlot) {
+                if (activeMoon) {
+                    const sideUpper = (activeMoon.side || "").toUpperCase().trim();
+                    const isLong = ['BUY', 'LONG', 'LONGUSDT', 'B', 'L'].includes(sideUpper);
+                    points = { 
+                        entry: parseFloat(activeMoon.entry_price), 
+                        sl: parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0), 
+                        side: activeMoon.side, 
+                        leverage: activeMoon.leverage || 50, 
+                        isLong,
+                        target_price: null,
+                        isMoonbag: true
+                    };
+                } else if (activeSlot) {
                     // SE existe um slot ativo para este símbolo, ele é a fonte da verdade suprema (DB)
                     const sideUpper = (activeSlot.side || "").toUpperCase().trim();
                     const isLong = ['BUY', 'LONG', 'LONGUSDT', 'B', 'L'].includes(sideUpper);
@@ -5556,15 +5569,21 @@
                         let slBadgeColor = '#ef4444';
                         let slBadgeLabel = 'STOP';
                         
-                        const isRiskFree = points.isLong ? (points.sl >= points.entry - (points.entry * 0.0005)) : (points.sl <= points.entry + (points.entry * 0.0005));
-                        const isProfitLocked = points.isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
-                        
-                        if (isProfitLocked) {
+                        if (points.isMoonbag) {
+                            const slRoi = Math.abs((points.sl - points.entry) / points.entry) * (points.leverage || 50) * 100;
                             slBadgeColor = '#10b981';
-                            slBadgeLabel = 'LUCRO 💎';
-                        } else if (isRiskFree) {
-                            slBadgeColor = '#3b82f6';
-                            slBadgeLabel = 'ZERO 🛡️';
+                            slBadgeLabel = `LUCRO ${slRoi.toFixed(0)}% 💎`;
+                        } else {
+                            const isRiskFree = points.isLong ? (points.sl >= points.entry - (points.entry * 0.0005)) : (points.sl <= points.entry + (points.entry * 0.0005));
+                            const isProfitLocked = points.isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
+                            
+                            if (isProfitLocked) {
+                                slBadgeColor = '#10b981';
+                                slBadgeLabel = 'LUCRO 💎';
+                            } else if (isRiskFree) {
+                                slBadgeColor = '#3b82f6';
+                                slBadgeLabel = 'ZERO 🛡️';
+                            }
                         }
                         
                         levels.push({ value: points.sl, label: slBadgeLabel, color: slBadgeColor });
@@ -5576,9 +5595,14 @@
                     // Alvo Principal (Structural Target ou T5 fallback)
                     const fallbackT5 = isLong ? points.entry * (1 + 1.5/leverage) : points.entry * (1 - 1.5/leverage);
                     const mainTp = points.target_price || points.t5 || fallbackT5;
-                    levels.push({ value: mainTp, label: 'TARGET', color: '#10b981' });
+                    levels.push({ value: mainTp, label: points.isMoonbag ? 'T5 💎' : 'TARGET', color: '#10b981' });
 
-                    const escadinhaLevels = [
+                    const escadinhaLevels = points.isMoonbag ? [
+                        { roi: 250, color: 'rgba(59, 130, 246, 0.5)', title: '1ª COL' },
+                        { roi: 350, color: 'rgba(20, 184, 166, 0.6)', title: '2ª COL' },
+                        { roi: 450, color: 'rgba(168, 85, 247, 0.7)', title: '3ª COL' },
+                        { roi: 600, color: '#22c55e', title: 'GOLD' }
+                    ] : [
                         { roi: 30, color: 'rgba(34, 197, 94, 0.5)', title: 'T1', key: 't1' },
                         { roi: 50, color: 'rgba(34, 197, 94, 0.7)', title: 'T2', key: 't2' },
                         { roi: 70, color: 'rgba(34, 197, 94, 0.9)', title: 'T3', key: 't3' },
@@ -5587,7 +5611,7 @@
                     ];
 
                     escadinhaLevels.forEach(lvl => {
-                        let p = points[lvl.key];
+                        let p = points.isMoonbag ? null : points[lvl.key];
                         if (!p) {
                             const move = lvl.roi / (leverage * 100);
                             p = isLong ? points.entry * (1 + move) : points.entry * (1 - move);
@@ -5608,7 +5632,7 @@
                     let adjustedY = y;
                     if (Math.abs(y - lastY) < 18) adjustedY = lastY + 18;
                     if (adjustedY > container.clientHeight - 10) return;
-
+ 
                     const badge = document.createElement('div');
                     badge.className = 'gutter-badge';
                     badge.style.top = (adjustedY - 8) + 'px';
@@ -5672,9 +5696,18 @@
 
                         // 2. Identify Points
                         const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','') === localSymbol);
+                        const activeMoon = moonbags && moonbags.find(m => m && m.symbol && m.symbol.replace('.P','').replace('.p','').replace('USDT','').toUpperCase() === localSymbol.replace('USDT','').toUpperCase());
                         let points = null;
 
-                        if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {
+                        if (activeMoon) {
+                            points = { 
+                                entry: parseFloat(activeMoon.entry_price), 
+                                sl: parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0), 
+                                side: activeMoon.side === 'Buy' || activeMoon.side === 'LONG' ? 'LONG' : 'SHORT', 
+                                leverage: activeMoon.leverage || 50,
+                                isMoonbag: true
+                            };
+                        } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {
                             points = { entry: parseFloat(focusedAsset.entry), sl: parseFloat(focusedAsset.sl), side: focusedAsset.side, leverage: focusedAsset.leverage || 50 };
                         } else if (activeSlot) {
                             points = { entry: parseFloat(activeSlot.entry_price), sl: parseFloat(activeSlot.current_stop || activeSlot.stop_loss), side: activeSlot.side, leverage: activeSlot.leverage || 50 };
@@ -5693,17 +5726,24 @@
                             let slStyle = 0; // Solid
                             
                             if (points.sl > 0) {
-                                const isRiskFree = isLong ? (points.sl >= points.entry - (points.entry * 0.0005)) : (points.sl <= points.entry + (points.entry * 0.0005));
-                                const isProfitLocked = isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
-                                
-                                if (isProfitLocked) {
+                                if (points.isMoonbag) {
+                                    const slRoi = Math.abs((points.sl - points.entry) / points.entry) * leverage * 100;
                                     slColor = '#10b981'; // Emerald
-                                    slTitle = 'PROFIT-LOCK 💎';
+                                    slTitle = `PROFIT-LOCK ${slRoi.toFixed(0)}% 💎`;
                                     slWidth = 3;
-                                } else if (isRiskFree) {
-                                    slColor = '#3b82f6'; // Blue
-                                    slTitle = 'RISK-FREE 🛡️';
-                                    slWidth = 3;
+                                } else {
+                                    const isRiskFree = isLong ? (points.sl >= points.entry - (points.entry * 0.0005)) : (points.sl <= points.entry + (points.entry * 0.0005));
+                                    const isProfitLocked = isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
+                                    
+                                    if (isProfitLocked) {
+                                        slColor = '#10b981'; // Emerald
+                                        slTitle = 'PROFIT-LOCK 💎';
+                                        slWidth = 3;
+                                    } else if (isRiskFree) {
+                                        slColor = '#3b82f6'; // Blue
+                                        slTitle = 'RISK-FREE 🛡️';
+                                        slWidth = 3;
+                                    }
                                 }
                             }
 
@@ -5719,10 +5759,15 @@
                             
                             const tp = points.target_price || (isLong ? points.entry * (1 + 1.5/leverage) : points.entry * (1 - 1.5/leverage));
                             priceLinesRef.current.tp = candlestickSeries.current.createPriceLine({ 
-                                price: tp, color: '#10b981', lineWidth: 2, lineStyle: 0, title: 'TARGET', axisLabelVisible: true 
+                                price: tp, color: '#10b981', lineWidth: 2, lineStyle: 0, title: points.isMoonbag ? '💎 MOONBAG (150%)' : 'TARGET', axisLabelVisible: true 
                             });
 
-                            const escadinhaLevels = [
+                            const escadinhaLevels = points.isMoonbag ? [
+                                { roi: 250, color: 'rgba(59, 130, 246, 0.5)', title: '🌾 1ª COLHEITA (250% ROI)' },
+                                { roi: 350, color: 'rgba(20, 184, 166, 0.6)', title: '🌾 2ª COLHEITA (350% ROI)' },
+                                { roi: 450, color: 'rgba(168, 85, 247, 0.7)', title: '🌾 3ª COLHEITA (450% ROI)' },
+                                { roi: 600, color: '#10b981', title: '👑 GOLDEN CEIFA (600% ROI)' }
+                            ] : [
                                 { roi: 30, color: 'rgba(59, 130, 246, 0.4)', title: '⚖️ FEE GUARD (30%)' },
                                 { roi: 50, color: 'rgba(20, 184, 166, 0.5)', title: '🌉 BRIDGE (50%)' },
                                 { roi: 70, color: 'rgba(34, 197, 94, 0.6)', title: '🛡️ RISK ZERO (70%)' },
@@ -5738,8 +5783,8 @@
                                     const line = candlestickSeries.current.createPriceLine({
                                         price: p, 
                                         color: lvl.color, 
-                                        lineWidth: lvl.roi === 150 ? 2 : 1, 
-                                        lineStyle: lvl.roi === 150 ? 0 : 2,
+                                        lineWidth: (points.isMoonbag || lvl.roi === 150) ? 2 : 1, 
+                                        lineStyle: (points.isMoonbag || lvl.roi === 150) ? 0 : 2,
                                         axisLabelVisible: true, 
                                         title: lvl.title
                                     });
@@ -5773,7 +5818,7 @@
 
                 updatePriceLines();
                 syncGutter();
-            }, [slots, localSymbol, focusedAsset, historicalData, pulseStatus]);
+            }, [slots, localSymbol, focusedAsset, historicalData, pulseStatus, moonbags]);
 
             // [FIX] Chama syncGutter também quando slots ou focusedAsset mudam sem historicalData mudar
             React.useEffect(() => {
@@ -6544,6 +6589,7 @@
                                         slots={slots} 
                                         focusedAsset={i === 0 ? focusedAsset : null}
                                         pulseStatus={pulseStatus}
+                                        moonbags={moonbags}
                                     />
                                 ))}
                             </div>

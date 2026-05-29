@@ -42,17 +42,17 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         try:
             response = await call_next(request)
-            if any(path in request.url.path for path in ["/", "/index.html", "/banca", "/radar", "/chat", "/vault", "/config", "/observatory"]):
-                response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate"
-                # V110.30.1: Hardened Cache Blindness
+            path_lower = request.url.path.lower()
+            # [V110.520] Anti-cache agressivo para arquivos estáticos HTML, rotas SPA e páginas principais
+            if any(path in path_lower for path in ["/", "/index.html", "/observatory", "/cockpit"]) or not any(ext in path_lower for ext in [".js", ".css", ".png", ".jpg", ".svg", ".json", ".ico"]):
+                response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate, post-check=0, pre-check=0"
                 response.headers["Pragma"] = "no-cache"
-                response.headers["Expires"] = "0"
+                response.headers["Expires"] = "Fri, 01 Jan 1990 00:00:00 GMT"
                 response.headers["Surrogate-Control"] = "no-store"
             return response
         except Exception as e:
             logger.error(f"❌ ASGI Middleware Exception during {request.url.path}: {str(e)}")
             from fastapi.responses import JSONResponse
-            # V110.30.1: Shield Protection - instead of crashing uvicorn, we return a 500 JSON
             return JSONResponse(
                 status_code=500,
                 content={"status": "error", "message": "Internal Server Shield: Route Failed", "path": request.url.path}

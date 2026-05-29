@@ -3215,7 +3215,9 @@
 
                 const fetchSlots = async () => {
                     try {
-                        const res = await fetch(API_BASE + '/api/slots');
+                        const token = localStorage.getItem('sniper_token');
+                        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                        const res = await fetch(API_BASE + '/api/slots', { headers });
                         if (res.ok) {
                             const data = await res.json();
                             const rawSlots = Array.isArray(data) ? data : [];
@@ -3226,8 +3228,10 @@
                             }
                             setSlots(fullSlots);
                             localStorage.setItem('slots_cache', JSON.stringify(fullSlots));
+                        } else if (res.status === 401) {
+                            console.warn('[SLOTS] Auth 401 — token ausente ou expirado. Tentando sem auth...');
                         }
-                    } catch (e) { }
+                    } catch (e) { console.warn('[SLOTS] Falha ao buscar slots:', e); }
                 };
 
                 window.addEventListener('sovereign-packet', handlePacket);

@@ -438,12 +438,54 @@ async def lifespan(app: FastAPI):
                 asyncio.create_task(market_context_loop())
 
                 async def bankroll_loop():
-
                     while True:
                         try: await bankroll_manager.update_banca_status()
                         except: pass
                         await asyncio.sleep(60)
                 asyncio.create_task(bankroll_loop())
+
+                # [V110.999] LIVE SLOTS BROADCAST LOOP — Garante que Observatory veja ordens
+                async def slots_broadcast_loop():
+                    """Publica slots ativos via WS a cada 5s para garantir sincronismo do Observatory."""
+                    while True:
+                        try:
+                            from services.firebase_service import firebase_service as _fs
+                            from services.websocket_service import websocket_service as _ws
+                            from services.okx_rest import okx_rest_service as _okx
+                            from services.execution_protocol import execution_protocol as _ep
+                            
+                            slots = await _fs.get_active_slots()
+                            
+                            # Enriquecer com ROI em tempo real
+                            try:
+                                resp = await _okx.get_tickers()
+                                ticker_list = resp.get("result", {}).get("list", [])
+                                price_map = {t["symbol"]: float(t.get("lastPrice", 0)) for t in ticker_list}
+                            except Exception:
+                                price_map = {}
+                            
+                            for slot in slots:
+                                if slot.get("symbol") and float(slot.get("entry_price", 0)) > 0:
+                                    sym_clean = slot["symbol"].replace(".P", "").upper()
+                                    live_price = price_map.get(sym_clean, 0)
+                                    entry = float(slot.get("entry_price", 0))
+                                    side = slot.get("side", "Buy")
+                                    if live_price > 0 and entry > 0:
+                                        try:
+                                            roi = _ep.calculate_roi(entry, live_price, side)
+                                            roi = max(-500, min(5000, roi))
+                                            slot["pnl_percent"] = round(roi, 1)
+                                        except Exception:
+                                            pass
+                                    slot["slot_type"] = "BLITZ"
+                            
+                            if _ws.active_connections:
+                                await _ws.emit_slots(slots)
+                        except Exception as e:
+                            logger.warning(f"[SLOTS-BROADCAST] Erro: {e}")
+                        await asyncio.sleep(5)
+                asyncio.create_task(slots_broadcast_loop())
+                logger.info("📡 [V110.999] Live Slots Broadcast Loop ATIVO — Observatory sincronizado.")
 
                 # 5. [V110.510] MCP Bridge for AIOS / n8n Integration
                 try:

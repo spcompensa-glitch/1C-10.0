@@ -462,8 +462,21 @@ async def get_vision_stats():
         "pair_counts": {}
     }
 
+_REGIMES_CACHE = {"data": {}, "ts": 0}
+
 @router.get("/radar/regimes")
 async def get_radar_regimes():
+    global _REGIMES_CACHE
+    now = time.time()
+    # [V110.999] Cache de 60s — evita 43 chamadas pesadas por request
+    if _REGIMES_CACHE["data"] and (now - _REGIMES_CACHE["ts"] < 60):
+        return _REGIMES_CACHE["data"]
+    
+    # Se cache vazio ou expirado, retorna o que tiver e dispara refresh em background
+    if _REGIMES_CACHE["data"]:
+        asyncio.create_task(_refresh_regimes_cache())
+        return _REGIMES_CACHE["data"]
+    
     try:
         services = get_services()
         bybit_rest_service = services[0]
@@ -535,8 +548,20 @@ async def get_radar_regimes():
         results = await asyncio.gather(*tasks)
         for sym, data in results:
             regimes[sym] = data
+        
+        # [V110.999] Salva no cache
+        _REGIMES_CACHE["data"] = regimes
+        _REGIMES_CACHE["ts"] = time.time()
             
         return regimes
     except Exception as e:
         logger.error(f"Error in get_radar_regimes: {e}")
-        return {}
+        return _REGIMES_CACHE.get("data", {})
+
+async def _refresh_regimes_cache():
+    """[V110.999] Refresh background do cache de regimes — chamado quando cache expirou mas ainda tem dados."""
+    global _REGIMES_CACHE
+    try:
+        await get_radar_regimes()
+    except Exception as e:
+        logger.warning(f"[REGIMES-BG] Background refresh error: {e}")

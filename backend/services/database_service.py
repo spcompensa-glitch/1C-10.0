@@ -104,8 +104,11 @@ class DatabaseService:
             logger.warning(f"DATABASE_URL contains invalid placeholder or scheme '{db_url}'. Ignoring to force local fallback.")
             db_url = None
 
-        if db_url and db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+        if db_url:
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif db_url.startswith("postgresql://"):
+                db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         
         # Fallback local para desenvolvimento
         if not db_url:

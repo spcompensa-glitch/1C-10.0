@@ -11,15 +11,38 @@ class WebSocketService:
     def __init__(self):
         # Gerencia as conexões ativas do Cockpit
         self.active_connections: Set[WebSocket] = set()
+        self._last_slots_snapshot = []  # [V110.999] Cache do último estado de slots
+        self._last_radar_snapshot = {}  # [V110.999] Cache do último radar pulse
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.add(websocket)
         logger.info(f"🔌 Cockpit Connected. Active sessions: {len(self.active_connections)}")
+        # [V110.999] Envia snapshot imediato ao conectar — resolve ordens invisíveis no Observatory
+        await self._send_initial_snapshot(websocket)
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.discard(websocket)
         logger.info(f"❌ Cockpit Disconnected. Active sessions: {len(self.active_connections)}")
+
+    async def _send_initial_snapshot(self, websocket: WebSocket):
+        """[V110.999] Envia estado atual para um cliente recém-conectado."""
+        def json_serial(obj):
+            if hasattr(obj, 'isoformat'): return obj.isoformat()
+            if isinstance(obj, set): return list(obj)
+            return str(obj)
+        try:
+            # 1. Envia slots ativos
+            if self._last_slots_snapshot:
+                msg = json.dumps({"type": "live_slots", "data": self._last_slots_snapshot}, default=json_serial)
+                await websocket.send_text(msg)
+            # 2. Envia último radar pulse
+            if self._last_radar_snapshot:
+                msg = json.dumps({"type": "radar_pulse", "data": self._last_radar_snapshot}, default=json_serial)
+                await websocket.send_text(msg)
+            logger.info(f"📦 [WS-SNAPSHOT] Snapshot inicial enviado para novo cliente.")
+        except Exception as e:
+            logger.warning(f"⚠️ [WS-SNAPSHOT] Falha ao enviar snapshot inicial: {e}")
 
     async def broadcast(self, message: dict):
         """Envia dados para todos os cockpits conectados."""
@@ -64,6 +87,7 @@ class WebSocketService:
 
     async def emit_slots(self, slots: list):
         """Envia a lista completa de slots (V110.180)."""
+        self._last_slots_snapshot = slots  # [V110.999] Atualiza cache
         await self.broadcast({
             "type": "live_slots",
             "data": slots
@@ -88,14 +112,16 @@ class WebSocketService:
 
     async def update_radar_pulse(self, signals: list, decisions: list, market_context: dict):
         """Envia o pacote completo de inteligência do Radar (V110.180)."""
+        payload = {
+            "signals": signals,
+            "decisions": decisions,
+            "market_context": market_context,
+            "updated_at": asyncio.get_event_loop().time()
+        }
+        self._last_radar_snapshot = payload  # [V110.999] Atualiza cache
         await self.broadcast({
             "type": "radar_pulse",
-            "data": {
-                "signals": signals,
-                "decisions": decisions,
-                "market_context": market_context,
-                "updated_at": asyncio.get_event_loop().time()
-            }
+            "data": payload
         })
 
     async def emit_system_state(self, state: dict):

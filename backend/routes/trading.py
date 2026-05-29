@@ -59,7 +59,8 @@ async def get_slots(current_user: User = Depends(get_current_user)):
                 price_map = {}
 
             for slot in slots:
-                if not slot.get("qty") or float(slot.get("qty", 0)) <= 0 or not slot.get("entry_price") or float(slot.get("entry_price", 0)) <= 0:
+                # [V110.999] FIX: Só limpa slots sem símbolo — não zero por qty/entry_price
+                if not slot.get("symbol"):
                     slot.update({
                         "symbol": None,
                         "status_risco": "IDLE",

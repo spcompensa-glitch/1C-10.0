@@ -5530,11 +5530,19 @@
                 if (activeMoon) {
                     const sideUpper = (activeMoon.side || "").toUpperCase().trim();
                     const isLong = ['BUY', 'LONG', 'LONGUSDT', 'B', 'L'].includes(sideUpper);
+                    const leverage = activeMoon.leverage || 50;
+                    let sl = parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0);
+                    
+                    if (sl <= 0) {
+                        const move = 1.1 / leverage;
+                        sl = isLong ? (parseFloat(activeMoon.entry_price) * (1 + move)) : (parseFloat(activeMoon.entry_price) * (1 - move));
+                    }
+                    
                     points = { 
                         entry: parseFloat(activeMoon.entry_price), 
-                        sl: parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0), 
+                        sl: sl, 
                         side: activeMoon.side, 
-                        leverage: activeMoon.leverage || 50, 
+                        leverage: leverage, 
                         isLong,
                         target_price: null,
                         isMoonbag: true
@@ -5704,11 +5712,20 @@
                         let points = null;
 
                         if (activeMoon) {
+                            const isLong = activeMoon.side === 'Buy' || activeMoon.side === 'LONG';
+                            const leverage = activeMoon.leverage || 50;
+                            let sl = parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0);
+                            
+                            if (sl <= 0) {
+                                const move = 1.1 / leverage;
+                                sl = isLong ? (parseFloat(activeMoon.entry_price) * (1 + move)) : (parseFloat(activeMoon.entry_price) * (1 - move));
+                            }
+                            
                             points = { 
                                 entry: parseFloat(activeMoon.entry_price), 
-                                sl: parseFloat(activeMoon.stopLoss || activeMoon.current_stop || activeMoon.stop_loss || 0), 
-                                side: activeMoon.side === 'Buy' || activeMoon.side === 'LONG' ? 'LONG' : 'SHORT', 
-                                leverage: activeMoon.leverage || 50,
+                                sl: sl, 
+                                side: isLong ? 'LONG' : 'SHORT', 
+                                leverage: leverage,
                                 isMoonbag: true
                             };
                         } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {

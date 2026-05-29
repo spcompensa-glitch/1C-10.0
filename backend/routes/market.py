@@ -395,7 +395,8 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
                 # 3. Calcula is_flex_mode
                 is_flex_mode = (43.0 <= rsi_2h <= 57.0)
 
-                # 4. Calcula is_dvap_active
+                # 4. Calcula is_dvap_active e extrai os alvos e stops estruturais
+                dvap_data = None
                 try:
                     klines_30m = await bybit_rest_service.get_klines(symbol=clean_symbol + ".P", interval="30", limit=100)
                     if klines_30m and len(klines_30m) >= 40:
@@ -410,6 +411,25 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
                         
                         if div_type and vol_climax:
                             is_dvap_active = True
+                            p_high, p_low = signal_generator.find_pivots_30m(highs_30m, lows_30m)
+                            current_close = closes_30m[-1]
+                            
+                            dvap_side = "LONG" if div_type == "BULLISH" else "SHORT"
+                            
+                            if dvap_side == "LONG":
+                                tp1, tp2 = signal_generator.calculate_fibonacci_targets("BUY", current_close, p_low)
+                                dvap_sl = p_low
+                            else:
+                                tp1, tp2 = signal_generator.calculate_fibonacci_targets("SELL", current_close, p_high)
+                                dvap_sl = p_high
+                                
+                            dvap_data = {
+                                "side": dvap_side,
+                                "entry": current_close,
+                                "sl": dvap_sl,
+                                "tp1": tp1,
+                                "tp2": tp2
+                            }
                 except Exception as dv_check_err:
                     logger.warning(f"Error checking DVAP in study route: {dv_check_err}")
         except Exception as enriquecer_err:
@@ -428,7 +448,8 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
             "is_decorrelated": is_decorrelated,
             "bias_2h": bias_2h,
             "is_flex_mode": is_flex_mode,
-            "is_dvap_active": is_dvap_active
+            "is_dvap_active": is_dvap_active,
+            "dvap_data": dvap_data
         }
     except Exception as e:
         logger.error(f"Error in get_market_study route: {e}")

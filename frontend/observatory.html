@@ -1684,6 +1684,61 @@ function processLayers(study, seriesGroup, obArr, fvgArr, is2H) {
 
             }
 
+            // [V127] DVAP & FLEX_MODE Integration
+            if (study.dvap_data) {
+                const dvap = study.dvap_data;
+                const sideUpper = dvap.side.toUpperCase();
+                const isLong = sideUpper === 'LONG' || sideUpper === 'BUY';
+                
+                // Marcador na última vela
+                if (d.length > 0) {
+                    m.push({
+                        time: d[d.length - 1].time,
+                        position: isLong ? 'belowBar' : 'aboveBar',
+                        color: '#FFD700', // Gold
+                        shape: isLong ? 'arrowUp' : 'arrowDown',
+                        text: `💎 DVAP ${sideUpper} TRIGGERED`
+                    });
+                }
+                
+                // Desenha linhas do DVAP no gráfico
+                if (dvap.entry > 0) {
+                    obArr.push(seriesGroup.candle.createPriceLine({ 
+                        price: dvap.entry, color: '#fff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'DVAP ENTRY'
+                    }));
+                    gLevels.push({ value: dvap.entry, label: 'DVAP ENTRY', color: '#FFFFFF' });
+                    
+                    if (dvap.sl > 0) {
+                        obArr.push(seriesGroup.candle.createPriceLine({ 
+                            price: dvap.sl, color: '#ef4444', lineWidth: 1.5, lineStyle: 0, axisLabelVisible: true, title: 'DVAP STOP'
+                        }));
+                        gLevels.push({ value: dvap.sl, label: 'DVAP STOP', color: '#ef4444' });
+                    }
+                    if (dvap.tp1 > 0) {
+                        obArr.push(seriesGroup.candle.createPriceLine({ 
+                            price: dvap.tp1, color: '#10b981', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: 'DVAP TP1 (1.618)'
+                        }));
+                        gLevels.push({ value: dvap.tp1, label: 'DVAP TP1', color: '#10b981' });
+                    }
+                    if (dvap.tp2 > 0) {
+                        obArr.push(seriesGroup.candle.createPriceLine({ 
+                            price: dvap.tp2, color: 'rgba(16, 185, 129, 0.6)', lineWidth: 1.5, lineStyle: 2, axisLabelVisible: true, title: 'DVAP TP2 (2.618)'
+                        }));
+                        gLevels.push({ value: dvap.tp2, label: 'DVAP TP2', color: '#10b981' });
+                    }
+                }
+            } else if (study.is_flex_mode) {
+                if (d.length > 0) {
+                    m.push({
+                        time: d[d.length - 1].time,
+                        position: 'aboveBar',
+                        color: '#a855f7', // Purple
+                        shape: 'circle',
+                        text: '🟣 FLEX NEUTRAL'
+                    });
+                }
+            }
+
             // OBs / RES / SUP Automáticos também no Gutter
             if (is2H) {
                  study.obs?.slice(-2).forEach(ob => {

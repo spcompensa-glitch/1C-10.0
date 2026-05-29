@@ -52,7 +52,7 @@ async def get_slots(current_user: User = Depends(get_current_user)):
         slots = await firebase_service.get_active_slots(username=target_username)
         if slots:
             try:
-                resp = await asyncio.to_thread(bybit_rest_service.session.get_tickers, category="linear")
+                resp = await bybit_rest_service.get_tickers()
                 ticker_list = resp.get("result", {}).get("list", [])
                 price_map = {t["symbol"]: float(t.get("lastPrice", 0)) for t in ticker_list}
             except Exception:

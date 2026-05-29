@@ -1685,6 +1685,20 @@ function processLayers(study, seriesGroup, obArr, fvgArr, is2H) {
             }
 
             // [V127] DVAP & FLEX_MODE Integration
+            if (study.dvap_history && study.dvap_history.length > 0) {
+                study.dvap_history.forEach(hist => {
+                    const sideUpper = hist.side.toUpperCase();
+                    const isLong = sideUpper === 'LONG' || sideUpper === 'BUY';
+                    m.push({
+                        time: hist.time,
+                        position: isLong ? 'belowBar' : 'aboveBar',
+                        color: '#FFD700', // Gold
+                        shape: isLong ? 'arrowUp' : 'arrowDown',
+                        text: `DVAP ${sideUpper}`
+                    });
+                });
+            }
+
             if (study.dvap_data) {
                 const dvap = study.dvap_data;
                 const sideUpper = dvap.side.toUpperCase();
@@ -2074,7 +2088,8 @@ function updateActiveOrdersMarkers() {
 
     const currentSlot = ACTIVE_SLOTS.find(s => s.symbol === cur || s.symbol === cur + '.P');
     if (currentSlot && currentSlot.opened_at) {
-        const entryTime = Math.floor(currentSlot.opened_at);
+        const parsedDate = new Date(currentSlot.opened_at);
+        const entryTime = isNaN(parsedDate.getTime()) ? Math.floor(currentSlot.opened_at) : Math.floor(parsedDate.getTime() / 1000);
         const entryPrice = parseFloat(currentSlot.entry_price);
         const slPrice = parseFloat(currentSlot.current_stop || currentSlot.stop_loss);
         const leverage = parseFloat(currentSlot.leverage || 50);

@@ -5818,7 +5818,12 @@
                             });
 
                             if (historicalData.candles.length > 0) {
-                                const entryTs = activeSlot?.opened_at || 0;
+                                const rawOpenedAt = activeSlot?.opened_at;
+                                let entryTs = 0;
+                                if (rawOpenedAt) {
+                                    const parsedDate = new Date(rawOpenedAt);
+                                    entryTs = isNaN(parsedDate.getTime()) ? Number(rawOpenedAt) : Math.floor(parsedDate.getTime() / 1000);
+                                }
                                 const entryPrice = points.entry;
                                 let entryCandle = historicalData.candles.find(c => Math.abs(c.time - entryTs) < 60);
                                 if (!entryCandle) entryCandle = historicalData.candles.find(c => Math.abs(c.close - entryPrice) / entryPrice < 0.001);

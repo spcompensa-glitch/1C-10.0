@@ -397,10 +397,29 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
 
                 # 4. Calcula is_dvap_active e extrai os alvos e stops estruturais
                 dvap_data = None
+                dvap_history = []
                 try:
-                    klines_30m = await bybit_rest_service.get_klines(symbol=clean_symbol + ".P", interval="30", limit=100)
+                    klines_30m = await bybit_rest_service.get_klines(symbol=clean_symbol + ".P", interval="30", limit=200)
                     if klines_30m and len(klines_30m) >= 40:
                         candles_30m = klines_30m[::-1]
+                        
+                        # Generate historical DVAP markers
+                        for i in range(40, len(candles_30m) + 1):
+                            slice_candles = candles_30m[:i]
+                            slice_closes = [float(c[4]) for c in slice_candles]
+                            slice_highs = [float(c[2]) for c in slice_candles]
+                            slice_lows = [float(c[3]) for c in slice_candles]
+                            slice_volumes = [float(c[5]) for c in slice_candles]
+                            
+                            s_div_type = signal_generator.check_ifr_divergence(slice_closes, slice_highs, slice_lows)
+                            s_vol_climax = signal_generator.check_volume_climax(slice_volumes, std_multiplier=1.8)
+                            
+                            if s_div_type and s_vol_climax:
+                                dvap_history.append({
+                                    "time": int(float(slice_candles[-1][0]) / 1000),
+                                    "side": "LONG" if s_div_type == "BULLISH" else "SHORT"
+                                })
+                        
                         closes_30m = [float(c[4]) for c in candles_30m]
                         highs_30m = [float(c[2]) for c in candles_30m]
                         lows_30m = [float(c[3]) for c in candles_30m]
@@ -449,11 +468,12 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
             "bias_2h": bias_2h,
             "is_flex_mode": is_flex_mode,
             "is_dvap_active": is_dvap_active,
-            "dvap_data": dvap_data
+            "dvap_data": dvap_data,
+            "dvap_history": dvap_history
         }
     except Exception as e:
         logger.error(f"Error in get_market_study route: {e}")
-        return {"klines": [], "patterns_abcd": [], "patterns_mola": [], "patterns_123": [], "swing_alignment": "NEUTRAL", "fvg": [], "ob": [], "rsi_2h": 50.0, "trend_2h": "NEUTRAL", "is_decorrelated": False, "bias_2h": "TREND_SYNC", "is_flex_mode": False, "is_dvap_active": False}
+        return {"klines": [], "patterns_abcd": [], "patterns_mola": [], "patterns_123": [], "swing_alignment": "NEUTRAL", "fvg": [], "ob": [], "rsi_2h": 50.0, "trend_2h": "NEUTRAL", "is_decorrelated": False, "bias_2h": "TREND_SYNC", "is_flex_mode": False, "is_dvap_active": False, "dvap_history": []}
 
 @router.get("/vision/stats")
 async def get_vision_stats():

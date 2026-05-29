@@ -2574,7 +2574,7 @@ class SignalGenerator:
                             logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC TRENDING! Locking WebSocket to ELITE 50 Majors.")
                         else:
                             # 1. Fetch Tickers for ALL symbols to identify laggards/leaders vs BTC
-                            ticker_resp = await asyncio.to_thread(bybit_rest_service.session.get_tickers, category="linear")
+                            ticker_resp = await bybit_rest_service.get_tickers()
                             tickers = ticker_resp.get("result", {}).get("list", [])
                             
                             btc_ticker = next((t for t in tickers if t.get("symbol") == "BTCUSDT"), {})
@@ -2989,7 +2989,7 @@ class SignalGenerator:
                     # 🔍 [V15.7.7] Volume Fallback: Fetch from REST if cache is zero (happens on startup)
                     if turnover_24h < 1000000:
                         try:
-                            ticker_resp = await asyncio.to_thread(bybit_rest_service.session.get_tickers, category="linear", symbol=symbol.replace(".P", ""))
+                            ticker_resp = await bybit_rest_service.get_tickers(symbol=symbol.replace(".P", ""))
                             ticker_data = ticker_resp.get("result", {}).get("list", [{}])[0]
                             turnover_24h = float(ticker_data.get("turnover24h", 0))
                             bybit_ws_service.turnover_24h_cache[symbol] = turnover_24h 

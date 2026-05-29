@@ -941,7 +941,7 @@ class OKXRest:
                                     exit_price = ws_price
                                     logger.info(f"[PAPER] Using WS price for closure: ${exit_price:.6f}")
                                 else:
-                                    ticker = await asyncio.to_thread(self.session.get_tickers, category="linear", symbol=api_symbol)
+                                    ticker = await self.get_tickers(symbol=api_symbol)
                                     ticker_list = ticker.get("result", {}).get("list", [])
                                     if ticker_list and float(ticker_list[0].get("lastPrice", 0)) > 0:
                                         exit_price = float(ticker_list[0].get("lastPrice", 0))
@@ -1470,7 +1470,7 @@ class OKXRest:
                     await asyncio.sleep(5)
                     continue
                 # 2. Batch fetch tickers & positions
-                resp = await asyncio.to_thread(self.session.get_tickers, category="linear")
+                resp = await self.get_tickers()
                 ticker_list = resp.get("result", {}).get("list", [])
                 price_map = {t["symbol"]: float(t.get("lastPrice", 0)) for t in ticker_list}
 

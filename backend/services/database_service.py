@@ -126,6 +126,56 @@ class DatabaseService:
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                
+                # Executar migrações auto-healing apenas se for PostgreSQL
+                if "postgresql" in self.engine.url.drivername:
+                    logger.info("🔧 Rodando migrações auto-healing para PostgreSQL...")
+                    from sqlalchemy import text
+                    # Definir colunas necessárias com tipos Postgres correspondentes
+                    migrations = [
+                        ("slots", "entry_margin", "DOUBLE PRECISION"),
+                        ("slots", "initial_stop", "DOUBLE PRECISION"),
+                        ("slots", "order_id", "TEXT"),
+                        ("slots", "target_price", "DOUBLE PRECISION"),
+                        ("slots", "leverage", "DOUBLE PRECISION"),
+                        ("slots", "slot_type", "TEXT"),
+                        ("slots", "strategy", "TEXT"),
+                        ("slots", "strategy_label", "TEXT"),
+                        ("slots", "genesis_id", "TEXT"),
+                        ("slots", "pensamento", "TEXT"),
+                        ("slots", "liq_price", "DOUBLE PRECISION"),
+                        ("slots", "structural_target", "DOUBLE PRECISION"),
+                        ("slots", "target_extended", "INTEGER"),
+                        ("slots", "is_ranging_sniper", "BOOLEAN"),
+                        ("slots", "v42_tag", "TEXT"),
+                        ("slots", "move_room_pct", "DOUBLE PRECISION"),
+                        ("slots", "pattern", "TEXT"),
+                        ("slots", "unified_confidence", "DOUBLE PRECISION"),
+                        ("slots", "fleet_intel", "JSONB"),
+                        ("slots", "is_reverse_sniper", "BOOLEAN"),
+                        ("slots", "market_regime", "TEXT"),
+                        ("slots", "rescue_activated", "BOOLEAN"),
+                        ("slots", "rescue_resolved", "BOOLEAN"),
+                        ("slots", "is_shadow_strike", "BOOLEAN"),
+                        ("slots", "score", "DOUBLE PRECISION"),
+                        ("slots", "t1", "DOUBLE PRECISION"),
+                        ("slots", "t2", "DOUBLE PRECISION"),
+                        ("slots", "t3", "DOUBLE PRECISION"),
+                        ("slots", "t4", "DOUBLE PRECISION"),
+                        ("slots", "t5", "DOUBLE PRECISION"),
+                        ("slots", "vision_url", "TEXT"),
+                        ("trade_history", "vision_url", "TEXT"),
+                        ("moonbags", "leverage", "DOUBLE PRECISION"),
+                        ("moonbags", "order_id", "TEXT"),
+                        ("moonbags", "opened_at", "DOUBLE PRECISION")
+                    ]
+                    for table, col, col_type in migrations:
+                        try:
+                            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type};"))
+                            logger.info(f"✅ Coluna '{col}' verificada/adicionada na tabela '{table}'.")
+                        except Exception as migration_error:
+                            logger.warning(f"Erro ao adicionar coluna {col} na tabela {table}: {migration_error}")
+            
             self.is_active = True
             logger.info("✅ Database Service initialized successfully (Postgres/Railway).")
         except Exception as e:

@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 # Adicionar o diretório backend ao sys.path para poder importar database_service
 current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.join(current_dir, "..", "1CRYPTEN_SPACE_V4.0", "backend")
+backend_dir = current_dir
 services_dir = os.path.join(backend_dir, "services")
 sys.path.append(backend_dir)
 sys.path.append(services_dir)
@@ -41,6 +41,9 @@ async def migrate():
         ("slots", "target_price", "DOUBLE PRECISION"),
         ("slots", "leverage", "DOUBLE PRECISION"),
         ("slots", "slot_type", "TEXT"),
+        ("slots", "strategy", "TEXT"),
+        ("slots", "strategy_label", "TEXT"),
+        ("slots", "genesis_id", "TEXT"),
         ("slots", "pensamento", "TEXT"),
         ("slots", "liq_price", "DOUBLE PRECISION"),
         ("slots", "structural_target", "DOUBLE PRECISION"),

@@ -1201,10 +1201,41 @@ class OKXRest:
 
     async def get_public_trade_history(self, symbol: str, limit: int = 50):
         """
-        [V16.0] REST Fallback for CVD calculation.
-        Fetches recent public trades via HTTP when WebSocket is unstable.
+        [V110.999] REST Fallback para cálculo de CVD ultra-resiliente via OKX.
+        Se a OKX falhar ou der rate limit, recorre à API pública da Bybit de forma blindada.
         """
         async with self._http_semaphore:
+            # 1. Tentar buscar dados públicos nativos da OKX
+            try:
+                from services.okx_service import okx_service
+                inst_id = okx_service.bybit_to_okx(symbol)
+                url = f"https://www.okx.com/api/v5/market/trades?instId={inst_id}&limit={limit}"
+                
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    response = await client.get(url)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("code") == "0" and data.get("data"):
+                            okx_trades = data["data"]
+                            translated = []
+                            for t in okx_trades:
+                                # Normaliza side para "Buy"/"Sell"
+                                raw_side = t.get("side", "buy").lower()
+                                side = "Buy" if raw_side == "buy" else "Sell"
+                                
+                                translated.append({
+                                    "id": t.get("tradeId", ""),
+                                    "price": t.get("px", "0"),
+                                    "size": t.get("sz", "0"),
+                                    "side": side,
+                                    "time": t.get("ts", "")
+                                })
+                            if translated:
+                                return translated
+            except Exception as okx_err:
+                logger.debug(f"[OKX-TRADE-HISTORY] Falha ao ler da OKX: {okx_err}")
+
+            # 2. Fallback resiliente para Bybit (se a OKX falhar)
             try:
                 api_symbol = self._strip_p(symbol)
                 resp = await asyncio.wait_for(
@@ -1214,11 +1245,15 @@ class OKXRest:
                         symbol=api_symbol,
                         limit=limit
                     ),
-                    timeout=5.0
+                    timeout=4.0
                 )
                 return resp.get("result", {}).get("list", [])
             except Exception as e:
-                logger.warning(f"Error fetching public trades for {symbol}: {e}")
+                # Ocultar o warning espalhafatoso se for 403 comum de IP dos EUA da Bybit
+                if "403" in str(e) or "ip is from the usa" in str(e).lower() or "rate limit" in str(e).lower():
+                    logger.debug(f"Bybit trade fallback skipped (IP blocked or limited): {e}")
+                else:
+                    logger.warning(f"Error fetching public trades fallback for {symbol}: {e}")
                 return []
 
     async def get_orderbook(self, symbol: str, limit: int = 50) -> dict:
@@ -1277,6 +1312,7 @@ class OKXRest:
                 if now - ts < 60.0:
                     return cached_data[:limit]
                     
+        # 4. Tentar obter via OKX
         try:
             from services.okx_service import okx_service
             inst_id = okx_service.bybit_to_okx(symbol)
@@ -1343,6 +1379,42 @@ class OKXRest:
                         
         except Exception as e:
             logger.error(f"Error fetching klines from OKX public API for {symbol}: {e}")
+
+        # 5. FALLBACK DE ALTA DISPONIBILIDADE: Bybit APIs (se a OKX falhar ou der rate limit definitivo)
+        logger.warning(f"⚠️ [OKX-REST KLINES FALLBACK] Ativando contingência de candles via Bybit para {symbol} (Intervalo: {interval})")
+        clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
+        bybit_urls = [
+            f"https://api.bybit.com/v5/market/kline?category=linear&symbol={clean_sym}&interval={interval}&limit={limit}",
+            f"https://api.bygames.com/v5/market/kline?category=linear&symbol={clean_sym}&interval={interval}&limit={limit}"
+        ]
+
+        for url in bybit_urls:
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get(url)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("retCode") == 0 and data.get("result", {}).get("list"):
+                            bybit_candles = data["result"]["list"]
+                            # Bybit retorna lista de arrays: [startTime, open, high, low, close, volume, turnover]
+                            formatted = []
+                            for c in bybit_candles:
+                                if len(c) >= 5:
+                                    formatted.append([
+                                        c[0], # start_time
+                                        c[1], # open
+                                        c[2], # high
+                                        c[3], # low
+                                        c[4], # close
+                                        c[5] if len(c) > 5 else "0", # volume
+                                        c[6] if len(c) > 6 else "0"  # turnover
+                                    ])
+                            if formatted:
+                                logger.info(f"✅ [OKX-REST KLINES FALLBACK SUCCESS] Candles públicos da Bybit obtidos com sucesso!")
+                                _GLOBAL_KLINES_CACHE[cache_key] = (time.time(), formatted)
+                                return formatted[:limit]
+            except Exception as byb_err:
+                logger.debug(f"[BYBIT-KLINES-FALLBACK-TRY] Falha ao obter de {url}: {byb_err}")
 
         return []
 

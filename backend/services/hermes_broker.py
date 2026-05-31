@@ -28,14 +28,14 @@ try:
     import services.hermes_pb2 as hermes_pb2
     import services.hermes_pb2_grpc as hermes_pb2_grpc
     GRPC_STUBS_AVAILABLE = True
-except ImportError:
+except Exception as e_grpc:
     try:
         import hermes_pb2 as hermes_pb2
         import hermes_pb2_grpc as hermes_pb2_grpc
         GRPC_STUBS_AVAILABLE = True
-    except ImportError:
+    except Exception as e_grpc_inner:
         logger.warning(
-            "⚠️ [gRPC] Stubs compilados do Hermes (hermes_pb2) não encontrados! "
+            f"⚠️ [gRPC] Falha ao carregar stubs compilados do Hermes: {e_grpc}. "
             "Execute a compilação do arquivo protos/hermes.proto. Usando Mocks em runtime."
         )
 

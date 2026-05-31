@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import hermes_pb2 as hermes__pb2
+import services.hermes_pb2 as hermes__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__

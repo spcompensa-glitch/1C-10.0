@@ -251,6 +251,11 @@
     - **Guardian Agent:** Implementação do agente de custódia para manutenção de integridade e segurança.
     - **Scrubbing:** Limpeza de >150 arquivos legados, reduzindo a dívida técnica e poluição do backend.
 
+*   **V110.200: MIGRATION COMPLETE TO OKX & DASHBOARD BLINDING [MAY 26]**
+    - **OKX Frontend Integration:** Migração de 100% dos canais públicos de WebSockets e APIs de cotação externa da Bybit no frontend para a **OKX** (`wss://ws.okx.com:8443/ws/v5/public` e `https://www.okx.com/api/v5/market/candles`).
+    - **PnL Fallback System:** Implementação de fallback inteligente e robusto no cockpit: se o WebSocket da exchange falhar no navegador, a UI consome de forma instantânea o PnL real e os dados calculados de forma cirúrgica pelo nosso backend.
+    - **Visual Hardening:** Adequação de 100% dos painéis, nomenclaturas de Health Check e modal de decolagem de "Bybit" para "OKX", erradicando qualquer resíduo legado.
+
 *   **V110.199: PRODUCTION DOMAIN FINALIZATION [APR 24]**
     - **CORS Hardening:** Inclusão de variantes `www` e domínios de produção no backend para eliminar bloqueios de segurança.
     - **Full Domain Parity:** Sincronização de regras de acesso para `1crypten.space`.
@@ -360,5 +365,5 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-05-31 (V110.701) Sincronizado*
+*Documento atualizado em: 2026-05-31 (V110.200) Sincronizado*
 *Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*

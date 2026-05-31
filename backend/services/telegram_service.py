@@ -115,9 +115,8 @@ class TelegramService:
             await asyncio.sleep(2)
 
     def start_polling_task(self):
-        """Inicializa o Polling em background se o Telegram estiver ativado no .env"""
-        if self.is_active:
-            logger.info("🤖 Serviço do Telegram ATIVADO. Aguardando comandos...")
-            asyncio.create_task(self._poll_updates())
+        """[DESATIVADO] A escuta de comandos agora é de responsabilidade exclusiva do Hermes Agent (Guardião)."""
+        logger.info("🤖 Telegram Polling desativado no Sniper. O Hermes Agent assumiu a escuta exclusiva dos comandos.")
+        return
 
 telegram_service = TelegramService()

@@ -1908,60 +1908,8 @@ class BankrollManager:
         [V110.62] Ativa um SHORT de Hedge em BTCUSDT para proteger a banca.
         Usado apenas em quedas violentas detectadas pelo Oráculo.
         """
-        async with self._hedge_lock:
-            if self.hedge_active:
-                return
-                
-            logger.warning(f"🛡️ [GUARDIAN-HEDGE] ATIVANDO SEGURO DE BANCA! Motivo: {reason}")
-            
-            try:
-                # 1. Parâmetros do Hedge: BTCUSDT SHORT, Margem Baixa (2% da Banca)
-                symbol = "BTCUSDT"
-                side = "Sell"
-                
-                # Calculamos margem de segurança (mínimo de $2 ou 2% do saldo)
-                balance = await self._get_operating_balance()
-                hedge_margin = max(2.0, balance * 0.02)
-                
-                # Alavancagem conservadora para Hedge (20x)
-                leverage = 20
-                
-                # Abrimos a posição via engine Paper ou Real
-                # Criamos um "Sinal Fake" para o motor entender como uma ordem especial
-                hedge_signal = {
-                    "symbol": symbol,
-                    "side": side,
-                    "score": 100,
-                    "leverage": leverage,
-                    "margin": hedge_margin,
-                    "reason": "GUARDIAN_HEDGE_ACTIVE",
-                    "sl_pct": 0.05, # Stop Loss de 5% de preço no seguro (atômico)
-                    "tp_pct": 0.10, # Take Profit longo
-                    "is_hedge": True
-                }
-                
-                # Nota: O Hedge não ocupa um dos 4 slots sniper, ele transita fora.
-                # Para transparência na UI, podemos enviar um evento.
-                await firebase_service.log_event("SENTINELA", f"🛡️ GUARDIAN HEDGE ATIVADO: {reason}", "CRITICAL")
-                
-                # Execução via BybitREST (Paper ou Real)
-                pos = await bybit_rest_service.open_position(
-                    symbol=symbol,
-                    side=side,
-                    leverage=leverage,
-                    qty=0, # Deixamos o motor calcular pelo margin
-                    margin_usd=hedge_margin
-                )
-                
-                if pos:
-                    self.hedge_active = True
-                    self.hedge_position_id = pos.get("id") or "HEDGE_BTC"
-                    logger.info(f"✅ [GUARDIAN-HEDGE] Posição de proteção aberta com sucesso!")
-                else:
-                    logger.error(f"❌ [GUARDIAN-HEDGE] Falha ao abrir posição de proteção.")
-                    
-            except Exception as e:
-                logger.error(f"Erro ao ativar Guardian Hedge: {e}")
+        logger.warning(f"🛡️ [GUARDIAN-HEDGE] Guardian Hedge desativado conforme User Rule (Sem BTC). Motivo: {reason}")
+        return
 
     async def auto_close_hedge(self, reason: str = "Recovery"):
         """

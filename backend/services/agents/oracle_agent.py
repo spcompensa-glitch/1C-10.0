@@ -123,12 +123,7 @@ class OracleAgent(AIOSAgent):
         # [V110.62] CRASH DETECTION (Guardian Hedge Trigger)
         var_15m = data.get("btc_variation_15m", 0)
         if var_15m < -2.0: # Queda de 2% em 15 min = Pânico
-            logger.warning(f"🚨 [ORACLE-PANIC] Queda violenta detectada: {var_15m:.2f}% em 15m. Disparando Guardian Hedge!")
-            try:
-                from services.bankroll import bankroll_manager
-                asyncio.create_task(bankroll_manager.activate_emergency_hedge(reason=f"Flash Crash: {var_15m:.2f}% in 15m"))
-            except Exception as e:
-                logger.error(f"Erro ao disparar Hedge: {e}")
+            logger.warning(f"🚨 [ORACLE-PANIC] Queda violenta detectada: {var_15m:.2f}% em 15m. Guardian Hedge desabilitado conforme User Rule (Sem BTC).")
         elif var_15m > -0.5: # Recuperação ou estabilização
              try:
                 from services.bankroll import bankroll_manager

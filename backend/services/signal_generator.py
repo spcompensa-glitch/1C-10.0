@@ -39,6 +39,7 @@ class SignalGenerator:
         self.exhaustion_level = 0.0
         self.last_context_update = 0  # V5.1.0: Context Sync
         self.last_radar_sync = 0      # V32.0: Periodic Dashboard Sync
+        self._is_syncing_radar = False
         # V9.0 Multi-Timeframe Trend Cache
         self.trend_cache = {}  # {symbol: {'trend': 'bullish'|'bearish'|'sideways', 'updated_at': timestamp, 'pattern': str}}
         self.trend_cache_ttl = 120  # [V20.4] 2 minutes cache (was 5min) for faster reversal detection
@@ -525,6 +526,10 @@ class SignalGenerator:
 
     async def _sync_radar_rtdb(self):
         """[V15.7.5] Synchronizes latest signals and decisions to RTDB for the frontend Radar."""
+        if getattr(self, "_is_syncing_radar", False):
+            logger.debug("📡 [RADAR-PULSE] Sincronização anterior ainda ativa. Pulando ciclo para evitar afunilamento.")
+            return
+        self._is_syncing_radar = True
         try:
             from services.bybit_ws import bybit_ws_service
             # V15.7.5: Added logging to verify sync is happening
@@ -559,11 +564,22 @@ class SignalGenerator:
                             consensus = cache["data"]
                         else:
                             from services.agents.captain import captain_agent
-                            consensus = await captain_agent._get_fleet_consensus({
-                                "symbol": symbol,
-                                "side": sig.get("side", "Buy"),
-                                "score": sig.get("score", 70)
-                            })
+                            # [V125 Failsafe Timeout] Evita congelamento se os agentes do kernel demorarem a responder
+                            try:
+                                consensus = await asyncio.wait_for(
+                                    captain_agent._get_fleet_consensus({
+                                        "symbol": symbol,
+                                        "side": sig.get("side", "Buy"),
+                                        "score": sig.get("score", 70)
+                                    }),
+                                    timeout=3.0
+                                )
+                            except asyncio.TimeoutError:
+                                logger.warning(f"⏱️ [FLEET-TIMEOUT] Timeout de 3s na consulta do consenso para {symbol}. Usando fallback neutro.")
+                                consensus = {
+                                    "unified_confidence": 50,
+                                    "intel": {"macro": 50, "micro": 50, "smc": 50, "onchain": 50}
+                                }
                             self.radar_consensus_cache[symbol] = {"data": consensus, "updated_at": time.time()}
                         
                         sig["unified_confidence"] = consensus.get("unified_confidence", 50)
@@ -698,6 +714,8 @@ class SignalGenerator:
             )
         except Exception as e:
             logger.error(f"Error syncing radar RTDB during init: {e}")
+        finally:
+            self._is_syncing_radar = False
 
     # ═══════════════════════════════════════════════════════════════
     # [V27.0] PHASE 3: MULTI-TIMEFRAME INTELLIGENCE V2

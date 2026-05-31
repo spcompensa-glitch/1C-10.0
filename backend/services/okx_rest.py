@@ -67,7 +67,10 @@ class OKXRest:
             
             if data:
                 self.paper_positions = data.get("positions", [])
+                # [V125 Sem BTC] Purga qualquer resíduo de BTCUSDT da memória Paper
+                self.paper_positions = [p for p in self.paper_positions if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_moonbags = data.get("moonbags", [])
+                self.paper_moonbags = [p for p in self.paper_moonbags if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_balance = data.get("balance", settings.BYBIT_SIMULATED_BALANCE)
                 if self.paper_balance != 100.0:
                     logger.info(f"💰 [V110.176 User Rule] Forçando recalibração da banca Paper de ${self.paper_balance:.2f} para $100.00.")

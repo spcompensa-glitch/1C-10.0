@@ -380,10 +380,7 @@ class CaptainAgent(AIOSAgent):
                     await asyncio.sleep(10)
                     continue
 
-                if bybit_rest_service.execution_mode == "PAPER":
-                    occupied_count = len(bybit_rest_service.paper_positions)
-                else:
-                    occupied_count = sum(1 for s in slots if s.get("symbol"))
+                occupied_count = sum(1 for s in slots if s.get("symbol"))
 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
@@ -502,10 +499,7 @@ class CaptainAgent(AIOSAgent):
                 # [V110.136] Executa o scan imediatamente e depois aguarda o intervalo
                 # Check available slots
                 slots = await firebase_service.get_active_slots()
-                if bybit_rest_service.execution_mode == "PAPER":
-                    occupied_count = len(bybit_rest_service.paper_positions)
-                else:
-                    occupied_count = sum(1 for s in slots if s.get("symbol"))
+                occupied_count = sum(1 for s in slots if s.get("symbol"))
 
                 # Regra Elite Slot 1: Só escaneia se o Slot 1 estiver livre (ou se houver menos de 4 ordens)
                 # Na verdade, o 'can_open_new_slot' já protege, mas aqui evitamos chamadas de rede desnecessárias.
@@ -897,7 +891,7 @@ class CaptainAgent(AIOSAgent):
                     )
                     logger.warning(msg)
                     await firebase_service.log_event("SENTINELA", msg, "WARNING")
-                    await firebase_service.update_signal_outcome(best_signal["id"], "LAZY_LATERAL_BLOCK")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "LAZY_LATERAL_BLOCK")
                     self.active_tocaias.discard(symbol)
                     return
 
@@ -932,7 +926,7 @@ class CaptainAgent(AIOSAgent):
                     logger.warning(msg)
                     await firebase_service.log_event("SENTINELA", msg, "WARNING")
                     if best_signal.get("id"):
-                        await firebase_service.update_signal_outcome(best_signal["id"], "ABSOLUTE_LATERAL_BLOCK")
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "ABSOLUTE_LATERAL_BLOCK")
                     self.active_tocaias.discard(symbol)
                     return
 
@@ -948,7 +942,7 @@ class CaptainAgent(AIOSAgent):
                 logger.warning(msg)
                 await firebase_service.log_event("CAPTAIN", msg, "INFO")
                 if best_signal.get("id"):
-                    await firebase_service.update_signal_outcome(best_signal["id"], "VANGUARD_LOW_SCORE")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "VANGUARD_LOW_SCORE")
                 self.active_tocaias.discard(symbol)
                 return
             elif is_blitz and "VANGUARD" in nectar_seal:
@@ -963,7 +957,7 @@ class CaptainAgent(AIOSAgent):
                     logger.warning(msg)
                     await firebase_service.log_event("CAPTAIN", msg, "WARNING")
                     if best_signal.get("id"):
-                        await firebase_service.update_signal_outcome(best_signal["id"], "LIBRARIAN_TRAP_BLOCKED")
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "LIBRARIAN_TRAP_BLOCKED")
                     self.active_tocaias.discard(symbol)
                     return
 
@@ -979,7 +973,7 @@ class CaptainAgent(AIOSAgent):
                 logger.warning(msg)
                 logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO QUARTERMASTER PARA {symbol}.")
                 # await firebase_service.log_event("QUARTERMASTER", msg, "WARNING")
-                # await firebase_service.update_signal_outcome(best_signal["id"], "QUARTERMASTER_BLOCK")
+                # await firebase_service.update_signal_outcome(best_signal.get("id"), "QUARTERMASTER_BLOCK")
                 # self.active_tocaias.discard(symbol)
                 # return
             
@@ -1020,7 +1014,7 @@ class CaptainAgent(AIOSAgent):
                     msg = f"🚫 [MACRO 110.128 BLOCK] Bloqueado {symbol} ({side}) contra a tendência BTC {btc_dir} (ADX={deep_macro['adx']:.1f} | Var15m={btc_variation_15m:.2f}%)."
                     logger.warning(msg)
                     await firebase_service.log_event("CAPTAIN", msg, "WARNING")
-                    await firebase_service.update_signal_outcome(best_signal["id"], "MACRO_3D_DIRECTION_BLOCK")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "MACRO_3D_DIRECTION_BLOCK")
                     self.active_tocaias.discard(symbol)
                     return
                 else:
@@ -1075,7 +1069,7 @@ class CaptainAgent(AIOSAgent):
                     if not allow_momentum:
                         msg = f"⏭️ {symbol} rejeitado: SCORE={score} em LAYER={signal_layer} | Regime: {market_regime} | ADX: {current_btc_adx:.1f}"
                         logger.info(msg)
-                        await firebase_service.update_signal_outcome(best_signal["id"], "MOMENTUM_BLOCKED")
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "MOMENTUM_BLOCKED")
                         self.active_tocaias.discard(symbol) # [FIX] Liberar tocaia no descarte
                         return
 
@@ -1107,8 +1101,8 @@ class CaptainAgent(AIOSAgent):
                     # Elite signal bypasses cooldown - continues execution
                 else:
                     logger.info(f"⏱️ {symbol} no cooldown (score {score} < 90 | Restante: {remaining:.0f}s). Abortando.")
-                    await firebase_service.update_signal_outcome(best_signal["id"], "COOLDOWN_SKIP")
-                    if slot_id: await firebase_service.free_slot(slot_id, "Cooldown Skip")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "COOLDOWN_SKIP")
+                    self.active_tocaias.discard(symbol)
                     return
 
             # 1.2 [V43.0] Get Fleet Consensus
@@ -1138,7 +1132,7 @@ class CaptainAgent(AIOSAgent):
                 logger.info(f"🚫 [FLEET] {symbol} REJEITADO: {reason}")
                 # [V110.27.0] Log critical rejection to events for user visibility
                 await firebase_service.log_event("SENTINELA", f"Caçada abortada para {symbol}: {reason}", "WARNING")
-                await firebase_service.update_signal_outcome(best_signal["id"], f"FLEET_REJECTED: {reason}")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), f"FLEET_REJECTED: {reason}")
                 self.active_tocaias.discard(symbol)
                 return
             
@@ -1157,7 +1151,7 @@ class CaptainAgent(AIOSAgent):
                     logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO ENGINE SPACE PARA {symbol}.")
                     # msg = f"🚫 [V68.0 ENGINE SPACE] Rejeitado: Espaço de manobra insuficiente."
                     # logger.warning(msg)
-                    # await firebase_service.update_signal_outcome(best_signal["id"], "ENGINE_SPACE_REJECTED")
+                    # await firebase_service.update_signal_outcome(best_signal.get("id"), "ENGINE_SPACE_REJECTED")
                     # self.active_tocaias.discard(symbol)
                     # return
 
@@ -1174,7 +1168,7 @@ class CaptainAgent(AIOSAgent):
             
             # Persist TOCAIA status in Firestore immediately
             await firebase_service.update_signal_outcome(
-                best_signal["id"], 
+                best_signal.get("id"), 
                 "HUNTING", 
                 {"indicators.pattern": "TOCAIA"}
             )
@@ -1213,7 +1207,7 @@ class CaptainAgent(AIOSAgent):
                 )
                 logger.info(msg)
                 await firebase_service.log_event("CAPTAIN", msg, "SUCCESS")
-                await firebase_service.update_signal_outcome(best_signal["id"], "DIRECT_ENTRY")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "DIRECT_ENTRY")
                 best_signal["execution_style"] = "DIRECT"
                 execution_style = "DIRECT"
             elif execution_style == "AMBUSH":
@@ -1227,7 +1221,7 @@ class CaptainAgent(AIOSAgent):
                 if not triggered:
                     msg = f"⏱️ [AMBUSH TIMEOUT] Preço não 'lambeu' a zona de entrada para {symbol}. Abortando Tocaia."
                     logger.warning(msg)
-                    await firebase_service.update_signal_outcome(best_signal["id"], "AMBUSH_TIMEOUT")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "AMBUSH_TIMEOUT")
                     # Liberamos o slot interno de monitoramento
                     self.active_tocaias.discard(symbol)
                     return
@@ -1241,7 +1235,7 @@ class CaptainAgent(AIOSAgent):
 
             if strong_trend_bypass:
                 logger.info(f"🚀 [V110.24.0 ACELERATOR] {symbol} ADX={current_btc_adx:.1f} Score={score}. Pulando validadores — capturando o momentum da tendência!")
-                await firebase_service.update_signal_outcome(best_signal["id"], "STRONG_TREND_ACELERATOR")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "STRONG_TREND_ACELERATOR")
                 best_signal["adaptive_sl"] = 0
                 best_signal["indicators"]["pattern"] = "TREND_SURF"
             else:
@@ -1256,12 +1250,12 @@ class CaptainAgent(AIOSAgent):
                 if not price_check["confirmed"]:
                     rejection = price_check.get("rejection_type", "UNKNOWN")
                     logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO PULLBACK HUNTER PARA {symbol}. ({rejection})")
-                    # await firebase_service.update_signal_outcome(best_signal["id"], f"{rejection}")
+                    # await firebase_service.update_signal_outcome(best_signal.get("id"), f"{rejection}")
                     # self.active_tocaias.discard(symbol)
                     # return
 
                 await firebase_service.update_signal_outcome(
-                    best_signal["id"],
+                    best_signal.get("id"),
                     "PRICE_STRUCTURE_OK",
                     {"indicators.pattern": best_signal["indicators"]["pattern"]}
                 )
@@ -1273,12 +1267,12 @@ class CaptainAgent(AIOSAgent):
                 if not flip_confirmed:
                     logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO NEEDLE FLIP PARA {symbol}.")
                     # logger.info(f"⏭️ [NEEDLE FLIP] {symbol} não confirmou exaustão CVD+Volume.")
-                    # await firebase_service.update_signal_outcome(best_signal["id"], "NEEDLE_FLIP_FAIL")
+                    # await firebase_service.update_signal_outcome(best_signal.get("id"), "NEEDLE_FLIP_FAIL")
                     # return
                 
-            await firebase_service.update_signal_outcome(best_signal["id"], "NEEDLE_FLIP_OK")
+            await firebase_service.update_signal_outcome(best_signal.get("id"), "NEEDLE_FLIP_OK")
             logger.info(f"🎯 V36.4 PULLBACK ALVO PRONTO: {symbol}")
-            await firebase_service.update_signal_outcome(best_signal["id"], "PICKED")
+            await firebase_service.update_signal_outcome(best_signal.get("id"), "PICKED")
             
             reasoning = best_signal.get("reasoning", "High Momentum")
             pensamento = f"V33.0 Pullback Hunter: Price Structure OK + Needle Flip OK. {reasoning} | Score: {score} | Fleet: {fleet_intel.get('sentiment', 'N/A')}"
@@ -1301,7 +1295,7 @@ class CaptainAgent(AIOSAgent):
                     logger.info(f"💎 [PAPER-BYPASS] Ignorando ANTI-CONCENTRATION (3 trades/dia) para {symbol} em modo simulado.")
                 else:
                     logger.info(f"🚫 [ANTI-CONCENTRATION] {symbol} bloqueado (limite 3 trades/dia).")
-                    await firebase_service.update_signal_outcome(best_signal["id"], "CONCENTRATION_BLOCK")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "CONCENTRATION_BLOCK")
                     return
                 
             # [V110.12.10] ATOMIC SLOT RE-VERIFICATION (Anti-Slot Overwrite)
@@ -1311,14 +1305,14 @@ class CaptainAgent(AIOSAgent):
             slot_id = await bankroll_manager.can_open_new_slot(symbol=symbol, slot_type=slot_type)
             if not slot_id:
                 logger.warning(f"🚨 [V110.12.10 ATOMIC LOCK] {symbol} finalizou Tocaia, mas slot ocupado ou indisponível. Abortando.")
-                await firebase_service.update_signal_outcome(best_signal["id"], "ATOMIC_SLOT_LOCK_REJECT")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "ATOMIC_SLOT_LOCK_REJECT")
                 return
             
             # Verificação Redundante de Segurança: Símbolo Único Global
             active_slots = await firebase_service.get_active_slots(force_refresh=True)
             if any(s.get("symbol") == symbol for s in active_slots):
                 logger.warning(f"🚨 [V110.12.10 SYMBOL LOCK] {symbol} já está em um slot. Abortando duplicata tardia.")
-                await firebase_service.update_signal_outcome(best_signal["id"], "SYMBOL_ALREADY_ACTIVE")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "SYMBOL_ALREADY_ACTIVE")
                 return
                 
             # [V110.62] CORRELATION SHIELD: Proteção contra Risco Espelhado
@@ -1330,7 +1324,7 @@ class CaptainAgent(AIOSAgent):
                     correlation = bybit_ws_service.get_correlation(active_sym, symbol)
                     if abs(correlation) >= 0.85:
                         logger.warning(f"🛡️ [V110.62 CORRELATION-SHIELD] Bloqueando entrada em {symbol}. Correlação de {correlation:.2f} com {active_sym} (Limite: 0.85).")
-                        await firebase_service.update_signal_outcome(best_signal["id"], f"CORRELATION_BLOCK_{active_sym}")
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), f"CORRELATION_BLOCK_{active_sym}")
                         return
                 
             # [V110.61] REGISTRO DE GÊNESE PREPARATÓRIO

@@ -79,7 +79,7 @@ class AuthService:
         """Busca usuário no Firestore pelo handle (@nome.10d)"""
         if not firebase_service.is_active:
             await firebase_service.initialize()
-
+            
         try:
             # Buscamos na coleção 'users' onde o ID é o username (ou um campo handle)
             user_doc = await asyncio.to_thread(firebase_service.db.collection("users").document(username).get)
@@ -94,13 +94,13 @@ class AuthService:
         username = user_data.get("username")
         if await self.get_user(username):
             raise HTTPException(status_code=400, detail="Handle já registrado.")
-
+            
         hashed = self.get_password_hash(user_data["password"])
         del user_data["password"]
         user_data["hashed_password"] = hashed
         user_data["created_at"] = time.time()
         user_data["role"] = user_data.get("role", "user")
-
+        
         try:
             await asyncio.to_thread(firebase_service.db.collection("users").document(username).set, user_data)
             return True
@@ -117,45 +117,39 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-    # [V110.140] SOVEREIGN BYPASS PROTOCOL - Ambiente Desenvolvimento Apenas
-    # Acesso sem JWT apenas permitido em ambiente de desenvolvimento
-    from services.secrets import secrets_manager
     
-    if secrets_manager.environment.value == "dev" and settings.DEBUG:
+    # [V110.140] SOVEREIGN BYPASS PROTOCOL - Restore Legacy UI Access
+    # Allows access from localhost/DEBUG without JWT Token or with invalid tokens
+    if settings.DEBUG:
         SOVEREIGN_USER = User(username="Sovereign", role="admin", email="admin@1crypten.space")
         try:
-            # Em desenvolvimento, permite acesso sem token para facilitar testes
+            # Caso 1: Sem token ou token explicitamente nulo da UI
             if not token or token in ["undefined", "null", "None"]:
-                logger.info("🔑 [DEV-BYPASS] Acesso sem token em ambiente de desenvolvimento")
+                logger.info("🔑 [SOVEREIGN-BYPASS] No token found. Granting access to Sovereign.")
                 return SOVEREIGN_USER
-
-            # Tenta validar o token se existir
+                
+            # Caso 2: Tenta validar o token se ele existir
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username: str = payload.get("sub")
             if username:
                 user = await auth_service.get_user(username=username)
-                if user:
+                if user: 
                     return user
-
-            # Token inválido em desenvolvimento - usa Sovereign
-            logger.warning(f"🔑 [DEV-BYPASS] Token inválido em desenvolvimento: {username}")
-            return SOVEREIGN_USER
-
-        except Exception as e:
-            # Em desenvolvimento, qualquer erro de JWT usa Sovereign
-            logger.info(f"🔑 [DEV-BYPASS] JWT Error em desenvolvimento: {str(e)}")
+            
+            # Caso 3: Token decodificado mas usuário não existe no banco
+            logger.warning(f"🔑 [SOVEREIGN-BYPASS] Token valid but user '{username}' not found. Using Sovereign.")
             return SOVEREIGN_USER
             
-    # PRODUÇÃO: Fluxo de autenticação obrigatório
-    logger.warning(f"🚫 [PRODUCTION] Tentativa de acesso sem token em produção: {token[:10] if token else 'None'}")
-    raise credentials_exception
+        except Exception as e:
+            # Caso 4: Token inválido ou expirado
+            logger.info(f"🔑 [SOVEREIGN-BYPASS] JWT Error ({str(e)}). Granting access to Sovereign.")
+            return SOVEREIGN_USER
 
     # Standard Production Auth Flow
     try:
         if not token:
             raise credentials_exception
-
+            
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
@@ -163,7 +157,7 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except Exception:
         raise credentials_exception
-
+        
     user = await auth_service.get_user(username=token_data.username)
     if user is None:
         raise credentials_exception

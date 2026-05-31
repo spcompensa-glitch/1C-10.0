@@ -1,0 +1,37 @@
+{
+  "certificate_id": "PHASE7-20260531-181051",
+  "timestamp": "2026-05-31T18:10:51.870685",
+  "status": "REJECTED",
+  "system": "1Cryptem 7.0",
+  "version": "V110.701",
+  "phase": "7 - Testes Completos de Regressão",
+  "validation_results": {
+    "success_rate": false,
+    "passed_tests": false,
+    "failed_tests": false,
+    "skipped_tests": true,
+    "duration": true,
+    "modules_coverage": true,
+    "integration": false
+  },
+  "summary": {
+    "total_tests": 8,
+    "passed_tests": 0,
+    "failed_tests": 6,
+    "skipped_tests": 2,
+    "success_rate": 0.0,
+    "duration": 11.305216550827026
+  },
+  "recommendations": [
+    "Aumentar taxa de sucesso para 95%+ através de correções de bugs críticos",
+    "Implementar testes unitários adicionais para cobrir funcionalidades críticas",
+    "Investigar e corrigir testes falhados, especialmente de integração",
+    "Implementar testes de integração robustos entre serviços"
+  ],
+  "next_steps": [
+    "1. Corrigir todos os testes falhados",
+    "2. Implementar melhorias identificadas",
+    "3. Reexecutar validação",
+    "4. Solicitar nova avaliação"
+  ]
+}

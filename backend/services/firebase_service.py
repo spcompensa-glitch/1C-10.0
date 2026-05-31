@@ -1186,6 +1186,21 @@ class FirebaseService:
             logger.warning(f"🛡️ [SAFETY LOCK] Blocking reset for Slot {slot_id} ({current_state.get('symbol')}). Updated too recently.")
             return
 
+        # [V110.182] REAL-ASSET SHIELD: Impedir purga de slots simulados ou reais legítimos
+        # se o slot tiver quantidade > 0 e preço > 0 e a purga for por "Ghost" ou "Pre-Open Purge",
+        # a menos que venha acompanhada de trade_data legítimo com pnl (ou seja, fechamento real).
+        exist_qty = float(current_state.get("qty") or 0)
+        exist_entry = float(current_state.get("entry_price") or 0)
+        is_phantom_purge = any(p_word in reason.upper() for p_word in ["GHOST", "PRE-OPEN PURGE", "CLEANUP", "ZOMBIE"])
+        if exist_qty > 0 and exist_entry > 0 and is_phantom_purge:
+            req_symbol = (trade_data or {}).get("symbol")
+            slot_symbol = current_state.get("symbol")
+            # Se for do mesmo símbolo e tiver PnL legítimo, ou se não houver conflito de símbolos, permite.
+            # Caso contrário (símbolos diferentes), bloqueia o reset indevido.
+            if slot_symbol and req_symbol and req_symbol.upper().replace(".P","") != slot_symbol.upper().replace(".P",""):
+                logger.error(f"🛡️ [REAL-ASSET SHIELD] Bloqueando hard reset do Slot {slot_id} ({slot_symbol}) por motivo de '{reason}'. Posição física/simulada ativa (@ ${exist_entry}, Qty: {exist_qty}) protegida contra purgas destrutivas.")
+                return False
+
         logger.info(f"🚨 [HARD RESET] Slot {slot_id} | Motivo: {reason} | PNL: ${pnl:.2f}")
 
         # [V110.61] GENESIS RECOVERY: Se o slot está incompleto, tenta buscar na gênese

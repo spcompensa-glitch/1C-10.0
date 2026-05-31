@@ -262,6 +262,44 @@ class BankrollManager:
 
         logger.info("🛡️ [SYNC] Starting Bybit-as-Truth Synchronization...")
         try:
+            # [V110.180] AUTO-ADOPT-DYNAMIC (Amnesia-Guard dinâmico para evitar purga fantasma)
+            if bybit_rest_service.execution_mode == "PAPER":
+                try:
+                    slots_for_adopt = await firebase_service.get_active_slots(force_refresh=True)
+                    if slots_for_adopt:
+                        local_symbols = {p.get("symbol", "").upper().replace(".P", "") for p in bybit_rest_service.paper_positions}
+                        for f_slot in slots_for_adopt:
+                            symbol = f_slot.get("symbol")
+                            entry_price = float(f_slot.get("entry_price", 0))
+                            qty = float(f_slot.get("qty", 0))
+                            if symbol and entry_price > 0 and qty > 0:
+                                norm_symbol = symbol.upper().replace(".P", "")
+                                if norm_symbol not in local_symbols:
+                                    logger.warning(f"🚑 [AUTO-ADOPT-DYNAMIC] Adotando ordem órfã do Postgres para RAM: {symbol} @ ${entry_price} (Qty: {qty})")
+                                    recovered_pos = {
+                                        "symbol": symbol,
+                                        "side": f_slot.get("side", "Buy"),
+                                        "size": str(f_slot.get("qty", 0)),
+                                        "avgPrice": str(f_slot.get("entry_price", 0)),
+                                        "leverage": str(f_slot.get("leverage", 50)),
+                                        "status": "RECOVERED",
+                                        "stopLoss": str(f_slot.get("current_stop", 0)),
+                                        "takeProfit": str(f_slot.get("target_price", 0)),
+                                        "opened_at": f_slot.get("opened_at", time.time()),
+                                        "is_paper": True,
+                                        "slot_id": f_slot.get("id", 0),
+                                        "entry_margin": f_slot.get("entry_margin", 0),
+                                        "genesis_id": f_slot.get("genesis_id", ""),
+                                        "score": f_slot.get("score", 0),
+                                        "fleet_intel": f_slot.get("fleet_intel", {}),
+                                        "pensamento": f_slot.get("pensamento", ""),
+                                        "slot_type": f_slot.get("slot_type", "SNIPER"),
+                                    }
+                                    bybit_rest_service.paper_positions.append(recovered_pos)
+                                    local_symbols.add(norm_symbol)
+                except Exception as adopt_err:
+                    logger.error(f"❌ [AUTO-ADOPT-DYNAMIC-ERROR] Falha ao auto-adotar posições simuladas: {adopt_err}")
+
             # 1. Fetch Current State
             exchange_positions = await bybit_rest_service.get_active_positions()
             slots = await firebase_service.get_active_slots(force_refresh=True)
@@ -1320,6 +1358,16 @@ class BankrollManager:
                 if target_slot_id and target_slot_id != slot_id:
                      logger.info(f"🛡️ [V6.3] Slot Routing Override: Requested {target_slot_id}, but providing {slot_id} for safety.")
                 
+                # [V110.181] ATOMIC SLOT INTEGRITY TRAVA (Anticolisão de Slot)
+                check_slot = next((s for s in active_slots if s.get("id") == slot_id), None)
+                if check_slot:
+                    exist_sym = check_slot.get("symbol")
+                    exist_qty = float(check_slot.get("qty", 0))
+                    exist_entry = float(check_slot.get("entry_price", 0))
+                    if exist_sym and exist_sym.upper().replace(".P","") != norm_symbol.replace(".P","") and exist_qty > 0 and exist_entry > 0:
+                        logger.error(f"❌ [SLOT-COLLISION-TRAVA] Bloqueando colisão destrutiva! Tentativa de abrir {symbol} no Slot {slot_id}, mas ele já está ocupado por {exist_sym} (@ ${exist_entry}, Qty: {exist_qty}) no Postgres físico.")
+                        return None
+
                 # 1.3 Atomic Lock: Claim the slot in memory before any network calls
                 self.pending_slots[(norm_symbol, slot_id)] = time.time()
                 

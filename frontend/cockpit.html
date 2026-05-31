@@ -5003,7 +5003,7 @@
             ];
             const ceifBadge = ceifeiroBadges.find(b => roi >= b.minRoi && roi < b.nextRoi) || ceifeiroBadges[ceifeiroBadges.length - 1];
 
-            // 💎 Badge de Profit-Lock baseado no stop atual
+            // 💎 Badge de Profit-Lock baseado no stop atual — espelha escadinha do Ceifeiro até 1200%
             const stopVal = Number(moonbag.current_stop || moonbag.stop_loss || moonbag.stopLoss || 0);
             let profitLockBadge = null;
             if (stopVal > 0 && entry > 0) {
@@ -5011,15 +5011,23 @@
                     ? (stopVal / entry - 1)
                     : (1 - stopVal / entry)
                 ) * 100 * (Number(moonbag.leverage) || 50);
-                if (stopRoi >= 110) {
-                    let lockColor = 'bg-emerald-600/90';
-                    let lockLabel = `💎 TRAVADO +${stopRoi.toFixed(0)}%`;
-                    if (stopRoi >= 600) { lockColor = 'bg-red-600/90'; lockLabel = `🔱 HYPER-LOCK +${stopRoi.toFixed(0)}%`; }
-                    else if (stopRoi >= 350) { lockColor = 'bg-amber-500/90'; lockLabel = `⚡ GOLD-LOCK +${stopRoi.toFixed(0)}%`; }
-                    else if (stopRoi >= 200) { lockColor = 'bg-teal-500/90'; lockLabel = `🛡️ PROFIT-LOCK +${stopRoi.toFixed(0)}%`; }
-                    profitLockBadge = { color: lockColor, label: lockLabel };
+                // Níveis espelhando exatamente a escadinha do Ceifeiro (mais alto primeiro)
+                if (stopRoi >= 1200) {
+                    profitLockBadge = { color: 'bg-gradient-to-r from-red-900 to-red-700 border-red-500/50', label: `🔱 APEX-LOCK +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 800) {
+                    profitLockBadge = { color: 'bg-red-700/90', label: `🔱 HYPER-LOCK +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 600) {
+                    profitLockBadge = { color: 'bg-orange-600/90', label: `⚡ CHOKE-LOCK +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 450) {
+                    profitLockBadge = { color: 'bg-emerald-600/90', label: `🥇 GOLD-LOCK +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 350) {
+                    profitLockBadge = { color: 'bg-purple-600/90', label: `🌾 3ª COL TRAVADA +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 250) {
+                    profitLockBadge = { color: 'bg-teal-600/90', label: `🌾 2ª COL TRAVADA +${stopRoi.toFixed(0)}%` };
+                } else if (stopRoi >= 110) {
+                    profitLockBadge = { color: 'bg-blue-600/90', label: `🌾 1ª COL TRAVADA +${stopRoi.toFixed(0)}%` };
                 } else if (stopRoi >= 0) {
-                    profitLockBadge = { color: 'bg-blue-600/70', label: `🛡️ RISCO ZERO` };
+                    profitLockBadge = { color: 'bg-slate-600/80', label: `🛡️ RISCO ZERO` };
                 }
             }
 

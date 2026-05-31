@@ -5195,7 +5195,10 @@
                 if (price > 0 && Number(s.entry_price) > 0) {
                     const ne = Number(s.entry_price);
                     const leverage = s.leverage || 50;
-                    livePnl = s.side === 'Buy' ? ((price - ne) / ne * 100 * leverage) : ((ne - price) / ne * 100 * leverage);
+                    const isLong = s.side === 'Buy' || s.side === 'LONG';
+                    livePnl = isLong ? ((price - ne) / ne * 100 * leverage) : ((ne - price) / ne * 100 * leverage);
+                } else {
+                    livePnl = Number(s.pnl_percent || 0);
                 }
                 const alpha = 0.25;
                 const nextVal = (livePnl * alpha) + (smoothingRef.current * (1 - alpha));
@@ -7071,36 +7074,43 @@
             const liveTotalPnL = useMemo(() => {
                 // Tactical Slots PnL
                 const sPnL = slots.reduce((acc, s) => {
-                    if (!s || !s.symbol || !s.entry_price) return acc;
+                    if (!s || !s.symbol) return acc;
                     const cleanSymbol = (s.symbol || '').replace('.P', '').replace('.p', '').trim();
                     const price = tickers[cleanSymbol];
-                    if (!price || price <= 0) return acc;
-
-                    const entry = Number(s.entry_price);
+                    const entry = Number(s.entry_price || 0);
                     const leverage = s.leverage || 50;
-                    const margin = Number(s.entry_margin || 10);
+                    const margin = Number(s.entry_margin || s.margin || 10);
 
-                    const pnlPct = s.side === 'Buy'
-                        ? (price - entry) / entry
-                        : (entry - price) / entry;
+                    let pnlPct = 0;
+                    if (price && price > 0 && entry > 0) {
+                        pnlPct = s.side === 'Buy' || s.side === 'LONG'
+                            ? (price - entry) / entry
+                            : (entry - price) / entry;
+                    } else {
+                        // Fallback: s.pnl_percent já está alavancado em %. Dividimos por 100 e pela alavancagem para obter a variação nominal.
+                        pnlPct = (Number(s.pnl_percent || 0) / 100) / leverage;
+                    }
 
                     return acc + (pnlPct * leverage * margin);
                 }, 0);
 
                 // Moonbag Vault PnL
                 const mPnL = moonbags.reduce((acc, mb) => {
-                    if (!mb || !mb.symbol || !mb.entry_price) return acc;
+                    if (!mb || !mb.symbol) return acc;
                     const cleanSymbol = (mb.symbol || '').replace('.P', '').replace('.p', '').trim();
                     const price = tickers[cleanSymbol];
-                    if (!price || price <= 0) return acc;
-
-                    const entry = Number(mb.entry_price);
+                    const entry = Number(mb.entry_price || 0);
                     const leverage = mb.leverage || 50;
-                    const margin = Number(mb.entry_margin || 10);
+                    const margin = Number(mb.entry_margin || mb.margin || 10);
 
-                    const pnlPct = mb.side === 'Buy'
-                        ? (price - entry) / entry
-                        : (entry - price) / entry;
+                    let pnlPct = 0;
+                    if (price && price > 0 && entry > 0) {
+                        pnlPct = mb.side === 'Buy' || mb.side === 'LONG'
+                            ? (price - entry) / entry
+                            : (entry - price) / entry;
+                    } else {
+                        pnlPct = (Number(mb.pnl_percent || 0) / 100) / leverage;
+                    }
 
                     return acc + (pnlPct * leverage * margin);
                 }, 0);

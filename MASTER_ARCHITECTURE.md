@@ -1,7 +1,20 @@
-# MASTER_ARCHITECTURE.md — V110.180 "SaaS v5.5.0"
+# MASTER_ARCHITECTURE.md — V110.701 "Ceifeiro 1200% & Escadinha Expandida"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.701: CEIFEIRO 1200% & ESCADINHA EXPANDIDA (PROFIT-LOCK) [MAY 31]**
+    - **Escadinha Profit-Lock Expandida até 1200% ROI**: Expansão completa dos níveis de trailing stop do Ceifeiro (HarvesterAgent) para cobrir todo o espectro de 150% até 1200% ROI, espelhando fielmente os níveis do Ceifeiro nos cards da UI.
+    - **Badges Dinâmicos do Ceifeiro**: Restauração do clique de foco no gráfico + badges visuais indicando o nível atual do Ceifeiro em cada card de Moonbag.
+    - **Trajetória de Slots Unificada**: A rota visual dos slots agora reflete os alvos do Ceifeiro até 1200% ROI, preservando o preço de entrada original.
+    - **Ceifeiro 1200% Test Suite**: Dois testes de validação completos (`test_ceifeiro.py`, `test_jornada_completa.py`) com **0 falhas**:
+      - **test_ceifeiro.py**: Valida todos os níveis de trailing stop (WAVE, ROCKET, STAR, CROWN, SUPERNOVA, GOD_MODE, CHOKE_HOLD) + colheitas parciais (PRIMEIRA_COLHEITA 65%, GOLDEN_COLHEITA 85%, Safety Net 80%, Parabolic Climax 90%).
+      - **test_jornada_completa.py**: Valida a jornada completa do slot (STOP INICIAL → Break-Even → Profit Bridge → Risk Zero → Profit Lock → EMANCIPAÇÃO) até moonbag (WAVE → ROCKET → STAR → CROWN → SUPERNOVA → GOD_MODE → CHOKE_HOLD → APEX 1200%).
+
+*   **V110.700: MOONBAG UI REFINEMENT & CLIQUE DE FOCO [MAY 31]**
+    - **Clique de Foco no Gráfico**: Restauração do comportamento de clique nos cards de Moonbag para focar o ativo no gráfico principal.
+    - **Badges Dinâmicos do Ceifeiro**: Indicadores visuais em tempo real nos cards da Vault mostrando o nível atual do Ceifeiro (WAVE, ROCKET, STAR, CROWN, etc.).
+    - **Layout Card Fix**: Correção de vazamento de layout no `MoonbagVaultItem` mudando para `flex-col` e arrumando campos Stop/Target zerados.
 
 *   **V110.180: POSTGRES TYPE CONCILIATION & AUDIT RESILIENCE [MAY 31]**
     - **Postgres Datatype Mismatch Resolution**: Correção na tabela `slots` para alinhar o campo `opened_at` mapeado no SQLAlchemy como `Column(Float)` ao invés de `Column(DateTime)`, conciliando-o com o tipo `DOUBLE PRECISION` da coluna física no PostgreSQL do Railway. Isso eliminou o erro fatal `DatatypeMismatchError` que travava silenciosamente a persistência de novos slots.
@@ -347,5 +360,5 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-05-31 (V110.180) Sincronizado*
+*Documento atualizado em: 2026-05-31 (V110.701) Sincronizado*
 *Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*

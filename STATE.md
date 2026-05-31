@@ -1,8 +1,8 @@
 # Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.701)
 
 ## Resumo Executivo
-* **Versão:** `V110.999: Sovereign Sync, Telemetria & Telegram Pro`
-* **Data:** 2026-05-28
+* **Versão:** `V110.701: Ceifeiro 1200% & Escadinha Expandida`
+* **Data:** 2026-05-31
 * **Estado:** `OPERATIONAL ✅`
 * **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real.
 
@@ -36,6 +36,23 @@
 * **Fallbacks Híbridos de Rede:** Em caso de queda ou inatividade deliberada do SDK do Firebase em servidores cloud, o backend direciona de forma transparente toda a leitura de histórico e pulso de radar diretamente para o PostgreSQL, evitando vazios e preservando o funcionamento da UI.
 
 ---
+
+## Componentes do Sistema e Status de Serviços
+
+## Testes Validados
+
+### ✅ Ceifeiro 1200% (test_ceifeiro.py)
+Validação completa do HarvesterAgent com **0 falhas**:
+- Trailing Stop Progressivo: WAVE (200%), ROCKET (300%), STAR (400%), CROWN (500%), SUPERNOVA (600%), GOD_MODE (700%), CHOKE_HOLD (800%-1200%)
+- Colheita Parcial: PRIMEIRA_COLHEITA (65% aos 250%), GOLDEN_COLHEITA (85% aos 600%), Safety Net (80% aos 700%), Parabolic Climax (90% aos 1000%)
+- Paciência Absoluta: SL nunca regride
+- Cooldown de 30 min respeitado entre colheitas
+
+### ✅ Jornada Completa (test_jornada_completa.py)
+Validação ponta a ponta com **0 falhas**:
+- **FASE 1 - Slot Ativo**: STOP INICIAL (-100% ROI) → Break-Even (+30%) → Profit Bridge (+50%) → Risk Zero (+70%) → Profit Lock (+110%) → EMANCIPAÇÃO (+150%)
+- **FASE 2 - Moonbag**: WAVE (200%) → ROCKET (300%) → STAR (400%) → CROWN (500%) → SUPERNOVA (600%) → GOD_MODE (700%) → CHOKE_HOLD (800-1200%) com colheitas parciais no caminho
+- **FASE 3 - Tabela Consolidada**: Visualização completa da trajetória de $0 a 1200% ROI
 
 ## Componentes do Sistema e Status de Serviços
 

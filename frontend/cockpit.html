@@ -1723,7 +1723,7 @@
             { msg: "Iniciando Núcleo Neural...", progress: 10 },
             { msg: "Sincronizando Inteligência de Frota...", progress: 25 },
             { msg: "Mapeando DNA do Bibliotecário...", progress: 45 },
-            { msg: "Conectando ao Quantum Stream Bybit...", progress: 65 },
+            { msg: "Conectando ao Quantum Stream OKX...", progress: 65 },
             { msg: "Calibrando Filtro de Armadilhas Whale...", progress: 85 },
             { msg: "Interface Pronta. Bem-vindo, Almirante.", progress: 100 }
         ];
@@ -3926,17 +3926,35 @@
 
             const fetchHistory = async () => {
                 if (!symbol || !isMounted.current) return;
-                const apiSymbol = String(symbol || '').replace('.P', '');
-                console.log(`[Chart] Fetching history for ${apiSymbol} (Display: ${symbol}) @ ${tf}m`);
+                let apiSymbol = String(symbol || '').replace('.P', '').replace('.p', '').trim();
+                if (!apiSymbol.endsWith('-SWAP')) {
+                    if (apiSymbol.endsWith('USDT')) {
+                        apiSymbol = apiSymbol.replace('USDT', '-USDT-SWAP');
+                    } else {
+                        apiSymbol = apiSymbol + '-USDT-SWAP';
+                    }
+                }
+                
+                let okxTf = "15m";
+                if (tf === "1") okxTf = "1m";
+                else if (tf === "5") okxTf = "5m";
+                else if (tf === "15") okxTf = "15m";
+                else if (tf === "30") okxTf = "30m";
+                else if (tf === "60") okxTf = "1H";
+                else if (tf === "120") okxTf = "2H";
+                else if (tf === "240") okxTf = "4H";
+                else if (tf === "1440") okxTf = "1D";
+
+                console.log(`[Chart] Fetching history from OKX for ${apiSymbol} (Display: ${symbol}) @ ${okxTf}`);
                 try {
-                    const response = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${apiSymbol}&interval=${tf}&limit=300`);
+                    const response = await fetch(`https://www.okx.com/api/v5/market/candles?instId=${apiSymbol}&bar=${okxTf}&limit=300`);
                     const json = await response.json();
 
                     if (!isMounted.current || !seriesRef.current) return;
 
-                    if (json.result && json.result.list) {
-                        console.log(`[Chart] Received ${json.result.list.length} candles for ${symbol}`);
-                        const klines = json.result.list.map(k => ({
+                    if (json.data && Array.isArray(json.data)) {
+                        console.log(`[Chart] Received ${json.data.length} candles for ${symbol}`);
+                        const klines = json.data.map(k => ({
                             time: parseInt(k[0]) / 1000,
                             open: parseFloat(k[1]),
                             high: parseFloat(k[2]),
@@ -4103,38 +4121,70 @@
                         }
                     }
 
-                    const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
+                    const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
                     chartWsRef.current = ws;
-                    const apiSymbol = String(symbol || '').replace('.P', '');
+                    
+                    let apiSymbol = String(symbol || '').replace('.P', '').replace('.p', '').trim();
+                    if (!apiSymbol.endsWith('-SWAP')) {
+                        if (apiSymbol.endsWith('USDT')) {
+                            apiSymbol = apiSymbol.replace('USDT', '-USDT-SWAP');
+                        } else {
+                            apiSymbol = apiSymbol + '-USDT-SWAP';
+                        }
+                    }
 
+                    let okxTf = "15m";
+                    if (tf === "1") okxTf = "1m";
+                    else if (tf === "5") okxTf = "5m";
+                    else if (tf === "15") okxTf = "15m";
+                    else if (tf === "30") okxTf = "30m";
+                    else if (tf === "60") okxTf = "1H";
+                    else if (tf === "120") okxTf = "2H";
+                    else if (tf === "240") okxTf = "4H";
+                    else if (tf === "1440") okxTf = "1D";
+
+                    const channelCandle = `candle${okxTf}`;
                     let heartbeatInterval;
 
                     ws.onopen = () => {
                         if (ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ op: 'subscribe', args: [`kline.${tf}.${apiSymbol}`, `tickers.${apiSymbol}`] }));
+                            ws.send(JSON.stringify({
+                                op: 'subscribe',
+                                args: [
+                                    { channel: channelCandle, instId: apiSymbol },
+                                    { channel: 'tickers', instId: apiSymbol }
+                                ]
+                            }));
                         }
                         heartbeatInterval = setInterval(() => {
                             if (ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ op: 'ping' }));
+                                ws.send("ping");
                             }
                         }, 20000);
                     };
 
                     ws.onmessage = (event) => {
+                        if (event.data === "pong") return;
                         if (!active || !isMounted.current || !chartRef.current) return;
-                        const msg = JSON.parse(event.data);
-                        if (msg.topic && msg.topic.startsWith('kline') && seriesRef.current) {
-                            const k = msg.data[0];
-                            const update = { time: k.start / 1000, open: parseFloat(k.open), high: parseFloat(k.high), low: parseFloat(k.low), close: parseFloat(k.close) };
-                            try {
+                        try {
+                            const msg = JSON.parse(event.data);
+                            if (msg.arg && msg.arg.channel && msg.arg.channel.startsWith('candle') && seriesRef.current && msg.data) {
+                                const k = msg.data[0];
+                                const update = {
+                                    time: parseInt(k[0]) / 1000,
+                                    open: parseFloat(k[1]),
+                                    high: parseFloat(k[2]),
+                                    low: parseFloat(k[3]),
+                                    close: parseFloat(k[4])
+                                };
                                 if (seriesRef.current) seriesRef.current.update(update);
-                                if (volumeSeriesRef.current) volumeSeriesRef.current.update({ ...update, value: parseFloat(k.volume), color: update.close >= update.open ? 'rgba(255, 255, 255, 0.3)' : 'rgba(239, 68, 68, 0.3)' });
+                                if (volumeSeriesRef.current) volumeSeriesRef.current.update({ ...update, value: parseFloat(k[5]), color: update.close >= update.open ? 'rgba(255, 255, 255, 0.3)' : 'rgba(239, 68, 68, 0.3)' });
                                 if (zonesRef.current) zonesRef.current.update({ time: update.time, value: update.close });
-                            } catch (e) { }
-                        }
-                        if (msg.topic && msg.topic.startsWith('tickers') && msg.data.lastPrice) {
-                            setLastPrice(parseFloat(msg.data.lastPrice));
-                        }
+                            }
+                            if (msg.arg && msg.arg.channel === 'tickers' && msg.data && msg.data[0].last) {
+                                setLastPrice(parseFloat(msg.data[0].last));
+                            }
+                        } catch (e) { }
                     };
 
                     ws.onclose = () => {
@@ -4145,7 +4195,6 @@
                     };
 
                     ws.onerror = (e) => {
-                        // Silent close for cleaner console
                         if (ws.readyState === WebSocket.OPEN) ws.close();
                     };
                 };
@@ -4382,8 +4431,8 @@
             );
         };
 
-        // --- Hook: Real-time Bybit Tickers ---
-        const useBybitTickers = (activeSymbols) => {
+        // --- Hook: Real-time OKX Tickers ---
+        const useOkxTickers = (activeSymbols) => {
             const [tickers, setTickers] = useState({});
             const wsRef = useRef(null);
             const reconnectTimeoutRef = useRef(null);
@@ -4400,49 +4449,58 @@
                         }
                     }
 
-                    const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
+                    const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
                     wsRef.current = ws;
 
-                    const topics = activeSymbols.map(s => {
-                        const cleanSymbol = s.replace('.P', '').replace('.p', '');
-                        return `tickers.${cleanSymbol}`;
+                    const args = activeSymbols.map(s => {
+                        let apiSymbol = s.replace('.P', '').replace('.p', '').trim();
+                        if (!apiSymbol.endsWith('-SWAP')) {
+                            if (apiSymbol.endsWith('USDT')) {
+                                apiSymbol = apiSymbol.replace('USDT', '-USDT-SWAP');
+                            } else {
+                                apiSymbol = apiSymbol + '-USDT-SWAP';
+                            }
+                        }
+                        return { channel: 'tickers', instId: apiSymbol };
                     }).filter(Boolean);
 
                     let heartbeatInterval;
 
                     ws.onopen = () => {
-                        console.log("[WS] Tickers Connected");
-                        if (topics.length > 0) {
-                            ws.send(JSON.stringify({ op: 'subscribe', args: topics }));
+                        console.log("[WS] OKX Tickers Connected");
+                        if (args.length > 0) {
+                            ws.send(JSON.stringify({ op: 'subscribe', args: args }));
                         }
-                        // Heartbeat Ping-Pong
+                        // Heartbeat Ping (OKX accepts "ping" string)
                         heartbeatInterval = setInterval(() => {
                             if (ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ op: 'ping' }));
+                                ws.send("ping");
                             }
                         }, 20000);
                     };
 
                     ws.onmessage = (event) => {
-                        const msg = JSON.parse(event.data);
-                        if (msg.topic && msg.topic.startsWith('tickers')) {
-                            const symbol = msg.topic.split('.')[1];
-                            const price = parseFloat(msg.data.lastPrice);
-                            // V5.4.5: Only update if price is valid to prevent flickering
-                            if (!isNaN(price) && price > 0) {
-                                setTickers(prev => ({ ...prev, [symbol]: price }));
+                        if (event.data === "pong") return;
+                        try {
+                            const msg = JSON.parse(event.data);
+                            if (msg.arg && msg.arg.channel === 'tickers' && msg.data && msg.data[0].last) {
+                                const okxSymbol = msg.arg.instId;
+                                const symbol = okxSymbol.replace('-USDT-SWAP', 'USDT');
+                                const price = parseFloat(msg.data[0].last);
+                                if (!isNaN(price) && price > 0) {
+                                    setTickers(prev => ({ ...prev, [symbol]: price }));
+                                }
                             }
-                        }
+                        } catch (e) {}
                     };
 
                     ws.onclose = () => {
-                        console.warn("[WS] Tickers Disconnected. Reconnecting...");
+                        console.warn("[WS] OKX Tickers Disconnected. Reconnecting...");
                         clearInterval(heartbeatInterval);
                         reconnectTimeoutRef.current = setTimeout(connect, 3000);
                     };
 
                     ws.onerror = (err) => {
-                        // V110.201: Silent error handling for Bybit Stream
                         if (ws.readyState === WebSocket.OPEN) ws.close();
                     };
                 };
@@ -4451,7 +4509,7 @@
 
                 return () => {
                     if (wsRef.current) {
-                        wsRef.current.onclose = null; // Prevent reconnect on unmount
+                        wsRef.current.onclose = null;
                         wsRef.current.close();
                     }
                     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
@@ -7068,7 +7126,7 @@
                 const unique = Array.from(new Set([...sSymbols, ...mSymbols]));
                 return unique;
             }, [slots, moonbags]);
-            const tickers = useBybitTickers(activeSymbols);
+            const tickers = useOkxTickers(activeSymbols);
 
             // [V24.2] Live Equity Calculation (Tactical + Vault)
             const liveTotalPnL = useMemo(() => {
@@ -7121,8 +7179,8 @@
             const liveCycleProfit = (vault.cycle_profit || 0) + liveTotalPnL;
             const liveTotalProfit = (banca.lucro_total_acumulado || 0) + liveTotalPnL;
             // [V28.2] PAPER MODE FIX: Prioriza saldo_total (calculado pelo backend com lógica PAPER)
-            // O saldo_real_bybit vem da Bybit diretamente e não reflete o modo simulado.
-            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_bybit || 10));
+            // O saldo_real_okx vem da OKX diretamente e não reflete o modo simulado.
+            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || banca.saldo_real_bybit || 10));
             const liveEquity = baseEquity + liveTotalPnL;
 
             // Map Best Signals
@@ -7776,9 +7834,9 @@
         // 6. Takeoff Checklist Modal - V4.5.0 Comprehensive Protocol Check
         const TakeoffModal = ({ onComplete }) => {
             const [checks, setChecks] = useState({
-                api: { status: 'pending', label: 'ConexÃ£o com Bybit', system: 'Sistema API', icon: 'cloud_sync' },
-                latency: { status: 'pending', label: 'LatÃªncia de Rede', system: 'Sistema LATENCY', icon: 'speed' },
-                balance: { status: 'pending', label: 'SincronizaÃ§Ã£o de Saldo', system: 'Sistema BALANCE', icon: 'account_balance_wallet' },
+                api: { status: 'pending', label: 'Conexão com OKX', system: 'Sistema API', icon: 'cloud_sync' },
+                latency: { status: 'pending', label: 'Latência de Rede', system: 'Sistema LATENCY', icon: 'speed' },
+                balance: { status: 'pending', label: 'Sincronização de Saldo', system: 'Sistema BALANCE', icon: 'account_balance_wallet' },
                 firebase: { status: 'pending', label: 'Firebase Firestore', system: 'Sistema FIREBASE', icon: 'storage' },
                 ai: { status: 'pending', label: 'IA Neural (OpenRouter)', system: 'Sistema AI', icon: 'psychology' },
                 guardian: { status: 'pending', label: 'Guardian V5.0', system: 'Sistema GUARDIAN', icon: 'shield' },
@@ -7788,7 +7846,7 @@
 
             useEffect(() => {
                 const runChecks = async () => {
-                    // ========== 1. BYBIT + BALANCE (from /health) ==========
+                    // ========== 1. OKX + BALANCE (from /health) ==========
                     try {
                         console.log("V6.0 ELITE: Checking Backend Health...");
                         const res = await fetch(API_BASE + '/health');
@@ -7797,9 +7855,9 @@
                             const data = await res.json();
                             console.log("Health Response:", data);
 
-                            // Bybit connection check
-                            const bybitOk = data.bybit_connected === true;
-                            setChecks(prev => ({ ...prev, api: { ...prev.api, status: bybitOk ? 'success' : 'error' } }));
+                            // OKX connection check
+                            const okxOk = data.bybit_connected === true;
+                            setChecks(prev => ({ ...prev, api: { ...prev.api, status: okxOk ? 'success' : 'error', label: 'Conexão com OKX' } }));
 
                             // Balance sync check
                             const balanceOk = data.balance > 0 || data.bybit_connected === true;

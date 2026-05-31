@@ -1007,8 +1007,9 @@ class BankrollManager:
             
             # [V92.0] DECENTRALIZED: Global lock removed. Multiple symbols can claim slots in parallel.
 
-            # [V43.2] Pre-fetch slots for Risk-Free check
-            slots = await firebase_service.get_active_slots(force_refresh=True)
+            # [V43.2] Pre-fetch slots for Risk-Free check (Ancorado na SSOT Postgres)
+            from services.database_service import database_service
+            slots = await database_service.get_active_slots()
             active_slots_data = slots if bybit_rest_service.execution_mode == "REAL" else []
             if bybit_rest_service.execution_mode == "PAPER":
                 # Create a structure matching REAL slots for the risk check
@@ -1322,9 +1323,10 @@ class BankrollManager:
                     logger.warning(f"Iron Lock: Signal {symbol} is in cooldown (recently closed). BLOCKED.")
                     return None
 
-                active_slots = await firebase_service.get_active_slots(force_refresh=True)
+                from services.database_service import database_service
+                active_slots = await database_service.get_active_slots()
                 if any(bybit_rest_service._strip_p(S.get("symbol") or "").upper() == norm_symbol for S in active_slots):
-                    logger.warning(f"Iron Lock: Signal {symbol} already active in Firebase. BLOCKED.")
+                    logger.warning(f"Iron Lock: Signal {symbol} already active in Postgres (SSOT). BLOCKED.")
                     return None
                 
                 if any(k[0] == norm_symbol for k in self.pending_slots):

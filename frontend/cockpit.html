@@ -5613,21 +5613,37 @@
                     const mainTp = points.target_price || points.t5 || fallbackT5;
                     levels.push({ value: mainTp, label: points.isMoonbag ? 'T5 💎' : 'TARGET', color: '#10b981' });
 
-                    const escadinhaLevels = points.isMoonbag ? [
-                        { roi: 250, color: 'rgba(59, 130, 246, 0.5)', title: '1ª COL' },
-                        { roi: 350, color: 'rgba(20, 184, 166, 0.6)', title: '2ª COL' },
-                        { roi: 450, color: 'rgba(168, 85, 247, 0.7)', title: '3ª COL' },
-                        { roi: 600, color: '#22c55e', title: 'GOLD' }
-                    ] : [
-                        { roi: 30, color: 'rgba(34, 197, 94, 0.5)', title: 'T1', key: 't1' },
-                        { roi: 50, color: 'rgba(34, 197, 94, 0.7)', title: 'T2', key: 't2' },
-                        { roi: 70, color: 'rgba(34, 197, 94, 0.9)', title: 'T3', key: 't3' },
-                        { roi: 110, color: 'rgba(234, 179, 8, 0.9)', title: 'T4', key: 't4' },
-                        { roi: 150, color: '#22c55e', title: 'T5', key: 't5' }
-                    ];
+                    const escadinhaLevels = [];
+                    if (points.isMoonbag) {
+                        // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (cinza discreto)
+                        escadinhaLevels.push(
+                            { roi: 30, color: 'rgba(148, 163, 184, 0.3)', title: 'T1' },
+                            { roi: 50, color: 'rgba(148, 163, 184, 0.3)', title: 'T2' },
+                            { roi: 70, color: 'rgba(148, 163, 184, 0.3)', title: 'T3' },
+                            { roi: 110, color: 'rgba(148, 163, 184, 0.3)', title: 'T4' },
+                            { roi: 150, color: 'rgba(16, 185, 129, 0.4)', title: 'T5 💎' }
+                        );
+                        // 🌾 Novos alvos de colheita do Ceifeiro até 1200% ROI - Cores brilhantes
+                        escadinhaLevels.push(
+                            { roi: 250, color: 'rgba(59, 130, 246, 0.6)', title: '1ª COL' },
+                            { roi: 350, color: 'rgba(20, 184, 166, 0.7)', title: '2ª COL' },
+                            { roi: 450, color: 'rgba(168, 85, 247, 0.8)', title: '3ª COL' },
+                            { roi: 600, color: 'rgba(16, 185, 129, 0.9)', title: 'GOLD' },
+                            { roi: 800, color: 'rgba(245, 158, 11, 0.9)', title: 'CHOKE' },
+                            { roi: 1200, color: 'rgba(239, 68, 68, 0.95)', title: 'HYPER 🔱' }
+                        );
+                    } else {
+                        escadinhaLevels.push(
+                            { roi: 30, color: 'rgba(34, 197, 94, 0.5)', title: 'T1', key: 't1' },
+                            { roi: 50, color: 'rgba(34, 197, 94, 0.7)', title: 'T2', key: 't2' },
+                            { roi: 70, color: 'rgba(34, 197, 94, 0.9)', title: 'T3', key: 't3' },
+                            { roi: 110, color: 'rgba(234, 179, 8, 0.9)', title: 'T4', key: 't4' },
+                            { roi: 150, color: '#22c55e', title: 'T5', key: 't5' }
+                        );
+                    }
 
                     escadinhaLevels.forEach(lvl => {
-                        let p = points.isMoonbag ? null : points[lvl.key];
+                        let p = (points.isMoonbag || !lvl.key) ? null : points[lvl.key];
                         if (!p) {
                             const move = lvl.roi / (leverage * 100);
                             p = isLong ? points.entry * (1 + move) : points.entry * (1 - move);
@@ -5784,32 +5800,49 @@
                             
                             const tp = points.target_price || (isLong ? points.entry * (1 + 1.5/leverage) : points.entry * (1 - 1.5/leverage));
                             priceLinesRef.current.tp = candlestickSeries.current.createPriceLine({ 
-                                price: tp, color: '#10b981', lineWidth: 2, lineStyle: 0, title: points.isMoonbag ? '💎 MOONBAG (150%)' : 'TARGET', axisLabelVisible: true 
+                                price: tp, color: '#10b981', lineWidth: 2, lineStyle: 0, title: points.isMoonbag ? '💎 MOONBAG EMANCIPATION' : 'TARGET', axisLabelVisible: true 
                             });
 
-                            const escadinhaLevels = points.isMoonbag ? [
-                                { roi: 250, color: 'rgba(59, 130, 246, 0.5)', title: '🌾 1ª COLHEITA (250% ROI)' },
-                                { roi: 350, color: 'rgba(20, 184, 166, 0.6)', title: '🌾 2ª COLHEITA (350% ROI)' },
-                                { roi: 450, color: 'rgba(168, 85, 247, 0.7)', title: '🌾 3ª COLHEITA (450% ROI)' },
-                                { roi: 600, color: '#10b981', title: '👑 GOLDEN CEIFA (600% ROI)' }
-                            ] : [
-                                { roi: 30, color: 'rgba(59, 130, 246, 0.4)', title: '⚖️ FEE GUARD (30%)' },
-                                { roi: 50, color: 'rgba(20, 184, 166, 0.5)', title: '🌉 BRIDGE (50%)' },
-                                { roi: 70, color: 'rgba(34, 197, 94, 0.6)', title: '🛡️ RISK ZERO (70%)' },
-                                { roi: 110, color: 'rgba(245, 158, 11, 0.7)', title: '🟡 LOCK (110%)' },
-                                { roi: 150, color: '#10b981', title: '💎 MOONBAG (150%)' }
-                            ];
+                            const escadinhaLevels = [];
+                            if (points.isMoonbag) {
+                                // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (discretos e finos)
+                                escadinhaLevels.push(
+                                    { roi: 30, color: 'rgba(148, 163, 184, 0.25)', title: '⚖️ FEE GUARD (30%) • BATIDO', isOld: true },
+                                    { roi: 50, color: 'rgba(148, 163, 184, 0.25)', title: 'Bridge (50%) • BATIDO', isOld: true },
+                                    { roi: 70, color: 'rgba(148, 163, 184, 0.25)', title: '🛡️ RISK ZERO (70%) • BATIDO', isOld: true },
+                                    { roi: 110, color: 'rgba(148, 163, 184, 0.25)', title: '🟡 LOCK (110%) • BATIDO', isOld: true },
+                                    { roi: 150, color: 'rgba(16, 185, 129, 0.4)', title: '💎 EMANCIPADO (150%) • INICIAL', isOld: true }
+                                );
+                                // 🌾 Novos alvos do Ceifeiro estendidos até 1200% ROI - Cores progressivas brilhantes
+                                escadinhaLevels.push(
+                                    { roi: 250, color: 'rgba(59, 130, 246, 0.65)', title: '🌾 1ª COLHEITA (250% ROI)' },
+                                    { roi: 350, color: 'rgba(20, 184, 166, 0.75)', title: '🌾 2ª COLHEITA (350% ROI)' },
+                                    { roi: 450, color: 'rgba(168, 85, 247, 0.85)', title: '🌾 3ª COLHEITA (450% ROI)' },
+                                    { roi: 600, color: 'rgba(16, 185, 129, 0.95)', title: '👑 GOLDEN CEIFA (600% ROI)' },
+                                    { roi: 800, color: 'rgba(245, 158, 11, 0.95)', title: '⚡ CHOKE-HOLD (800% ROI)' },
+                                    { roi: 1200, color: 'rgba(239, 68, 68, 0.95)', title: '🔱 HYPER CLIMAX (1200% ROI)' }
+                                );
+                            } else {
+                                escadinhaLevels.push(
+                                    { roi: 30, color: 'rgba(59, 130, 246, 0.4)', title: '⚖️ FEE GUARD (30%)' },
+                                    { roi: 50, color: 'rgba(20, 184, 166, 0.5)', title: '🌉 BRIDGE (50%)' },
+                                    { roi: 70, color: 'rgba(34, 197, 94, 0.6)', title: '🛡️ RISK ZERO (70%)' },
+                                    { roi: 110, color: 'rgba(245, 158, 11, 0.7)', title: '🟡 LOCK (110%)' },
+                                    { roi: 150, color: '#10b981', title: '💎 MOONBAG (150%)' }
+                                );
+                            }
 
                             if (!priceLinesRef.current.targets) priceLinesRef.current.targets = [];
                             escadinhaLevels.forEach(lvl => {
                                 try {
                                     const move = lvl.roi / (leverage * 100);
                                     const p = isLong ? points.entry * (1 + move) : points.entry * (1 - move);
+                                    const isSpecialLevel = (points.isMoonbag && !lvl.isOld) || lvl.roi === 150;
                                     const line = candlestickSeries.current.createPriceLine({
                                         price: p, 
                                         color: lvl.color, 
-                                        lineWidth: (points.isMoonbag || lvl.roi === 150) ? 2 : 1, 
-                                        lineStyle: (points.isMoonbag || lvl.roi === 150) ? 0 : 2,
+                                        lineWidth: lvl.isOld ? 1 : (isSpecialLevel ? 2 : 1), 
+                                        lineStyle: lvl.isOld ? 2 : (isSpecialLevel ? 0 : 2), // 2 = Pontilhado (batidos), 0 = Sólido (ativos)
                                         axisLabelVisible: true, 
                                         title: lvl.title
                                     });

@@ -210,8 +210,15 @@ class CaptainAgent(AIOSAgent):
                                  (side.lower() == "sell" and lib_trend_4h == "UP")
             
             if is_trend_divergent:
-                unified_score -= 15
-                logger.warning(f"⚠️ [TREND-DIVERGENCE] {symbol} {side} contra tendência H4 {lib_trend_4h}. Penalidade de -15 pts aplicada.")
+                # [V110.999] Calibragem de Divergência H4 para Sinais Elite/Néctar
+                if smc_score >= 95 or (smc_score >= 90 and ("NECTAR" in nectar_seal or "ELITE" in nectar_seal)):
+                    penalty = 5
+                    unified_score -= penalty
+                    logger.info(f"⚡ [TREND-DIVERGENCE-ELITE] {symbol} {side} contra tendência H4 {lib_trend_4h}. Penalidade atenuada para -{penalty} pts (Score={smc_score} | Selo={nectar_seal}).")
+                else:
+                    penalty = 15
+                    unified_score -= penalty
+                    logger.warning(f"⚠️ [TREND-DIVERGENCE] {symbol} {side} contra tendência H4 {lib_trend_4h}. Penalidade total de -{penalty} pts aplicada.")
 
             if "TRAP" in nectar_seal:
                 # [V110.999] Permite bypass do Trap Shield em modo PAPER ou para Sinais de Elite (SMC Score >= 95)

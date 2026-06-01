@@ -8145,17 +8145,19 @@
                     const resp = await fetch(`${API_BASE}/api/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ password })
+                        body: JSON.stringify({ username: 'admin', password: password })
                     });
                     const data = await resp.json();
-                    if (data.status === 'SUCCESS') {
-                        localStorage.setItem('sniper_token', data.token);
+                    if (resp.ok && data.access_token) {
+                        localStorage.setItem('auth_token', data.access_token);
+                        localStorage.setItem('refresh_token', data.refresh_token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
                         onAuthSuccess();
                     } else {
                         setError('Acesso negado. Senha incorreta.');
                     }
                 } catch (err) {
-                    setError('Falha de conexão com o Fortress.');
+                    setError('Falha de conexão com o servidor.');
                 } finally {
                     setLoading(false);
                 }
@@ -8206,6 +8208,15 @@
                                     {loading ? 'Sincronizando...' : 'ENTRAR'}
                                 </button>
                             </form>
+                            
+                            <div className="mt-4 text-center">
+                                <button
+                                    onClick={() => window.location.href = '/login'}
+                                    className="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
+                                >
+                                    Login Completo →
+                                </button>
+                            </div>
                         </div>
 
                         <div className="mt-8 flex justify-center">
@@ -8221,7 +8232,7 @@
 
         const App = () => {
             const [isAuthenticated, setIsAuthenticated] = useState(() => {
-                return !!localStorage.getItem('sniper_token');
+                return !!localStorage.getItem('auth_token');
             });
             const [theme, setTheme] = useState(() => {
                 const saved = localStorage.getItem('v5_theme');

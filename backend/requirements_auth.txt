@@ -1,0 +1,51 @@
+# Sistema de Autenticação 1Crypten
+# ================================
+
+# Dependências principais
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Banco de Dados
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.12.1
+
+# Segurança
+bcrypt==4.0.1
+PyJWT==2.8.0
+cryptography==41.0.7
+
+# Utils
+python-dotenv==1.0.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+email-validator==2.1.0
+
+# HTTP
+httpx==0.25.2
+requests==2.31.0
+
+# Logging
+structlog==23.2.0
+
+# Testes
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Desenvolvimento
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Opcional: Redis (para cache de sessões)
+redis==5.0.1
+
+# Opcional: Celery (para tarefas assíncronas)
+celery==5.3.4
+
+# Opcional: Email
+aiofiles==23.2.1
+aiosmtplib==3.0.1

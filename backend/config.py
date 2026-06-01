@@ -82,6 +82,14 @@ class Settings(BaseSettings):
     NVAPI_KEY: Optional[str] = os.getenv("NVAPI_KEY", None)
     OKX_TESTNET: bool = False
 
+    # User Authentication & Security Configuration
+    ENCRYPTION_PASSWORD: str = os.getenv("ENCRYPTION_PASSWORD", "1crypten-encryption-password-2026")
+    ENCRYPTION_SALT: str = os.getenv("ENCRYPTION_SALT", "1crypten-encryption-salt-2026")
+    PASSWORD_MIN_LENGTH: int = 8
+    PASSWORD_MAX_LENGTH: int = 64
+    BCRYPT_ROUNDS: int = 12
+    SESSION_TIMEOUT_MINUTES: int = 120
+
     # [V110.550] MQTT Broker Configs (HiveMQ Cloud / Broker em nuvem gratuito)
     MQTT_BROKER_URL: str = os.getenv("MQTT_BROKER_URL", "broker.hivemq.com")
     MQTT_BROKER_PORT: int = int(os.getenv("MQTT_BROKER_PORT", 1883))
@@ -146,5 +154,15 @@ class Settings(BaseSettings):
 
     # Fast API context
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Configurações de Banco de Dados para Autenticação
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/1crypten")
+
+    # Configurações Gerais da API
+    APP_NAME: str = os.getenv("APP_NAME", "1Crypten")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("true", "1", "t", "yes", "y")
+    PORT: int = int(os.getenv("PORT", 8085))
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 settings = Settings()

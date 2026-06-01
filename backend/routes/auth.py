@@ -14,7 +14,7 @@ import logging
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 import secrets
 import string
@@ -48,10 +48,10 @@ class LoginResponse(BaseModel):
 class RegisterRequest(BaseModel):
     """Request de registro"""
     username: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     password: str
     confirm_password: str
-    
+
     @validator('confirm_password')
     def passwords_match(cls, v, values):
         if 'password' in values and v != values['password']:
@@ -411,7 +411,7 @@ async def change_password(
 
 # Rotas administrativas
 @router.get("/users", response_model=UserListResponse)
-@require_admin
+@require_admin()
 @audit_log(action="list_users", resource="admin_users")
 async def list_users(
     page: int = 1,
@@ -448,7 +448,7 @@ async def list_users(
         )
 
 @router.put("/users/{user_id}/role")
-@require_admin
+@require_admin()
 @audit_log(action="change_user_role", resource="admin_users")
 async def change_user_role(
     user_id: int,
@@ -498,7 +498,7 @@ async def change_user_role(
         )
 
 @router.delete("/users/{user_id}")
-@require_admin
+@require_admin()
 @audit_log(action="delete_user", resource="admin_users")
 async def delete_user(
     user_id: int,

@@ -342,26 +342,52 @@ class RateLimitError(HTTPException):
             headers={"Retry-After": "60"}
         )
 
-# Middleware global
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    """Adiciona headers de segurança"""
-    response = await call_next(request)
-    
-    # Adicionar headers de segurança
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    
-    return response
+# Middleware global - será aplicado no auth_main.py
+def add_security_headers_middleware(app):
+    """
+    Aplica middleware de segurança global
+    """
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        """Adiciona headers de segurança"""
+        response = await call_next(request)
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Manipulador global de exceções"""
-    logger.error(f"Erro não tratado: {exc}")
+        # Adicionar headers de segurança
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        return response
     
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Erro interno do servidor"},
-    )
+    return add_security_headers
+
+# Handler de exceções global - será aplicado no auth_main.py
+def setup_exception_handlers(app):
+    """
+    Configura handlers de exceção globais
+    """
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Manipulador global de exceções"""
+        logger.error(f"Erro não tratado: {exc}")
+
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Erro interno do servidor"},
+        )
+    
+    return global_exception_handler
+
+# Função principal de setup de middlewares
+def setup_middleware(app):
+    """
+    Configura todos os middlewares da aplicação
+    """
+    # Aplica middleware de segurança
+    add_security_headers_middleware(app)
+    
+    # Configura handlers de exceção
+    setup_exception_handlers(app)
+    
+    logger.info("Middlewares configurados com sucesso")

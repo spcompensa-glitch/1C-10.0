@@ -50,7 +50,7 @@ from .database.models_auth import User, UserOKXTokens, AuditLog, UserSession
 
 # Exportar serviços de segurança
 from .security.encryption import TokenEncryption, get_encryption_instance
-from .security.password_handler import PasswordHandler, password_handler
+from .auth.security.password_handler import PasswordHandler, password_handler
 from .auth.jwt_handler import JWTManager, jwt_manager
 
 # Exportar rotas principais

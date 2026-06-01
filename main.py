@@ -67,11 +67,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montar frontend estático
+# Configurar caminho do frontend
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')
 if os.path.exists(frontend_path):
-    app.mount("/frontend", StaticFiles(directory=frontend_path), name="frontend")
-    logger.info(f"📁 Frontend montado em: {frontend_path}")
+    logger.info(f"📁 Frontend encontrado em: {frontend_path}")
 else:
     logger.warning("⚠️ Diretório frontend não encontrado")
 
@@ -143,6 +142,87 @@ async def serve_auth():
         return auth_path
     else:
         raise HTTPException(status_code=404, detail="Authentication page not found")
+
+@app.get("/index.html", response_class=FileResponse)
+async def serve_index():
+    """Servir página principal"""
+    index_path = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_path):
+        return index_path
+    else:
+        raise HTTPException(status_code=404, detail="Index page not found")
+
+@app.get("/user.html", response_class=FileResponse)
+async def serve_user():
+    """Servir página de usuário"""
+    user_path = os.path.join(frontend_path, "user.html")
+    if os.path.exists(user_path):
+        return user_path
+    else:
+        raise HTTPException(status_code=404, detail="User page not found")
+
+@app.get("/neural-chat.html", response_class=FileResponse)
+async def serve_neural_chat():
+    """Servir página Neural Chat"""
+    neural_path = os.path.join(frontend_path, "neural-chat.html")
+    if os.path.exists(neural_path):
+        return neural_path
+    else:
+        raise HTTPException(status_code=404, detail="Neural chat page not found")
+
+@app.get("/neural-graph.html", response_class=FileResponse)
+async def serve_neural_graph():
+    """Servir página Neural Graph"""
+    graph_path = os.path.join(frontend_path, "neural_graph.html")
+    if os.path.exists(graph_path):
+        return graph_path
+    else:
+        raise HTTPException(status_code=404, detail="Neural graph page not found")
+
+@app.get("/kanban-hermes-enhanced.html", response_class=FileResponse)
+async def serve_kanban_enhanced():
+    """Servir página Kanban Hermes Enhanced"""
+    kanban_path = os.path.join(frontend_path, "kanban-hermes-enhanced.html")
+    if os.path.exists(kanban_path):
+        return kanban_path
+    else:
+        raise HTTPException(status_code=404, detail="Kanban enhanced page not found")
+
+@app.get("/kanban-hermes.html", response_class=FileResponse)
+async def serve_kanban():
+    """Servir página Kanban Hermes"""
+    kanban_path = os.path.join(frontend_path, "kanban-hermes.html")
+    if os.path.exists(kanban_path):
+        return kanban_path
+    else:
+        raise HTTPException(status_code=404, detail="Kanban page not found")
+
+@app.get("/observatory.html", response_class=FileResponse)
+async def serve_observatory():
+    """Servir página Observatory"""
+    observatory_path = os.path.join(frontend_path, "observatory.html")
+    if os.path.exists(observatory_path):
+        return observatory_path
+    else:
+        raise HTTPException(status_code=404, detail="Observatory page not found")
+
+@app.get("/offline.html", response_class=FileResponse)
+async def serve_offline():
+    """Servir página Offline"""
+    offline_path = os.path.join(frontend_path, "offline.html")
+    if os.path.exists(offline_path):
+        return offline_path
+    else:
+        raise HTTPException(status_code=404, detail="Offline page not found")
+
+@app.get("/intel-wiki.html", response_class=FileResponse)
+async def serve_intel_wiki():
+    """Servir página Intel Wiki"""
+    wiki_path = os.path.join(frontend_path, "intel_wiki.html")
+    if os.path.exists(wiki_path):
+        return wiki_path
+    else:
+        raise HTTPException(status_code=404, detail="Intel wiki page not found")
 
 @app.get("/", response_class=RedirectResponse)
 async def redirect_root():

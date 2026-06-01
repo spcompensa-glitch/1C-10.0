@@ -263,17 +263,6 @@ async def startup_event():
         logger.error(f"❌ Erro ao iniciar serviços: {e}")
         raise
 
-@app.get("/")
-async def root():
-    """Endpoint raiz"""
-    return {
-        "message": "Hermes Guardian System",
-        "version": "1.0.0",
-        "environment": RAILWAY_ENV,
-        "railway_url": RAILWAY_URL,
-        "status": "running"
-    }
-
 @app.get("/health")
 async def health_check():
     """Endpoint de saúde do sistema"""

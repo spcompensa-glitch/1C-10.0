@@ -21,11 +21,12 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Adiciona backend ao path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+backend_path = os.path.join(os.path.dirname(__file__), 'backend')
+sys.path.append(backend_path)
 
 # Importar serviços
 from backend.config import settings
-from backend.services.secrets import secrets_manager
+from backend.services.secrets import secrets_manager as secrets
 from backend.services.websocket_service import websocket_service
 from backend.services.telegram_service import telegram_service
 from backend.services.hermes_broker import hermes_broker

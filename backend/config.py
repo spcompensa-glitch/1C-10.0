@@ -3,18 +3,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import Optional
 from dotenv import load_dotenv
-from services.secrets import secrets_manager
 
-# V110.42.1: Robust .env loading - find file relative to this script
-config_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(config_dir, ".env")
+# V110.42.1: Robust .env loading
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
 load_dotenv(env_path, override=True)
 
 class Settings(BaseSettings):
     # Firebase (Google)
     FIREBASE_CREDENTIALS_PATH: str = "serviceAccountKey.json"
     FIREBASE_DATABASE_URL: Optional[str] = None
-    ADMIN_API_KEY: str = secrets_manager.get_admin_api_key()
+    ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "1crypten-admin-key-2026-production")
 
     # Bybit
     BYBIT_API_KEY: Optional[str] = None
@@ -76,10 +74,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 1 semana
 
     # [V110.550] OKX Master Account Credentials
-    okx_creds = secrets_manager.get_okx_credentials()
-    OKX_API_KEY_MASTER: Optional[str] = okx_creds["api_key"]
-    OKX_API_SECRET_MASTER: Optional[str] = okx_creds["api_secret"]
-    OKX_PASSPHRASE_MASTER: Optional[str] = okx_creds["passphrase"]
+    _okx_creds = secrets_manager.get_okx_credentials()
+    OKX_API_KEY_MASTER: Optional[str] = _okx_creds["api_key"]
+    OKX_API_SECRET_MASTER: Optional[str] = _okx_creds["api_secret"]
+    OKX_PASSPHRASE_MASTER: Optional[str] = _okx_creds["passphrase"]
     OKX_TESTNET: bool = False
 
     # [V110.550] MQTT Broker Configs (HiveMQ Cloud / Broker em nuvem gratuito)

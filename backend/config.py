@@ -69,15 +69,14 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: str = ""
 
     # JWT Security Configuration
-    JWT_SECRET_KEY: str = secrets_manager.get_jwt_secret()
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "1crypten-jwt-secret-2026-production")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 1 semana
 
     # [V110.550] OKX Master Account Credentials
-    _okx_creds = secrets_manager.get_okx_credentials()
-    OKX_API_KEY_MASTER: Optional[str] = _okx_creds["api_key"]
-    OKX_API_SECRET_MASTER: Optional[str] = _okx_creds["api_secret"]
-    OKX_PASSPHRASE_MASTER: Optional[str] = _okx_creds["passphrase"]
+    OKX_API_KEY_MASTER: Optional[str] = os.getenv("OKX_API_KEY_MASTER", None)
+    OKX_API_SECRET_MASTER: Optional[str] = os.getenv("OKX_API_SECRET_MASTER", None)
+    OKX_PASSPHRASE_MASTER: Optional[str] = os.getenv("OKX_PASSPHRASE_MASTER", None)
     OKX_TESTNET: bool = False
 
     # [V110.550] MQTT Broker Configs (HiveMQ Cloud / Broker em nuvem gratuito)

@@ -12,7 +12,8 @@
         "JWT_SECRET_KEY": "1crypten-jwt-secret-2026-production",
         "RAILWAY_URL": "https://1crypten-hermes-agent-production.up.railway.app",
         "ENVIRONMENT": "production",
-        "PORT": "8080"
+        "PORT": "8080",
+        "NVAPI_KEY": "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"
       },
       "runtime": "python",
       "memoryLimit": "512MB",

@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     OKX_API_KEY_MASTER: Optional[str] = os.getenv("OKX_API_KEY_MASTER", None)
     OKX_API_SECRET_MASTER: Optional[str] = os.getenv("OKX_API_SECRET_MASTER", None)
     OKX_PASSPHRASE_MASTER: Optional[str] = os.getenv("OKX_PASSPHRASE_MASTER", None)
+
+    # NVIDIA AI Configuration - Hermes-Crypten
+    NVAPI_KEY: Optional[str] = os.getenv("NVAPI_KEY", None)
     OKX_TESTNET: bool = False
 
     # [V110.550] MQTT Broker Configs (HiveMQ Cloud / Broker em nuvem gratuito)

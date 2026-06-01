@@ -35,6 +35,7 @@ from backend.services.telegram_service import telegram_service
 from backend.services.hermes_broker import hermes_broker
 from backend.services.portfolio_guardian import portfolio_guardian
 from backend.services.sentinel_auditor import sentinel_auditor
+from backend.services.nvidia_service import nvidia_service
 
 # Modelos Pydantic
 class ChatMessage(BaseModel):
@@ -319,6 +320,18 @@ async def get_kanban_status():
 async def get_hermes_status():
     """Endpoint de status do Hermes"""
     try:
+        # Verificar status da NVIDIA API
+        nvidia_status = "unknown"
+        try:
+            if nvidia_service._initialized:
+                nvidia_status = "online"
+            elif settings.NVAPI_KEY:
+                nvidia_status = "configured"
+            else:
+                nvidia_status = "missing"
+        except:
+            nvidia_status = "error"
+        
         return {
             "timestamp": time.time(),
             "status": "online",
@@ -326,7 +339,13 @@ async def get_hermes_status():
             "services": {
                 "websocket": len(websocket_service.active_connections),
                 "telegram": telegram_service.is_active,
-                "broker": True
+                "broker": True,
+                "nvidia_ai": nvidia_status
+            },
+            "ai_features": {
+                "nvidia_api": nvidia_status,
+                "model": "meta/llama3-70b-instruct",
+                "provider": "NVIDIA"
             }
         }
     except Exception as e:
@@ -334,16 +353,28 @@ async def get_hermes_status():
 
 @app.post("/api/hermes/chat")
 async def post_hermes_chat(message: ChatMessage):
-    """Endpoint de chat com Hermes"""
+    """Endpoint de chat com Hermes usando NVIDIA AI"""
     try:
-        # Processar mensagem e gerar resposta
-        response_message = f"🪶 Hermes: {message.message}"
+        # Gerar resposta usando NVIDIA AI
+        ai_response = await nvidia_service.chat_completion(
+            user_message=message.message,
+            system_instruction="Você é Hermes, um assistente de trading e gestão de portfólio cripto. Responda de forma profissional e técnica, mas amigável. Use ícones e formatação adequada.",
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        # Se a IA falhar, usar resposta padrão
+        if ai_response:
+            response_message = f"🪶 Hermes: {ai_response}"
+        else:
+            response_message = f"🪶 Hermes: Sua mensagem '{message.message}' foi recebida. Estou processando com minha IA NVIDIA. Aguarde um momento..."
         
         # Enviar resposta via WebSocket para todos os clientes conectados
         response = {
             "type": "hermes_response",
             "message": response_message,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "ai_enabled": bool(ai_response)
         }
         
         # Enviar para todos os clientes WebSocket
@@ -360,13 +391,27 @@ async def post_hermes_chat(message: ChatMessage):
 
 @app.post("/api/chat")
 async def post_chat(message: ChatMessage):
-    """Endpoint de chat genérico"""
+    """Endpoint de chat genérico usando NVIDIA AI"""
     try:
-        # Processar mensagem e gerar resposta
+        # Gerar resposta usando NVIDIA AI
+        ai_response = await nvidia_service.chat_completion(
+            user_message=message.message,
+            system_instruction="Você é Hermes, um assistente de trading e gestão de portfólio cripto. Responda de forma profissional e técnica, mas amigável. Use ícones e formatação adequada.",
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        # Se a IA falhar, usar resposta padrão
+        if ai_response:
+            response_message = f"🪶 Hermes: {ai_response}"
+        else:
+            response_message = f"🪶 Hermes: Mensagem recebida. Estou usando minha IA NVIDIA para processar sua solicitação."
+        
         response = {
             "type": "hermes_response",
-            "message": f"🪶 Hermes: {message.message}",
-            "timestamp": time.time()
+            "message": response_message,
+            "timestamp": time.time(),
+            "ai_enabled": bool(ai_response)
         }
         
         # Enviar resposta via WebSocket para todos os clientes conectados

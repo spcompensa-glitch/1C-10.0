@@ -81,8 +81,8 @@ RAILWAY_URL = os.getenv("RAILWAY_URL", "https://1crypten-hermes-agent-production
 # Rotas frontend
 @app.get("/", response_class=RedirectResponse)
 async def redirect_root():
-    """Redirecionar root para o Kanban"""
-    return "/kanban"
+    """Redirecionar root para a página de login"""
+    return "/login"
 
 @app.get("/kanban", response_class=FileResponse)
 async def serve_kanban():

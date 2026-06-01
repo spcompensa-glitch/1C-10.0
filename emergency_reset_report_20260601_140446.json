@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-06-01T14:04:36.340575",
+  "action": "EMERGENCY_RESET_COMPLETE",
+  "total_actions": 10,
+  "successful_actions": 7,
+  "failed_actions": 3,
+  "status": "PARTIAL",
+  "details": [
+    "import_services",
+    "bankroll_reset_error",
+    "slot_1_reset",
+    "slot_2_reset",
+    "slot_3_reset",
+    "slot_4_reset",
+    "moonbags_cleaned_1",
+    "no_trades_found",
+    "system_state_reset_error",
+    "bankroll_check_error"
+  ],
+  "system_config": {
+    "expected_balance": 100.0,
+    "expected_slots": 4,
+    "execution_mode": "PAPER",
+    "simulated_balance": 100.0
+  }
+}

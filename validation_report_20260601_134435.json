@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-06-01T13:44:32.657885",
+  "validation_type": "PAPER_MODE_100_PERCENT",
+  "total_tests": 16,
+  "passed_tests": 16,
+  "failed_tests": 0,
+  "status": "SUCCESS",
+  "details": [
+    "import_services",
+    "okx_paper_mode",
+    "okx_balance",
+    "positions_clean",
+    "moonbags_clean",
+    "pnl_calculation",
+    "firebase_connection",
+    "slot_1_reset",
+    "slot_2_reset",
+    "slot_3_reset",
+    "slot_4_reset",
+    "paper_config",
+    "balance_config",
+    "pnl_scenario_1",
+    "pnl_scenario_2",
+    "pnl_scenario_3"
+  ],
+  "system_config": {
+    "execution_mode": "PAPER",
+    "simulated_balance": 100.0,
+    "paper_balance": 100.0
+  }
+}

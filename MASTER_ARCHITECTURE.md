@@ -192,7 +192,7 @@
     - **Sniper Patience (Violinada Hunter):** Novo protocolo no `AmbushAgent` que aguarda absorção no gráfico de 1m (pavios/rejeição) antes de disparar a ordem.
     - **Intelligent Breakeven (ADX-Aware):** Gatilhos de Risk-Free dinâmicos. Tendência forte (ADX > 40) trava em 20% ROI; Lateralização (ADX < 22) aguarda 40% ROI para evitar stop por ruído.
     - **Standard Green (#22c55e):** Unificação da cor verde em todo o ecossistema, eliminando tons "limão" e placeholders brancos no histórico.
-    - **Official Repo Sync:** Migração final do pipeline de deploy para `10D5.0`.
+    - **Official Repo Sync:** Migração final do pipeline de deploy para `1C-7.0`.
 
 *   **V110.256: SOVEREIGN IDENTIFIER & SYNTAX RECOVERY [APR 25]**
     - **Syntax Error Resolution:** Correção de fechamentos prematuros de hooks no `cockpit.html` (especialmente `useSlotsRT` e `useBancaRT`) que causavam falha de carregamento da UI.
@@ -211,7 +211,7 @@
     - **Timezone Fix:** Normalização de todos os campos `DateTime` para naive (sem offset) no Postgres, eliminando erros de persistência no `VaultCycle`.
     - **Leverage 50x Standard:** Unificação da alavancagem de 50x em todos os slots (Blitz e Swing) para acelerar o crescimento da banca simulada.
     - **Database Repair:** Sincronização de IDs de banca (ID 1 e 'status') e correção de esquema de colunas dinâmicas no Postgres.
-    - **Official Repo Sync:** Migração definitiva do fluxo de deploy para o repositório `10D5.0`.
+    - **Official Repo Sync:** Migração definitiva do fluxo de deploy para o repositório `1C-7.0`.
 
 *   **V110.210: FLOW INTEGRITY & PERSISTENCE [APR 25]**
     - **Sentinel Agent:** Implementação do `FlowSentinel` para monitoramento post-mortem de trades, detectando gaps entre estados de memória e persistência.

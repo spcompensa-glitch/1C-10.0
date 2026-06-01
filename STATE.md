@@ -54,11 +54,10 @@ Validação ponta a ponta com **0 falhas**:
 - **FASE 2 - Moonbag**: WAVE (200%) → ROCKET (300%) → STAR (400%) → CROWN (500%) → SUPERNOVA (600%) → GOD_MODE (700%) → CHOKE_HOLD (800-1200%) com colheitas parciais no caminho
 - **FASE 3 - Tabela Consolidada**: Visualização completa da trajetória de $0 a 1200% ROI
 
-## Componentes do Sistema e Status de Serviços
-
 | Componente | Função | Porta | Status |
 | :--- | :--- | :--- | :--- |
-| **FastAPI Backend** | API de sincronização e WebSockets | `8002`/`8085` | `OPERATIONAL ✅` |
+| **FastAPI Backend** | API de sincronização e WebSockets | `8085` | `OPERATIONAL ✅` |
+| **Hermes Dashboard** | Kanban e interface interativa do Hermes | `9119` | `OPERATIONAL ✅` |
 | **gRPC Hermes** | Tenancy em tempo real e gRPC Stream | `50051` | `OPERATIONAL ✅` |
 | **Cockpit UI** | Interface Cyberpunk com Vault unificado Desktop/Mobile | `-` | `OPERATIONAL ✅` |
 | **PostgreSQL** | Banco de dados Master e persistência de pulso | `5432` | `ONLINE ✅` |

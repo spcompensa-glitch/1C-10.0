@@ -4,11 +4,11 @@ from fastapi import FastAPI
 from mcp.server.fastapi import create_mcp_server
 
 # Instância do App FastAPI
-app = FastAPI(title="Crypten 10D5.0 MCP Server", description="Servidor MCP para orquestração n8n e IA")
+app = FastAPI(title="Crypten 1C-7.0 MCP Server", description="Servidor MCP para orquestração n8n e IA")
 
 # Criar o servidor MCP
 mcp_server = create_mcp_server(
-    title="Crypten 10D5.0 MCP",
+    title="Crypten 1C-7.0 MCP",
     version="1.0.0"
 )
 

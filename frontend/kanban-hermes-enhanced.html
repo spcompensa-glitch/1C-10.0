@@ -303,8 +303,12 @@
             const frame = document.getElementById('kanban-frame');
             const loading = document.getElementById('loading-overlay');
             
-            // URL de Produção do Hermes no Railway
-            frame.src = 'https://1crypten-hermes-agent-production.up.railway.app';
+            // URL de Produção do Hermes no Railway com detecção inteligente de ambiente local
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                frame.src = 'http://localhost:9119';
+            } else {
+                frame.src = 'https://1crypten-hermes-agent-production.up.railway.app';
+            }
             
             frame.onload = function() {
                 loading.classList.add('hidden');

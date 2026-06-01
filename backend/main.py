@@ -605,7 +605,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://1crypten.space",
     "https://www.1crypten.space",
-    "https://10d50-production.up.railway.app",
+    "https://1crypten-hermes-agent-production.up.railway.app",
 ]
 
 # Process and append custom backend CORS origins
@@ -715,11 +715,52 @@ async def cockpit_websocket_endpoint(websocket: WebSocket):
     await websocket_service.connect(websocket)
     try:
         while True:
-            # Mantém a conexão viva e aguarda mensagens (opcional)
+            # Mantém a conexão viva e aguarda mensagens
             data = await websocket.receive_text()
-            # Se receber um ping do front, podemos responder
+            
+            # Se receber um ping do front, respondemos pong
             if data == "ping":
                 await websocket.send_text("pong")
+                continue
+                
+            # Processar mensagem estruturada se for JSON
+            try:
+                import json
+                import time
+                message_data = json.loads(data)
+                message_type = message_data.get("type")
+                message_content = message_data.get("message", "")
+                
+                if message_type == "chat":
+                    try:
+                        from services.agents.hermes_agent import hermes_agent
+                        result = await hermes_agent.handle_chat_query(message_content)
+                        reply = result.get("response", "🌐 Sinal neural instável... Tente novamente, Almirante.")
+                    except Exception as e:
+                        logger.error(f"Erro no hermes_agent do backend WebSocket: {e}")
+                        try:
+                            from services.agents.ai_service import ai_service
+                            from routes.chat import HERMES_FALLBACK_PROMPT
+                            reply = await ai_service.generate_content(
+                                prompt=message_content,
+                                system_instruction=HERMES_FALLBACK_PROMPT
+                            )
+                            reply = reply or "🌐 Sinal neural instável."
+                        except Exception as e2:
+                            logger.error(f"Erro no fallback do AIService no backend WebSocket: {e2}")
+                            reply = "🪶 Hermes: Erro de sinal neural interno."
+                    
+                    response = {
+                        "type": "hermes_response",
+                        "message": reply,
+                        "timestamp": time.time()
+                    }
+                    await websocket.send_text(json.dumps(response))
+            except json.JSONDecodeError:
+                pass
+            except Exception as e:
+                logger.error(f"Erro ao processar mensagem do WebSocket: {e}")
+                
     except WebSocketDisconnect:
         websocket_service.disconnect(websocket)
     except Exception as e:
@@ -746,6 +787,22 @@ if settings.SERVE_STATIC_FRONTEND:
                 headers={
                     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
                     "ETag": f"1c-obs-{time.time()}"
+                }
+            )
+
+    @app.get("/kanban", response_class=HTMLResponse)
+    async def serve_kanban_page():
+        path = os.path.join(FRONTEND_DIR, "kanban-hermes-enhanced.html")
+        if not os.path.exists(path):
+            path = os.path.join(FRONTEND_DIR, "kanban-hermes.html")
+        
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-kanban-{time.time()}"
                 }
             )
 

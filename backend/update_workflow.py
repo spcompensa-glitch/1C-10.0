@@ -8,7 +8,7 @@ TOKEN = os.getenv("N8N_MCP_TOKEN")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "123:TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "123")
 API_URL = "https://n8n-production-8e2d4.up.railway.app/api/v1/workflows/PI0VK4G2xXADAX0I"
-PYTHON_APP = "https://10d50-production.up.railway.app"
+PYTHON_APP = os.getenv("RAILWAY_URL", "https://1crypten-hermes-agent-production.up.railway.app")
 
 def http_node(name, path, x, y):
     return {
@@ -67,7 +67,7 @@ nodes = [
             "bodyParameters": {
                 "parameters": [
                     {"name": "chat_id", "value": TELEGRAM_CHAT_ID},
-                    {"name": "text", "value": "🤖 [10D5.0] Ciclo Macro Orquestrado e Finalizado com Sucesso!"}
+                    {"name": "text", "value": "🤖 [1C-7.0] Ciclo Macro Orquestrado e Finalizado com Sucesso!"}
                 ]
             }
         },
@@ -102,7 +102,7 @@ connections = {
 payload = {
     "nodes": nodes,
     "connections": connections,
-    "name": "Macro-Orquestrador Híbrido 10D5.0",
+    "name": "Macro-Orquestrador Híbrido 1C-7.0",
     "settings": {}
 }
 

@@ -88,7 +88,7 @@ class TelegramService:
             await self.send_message("❌ Erro interno ao buscar dados da banca.")
 
     async def _poll_updates(self):
-        """Loop contínuo de Long-Polling para receber comandos do Telegram no backend."""
+        """Loop contínuo de Long-Polling para receber comandos e mensagens do Telegram."""
         if not self.base_url: return
         url = f"{self.base_url}/getUpdates"
         
@@ -104,9 +104,15 @@ class TelegramService:
                             message = result.get("message", {})
                             text = message.get("text", "")
                             
-                            if text.startswith("/banca"):
-                                logger.info("Skill /banca requisitada pelo Telegram!")
-                                asyncio.create_task(self._handle_banca_command())
+                            if text:
+                                if text.startswith("/banca"):
+                                    logger.info("Skill /banca requisitada pelo Telegram!")
+                                    asyncio.create_task(self._handle_banca_command())
+                                elif text.startswith("/"):
+                                    await self.send_message("⚠️ Comando não reconhecido. Use `/banca` ou converse normalmente comigo!")
+                                else:
+                                    logger.info(f"📨 Mensagem recebida no Telegram: '{text}' - Processando...")
+                                    asyncio.create_task(self._handle_telegram_chat(text))
             except httpx.ReadTimeout:
                 pass # Timeout normal do long-polling
             except Exception as e:
@@ -114,9 +120,38 @@ class TelegramService:
             
             await asyncio.sleep(2)
 
+    async def _handle_telegram_chat(self, user_message: str):
+        """Processa mensagens comuns usando a inteligência integrada do HermesAgent."""
+        try:
+            from services.agents.hermes_agent import hermes_agent
+            result = await hermes_agent.handle_chat_query(user_message)
+            reply = result.get("response", "🌐 Sinal neural instável... Tente novamente, Almirante.")
+            await self.send_message(reply)
+        except Exception as e:
+            logger.error(f"❌ Erro no chat do Telegram com HermesAgent: {e}")
+            # Fallback direto caso o hermes_agent falhe por algum motivo
+            try:
+                from services.agents.ai_service import ai_service
+                reply = await ai_service.generate_content(
+                    prompt=user_message,
+                    system_instruction=(
+                        "Você é o HERMES — assistente de compliance e oficial de comando da frota do Sistema 1CRYPTEN.\n"
+                        "Sua missão é responder ao Almirante Jonatas sobre a banca, slots, e integridade do sistema.\n"
+                        "Responda em português do Brasil de forma extremamente concisa, técnica e direta."
+                    )
+                )
+                await self.send_message(reply or "🌐 Sinal neural instável.")
+            except Exception as e2:
+                logger.error(f"❌ Fallback crítico do Telegram falhou: {e2}")
+                await self.send_message("❌ Ocorreu um erro interno de transmissão neural.")
+
     def start_polling_task(self):
-        """[DESATIVADO] A escuta de comandos agora é de responsabilidade exclusiva do Hermes Agent (Guardião)."""
-        logger.info("🤖 Telegram Polling desativado no Sniper. O Hermes Agent assumiu a escuta exclusiva dos comandos.")
-        return
+        """Ativa a escuta de comandos no Telegram de forma assíncrona."""
+        if not self.is_active:
+            logger.warning("⚠️ Telegram Service não está ativo. Ignorando início do Polling.")
+            return
+        
+        logger.info("🤖 Telegram Polling INICIADO de forma inteligente pelo Hermes Guardian.")
+        asyncio.create_task(self._poll_updates())
 
 telegram_service = TelegramService()

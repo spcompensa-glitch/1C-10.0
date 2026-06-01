@@ -140,7 +140,8 @@ async def startup_event():
         
         # Iniciar Telegram Service
         if telegram_service.is_active:
-            logger.info("📱 Telegram Service ativo")
+            logger.info("📱 Telegram Service ativo - Iniciando Polling...")
+            telegram_service.start_polling_task()
         
         # Iniciar Hermes Broker
         logger.info("🛰️ Iniciando Hermes Broker...")
@@ -498,9 +499,27 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Responder com mensagem do Hermes
                 if message_type == "chat":
+                    try:
+                        from backend.services.agents.hermes_agent import hermes_agent
+                        result = await hermes_agent.handle_chat_query(message_content)
+                        reply = result.get("response", "🌐 Sinal neural instável... Tente novamente, Almirante.")
+                    except Exception as e:
+                        logger.error(f"Erro ao processar com hermes_agent no WebSocket: {e}")
+                        try:
+                            from backend.services.agents.ai_service import ai_service
+                            from backend.routes.chat import HERMES_FALLBACK_PROMPT
+                            reply = await ai_service.generate_content(
+                                prompt=message_content,
+                                system_instruction=HERMES_FALLBACK_PROMPT
+                            )
+                            reply = reply or "🌐 Sinal neural instável."
+                        except Exception as e2:
+                            logger.error(f"Erro crítico no fallback do ai_service no WebSocket: {e2}")
+                            reply = "🪶 Hermes: Erro de sinal neural interno."
+                    
                     response = {
                         "type": "hermes_response",
-                        "message": f"🪶 Hermes: {message_content}",
+                        "message": reply,
                         "timestamp": time.time()
                     }
                     await websocket.send_text(json.dumps(response))

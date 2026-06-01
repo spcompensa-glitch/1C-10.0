@@ -72,7 +72,7 @@ class DeepSeekService:
         use_reasoner: bool = False
     ) -> Optional[str]:
         """
-        Send a chat completion request to DeepSeek API.
+        Send a chat completion request to DeepSeek API with dynamic AIService fallback.
         
         Args:
             messages: List of message dicts [{"role": "user", "content": "..."}]
@@ -86,6 +86,20 @@ class DeepSeekService:
         """
         if not self._initialized:
             if not self.initialize():
+                # Fallback se não inicializado (chave ausente no .env)
+                logger.info("⚠️ DeepSeekService not initialized. Attempting fallback to AIService...")
+                try:
+                    from services.agents.ai_service import ai_service
+                    prompt_content = "\n".join([f"{msg.get('role')}: {msg.get('content', '')}" for msg in messages])
+                    response_text = await ai_service.generate_content(
+                        prompt=prompt_content,
+                        system_instruction=system_instruction or "Você é o HERMES."
+                    )
+                    if response_text:
+                        logger.info("✅ DeepSeekService: Fallback to AIService successful!")
+                        return response_text
+                except Exception as fe:
+                    logger.error(f"❌ DeepSeekService fallback failed: {fe}")
                 return None
 
         await self._rate_limit_wait()
@@ -136,6 +150,22 @@ class DeepSeekService:
                 logger.warning(f"⏳ DeepSeek: Quota exceeded. Backoff 5min.")
             else:
                 logger.error(f"❌ DeepSeek API error: {e}")
+                
+            # Fallback inteligente se a chamada der erro
+            logger.info("⚠️ DeepSeekService: API call failed. Attempting fallback to AIService...")
+            try:
+                from services.agents.ai_service import ai_service
+                prompt_content = "\n".join([f"{msg.get('role')}: {msg.get('content', '')}" for msg in messages])
+                response_text = await ai_service.generate_content(
+                    prompt=prompt_content,
+                    system_instruction=system_instruction or "Você é o HERMES."
+                )
+                if response_text:
+                    logger.info("✅ DeepSeekService: Fallback to AIService successful!")
+                    return response_text
+            except Exception as fe:
+                logger.error(f"❌ DeepSeekService fallback failed: {fe}")
+                
             return None
 
     async def analyze_compliance(

@@ -79,7 +79,7 @@ class NVIDIAService:
         use_reasoning: bool = False
     ) -> Optional[str]:
         """
-        Generate response using NVIDIA AI API
+        Generate response using NVIDIA AI API with dynamic AIService fallback.
         
         Args:
             messages: Conversation messages
@@ -91,24 +91,78 @@ class NVIDIAService:
         Returns:
             Response text or None on failure
         """
-        if not self._initialized:
-            if not self.initialize():
-                return None
+        # 1. Tentar chamar a API real da NVIDIA se inicializada
+        if self._initialized or self.initialize():
+            await self._rate_limit_wait()
+            
+            full_messages = []
+            if system_instruction:
+                full_messages.append({"role": "system", "content": system_instruction})
+            full_messages.extend(messages)
 
-        await self._rate_limit_wait()
+            try:
+                # Make the request directly with asyncio
+                response = await self.client.post(
+                    "/chat/completions",
+                    json={
+                        "model": self.model,
+                        "messages": full_messages,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "stream": False
+                    }
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    content = result["choices"][0]["message"]["content"]
+                    if content:
+                        logger.info("✅ NVIDIAService: Success using NVIDIA API")
+                        return content
+                else:
+                    logger.error(f"❌ NVIDIAService: API Error {response.status_code}: {response.text}")
+                    
+                    # Handle rate limiting
+                    if response.status_code == 429:
+                        retry_after = int(response.headers.get("Retry-After", 60))
+                        self.backoff_until = time.time() + retry_after
+                        logger.warning(f"⚠️ NVIDIAService: Rate limited, retrying in {retry_after}s")
+                    
+            except Exception as e:
+                logger.error(f"❌ NVIDIAService: Request failed: {e}")
 
-        # Fallback response since NVIDIA API is having issues
+        # 2. FALLBACK 1: Tentar a cascata inteligente do AIService (Gemini/OpenRouter)
+        logger.info("⚠️ NVIDIAService: Attempting smart fallback to AIService...")
+        try:
+            from services.agents.ai_service import ai_service
+            # Concatena as mensagens anteriores para criar um prompt contextualizado
+            prompt_parts = []
+            for msg in messages:
+                role = "Almirante" if msg.get("role") == "user" else "Hermes"
+                prompt_parts.append(f"{role}: {msg.get('content', '')}")
+            prompt_content = "\n".join(prompt_parts)
+            
+            response_text = await ai_service.generate_content(
+                prompt=prompt_content,
+                system_instruction=system_instruction or "Você é o HERMES — assistente de compliance e oficial de comando da frota."
+            )
+            if response_text:
+                logger.info("✅ NVIDIAService: Dynamic fallback to AIService successful!")
+                return response_text
+        except Exception as fe:
+            logger.error(f"❌ NVIDIAService fallback to AIService failed: {fe}")
+
+        # 3. FALLBACK 2: Respostas Mockadas estáticas (última linha de defesa)
+        logger.warning("⚠️ NVIDIAService: AIService failed. Falling back to static mock responses.")
         user_message = messages[-1]["content"] if messages else "Hello"
         
-        # Simple responses for testing
         fallback_responses = {
             "hello": "🪶 Hermes: Olá! Sou o assistente Hermes da 1Cryptem. Como posso ajudar você hoje?",
             "oi": "🪶 Hermes: Olá! Sou o assistente Hermes. Em que posso ajudá-lo?",
             "help": "🪶 Hermes: Eu sou Hermes, seu assistente de trading e gestão de portfólio. Posso ajudar com análises de mercado, gerenciamento de posições e muito mais!",
-            "default": "🪶 Hermes: Sua mensagem foi recebida. Estou processando sua solicitação com minha IA NVIDIA."
+            "default": "🪶 Hermes: Sua mensagem foi recebida. Estou processando sua solicitação com minha IA NVIDIA de contingência."
         }
         
-        # Check for common messages
         user_lower = user_message.lower()
         if "hello" in user_lower or "hi" in user_lower:
             return fallback_responses["hello"]
@@ -118,45 +172,6 @@ class NVIDIAService:
             return fallback_responses["help"]
         else:
             return fallback_responses["default"]
-
-        # The actual NVIDIA API code is commented out for now due to authentication issues
-        """
-        full_messages = []
-        if system_instruction:
-            full_messages.append({"role": "system", "content": system_instruction})
-        full_messages.extend(messages)
-
-        try:
-            # Make the request directly with asyncio
-            response = await self.client.post(
-                "/chat/completions",
-                json={
-                    "model": self.model,
-                    "messages": full_messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "stream": False
-                }
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result["choices"][0]["message"]["content"]
-            else:
-                logger.error(f"❌ NVIDIAService: API Error {response.status_code}: {response.text}")
-                
-                # Handle rate limiting
-                if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", 60))
-                    self.backoff_until = time.time() + retry_after
-                    logger.warning(f"⚠️ NVIDIAService: Rate limited, retrying in {retry_after}s")
-                
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ NVIDIAService: Request failed: {e}")
-            return None
-        """
 
     async def chat_completion(
         self,

@@ -6,7 +6,15 @@ import json
 import sys
 import os
 from typing import List, Dict, Any, Optional
-import paho.mqtt.client as mqtt
+
+# Importação condicional do paho-mqtt
+try:
+    import paho.mqtt.client as mqtt
+    MQTT_AVAILABLE = True
+except ImportError:
+    MQTT_AVAILABLE = False
+    mqtt = None
+
 import grpc
 from config import settings
 
@@ -49,12 +57,17 @@ class HermesBrokerService:
         self.topic_prefix = settings.MQTT_TOPIC_PREFIX
         self.mqtt_client = None
         self.is_mqtt_connected = False
+        
+        # Verificação de disponibilidade do MQTT
+        if not MQTT_AVAILABLE:
+            logger.warning("⚠️ [MQTT] Módulo paho-mqtt não disponível - MQTT desativado")
+            logger.info("💡 [MQTT] Instale com: pip install paho-mqtt")
 
         # --- Configurações de gRPC ---
         self.grpc_port = settings.GRPC_SERVER_PORT
         self.grpc_server = None
         self.grpc_task = None
-        
+
         logger.info(f"🛰️ [HERMES] Inicializado. Broker MQTT: {self.mqtt_broker}:{self.mqtt_port} | Porta gRPC: {self.grpc_port}")
 
     # ==========================================
@@ -62,12 +75,16 @@ class HermesBrokerService:
     # ==========================================
     async def start_mqtt(self):
         """Inicializa e conecta o cliente MQTT de forma assíncrona."""
+        if not MQTT_AVAILABLE:
+            logger.warning("⚠️ [MQTT] MQTT não disponível - pulando conexão")
+            return
+            
         try:
             # Paho MQTT 2.0+ exige a declaração da versão da API de callback
             self.mqtt_client = mqtt.Client(
                 callback_api_version=mqtt.CallbackAPIVersion.VERSION2
             )
-            
+
             if self.mqtt_user and self.mqtt_password:
                 self.mqtt_client.username_pw_set(self.mqtt_user, self.mqtt_password)
 
@@ -76,15 +93,23 @@ class HermesBrokerService:
             self.mqtt_client.on_disconnect = self._on_mqtt_disconnect
 
             logger.info(f"🔌 [MQTT] Conectando ao HiveMQ Cloud/Broker público em: {self.mqtt_broker}:{self.mqtt_port}...")
-            
+
             # Conexão sem bloquear o loop principal (roda em thread secundária)
             self.mqtt_client.connect_async(self.mqtt_broker, self.mqtt_port, keepalive=60)
             self.mqtt_client.loop_start()
-            
+
             # Pequeno delay para permitir a negociação da conexão inicial
             await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"❌ [MQTT] Erro crítico ao iniciar cliente MQTT: {e}", exc_info=True)
+
+    def _check_mqtt_availability(self):
+        """Verifica se MQTT está disponível e conectado"""
+        if not MQTT_AVAILABLE:
+            return False
+        if not self.mqtt_client or not self.is_mqtt_connected:
+            return False
+        return True
 
     def _on_mqtt_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
@@ -103,8 +128,8 @@ class HermesBrokerService:
         Publica um sinal leve de sniper direcionado a Cohorts específicos para
         pulverização anti-slippage instantânea.
         """
-        if not self.is_mqtt_connected or not self.mqtt_client:
-            logger.error("❌ [MQTT] Não foi possível enviar o sinal: Cliente MQTT desconectado.")
+        if not self._check_mqtt_availability():
+            logger.error("❌ [MQTT] Não foi possível enviar o sinal: Cliente MQTT desconectado ou indisponível.")
             return False
 
         topic = f"{self.topic_prefix}/sinal"
@@ -130,8 +155,8 @@ class HermesBrokerService:
         Publica um sinal global de pânico PANIC para que todas as contas de usuários (shards)
         encerrem as posições de forma unificada concorrentemente.
         """
-        if not self.is_mqtt_connected or not self.mqtt_client:
-            logger.error("❌ [MQTT] Não foi possível enviar sinal de pânico: Cliente MQTT desconectado.")
+        if not self._check_mqtt_availability():
+            logger.error("❌ [MQTT] Não foi possível enviar sinal de pânico: Cliente MQTT desconectado ou indisponível.")
             return False
 
         topic = f"{self.topic_prefix}/panic"

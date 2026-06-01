@@ -32,7 +32,7 @@ from backend.config import settings
 from backend.services.secrets import secrets_manager as secrets
 from backend.services.websocket_service import websocket_service
 from backend.services.telegram_service import telegram_service
-from backend.services.hermes_broker import hermes_broker
+from backend.services.hermes_broker import hermes_broker_service as hermes_broker
 from backend.services.portfolio_guardian import portfolio_guardian
 from backend.services.sentinel_auditor import sentinel_auditor
 from backend.services.nvidia_service import nvidia_service

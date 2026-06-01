@@ -1,0 +1,55 @@
+{
+  "timestamp": 1780268986.9074693,
+  "overall_status": "⚠️ ATENÇÃO",
+  "total_checks": 11,
+  "failed_checks": 3,
+  "issues_count": 5,
+  "results": {
+    "secrets_manager": {
+      "environment": "dev",
+      "production_ready": true,
+      "available_secrets": 2
+    },
+    "telegram_service_status": "OK",
+    "hermes_broker_status": "ERROR: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "websocket_service_status": "OK",
+    "portfolio_guardian_status": "ERROR: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "sentinel_auditor_status": "ERROR: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "websocket_status": {
+      "active_connections": 0,
+      "last_slots_snapshot": 0,
+      "last_radar_snapshot": false
+    },
+    "telegram_status": {
+      "is_active": false,
+      "bot_token_configured": false,
+      "chat_id_configured": false
+    },
+    "hermes_agent_status": {
+      "directory_exists": true,
+      "bootstrap_exists": true,
+      "mcp_server_exists": true
+    },
+    "kanban_ui_status": {
+      "file_exists": true,
+      "railway_url": "https://1crypten-hermes-agent-production.up.railway.app"
+    },
+    "railway_status": {
+      "token_configured": true,
+      "url_configured": true,
+      "connection_test": "ERROR: timeout parameter cannot be of <class 'int'> type, please use 'timeout=ClientTimeout(...)'"
+    }
+  },
+  "issues": [
+    "❌ Falha ao carregar hermes_broker: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "❌ Falha ao carregar portfolio_guardian: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "❌ Falha ao carregar sentinel_auditor: A non-annotated attribute was detected: `okx_creds = {'api_key': None, 'api_secret': None, 'passphrase': None}`. All model fields require a type annotation; if `okx_creds` is not meant to be a field, you may be able to resolve this error by annotating it as a `ClassVar` or updating `model_config['ignored_types']`.\n\nFor further information visit https://errors.pydantic.dev/2.13/u/model-field-missing-annotation",
+    "⚠️ Telegram service inativo - configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID",
+    "❌ Falha ao conectar com Railway: timeout parameter cannot be of <class 'int'> type, please use 'timeout=ClientTimeout(...)'"
+  ],
+  "recommendations": [
+    "🔧 CORRIGIR ERROS CRÍTICOS priorizando serviços fundamentais",
+    "🔍 INVESTIGAR ALERTAS que podem indicar problemas futuros",
+    "📅 CONFIGURAR TELEGRAM_BOT_TOKEN para integração completa"
+  ]
+}

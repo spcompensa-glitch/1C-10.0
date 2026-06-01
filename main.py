@@ -126,6 +126,29 @@ async def serve_cockpit():
     else:
         raise HTTPException(status_code=404, detail="Cockpit page not found")
 
+@app.get("/login", response_class=FileResponse)
+async def serve_login():
+    """Servir página de Login"""
+    login_path = os.path.join(frontend_path, "login.html")
+    if os.path.exists(login_path):
+        return login_path
+    else:
+        raise HTTPException(status_code=404, detail="Login page not found")
+
+@app.get("/auth", response_class=FileResponse)
+async def serve_auth():
+    """Servir página de Autenticação"""
+    auth_path = os.path.join(frontend_path, "auth.html")
+    if os.path.exists(auth_path):
+        return auth_path
+    else:
+        raise HTTPException(status_code=404, detail="Authentication page not found")
+
+@app.get("/", response_class=RedirectResponse)
+async def redirect_root():
+    """Redirecionar root para a página de login"""
+    return "/login"
+
 @app.on_event("startup")
 async def startup_event():
     """Evento de startup da aplicação"""

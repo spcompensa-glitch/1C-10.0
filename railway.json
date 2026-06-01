@@ -1,0 +1,28 @@
+{
+  "name": "1crypten-hermes-guardian",
+  "environment": "production",
+  "services": {
+    "hermes-guardian": {
+      "command": "python main.py",
+      "envVars": {
+        "RAILWAY_TOKEN": "baab061ec-2bcf-436b-bbb2-1c6b8616046b",
+        "ADMIN_API_KEY": "1crypten-admin-key-2026-production",
+        "TELEGRAM_BOT_TOKEN": "8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I",
+        "TELEGRAM_CHAT_ID": "1249100206",
+        "JWT_SECRET_KEY": "1crypten-jwt-secret-2026-production",
+        "RAILWAY_URL": "https://1crypten-hermes-agent-production.up.railway.app",
+        "ENVIRONMENT": "production",
+        "PORT": "8080"
+      },
+      "runtime": "python",
+      "memoryLimit": "512MB",
+      "cpuLimit": "100%",
+      "buildCommand": "pip install -r requirements.txt"
+    }
+  },
+  "settings": {
+    "autoDeploy": true,
+    "healthCheckInterval": 30,
+    "healthCheckTimeout": 10
+  }
+}

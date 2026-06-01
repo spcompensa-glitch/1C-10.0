@@ -16,9 +16,10 @@ import sys
 import logging
 import time
 import json
-from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
@@ -65,9 +66,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Montar frontend estático
+frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')
+if os.path.exists(frontend_path):
+    app.mount("/frontend", StaticFiles(directory=frontend_path), name="frontend")
+    logger.info(f"📁 Frontend montado em: {frontend_path}")
+else:
+    logger.warning("⚠️ Diretório frontend não encontrado")
+
 # Variáveis de ambiente Railway
 RAILWAY_ENV = os.getenv("RAILWAY_ENV", "production")
 RAILWAY_URL = os.getenv("RAILWAY_URL", "https://1crypten-hermes-agent-production.up.railway.app")
+
+# Rotas frontend
+@app.get("/", response_class=RedirectResponse)
+async def redirect_root():
+    """Redirecionar root para o Kanban"""
+    return "/kanban"
+
+@app.get("/kanban", response_class=FileResponse)
+async def serve_kanban():
+    """Servir página Kanban Hermes"""
+    kanban_path = os.path.join(frontend_path, "kanban-hermes-enhanced.html")
+    if os.path.exists(kanban_path):
+        return kanban_path
+    else:
+        # Fallback para o Kanban original
+        kanban_fallback = os.path.join(frontend_path, "kanban-hermes.html")
+        if os.path.exists(kanban_fallback):
+            return kanban_fallback
+        else:
+            raise HTTPException(status_code=404, detail="Kanban page not found")
+
+@app.get("/neural-chat", response_class=FileResponse)
+async def serve_neural_chat():
+    """Servir página Neural Chat"""
+    neural_path = os.path.join(frontend_path, "neural-chat.html")
+    if os.path.exists(neural_path):
+        return neural_path
+    else:
+        raise HTTPException(status_code=404, detail="Neural chat page not found")
+
+@app.get("/neural-graph", response_class=FileResponse)
+async def serve_neural_graph():
+    """Servir página Neural Graph"""
+    graph_path = os.path.join(frontend_path, "neural_graph.html")
+    if os.path.exists(graph_path):
+        return graph_path
+    else:
+        raise HTTPException(status_code=404, detail="Neural graph page not found")
+
+@app.get("/cockpit", response_class=FileResponse)
+async def serve_cockpit():
+    """Servir página Cockpit"""
+    cockpit_path = os.path.join(frontend_path, "cockpit.html")
+    if os.path.exists(cockpit_path):
+        return cockpit_path
+    else:
+        raise HTTPException(status_code=404, detail="Cockpit page not found")
 
 @app.on_event("startup")
 async def startup_event():

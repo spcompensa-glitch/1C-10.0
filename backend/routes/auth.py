@@ -20,13 +20,13 @@ import secrets
 import string
 from datetime import datetime
 
-from ..auth.middleware import get_current_user, require_permission, require_admin, audit_log
-from ..auth.jwt_handler import get_jwt_manager, create_user_tokens
-from ..auth.permissions import PERMISSIONS
-from ..auth.security.password_handler import hash_password, verify_password
-from ..database.models_auth import User, UserOKXTokens, AuditLog
-from ..database.database_service_secure import get_db
-from ..security.encryption import get_password_hasher, get_security_validator
+from auth.middleware import get_current_user, require_permission, require_admin, audit_log
+from auth.jwt_handler import get_jwt_manager, create_user_tokens
+from auth.permissions import PERMISSIONS
+from auth.security.password_handler import hash_password, verify_password
+from database.models_auth import User, UserOKXTokens, AuditLog
+from database.database_service_secure import get_db
+from security.encryption import get_password_hasher, get_security_validator
 
 logger = logging.getLogger(__name__)
 

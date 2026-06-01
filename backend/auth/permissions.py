@@ -146,7 +146,7 @@ def get_user_role_from_database(user_id: int, db_session) -> str:
         Role do usuário ('admin' ou 'user')
     """
     try:
-        from ..database.models_auth import User
+        from database.models_auth import User
         user = db_session.query(User).filter(User.id == user_id).first()
         return user.role if user else 'user'
     except Exception:

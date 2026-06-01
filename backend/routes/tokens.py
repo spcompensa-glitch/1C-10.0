@@ -17,11 +17,11 @@ from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from ..auth.middleware import get_current_user, require_permission, audit_log
-from ..database.models_auth import UserOKXTokens
-from ..database.database_service_secure import get_db
-from ..security.encryption import get_encryption_instance, get_data_masker
-from ..services.okx_user_service import OKXUserService
+from auth.middleware import get_current_user, require_permission, audit_log
+from database.models_auth import UserOKXTokens
+from database.database_service_secure import get_db
+from security.encryption import get_encryption_instance, get_data_masker
+from services.okx_user_service import OKXUserService
 
 logger = logging.getLogger(__name__)
 

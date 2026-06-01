@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 import asyncio
 
 from .okx_rest import OKXRest
-from ..database.models_auth import UserOKXTokens
-from ..security.encryption import get_encryption_instance
+from database.models_auth import UserOKXTokens
+from security.encryption import get_encryption_instance
 
 logger = logging.getLogger(__name__)
 

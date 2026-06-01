@@ -21,28 +21,34 @@ from auth_config import auth_settings as settings
 
 logger = logging.getLogger(__name__)
 
-# Criar engine de banco de dados
-engine = create_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    echo=settings.debug
-)
-
-# Criar factory de sessões
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base para modelos SQLAlchemy
+# Criar engine de banco de dados (lazy loading)
+engine = None
+SessionLocal = None
 Base = declarative_base()
+
+def get_engine():
+    """Retorna engine de banco de dados (cria se necessário)"""
+    global engine, SessionLocal
+    if engine is None:
+        engine = create_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            echo=settings.debug
+        )
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return engine
 
 @contextmanager
 def get_db() -> Generator[Session, None, None]:
     """
     Context manager para obter sessão de banco de dados
-    
+
     Yields:
         Sessão do SQLAlchemy
     """
+    # Garantir que o engine foi inicializado
+    get_engine()
     db = SessionLocal()
     try:
         yield db
@@ -60,9 +66,9 @@ def init_db():
     try:
         # Importar todos os modelos
         from .models_auth import User, UserOKXTokens, AuditLog, UserSession
-        
+
         # Criar tabelas
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=get_engine())
         logger.info("Banco de dados inicializado com sucesso")
         return True
     except Exception as e:
@@ -78,7 +84,7 @@ def drop_db():
         from .models_auth import User, UserOKXTokens, AuditLog, UserSession
         
         # Remover tabelas
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=get_engine())
         logger.info("Banco de dados resetado com sucesso")
         return True
     except Exception as e:
@@ -88,12 +94,12 @@ def drop_db():
 def test_connection() -> bool:
     """
     Testa a conexão com o banco de dados
-    
+
     Returns:
         True se a conexão for bem sucedida
     """
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             result = conn.execute("SELECT 1")
             if result.scalar() == 1:
                 logger.info("Conexão com banco de dados estabelecida com sucesso")

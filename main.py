@@ -15,9 +15,11 @@ import os
 import sys
 import logging
 import time
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import json
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import uvicorn
 
 # Adiciona backend ao path
@@ -32,6 +34,16 @@ from backend.services.telegram_service import telegram_service
 from backend.services.hermes_broker import hermes_broker
 from backend.services.portfolio_guardian import portfolio_guardian
 from backend.services.sentinel_auditor import sentinel_auditor
+
+# Modelos Pydantic
+class ChatMessage(BaseModel):
+    message: str
+    type: str = "chat"
+
+class HermesResponse(BaseModel):
+    type: str
+    message: str
+    timestamp: float
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -247,6 +259,72 @@ async def get_kanban_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Kanban status failed: {str(e)}")
 
+@app.get("/api/hermes/status")
+async def get_hermes_status():
+    """Endpoint de status do Hermes"""
+    try:
+        return {
+            "timestamp": time.time(),
+            "status": "online",
+            "message": "Hermes está operacional",
+            "services": {
+                "websocket": len(websocket_service.active_connections),
+                "telegram": telegram_service.is_active,
+                "broker": True
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Hermes status failed: {str(e)}")
+
+@app.post("/api/hermes/chat")
+async def post_hermes_chat(message: ChatMessage):
+    """Endpoint de chat com Hermes"""
+    try:
+        # Processar mensagem e gerar resposta
+        response_message = f"🪶 Hermes: {message.message}"
+        
+        # Enviar resposta via WebSocket para todos os clientes conectados
+        response = {
+            "type": "hermes_response",
+            "message": response_message,
+            "timestamp": time.time()
+        }
+        
+        # Enviar para todos os clientes WebSocket
+        for connection in websocket_service.active_connections:
+            try:
+                await connection.send_text(json.dumps(response))
+            except:
+                pass
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+@app.post("/api/chat")
+async def post_chat(message: ChatMessage):
+    """Endpoint de chat genérico"""
+    try:
+        # Processar mensagem e gerar resposta
+        response = {
+            "type": "hermes_response",
+            "message": f"🪶 Hermes: {message.message}",
+            "timestamp": time.time()
+        }
+        
+        # Enviar resposta via WebSocket para todos os clientes conectados
+        for connection in websocket_service.active_connections:
+            try:
+                await connection.send_text(json.dumps(response))
+            except:
+                pass
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
 @app.get("/telegram")
 async def get_telegram_status():
     """Endpoint de status do Telegram"""
@@ -300,6 +378,46 @@ async def get_dashboard():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dashboard failed: {str(e)}")
+
+@app.websocket("/ws")
+@app.websocket("/ws/cockpit")
+async def websocket_endpoint(websocket: WebSocket):
+    """Endpoint WebSocket para o chat do Hermes"""
+    await websocket_service.connect(websocket)
+    try:
+        while True:
+            # Receber mensagem do cliente
+            data = await websocket.receive_text()
+            
+            # Processar mensagem
+            try:
+                message_data = json.loads(data)
+                message_type = message_data.get("type")
+                message_content = message_data.get("message", "")
+                
+                # Responder com mensagem do Hermes
+                if message_type == "chat":
+                    response = {
+                        "type": "hermes_response",
+                        "message": f"🪶 Hermes: {message_content}",
+                        "timestamp": time.time()
+                    }
+                    await websocket.send_text(json.dumps(response))
+                
+                # Log da mensagem
+                logger.info(f"📨 WebSocket message received: {message_type}")
+                
+            except json.JSONDecodeError:
+                response = {
+                    "type": "error",
+                    "message": "Formato de mensagem inválido",
+                    "timestamp": time.time()
+                }
+                await websocket.send_text(json.dumps(response))
+                
+    except WebSocketDisconnect:
+        websocket_service.disconnect(websocket)
+        logger.info("❌ WebSocket client disconnected")
 
 if __name__ == "__main__":
     # Configurar servidor Railway

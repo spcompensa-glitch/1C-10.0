@@ -273,7 +273,7 @@ async def health_check():
             "services": {},
             "overall": "ok"
         }
-        
+
         # Verificar serviços
         services_status = {}
         

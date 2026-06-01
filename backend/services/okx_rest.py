@@ -1862,7 +1862,8 @@ class OKXRest:
                                                 entry_p = float(slot.get("entry_price", 0)) if slot else 0
                                                 qty_closed = q
                                                 roi_val = execution_protocol.calculate_roi(entry_p, current_price, p["side"], float(slot.get("leverage", 50))) if entry_p > 0 else 0
-                                                margin_used = float(slot.get("entry_margin", 0)) or ((qty_closed * entry_p) / float(slot.get("leverage", 50) or 50))
+                                                # [V110.701 FIX] For PAPER mode, use fixed margin per slot (10% of $100 = $10)
+                                margin_used = float(slot.get("entry_margin", 0)) or (10.0 if self.execution_mode == "PAPER" else ((qty_closed * entry_p) / float(slot.get("leverage", 50) or 50)))
                                                 est_pnl = (roi_val / 100.0) * margin_used
                                                 from services.time_utils import get_br_iso_str
                                                 slot_type_val = slot.get("slot_type", "BLITZ_30M") if slot else "BLITZ_30M"
@@ -1911,7 +1912,8 @@ class OKXRest:
                                 side = s.get("side", "Buy")
                                 qty = float(s.get("qty") or s.get("size") or 0)
                                 # [V110.128] Standardized PnL Calculation: (ROI/100) * Margin
-                                margin = float(s.get("entry_margin") or (qty * entry / 50.0))
+                                # [V110.701 FIX] For PAPER mode, use fixed margin per slot (10% of $100 = $10)
+                                margin = float(s.get("entry_margin") or (10.0 if self.execution_mode == "PAPER" else (qty * entry / 50.0)))
                                 roi = execution_protocol.calculate_roi(entry, cur_p, side)
                                 p_usd = (roi / 100.0) * margin
                                 
@@ -2210,7 +2212,8 @@ class OKXRest:
                             if entry > 0:
                                 side = p.get("side", "Buy")
                                 qty = float(p.get("size", 0))
-                                margin = float(p.get("entry_margin") or (qty * entry / 50.0))
+                                # [V110.701 FIX] For PAPER mode, use fixed margin per slot (10% of $100 = $10)
+                                margin = float(p.get("entry_margin") or (10.0 if self.execution_mode == "PAPER" else (qty * entry / 50.0)))
                                 roi = execution_protocol.calculate_roi(entry, p_price, side)
                                 # [V110.128] Standardized PnL Calculation: (ROI/100) * Margin
                                 p_usd = (roi / 100.0) * margin

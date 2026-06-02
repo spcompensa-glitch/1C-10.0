@@ -153,6 +153,10 @@ if os.path.exists(frontend_path):
     if os.path.exists(vendor_path):
         app.mount("/vendor", StaticFiles(directory=vendor_path), name="vendor")
         logger.info(f"📦 Vendor mountado em /vendor -> {vendor_path}")
+    
+    # [V110.186] Servir frontend completo como estático
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+    logger.info(f"📄 Frontend montado em / -> {frontend_path}")
 else:
     logger.warning("⚠️ Diretório frontend não encontrado")
 

@@ -21,7 +21,8 @@
       "runtime": "python",
       "memoryLimit": "512MB",
       "cpuLimit": "100%",
-      "buildCommand": "pip install -r requirements.txt"
+      "buildCommand": "pip install -r requirements.txt",
+      "envFile": ".env.production"
     }
   },
   "settings": {

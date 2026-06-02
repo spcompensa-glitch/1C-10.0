@@ -17,7 +17,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 
-from auth_config import auth_settings as settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,20 @@ def get_engine():
     """Retorna engine de banco de dados (cria se necessário)"""
     global engine, SessionLocal
     if engine is None:
-        engine = create_engine(
-            settings.database_url,
-            pool_pre_ping=True,
-            pool_recycle=300,
-            echo=settings.debug
-        )
+        # Configurar engine baseado no tipo de banco de dados
+        if settings.DATABASE_URL.startswith('sqlite'):
+            engine = create_engine(
+                settings.DATABASE_URL,
+                connect_args={"check_same_thread": False},
+                echo=settings.DEBUG
+            )
+        else:
+            engine = create_engine(
+                settings.DATABASE_URL,
+                pool_pre_ping=True,
+                pool_recycle=300,
+                echo=settings.DEBUG
+            )
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return engine
 

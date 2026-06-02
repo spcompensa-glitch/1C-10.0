@@ -62,11 +62,13 @@ class Settings(BaseSettings):
     ETHERSCAN_API_KEY: str = os.getenv("ETHERSCAN_API_KEY", "YourApiKeyToken")
 
     # App Logic
-    DEBUG: bool = True
     PORT: int = int(os.getenv("PORT", 8085))
     HOST: str = "0.0.0.0"
     SERVE_STATIC_FRONTEND: bool = True
     BACKEND_CORS_ORIGINS: str = ""
+    cors_allow_credentials: bool = True
+    cors_allow_methods: list = ["*"]
+    cors_allow_headers: list = ["*"]
 
     # JWT Security Configuration
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "1crypten-jwt-secret-2026-production")
@@ -156,13 +158,52 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Configurações de Banco de Dados para Autenticação
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/1crypten")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./auth.db")
 
     # Configurações Gerais da API
     APP_NAME: str = os.getenv("APP_NAME", "1Crypten")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
     DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("true", "1", "t", "yes", "y")
     PORT: int = int(os.getenv("PORT", 8085))
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO") or "INFO"
+    
+    def get_cors_origins(self):
+        """Obtém origens CORS configuradas"""
+        origins = []
+        if self.BACKEND_CORS_ORIGINS:
+            origins = [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
+        # Adicionar origens padrão
+        if "localhost" not in origins:
+            origins.append("http://localhost:3000")
+        if "127.0.0.1" not in origins:
+            origins.append("http://127.0.0.1:3000")
+        return origins
+    
+    def validate_environment(self):
+        """Valida configurações críticas do ambiente"""
+        # Verificar chaves de API necessárias
+        required_keys = [
+            'JWT_SECRET_KEY',
+            'ENCRYPTION_PASSWORD',
+            'ENCRYPTION_SALT'
+        ]
+        
+        missing_keys = []
+        for key in required_keys:
+            if not getattr(self, key, None):
+                missing_keys.append(key)
+        
+        if missing_keys:
+            raise ValueError(f"Chaves de ambiente obrigatórias ausentes: {', '.join(missing_keys)}")
+        
+        # Verificar configurações de segurança
+        if len(self.JWT_SECRET_KEY) < 32:
+            raise ValueError("JWT_SECRET_KEY deve ter pelo menos 32 caracteres")
+        
+        if len(self.ENCRYPTION_PASSWORD) < 8:
+            raise ValueError("ENCRYPTION_PASSWORD deve ter pelo menos 8 caracteres")
+        
+        if len(self.ENCRYPTION_SALT) < 8:
+            raise ValueError("ENCRYPTION_SALT deve ter pelo menos 8 caracteres")
 
 settings = Settings()

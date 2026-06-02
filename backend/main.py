@@ -693,7 +693,7 @@ if settings.SERVE_STATIC_FRONTEND:
 from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel
 
 # Include Modulated Routers
-app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api/auth")
 app.include_router(trading.router)
 app.include_router(system.router)
 app.include_router(dashboard.router)

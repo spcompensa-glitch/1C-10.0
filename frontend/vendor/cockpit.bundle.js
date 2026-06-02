@@ -1769,7 +1769,7 @@ const useMoonbagsRT = () => {
         if (resp.ok) {
           const data = await resp.json();
           // Só atualiza via REST se não tivermos dados do sovereign_rtdb recentemente
-          setMoonbags(prev => prev.length === 0 ? data : prev);
+          setMoonbags(prev => prev.length === 0 ? data.moonbags : prev);
         }
       } catch (e) {
         console.error("Moonbags API Error:", e);

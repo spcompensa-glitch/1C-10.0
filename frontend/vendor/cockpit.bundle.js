@@ -94,14 +94,12 @@ const API_BASE = (() => {
   }
 
   // 3. Fallback to auto-detection (useful for integrated / default local deploy)
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    if (!window.location.hostname) {
-      return 'http://localhost:8085';
-    }
-    return `${window.location.protocol}//${window.location.hostname}`;
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const port = window.location.port || '8085';
+    return `${window.location.protocol}//${window.location.hostname}:${port}`;
   }
-  const port = window.location.port || '8085';
-  return `${window.location.protocol}//${window.location.hostname}:${port}`;
+  // For production/remote hosts
+  return `${window.location.protocol}//${window.location.hostname}`;
 })();
 
 // [SILENCED] console.log("System Initialized", API_BASE);

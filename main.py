@@ -39,6 +39,13 @@ from backend.services.nvidia_service import nvidia_service
 
 # Auth (rotas /api/auth/*) - rotas de login/registro/refresh/me/logout/change-password
 from backend.routes.auth import router as auth_router
+
+# Importar outras rotas do sistema
+from backend.routes.market import router as market_router
+from backend.routes.backtest_routes import router as backtest_router
+from backend.routes.dashboard import router as dashboard_router
+from backend.routes.system import router as system_router
+from backend.routes.vault import router as vault_router
 from backend.database.database_service_secure import get_engine, Base as AuthBase
 from backend.database import models_auth  # noqa: F401 - registra modelos no metadata
 from backend.auth.security.password_handler import password_handler
@@ -78,6 +85,13 @@ app.add_middleware(
 
 # Registrar rotas de autenticação (login/registro/refresh/me/logout/change-password/admin)
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+
+# Registrar outras rotas do sistema
+app.include_router(market_router, prefix="/api", tags=["market"])
+app.include_router(backtest_router, prefix="/api", tags=["backtest"])
+app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
+app.include_router(system_router, prefix="/api", tags=["system"])
+app.include_router(vault_router, prefix="/api", tags=["vault"])
 
 
 def _init_auth_db():
@@ -754,6 +768,447 @@ async def get_dashboard():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dashboard failed: {str(e)}")
 
+# Endpoints do Cockpit (V110.171) - Mock Data
+@app.get("/api/system/state")
+async def get_system_state():
+    """Estado do sistema para o Cockpit"""
+    return {
+        "timestamp": time.time(),
+        "status": "operational",
+        "phase": "active",
+        "memory_usage": "45%",
+        "cpu_usage": "23%",
+        "uptime": "24h+",
+        "services": {
+            "websocket": "active",
+            "auth": "active", 
+            "radar": "active",
+            "slots": "active",
+            "vault": "active",
+            "market": "active"
+        },
+        "alerts": [],
+        "security_score": 100
+    }
+
+@app.get("/api/slots")
+async def get_slots():
+    """Slots ativos do sistema"""
+    return {
+        "timestamp": time.time(),
+        "slots": [
+            {
+                "id": 1,
+                "symbol": "BTCUSDT",
+                "strategy": "ABCD",
+                "size": 0.1,
+                "entry_price": 43500.0,
+                "current_price": 43850.0,
+                "pnl": "+35.00",
+                "pnl_percent": "+0.08%",
+                "status": "active",
+                "time_active": "2h 15m",
+                "last_signal": "BUY",
+                "confidence": "85%"
+            },
+            {
+                "id": 2,
+                "symbol": "ETHUSDT", 
+                "strategy": "MOLA",
+                "size": 2.5,
+                "entry_price": 2350.0,
+                "current_price": 2320.0,
+                "pnl": "-75.00",
+                "pnl_percent": "-0.13%",
+                "status": "active",
+                "time_active": "1h 45m",
+                "last_signal": "SELL",
+                "confidence": "72%"
+            },
+            {
+                "id": 3,
+                "symbol": "SOLUSDT",
+                "strategy": "SHADOW",
+                "size": 15.0,
+                "entry_price": 98.5,
+                "current_price": 102.3,
+                "pnl": "+57.00",
+                "pnl_percent": "+0.39%",
+                "status": "active",
+                "time_active": "45m",
+                "last_signal": "BUY",
+                "confidence": "91%"
+            }
+        ],
+        "total_slots": 3,
+        "active_strategies": ["ABCD", "MOLA", "SHADOW"],
+        "total_pnl": "+17.00",
+        "win_rate": "67%"
+    }
+
+@app.get("/api/radar/pulse")
+async def get_radar_pulse():
+    """Radar pulse - sinais ativos"""
+    return {
+        "timestamp": time.time(),
+        "signals": [
+            {
+                "symbol": "BNBUSDT",
+                "type": "BUY",
+                "strength": "STRONG",
+                "confidence": 89,
+                "price": 315.50,
+                "change_24h": "+2.3%",
+                "volume": "2.1M",
+                "signal_time": "2 minutos atrás",
+                "strategy": "BLITZ"
+            },
+            {
+                "symbol": "ADAUSDT", 
+                "type": "SELL",
+                "strength": "MEDIUM",
+                "confidence": 76,
+                "price": 0.452,
+                "change_24h": "-1.2%",
+                "volume": "850K",
+                "signal_time": "5 minutos atrás",
+                "strategy": "MOLA"
+            },
+            {
+                "symbol": "DOTUSDT",
+                "type": "BUY", 
+                "strength": "WEAK",
+                "confidence": 65,
+                "price": 7.85,
+                "change_24h": "+0.8%",
+                "volume": "1.2M",
+                "signal_time": "8 minutos atrás",
+                "strategy": "SHADOW"
+            }
+        ],
+        "total_signals": 3,
+        "buy_signals": 2,
+        "sell_signals": 1
+    }
+
+@app.get("/api/banca/data")
+async def get_banca_data():
+    """Dados da banca"""
+    return {
+        "timestamp": time.time(),
+        "banca": {
+            "total_balance": 12500.00,
+            "available_balance": 8750.00,
+            "used_balance": 3750.00,
+            "free_margin": 5000.00,
+            "margin_level": "142%",
+            "equity": 13250.00
+        },
+        "risk_metrics": {
+            "max_risk_per_trade": "2%",
+            "total_risk_exposure": "18%",
+            "daily_pnl": "+125.00",
+            "weekly_pnl": "+850.00",
+            "monthly_pnl": "+3200.00"
+        },
+        "trades_today": 15,
+        "win_rate_today": "73%",
+        "profit_factor": "1.85"
+    }
+
+@app.get("/api/vault/status")
+async def get_vault_status():
+    """Status do Vault"""
+    return {
+        "timestamp": time.time(),
+        "vault": {
+            "status": "secure",
+            "encrypted": True,
+            "backups": "24h",
+            "last_backup": "2 horas atrás",
+            "storage_used": "2.3GB / 10GB",
+            "api_calls_today": 1250,
+            "api_calls_limit": 5000,
+            "security_score": 98
+        },
+        "jornada": {
+            "level": "ELITE COMMAND",
+            "progress": "78%",
+            "next_milestone": "SNIPER MASTER",
+            "points": 24500,
+            "rank": "#12"
+        }
+    }
+
+@app.get("/api/market/klines")
+async def get_market_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 350):
+    """Dados de mercado Klines"""
+    # Mock data - em produção isso viria da API real
+    mock_klines = []
+    base_price = 43500.0
+    base_time = int(time.time() - (limit * 3600))  # Limit * 1 hour ago
+    
+    for i in range(limit):
+        timestamp = base_time + (i * 3600)
+        price_variation = (i % 20 - 10) * 50  # Random variation
+        open_price = base_price + price_variation
+        close_price = open_price + (i % 7 - 3) * 25
+        high_price = max(open_price, close_price) + 10
+        low_price = min(open_price, close_price) - 10
+        volume = 1000 + (i % 50) * 50
+        
+        mock_klines.append({
+            "timestamp": timestamp,
+            "open": open_price,
+            "high": high_price,
+            "low": low_price,
+            "close": close_price,
+            "volume": volume
+        })
+    
+    return {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit,
+        "data": mock_klines,
+        "timestamp": time.time()
+    }
+
+@app.get("/api/moonbags")
+async def get_moonbags():
+    """Moonbags - tokens com potencial"""
+    return {
+        "timestamp": time.time(),
+        "moonbags": [
+            {
+                "symbol": "PEPEUSDT",
+                "name": "Pepe",
+                "price": 0.00001234,
+                "24h_change": "+15.2%",
+                "volume": "125M",
+                "holders": "1.2M",
+                "potential": "HIGH",
+                "moonbag_score": 87,
+                "last_signal": "STRONG BUY"
+            },
+            {
+                "symbol": "SHIBUSDT",
+                "name": "Shiba Inu", 
+                "price": 0.00002345,
+                "24h_change": "+8.7%",
+                "volume": "89M",
+                "holders": "3.8M",
+                "potential": "MEDIUM",
+                "moonbag_score": 72,
+                "last_signal": "BUY"
+            },
+            {
+                "symbol": "DOGEUSDT",
+                "name": "Dogecoin",
+                "price": 0.15678,
+                "24h_change": "+5.2%",
+                "volume": "2.1B",
+                "holders": "5.2M",
+                "potential": "LOW",
+                "moonbag_score": 58,
+                "last_signal": "HOLD"
+            }
+        ],
+        "total_moonbags": 3,
+        "average_score": 72
+    }
+
+@app.get("/api/history")
+async def get_history(limit: int = 50):
+    """Histórico de trades"""
+    return {
+        "timestamp": time.time(),
+        "limit": limit,
+        "history": [
+            {
+                "id": "TX001",
+                "symbol": "BTCUSDT",
+                "type": "BUY",
+                "size": 0.1,
+                "entry_price": 43200.0,
+                "exit_price": 43850.0,
+                "pnl": "+65.00",
+                "pnl_percent": "+1.5%",
+                "duration": "2h 15m",
+                "strategy": "ABCD",
+                "status": "COMPLETED",
+                "entry_time": "2026-06-02 10:30:00",
+                "exit_time": "2026-06-02 12:45:00"
+            },
+            {
+                "id": "TX002", 
+                "symbol": "ETHUSDT",
+                "type": "SELL",
+                "size": 2.0,
+                "entry_price": 2380.0,
+                "exit_price": 2350.0,
+                "pnl": "-60.00",
+                "pnl_percent": "-1.26%",
+                "duration": "1h 45m",
+                "strategy": "MOLA",
+                "status": "COMPLETED",
+                "entry_time": "2026-06-02 09:15:00",
+                "exit_time": "2026-06-02 11:00:00"
+            }
+        ],
+        "total_trades": 2,
+        "win_rate": "50%",
+        "total_pnl": "+5.00"
+    }
+
+@app.get("/api/history/stats")
+async def get_history_stats():
+    """Estatísticas do histórico"""
+    return {
+        "timestamp": time.time(),
+        "stats": {
+            "total_trades": 156,
+            "winning_trades": 118,
+            "losing_trades": 38,
+            "win_rate": "75.6%",
+            "total_pnl": "+3250.00",
+            "avg_trade_pnl": "+20.83",
+            "largest_win": "+450.00",
+            "largest_loss": "-180.00",
+            "profit_factor": "2.15",
+            "avg_trade_duration": "1h 45m"
+        },
+        "last_30_days": {
+            "trades": 45,
+            "win_rate": "78%",
+            "pnl": "+980.00"
+        }
+    }
+
+@app.get("/api/radar/grid")
+async def get_radar_grid():
+    """Radar grid - visão geral do mercado"""
+    return {
+        "timestamp": time.time(),
+        "grid": {
+            "total_tokens": 50,
+            "active_tokens": 32,
+            "bullish_tokens": 18,
+            "bearish_tokens": 8,
+            "neutral_tokens": 6,
+            "strong_signals": 5,
+            "weak_signals": 12
+        },
+        "sectors": [
+            {
+                "name": "Large Cap",
+                "tokens": 15,
+                "performance": "+2.3%",
+                "top_performer": "BTCUSDT"
+            },
+            {
+                "name": "Mid Cap", 
+                "tokens": 20,
+                "performance": "+1.8%",
+                "top_performer": "ETHUSDT"
+            },
+            {
+                "name": "Small Cap",
+                "tokens": 15,
+                "performance": "+5.2%",
+                "top_performer": "SOLUSDT"
+            }
+        ],
+        "market_sentiment": "BULLISH",
+        "fear_greed_index": 72
+    }
+
+@app.get("/api/captain/tocaias")
+async def get_captain_tocaias():
+    """Dados do Captain Tocaias"""
+    return {
+        "timestamp": time.time(),
+        "tocaias": [
+            {
+                "id": "TC001",
+                "symbol": "XRPUSDT",
+                "type": "ALERT",
+                "message": "Price breakout detected at $0.52",
+                "strength": "HIGH",
+                "confidence": 85,
+                "action": "WATCH",
+                "time": "5 minutos atrás"
+            },
+            {
+                "id": "TC002",
+                "symbol": "LINKUSDT",
+                "type": "SIGNAL", 
+                "message": "RSI oversold - buying opportunity",
+                "strength": "MEDIUM",
+                "confidence": 76,
+                "action": "CONSIDER",
+                "time": "12 minutos atrás"
+            },
+            {
+                "id": "TC003",
+                "symbol": "AVAXUSDT",
+                "type": "PATTERN",
+                "message": "Head and shoulders forming",
+                "strength": "WEAK", 
+                "confidence": 65,
+                "action": "MONITOR",
+                "time": "18 minutos atrás"
+            }
+        ],
+        "total_tocaias": 3,
+        "active_alerts": 1,
+        "pending_signals": 2
+    }
+
+@app.post("/api/system/re-sync")
+async def post_system_resync():
+    """Re-sincronização do sistema"""
+    return {
+        "timestamp": time.time(),
+        "status": "success",
+        "message": "System re-sync initiated",
+        "sync_data": {
+            "slots_synced": True,
+            "radar_synced": True,
+            "market_data_synced": True,
+            "vault_synced": True
+        }
+    }
+
+@app.get("/api/radar/librarian")
+async def get_radar_librarian():
+    """Radar librarian - dados de inteligência"""
+    return {
+        "timestamp": time.time(),
+        "intelligence": {
+            "market_regime": "BULLISH",
+            "volatility": "MODERATE",
+            "liquidity": "HIGH",
+            "correlation": "LOW",
+            "regime_strength": 78
+        },
+        "patterns": [
+            {
+                "pattern": "Ascending Triangle",
+                "symbol": "BTCUSDT",
+                "confidence": 82,
+                "timeframe": "4h",
+                "direction": "UP"
+            }
+        ],
+        "support_resistance": {
+            "key_levels": [
+                {"level": 42000, "type": "SUPPORT", "strength": "STRONG"},
+                {"level": 45000, "type": "RESISTANCE", "strength": "MEDIUM"}
+            ]
+        }
+    }
+
 @app.websocket("/ws")
 @app.websocket("/ws/cockpit")
 async def websocket_endpoint(websocket: WebSocket):
@@ -763,13 +1218,13 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Receber mensagem do cliente
             data = await websocket.receive_text()
-            
+
             # Processar mensagem
             try:
                 message_data = json.loads(data)
                 message_type = message_data.get("type")
                 message_content = message_data.get("message", "")
-                
+
                 # Responder com mensagem do Hermes
                 if message_type == "chat":
                     try:
@@ -789,17 +1244,17 @@ async def websocket_endpoint(websocket: WebSocket):
                         except Exception as e2:
                             logger.error(f"Erro crítico no fallback do ai_service no WebSocket: {e2}")
                             reply = "🪶 Hermes: Erro de sinal neural interno."
-                    
+
                     response = {
                         "type": "hermes_response",
                         "message": reply,
                         "timestamp": time.time()
                     }
                     await websocket.send_text(json.dumps(response))
-                
+
                 # Log da mensagem
                 logger.info(f"📨 WebSocket message received: {message_type}")
-                
+
             except json.JSONDecodeError:
                 response = {
                     "type": "error",
@@ -807,7 +1262,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": time.time()
                 }
                 await websocket.send_text(json.dumps(response))
-                
+
     except WebSocketDisconnect:
         websocket_service.disconnect(websocket)
         logger.info("❌ WebSocket client disconnected")

@@ -3,22 +3,20 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
+
     <title>1CRYPTEN — Autenticação</title>
-    
-    <!-- Tailwind CSS -->
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Material Icons -->
+
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    
+
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
             color: #ffffff;
@@ -28,7 +26,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .auth-container {
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(20px);
@@ -37,11 +35,11 @@
             padding: 3rem;
             width: 90%;
             max-width: 450px;
-            box-shadow: 
+            box-shadow:
                 0 25px 50px -12px rgba(0, 0, 0, 0.5),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
-        
+
         .logo {
             width: 80px;
             height: 80px;
@@ -55,12 +53,12 @@
             font-weight: bold;
             color: white;
         }
-        
+
         .input-group {
             position: relative;
             margin-bottom: 1.5rem;
         }
-        
+
         .input-group input {
             width: 100%;
             padding: 1rem 1rem 1rem 3rem;
@@ -71,14 +69,14 @@
             font-size: 1rem;
             transition: all 0.3s ease;
         }
-        
+
         .input-group input:focus {
             outline: none;
             border-color: #06b6d4;
             background: rgba(255, 255, 255, 0.12);
             box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
         }
-        
+
         .input-group label {
             position: absolute;
             left: 3rem;
@@ -88,7 +86,7 @@
             transition: all 0.3s ease;
             pointer-events: none;
         }
-        
+
         .input-group input:focus + label,
         .input-group input:not(:placeholder-shown) + label {
             top: -0.5rem;
@@ -99,7 +97,17 @@
             padding: 0 0.5rem;
             border-radius: 4px;
         }
-        
+
+        .input-group .material-icons {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 1.25rem;
+            pointer-events: none;
+        }
+
         .btn-primary {
             width: 100%;
             padding: 1rem;
@@ -113,12 +121,12 @@
             transition: all 0.3s ease;
             margin-bottom: 1rem;
         }
-        
+
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(6, 182, 212, 0.3);
         }
-        
+
         .btn-secondary {
             width: 100%;
             padding: 1rem;
@@ -131,18 +139,18 @@
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        
+
         .btn-secondary:hover {
             border-color: #06b6d4;
             background: rgba(6, 182, 212, 0.1);
         }
-        
+
         .divider {
             text-align: center;
             margin: 2rem 0;
             position: relative;
         }
-        
+
         .divider::before {
             content: '';
             position: absolute;
@@ -152,7 +160,7 @@
             height: 1px;
             background: rgba(255, 255, 255, 0.1);
         }
-        
+
         .divider span {
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
             padding: 0 1rem;
@@ -160,7 +168,7 @@
             color: #9ca3af;
             font-size: 0.875rem;
         }
-        
+
         .auth-tabs {
             display: flex;
             margin-bottom: 2rem;
@@ -168,7 +176,7 @@
             border-radius: 12px;
             padding: 4px;
         }
-        
+
         .auth-tab {
             flex: 1;
             padding: 0.75rem;
@@ -179,12 +187,12 @@
             font-weight: 500;
             font-size: 0.875rem;
         }
-        
+
         .auth-tab.active {
             background: rgba(6, 182, 212, 0.2);
             color: #06b6d4;
         }
-        
+
         .error-message {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid rgba(239, 68, 68, 0.3);
@@ -195,7 +203,7 @@
             font-size: 0.875rem;
             text-align: center;
         }
-        
+
         .success-message {
             background: rgba(16, 185, 129, 0.1);
             border: 1px solid rgba(16, 185, 129, 0.3);
@@ -206,17 +214,34 @@
             font-size: 0.875rem;
             text-align: center;
         }
-        
+
+        .demo-info {
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            color: #06b6d4;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.8125rem;
+            line-height: 1.5;
+        }
+
+        .demo-info strong {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+
         .loading {
             display: none;
             text-align: center;
             margin: 1rem 0;
         }
-        
+
         .loading.show {
             display: block;
         }
-        
+
         .spinner {
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-top: 3px solid #06b6d4;
@@ -226,7 +251,7 @@
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -236,70 +261,79 @@
 <body>
     <div class="auth-container">
         <div class="logo">1C</div>
-        
+
         <h1 class="text-3xl font-bold text-center mb-2" id="auth-title">Login</h1>
         <p class="text-center text-gray-400 mb-6" id="auth-subtitle">Acesse sua conta 1Crypten</p>
-        
+
         <div class="auth-tabs">
             <div class="auth-tab active" data-tab="login">Login</div>
             <div class="auth-tab" data-tab="register">Cadastro</div>
         </div>
-        
+
+        <div class="demo-info">
+            <strong>Credenciais Demo</strong>
+            Usuário: <strong>admin</strong> &middot; Senha: <strong>admin123</strong>
+        </div>
+
         <div id="error-message" class="error-message" style="display: none;"></div>
         <div id="success-message" class="success-message" style="display: none;"></div>
-        
-        <!-- Formulário de Login -->
+
         <form id="login-form">
             <div class="input-group">
-                <input type="text" id="login-username" placeholder=" " required>
+                <span class="material-icons">person</span>
+                <input type="text" id="login-username" placeholder=" " required autocomplete="username">
                 <label for="login-username">Usuário</label>
             </div>
-            
+
             <div class="input-group">
-                <input type="password" id="login-password" placeholder=" " required>
+                <span class="material-icons">lock</span>
+                <input type="password" id="login-password" placeholder=" " required autocomplete="current-password">
                 <label for="login-password">Senha</label>
             </div>
-            
+
             <button type="submit" class="btn-primary">
                 Entrar
             </button>
         </form>
-        
-        <!-- Formulário de Cadastro -->
+
         <form id="register-form" style="display: none;">
             <div class="input-group">
-                <input type="text" id="register-username" placeholder=" " required>
+                <span class="material-icons">person</span>
+                <input type="text" id="register-username" placeholder=" " required autocomplete="username">
                 <label for="register-username">Usuário</label>
             </div>
-            
+
             <div class="input-group">
-                <input type="email" id="register-email" placeholder=" ">
+                <span class="material-icons">email</span>
+                <input type="email" id="register-email" placeholder=" " autocomplete="email">
                 <label for="register-email">Email (opcional)</label>
             </div>
-            
+
             <div class="input-group">
-                <input type="password" id="register-password" placeholder=" " required>
+                <span class="material-icons">lock</span>
+                <input type="password" id="register-password" placeholder=" " required autocomplete="new-password">
                 <label for="register-password">Senha</label>
             </div>
-            
+
             <div class="input-group">
-                <input type="password" id="register-confirm-password" placeholder=" " required>
+                <span class="material-icons">lock_outline</span>
+                <input type="password" id="register-confirm-password" placeholder=" " required autocomplete="new-password">
                 <label for="register-confirm-password">Confirmar Senha</label>
             </div>
-            
+
             <button type="submit" class="btn-primary">
                 Criar Conta
             </button>
         </form>
-        
+
         <div class="divider">
             <span>ou</span>
         </div>
-        
+
         <button class="btn-secondary" onclick="window.location.href='cockpit.html'">
-            Acesso Rápido (admin/admin123)
+            Acesso Direto (sem autenticação)
         </button>
-        
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p class="text-center mt-2 text-gray-400">Processando...</p>
@@ -309,29 +343,25 @@
     <script>
         const API_BASE = '';
         let currentTab = 'login';
-        
-        // Configuração das abas
+
         const authTabs = document.querySelectorAll('.auth-tab');
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         const authTitle = document.getElementById('auth-title');
         const authSubtitle = document.getElementById('auth-subtitle');
-        
+
         authTabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                const tabName = tab.dataset.tab;
-                switchTab(tabName);
+                switchTab(tab.dataset.tab);
             });
         });
-        
+
         function switchTab(tabName) {
             currentTab = tabName;
-            
-            // Atualizar abas
+
             authTabs.forEach(t => t.classList.remove('active'));
             document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-            
-            // Mostrar/ocultar formulários
+
             if (tabName === 'login') {
                 loginForm.style.display = 'block';
                 registerForm.style.display = 'none';
@@ -343,71 +373,64 @@
                 authTitle.textContent = 'Cadastro';
                 authSubtitle.textContent = 'Crie sua conta 1Crypten';
             }
-            
-            // Limpar mensagens
+
             hideMessages();
         }
-        
+
         function showLoading() {
             document.getElementById('loading').classList.add('show');
         }
-        
+
         function hideLoading() {
             document.getElementById('loading').classList.remove('show');
         }
-        
+
         function showError(message) {
             const errorDiv = document.getElementById('error-message');
             errorDiv.textContent = message;
             errorDiv.style.display = 'block';
             document.getElementById('success-message').style.display = 'none';
         }
-        
+
         function showSuccess(message) {
             const successDiv = document.getElementById('success-message');
             successDiv.textContent = message;
             successDiv.style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
         }
-        
+
         function hideMessages() {
             document.getElementById('error-message').style.display = 'none';
             document.getElementById('success-message').style.display = 'none';
         }
-        
-        // Login
+
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
-            
+
             showLoading();
             hideMessages();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        username,
-                        password
-                    })
+                    body: JSON.stringify({ username, password })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok && data.access_token) {
-                    // Salvar token
                     localStorage.setItem('auth_token', data.access_token);
                     localStorage.setItem('refresh_token', data.refresh_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    
+
                     showSuccess('Login realizado com sucesso!');
-                    
-                    // Redirecionar para o cockpit após um breve delay
+
                     setTimeout(() => {
                         window.location.href = 'cockpit.html';
                     }, 1500);
@@ -421,30 +444,28 @@
                 hideLoading();
             }
         });
-        
-        // Cadastro
+
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const username = document.getElementById('register-username').value;
             const email = document.getElementById('register-email').value;
             const password = document.getElementById('register-password').value;
             const confirmPassword = document.getElementById('register-confirm-password').value;
-            
-            // Validação
+
             if (password !== confirmPassword) {
                 showError('As senhas não coincidem');
                 return;
             }
-            
+
             if (password.length < 8) {
                 showError('A senha deve ter pelo menos 8 caracteres');
                 return;
             }
-            
+
             showLoading();
             hideMessages();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/auth/register`, {
                     method: 'POST',
@@ -458,13 +479,12 @@
                         confirm_password: confirmPassword
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     showSuccess('Conta criada com sucesso! Faça login para acessar.');
-                    
-                    // Mudar para aba de login após um breve delay
+
                     setTimeout(() => {
                         switchTab('login');
                     }, 2000);
@@ -478,12 +498,10 @@
                 hideLoading();
             }
         });
-        
-        // Verificar se usuário já está logado
+
         document.addEventListener('DOMContentLoaded', () => {
             const token = localStorage.getItem('auth_token');
             if (token) {
-                // Redirecionar para cockpit se já estiver logado
                 window.location.href = 'cockpit.html';
             }
         });

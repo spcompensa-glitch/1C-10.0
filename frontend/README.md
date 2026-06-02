@@ -2,9 +2,9 @@
 
 ## Páginas Disponíveis
 
-### 1. Página Principal de Login (`login.html`)
-- **URL:** `https://seu-dominio/login.html`
-- **Funcionalidade:** Página principal de login e cadastro
+### 1. Página de Autenticação (`auth.html`)
+- **URL:** `https://seu-dominio/auth.html`
+- **Funcionalidade:** Página única de login e cadastro (com abas)
 - **Acesso:** Redireciona automaticamente ao acessar o domínio principal
 
 ### 2. Cockpit Principal (`cockpit.html`)
@@ -13,8 +13,10 @@
 - **Acesso:** Requer autenticação (tem opção de acesso direto)
 
 ### 3. Sistema de Login Integrado
-- **URL:** `https://seu-dominio/` (redireciona para login.html)
+- **URL:** `https://seu-dominio/` (redireciona para `auth.html`)
 - **Funcionalidade:** Sistema de login integrado na interface principal
+
+> **Nota:** `login.html` existe apenas como redirecionamento legado para `auth.html` (mantido para compatibilidade com links antigos).
 
 ## Credenciais de Acesso
 
@@ -24,8 +26,8 @@
 - **Nota:** Acesso direto ao cockpit sem necessidade de login
 
 ### Cadastro de Novos Usuários
-1. Acesse a página `login.html`
-2. Clique em "Cadastre-se"
+1. Acesse a página `auth.html`
+2. Clique na aba "Cadastro"
 3. Preencha os campos:
    - Usuário (obrigatório)
    - Email (opcional)
@@ -103,15 +105,15 @@ Authorization: Bearer <token>
 
 1. **Acesso Principal:**
    - Acesse a URL do seu domínio
-   - Será redirecionado para a página de login
+   - Será redirecionado para `auth.html`
 
 2. **Login:**
-   - Digite suas credenciais
+   - Digite suas credenciais na aba "Login"
    - Clique em "Entrar"
    - Será redirecionado para o cockpit
 
 3. **Cadastro:**
-   - Clique em "Cadastre-se"
+   - Clique na aba "Cadastro"
    - Preencha o formulário
    - Confirme o cadastro
    - Faça login com suas novas credenciais
@@ -124,10 +126,10 @@ Authorization: Bearer <token>
 
 ```
 frontend/
-├── login.html          # Página principal de login e cadastro
-├── auth.html           # Página avançada de autenticação
+├── auth.html           # Página única de login e cadastro (com abas)
+├── login.html          # [LEGADO] Redireciona para auth.html
 ├── cockpit.html        # Interface principal do sistema
-├── index.html          # Página inicial (redireciona para login)
+├── index.html          # Página inicial (redireciona para auth.html)
 ├── README.md           # Documentação do sistema
 └── ...                 # Outros arquivos do sistema
 ```

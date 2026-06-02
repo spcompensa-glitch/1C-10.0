@@ -11,26 +11,20 @@
 - **Funcionalidade:** Acesso rápido ao cockpit principal
 - **Botão:** "Login Completo →" para acessar sistema completo
 
-### 2. Login Completo (`/login`)
-- **URL:** `https://1crypten.space/login`
-- **Interface:** Sistema completo de login e cadastro
+### 2. Login Completo (`/auth`)
+- **URL:** `https://1crypten.space/auth`
+- **Interface:** Sistema único de login e cadastro (com abas)
 - **Recursos:**
-  - Formulário de login normal
-  - Sistema de cadastro de novos usuários
+  - Aba "Login" para autenticação
+  - Aba "Cadastro" para novos usuários
   - Validação de senhas
-  - Design moderno e responsivo
+  - Design moderno e responsivo (Tailwind)
+  - Material Icons e animações suaves
 - **Credenciais:**
   - Login: `admin` / `admin123`
   - Cadastro: Novos usuários com senha mínima 8 caracteres
 
-### 3. Login Avançado (`/auth`)
-- **URL:** `https://1crypten.space/auth`
-- **Interface:** Sistema avançado de autenticação
-- **Recursos:**
-  - Abas para login e cadastro
-  - Mais opções de configuração
-  - Interface profissional
-- **Credenciais:** Mesmo sistema de login completo
+> **Nota:** A URL `/login` foi unificada com `/auth` e agora redireciona automaticamente. Use `/auth` em links e referências.
 
 ## 🔐 Como Usar
 
@@ -41,23 +35,23 @@
 4. Pronto! Você está no cockpit principal
 
 ### Acesso Completo (Para cadastro e login normal)
-1. Acesse `https://1crypten.space/login`
+1. Acesse `https://1crypten.space/auth`
 2. Use as credenciais `admin` / `admin123` para login rápido
-3. Ou clique em "Cadastre-se" para criar nova conta
+3. Ou clique na aba "Cadastro" para criar nova conta
 4. Preencha os campos e crie sua conta
 
 ### Acesso Direto (Sem autenticação)
 1. Acesse `https://1crypten.space/cockpit`
 2. Clique em "Login Completo →"
-3. Ou acesse diretamente `https://1crypten.space/login`
+3. Ou acesse diretamente `https://1crypten.space/auth`
 
 ## 📱 URLs Disponíveis
 
 | URL | Descrição | Recomendação |
 |-----|-----------|--------------|
-| `https://1crypten.space/` | Redireciona para login | Página principal |
-| `https://1crypten.space/login` | Login completo | Uso geral |
-| `https://1crypten.space/auth` | Login avançado | Para usuários avançados |
+| `https://1crypten.space/` | Redireciona para `/auth` | Página principal |
+| `https://1crypten.space/auth` | Login + Cadastro (tela única) | Uso geral |
+| `https://1crypten.space/login` | [LEGADO] Redireciona para `/auth` | Compatibilidade |
 | `https://1crypten.space/cockpit` | Cockpit com login rápido | Testes rápidos |
 
 ## 🔑 Credenciais Padrão
@@ -120,15 +114,15 @@ Authorization: Bearer <token>
 ## 🔄 Como alternar entre sistemas
 
 1. **Do Cockpit:** Clique em "Login Completo →"
-2. **Do Login Completo:** Acesse diretamente `cockpit.html`
+2. **Da Tela de Auth:** Acesse diretamente `cockpit.html`
 3. **Ambos:** Usam o mesmo backend de autenticação
 
 ## 💡 Dicas
 
-- Use o login rápido para testes rápidos
-- Use o login completo para cadastro de novos usuários
-- Ambos os sistemas são integrados ao mesmo backend
-- As credenciais `admin` / `admin123` funcionam em ambos
+- Use o login rápido do cockpit para testes rápidos
+- Use a tela `/auth` para cadastro de novos usuários
+- Todos os sistemas são integrados ao mesmo backend
+- As credenciais `admin` / `admin123` funcionam em todos os fluxos
 
 ## 🚨 Problemas Comuns
 

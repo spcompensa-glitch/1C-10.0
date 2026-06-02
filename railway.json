@@ -28,6 +28,6 @@
   "settings": {
     "autoDeploy": true,
     "healthCheckInterval": 30,
-    "healthCheckTimeout": 10
+    "healthCheckTimeout": 5
   }
 }

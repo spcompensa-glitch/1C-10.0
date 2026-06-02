@@ -69,10 +69,9 @@ encryption = get_encryption_instance()
 data_masker = get_data_masker()
 
 @router.get("/okx-tokens", response_model=OKXTokensListResponse)
-@require_permission("account")
 @audit_log(action="list_tokens", resource="okx_tokens")
 async def get_okx_tokens(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -109,13 +108,12 @@ async def get_okx_tokens(
         )
 
 @router.post("/okx-tokens", response_model=OKXTokenResponse)
-@require_permission("account")
 @audit_log(action="create_token", resource="okx_tokens")
 async def create_okx_token(
     request: Request,
     token_data: OKXTokenRequest,
     master_password: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -178,11 +176,10 @@ async def create_okx_token(
         )
 
 @router.get("/okx-tokens/{token_id}", response_model=OKXTokenResponse)
-@require_permission("account")
 @audit_log(action="get_token", resource="okx_tokens")
 async def get_okx_token(
     token_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -223,13 +220,12 @@ async def get_okx_token(
         )
 
 @router.put("/okx-tokens/{token_id}", response_model=OKXTokenResponse)
-@require_permission("account")
 @audit_log(action="update_token", resource="okx_tokens")
 async def update_okx_token(
     token_id: int,
     token_data: OKXTokenRequest,
     master_password: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -290,12 +286,11 @@ async def update_okx_token(
         )
 
 @router.patch("/okx-tokens/{token_id}/activation")
-@require_permission("account")
 @audit_log(action="toggle_token", resource="okx_tokens")
 async def toggle_token_activation(
     token_id: int,
     activation_data: TokenActivationRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -338,11 +333,10 @@ async def toggle_token_activation(
         )
 
 @router.delete("/okx-tokens/{token_id}")
-@require_permission("account")
 @audit_log(action="delete_token", resource="okx_tokens")
 async def delete_okx_token(
     token_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """
@@ -385,12 +379,11 @@ async def delete_okx_token(
         )
 
 @router.get("/okx-tokens/{token_id}/test")
-@require_permission("account")
 @audit_log(action="test_token", resource="okx_tokens")
 async def test_okx_token(
     token_id: int,
     master_password: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("account")),
     db: Session = Depends(get_db)
 ):
     """

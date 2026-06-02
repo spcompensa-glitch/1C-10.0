@@ -15,10 +15,9 @@ import logging
 import functools
 from datetime import datetime
 from typing import Optional, Dict, Any
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.requests import Request
-from fastapi.responses import JSONResponse
+from starlette.responses import JSONResponse
 from sqlalchemy.orm import Session
 import time
 
@@ -112,55 +111,60 @@ def get_current_user(
 
 def require_permission(permission: str):
     """
-    Decorator para requerir permissão específica
-    
+    FastAPI dependency factory que exige permissão específica.
+
+    Uso:
+        @router.get(...)
+        async def minha_rota(current_user: dict = Depends(require_permission("users"))):
+            ...
+
     Args:
         permission: Permissão necessária
     """
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            # Obter usuário atual
-            current_user = kwargs.get('current_user')
-            if not current_user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Usuário não autenticado"
-                )
-            
-            # Verificar permissão
-            user_role = current_user.get('role', 'user')
-            if not _user_has_permission(current_user, permission):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Permissão negada: {permission} requerida"
-                )
-            
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator
+    def _checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário não autenticado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not _user_has_permission(current_user, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permissão negada: {permission} requerida"
+            )
+        return current_user
+    return _checker
+
 
 def require_admin():
     """
-    Decorator para requerer permissão de admin
+    FastAPI dependency factory que exige role admin.
+
+    Uso:
+        @router.get("/users", dependencies=[Depends(require_admin())])
+        async def list_users(...): ...
+
+        OU
+
+        @router.get("/users")
+        async def list_users(current_user: dict = Depends(require_admin())):
+            ...
     """
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            current_user = kwargs.get('current_user')
-            if not current_user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Usuário não autenticado"
-                )
-            
-            if current_user.get('role') != 'admin':
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Acesso administrativo requerido"
-                )
-            
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator
+    def _checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário não autenticado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if current_user.get('role') != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso administrativo requerido"
+            )
+        return current_user
+    return _checker
 
 def authenticate_optional(
     credentials: HTTPAuthorizationCredentials = Depends(security),

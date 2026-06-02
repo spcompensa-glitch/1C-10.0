@@ -37,6 +37,15 @@ from backend.services.portfolio_guardian import portfolio_guardian
 from backend.services.sentinel_auditor import sentinel_auditor
 from backend.services.nvidia_service import nvidia_service
 
+# Auth (rotas /api/auth/*) - rotas de login/registro/refresh/me/logout/change-password
+from backend.routes.auth import router as auth_router
+from backend.database.database_service_secure import get_engine, Base as AuthBase
+from backend.database import models_auth  # noqa: F401 - registra modelos no metadata
+from backend.auth.security.password_handler import password_handler
+from backend.database.models_auth import User as AuthUser
+from sqlalchemy import text as _sql_text
+from datetime import datetime as _dt
+
 # Modelos Pydantic
 class ChatMessage(BaseModel):
     message: str
@@ -66,6 +75,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Registrar rotas de autenticação (login/registro/refresh/me/logout/change-password/admin)
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+
+
+def _init_auth_db():
+    """Cria tabelas de auth (users, audit_log, user_sessions, user_okx_tokens) e garante admin/admin123."""
+    try:
+        engine = get_engine()
+        AuthBase.metadata.create_all(bind=engine)
+        with engine.connect() as conn:
+            existing = conn.execute(
+                _sql_text("SELECT id FROM users WHERE username = :u"),
+                {"u": "admin"},
+            ).scalar()
+            if not existing:
+                pwd_hash = password_handler.hash_password("admin123", rounds=12)
+                now = _dt.utcnow()
+                conn.execute(
+                    _sql_text("""
+                        INSERT INTO users (username, email, password_hash, is_active, role, created_at, updated_at)
+                        VALUES (:username, :email, :password_hash, :is_active, :role, :created_at, :updated_at)
+                    """),
+                    {
+                        "username": "admin",
+                        "email": "admin@1crypten.com",
+                        "password_hash": pwd_hash,
+                        "is_active": True,
+                        "role": "admin",
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                conn.commit()
+                logger.info("✅ [AUTH] Usuário admin/admin123 criado")
+            else:
+                logger.info("✅ [AUTH] Usuário admin já existe")
+    except Exception as e:
+        logger.error(f"❌ [AUTH] Falha ao inicializar banco de auth: {e}")
 
 # Configurar caminho do frontend
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')
@@ -240,25 +288,29 @@ async def startup_event():
     try:
         # Iniciar WebSocket Service
         logger.info("🔌 Iniciando WebSocket Service...")
-        
+
         # Iniciar Telegram Service
         if telegram_service.is_active:
             logger.info("📱 Telegram Service ativo - Iniciando Polling...")
             telegram_service.start_polling_task()
-        
+
         # Iniciar Hermes Broker
         logger.info("🛰️ Iniciando Hermes Broker...")
         await hermes_broker.start_mqtt()
-        
+
         # Iniciar Portfolio Guardian
         logger.info("🛡️ Iniciando Portfolio Guardian...")
         portfolio_guardian.start()
-        
+
         # Iniciar Sentinel Auditor
         logger.info("🔍 Iniciando Sentinel Auditor...")
-        
+
+        # Inicializar banco de auth (criar tabelas + admin)
+        logger.info("🔐 Inicializando banco de autenticação...")
+        _init_auth_db()
+
         logger.info("✅ Todos os serviços iniciados com sucesso!")
-        
+
     except Exception as e:
         logger.error(f"❌ Erro ao iniciar serviços: {e}")
         raise

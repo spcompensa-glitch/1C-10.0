@@ -382,7 +382,8 @@ async def change_password(
             )
         
         # Verificar senha atual
-        if not verify_password(password_data.current_password, current_user['password_hash']):
+        db_user = db.query(User).filter(User.id == current_user['id']).first()
+        if not db_user or not verify_password(password_data.current_password, db_user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Senha atual incorreta"
@@ -411,12 +412,11 @@ async def change_password(
 
 # Rotas administrativas
 @router.get("/users", response_model=UserListResponse)
-@require_admin()
 @audit_log(action="list_users", resource="admin_users")
 async def list_users(
     page: int = 1,
     per_page: int = 10,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_admin()),
     db: Session = Depends(get_db)
 ):
     """
@@ -448,12 +448,11 @@ async def list_users(
         )
 
 @router.put("/users/{user_id}/role")
-@require_admin()
 @audit_log(action="change_user_role", resource="admin_users")
 async def change_user_role(
     user_id: int,
     new_role: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_admin()),
     db: Session = Depends(get_db)
 ):
     """
@@ -498,11 +497,10 @@ async def change_user_role(
         )
 
 @router.delete("/users/{user_id}")
-@require_admin()
 @audit_log(action="delete_user", resource="admin_users")
 async def delete_user(
     user_id: int,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_admin()),
     db: Session = Depends(get_db)
 ):
     """

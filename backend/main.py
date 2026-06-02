@@ -143,6 +143,14 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"⚠️ Failed to init Local DB: {e}")
 
+            # [V110.701] Initialize Auth DB tables (users, user_okx_tokens, audit_logs, user_sessions)
+            try:
+                from database.database_service_secure import init_db as init_auth_db
+                init_auth_db()
+                logger.info("✅ Auth DB tables initialized.")
+            except Exception as e:
+                logger.error(f"⚠️ Failed to init Auth DB: {e}")
+
             logger.info("Step 0.2: Initializing WebSocket Service...")
             websocket_service = importlib.import_module("services.websocket_service").websocket_service
             

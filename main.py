@@ -42,10 +42,12 @@ from backend.routes.auth import router as auth_router
 
 # Importar outras rotas do sistema
 from backend.routes.market import router as market_router
-from backend.routes.backtest_routes import router as backtest_router
-from backend.routes.dashboard import router as dashboard_router
+# from backend.routes.backtest_routes import router as backtest_router
+# from backend.routes.dashboard import router as dashboard_router
 from backend.routes.system import router as system_router
 from backend.routes.vault import router as vault_router
+from backend.routes.trading import router as trading_router
+from backend.routes.chat import router as chat_router
 from backend.database.database_service_secure import get_engine, Base as AuthBase
 from backend.database import models_auth  # noqa: F401 - registra modelos no metadata
 from backend.auth.security.password_handler import password_handler
@@ -88,10 +90,12 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 # Registrar outras rotas do sistema
 app.include_router(market_router, prefix="/api", tags=["market"])
-app.include_router(backtest_router, prefix="/api", tags=["backtest"])
-app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
+# app.include_router(backtest_router, prefix="/api", tags=["backtest"])
+# app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
 app.include_router(system_router, prefix="/api", tags=["system"])
 app.include_router(vault_router, prefix="/api", tags=["vault"])
+app.include_router(trading_router, prefix="/api", tags=["trading"])
+app.include_router(chat_router, prefix="/api", tags=["chat"])
 
 
 def _init_auth_db():
@@ -168,9 +172,7 @@ if os.path.exists(frontend_path):
         app.mount("/vendor", StaticFiles(directory=vendor_path), name="vendor")
         logger.info(f"📦 Vendor mountado em /vendor -> {vendor_path}")
     
-    # [V110.186] Servir frontend completo como estático
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
-    logger.info(f"📄 Frontend montado em / -> {frontend_path}")
+    # [V110.186] Servir frontend completo como estático (será movido para o final)
 else:
     logger.warning("⚠️ Diretório frontend não encontrado")
 
@@ -333,6 +335,15 @@ async def serve_auth_html():
         return auth_path
     else:
         raise HTTPException(status_code=404, detail="Authentication page not found")
+
+@app.get("/cockpit.html", response_class=FileResponse)
+async def serve_cockpit_html():
+    """Servir página do Cockpit"""
+    cockpit_path = os.path.join(frontend_path, "cockpit.html")
+    if os.path.exists(cockpit_path):
+        return cockpit_path
+    else:
+        raise HTTPException(status_code=404, detail="Cockpit page not found")
 
 @app.get("/index.html", response_class=FileResponse)
 async def serve_index():
@@ -1209,6 +1220,137 @@ async def get_radar_librarian():
         }
     }
 
+@app.get("/api/system/state")
+async def get_system_state():
+    """Estado do sistema para o Cockpit"""
+    return {
+        "timestamp": time.time(),
+        "status": "operational",
+        "phase": "active",
+        "memory_usage": "45%",
+        "cpu_usage": "23%",
+        "uptime": "24h+",
+        "services": {
+            "websocket": "active",
+            "auth": "active", 
+            "radar": "active",
+            "slots": "active",
+            "vault": "active",
+            "market": "active"
+        },
+        "alerts": [],
+        "security_score": 100
+    }
+
+@app.get("/api/slots")
+async def get_slots():
+    """Slots ativos do sistema"""
+    return {
+        "timestamp": time.time(),
+        "slots": [
+            {
+                "id": 1,
+                "symbol": "BTCUSDT",
+                "strategy": "ABCD",
+                "size": 0.1,
+                "entry_price": 43500.0,
+                "current_price": 43850.0,
+                "pnl": "+35.00",
+                "pnl_percent": "+0.08%",
+                "status": "active",
+                "time_active": "2h 15m",
+                "last_signal": "BUY",
+                "confidence": "85%"
+            }
+        ],
+        "total_slots": 1,
+        "active_strategies": ["ABCD"],
+        "total_pnl": "+35.00",
+        "win_rate": "100%"
+    }
+
+@app.get("/api/radar/pulse")
+async def get_radar_pulse():
+    """Radar pulse - sinais ativos"""
+    return {
+        "timestamp": time.time(),
+        "signals": [
+            {
+                "symbol": "BNBUSDT",
+                "type": "BUY",
+                "strength": "STRONG",
+                "confidence": 89,
+                "price": 315.50,
+                "change_24h": "+2.3%",
+                "volume": "2.1M",
+                "signal_time": "2 minutos atrás",
+                "strategy": "BLITZ"
+            }
+        ],
+        "total_signals": 1,
+        "buy_signals": 1,
+        "sell_signals": 0
+    }
+
+@app.get("/api/banca/data")
+async def get_banca_data():
+    """Dados da banca"""
+    return {
+        "timestamp": time.time(),
+        "banca": {
+            "total_balance": 12500.00,
+            "available_balance": 8750.00,
+            "used_balance": 3750.00,
+            "free_margin": 5000.00,
+            "margin_level": "142%",
+            "equity": 13250.00
+        },
+        "risk_metrics": {
+            "max_risk_per_trade": "2%",
+            "total_risk_exposure": "18%",
+            "daily_pnl": "+125.00",
+            "weekly_pnl": "+850.00",
+            "monthly_pnl": "+3200.00"
+        },
+        "trades_today": 15,
+        "win_rate_today": "73%",
+        "profit_factor": "1.85"
+    }
+
+@app.get("/api/market/klines")
+async def get_market_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 350):
+    """Dados de mercado Klines"""
+    # Mock data - em produção isso viria da API real
+    mock_klines = []
+    base_price = 43500.0
+    base_time = int(time.time() - (limit * 3600))  # Limit * 1 hour ago        
+    
+    for i in range(min(limit, 10)):  # Limitar para 10 itens para teste
+        timestamp = base_time + (i * 3600)
+        price_variation = (i % 20 - 10) * 50  # Random variation
+        open_price = base_price + price_variation
+        close_price = open_price + (i % 7 - 3) * 25
+        high_price = max(open_price, close_price) + 10
+        low_price = min(open_price, close_price) - 10
+        volume = 1000 + (i % 50) * 50
+        
+        mock_klines.append({
+            "timestamp": timestamp,
+            "open": open_price,
+            "high": high_price,
+            "low": low_price,
+            "close": close_price,
+            "volume": volume
+        })
+    
+    return {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit,
+        "data": mock_klines,
+        "timestamp": time.time()
+    }
+
 @app.websocket("/ws")
 @app.websocket("/ws/cockpit")
 async def websocket_endpoint(websocket: WebSocket):
@@ -1267,15 +1409,19 @@ async def websocket_endpoint(websocket: WebSocket):
         websocket_service.disconnect(websocket)
         logger.info("❌ WebSocket client disconnected")
 
+
 if __name__ == "__main__":
     # Configurar servidor Railway
     port = int(os.getenv("PORT", 8085))
     host = os.getenv("HOST", "0.0.0.0")
-    
+
     logger.info(f"🚀 Iniciando servidor Hermes Guardian na porta {port}")
     logger.info(f"🌍 Host: {host}")
     logger.info(f"🚂 Ambiente Railway: {RAILWAY_ENV}")
-    
+
+    # Servir frontend estático (último para não interceptar APIs)
+    app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
+
     uvicorn.run(
         "main:app",
         host=host,

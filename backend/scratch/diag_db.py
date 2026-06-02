@@ -20,7 +20,7 @@ async def run_diag():
     # 2. Load settings
     from config import settings
     print(f"DATABASE_URL: {os.getenv('DATABASE_URL')[:20]}...")
-    print(f"BYBIT_EXECUTION_MODE: {settings.BYBIT_EXECUTION_MODE}")
+    print(f"OKX_EXECUTION_MODE: {settings.OKX_EXECUTION_MODE}")
     
     # 3. Initialize Database
     from services.database_service import database_service

@@ -8,7 +8,7 @@ sys.path.append(backend_dir)
 
 from services.database_service import database_service
 from services.sovereign_service import sovereign_service
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def absolute_zero_reset():
     print("Starting ABSOLUTE ZERO RESET...")
@@ -16,27 +16,27 @@ async def absolute_zero_reset():
     # Initialize services
     await database_service.initialize()
     await sovereign_service.initialize()
-    await bybit_rest_service.initialize()
+    await okx_rest_service.initialize()
     
     # 1. Close ALL positions (Real or Paper)
     print("Closing all active positions...")
-    positions = await bybit_rest_service.get_active_positions()
+    positions = await okx_rest_service.get_active_positions()
     for pos in positions:
         symbol = pos.get("symbol")
         side = pos.get("side")
         size = float(pos.get("size", 0))
         if size > 0:
             print(f"Closing {symbol} {side} Qty:{size}...")
-            await bybit_rest_service.close_position(symbol, side, size, reason="ABSOLUTE_ZERO_RESET")
+            await okx_rest_service.close_position(symbol, side, size, reason="ABSOLUTE_ZERO_RESET")
     
     # 2. Cancel all open orders
     print("Canceling all pending orders...")
     try:
-        if bybit_rest_service.execution_mode == "REAL":
-            await bybit_rest_service.session.cancel_all_orders(category="linear", settleCoin="USDT")
+        if okx_rest_service.execution_mode == "REAL":
+            await okx_rest_service.session.cancel_all_orders(category="linear", settleCoin="USDT")
         else:
-            bybit_rest_service.paper_orders_history = []
-            await bybit_rest_service._save_paper_state()
+            okx_rest_service.paper_orders_history = []
+            await okx_rest_service._save_paper_state()
     except Exception as e:
         print(f"Cancel orders warning: {e}")
 

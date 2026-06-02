@@ -633,7 +633,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     # Configurar servidor Railway
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 8085))
     host = os.getenv("HOST", "0.0.0.0")
     
     logger.info(f"🚀 Iniciando servidor Hermes Guardian na porta {port}")

@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.signal_generator import signal_generator
 from services.chart_renderer import chart_renderer
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def test_123():
     symbol = "BTCUSDT.P"
@@ -21,7 +21,7 @@ async def test_123():
     
     if pattern.get('detected'):
         # 2. Fetch Klines for rendering
-        klines = await bybit_rest_service.get_klines(symbol=symbol, interval="1h", limit=200)
+        klines = await okx_rest_service.get_klines(symbol=symbol, interval="1h", limit=200)
         c = klines[::-1]
         df = pd.DataFrame(c, columns=['start_time', 'open', 'high', 'low', 'close', 'volume', 'turnover'])
         df['start_time'] = pd.to_datetime(df['start_time'].astype(float), unit='ms')

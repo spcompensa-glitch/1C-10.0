@@ -3,7 +3,7 @@ import json
 
 def check_symbol(symbol):
     try:
-        url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=60&limit=1"
+        url = f"https://www.okx.com/api/v5/market/candles?instId={symbol}&bar=1m&limit=1"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))

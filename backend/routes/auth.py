@@ -30,7 +30,7 @@ from security.encryption import get_password_hasher, get_security_validator
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 # Modelos de request/response
 class LoginRequest(BaseModel):

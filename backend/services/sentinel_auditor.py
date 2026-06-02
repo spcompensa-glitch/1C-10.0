@@ -235,8 +235,8 @@ async def slot_operator_price_fallback(symbol: str) -> float:
     
     # Fonte 1: WebSocket Bybit (mais rápido e atual)
     try:
-        from services.bybit_ws import bybit_ws_service
-        ws_price = getattr(bybit_ws_service, 'get_current_price', None)
+        from services.okx_ws_public import okx_ws_public_service
+        ws_price = getattr(okx_ws_public_service, 'get_current_price', None)
         if ws_price:
             price = ws_price(symbol)
             if price and price > 0:

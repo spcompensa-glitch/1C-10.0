@@ -52,13 +52,15 @@ async def lifespan(app: FastAPI):
         logger.error(f"Erro de configuração: {e}")
         raise
     
-    # Inicializar banco de dados
+    # Inicializar banco de dados e criar tabelas se não existirem
     try:
-        from database.database_service_secure import get_db
-        db = next(get_db())
-        logger.info("Conexão com banco de dados estabelecida")
+        from database.database_service_secure import get_engine, Base
+        from database import models_auth  # noqa: F401 - garante que os modelos sejam registrados
+        engine = get_engine()
+        Base.metadata.create_all(bind=engine)
+        logger.info("Banco de dados inicializado com sucesso")
     except Exception as e:
-        logger.warning(f"Não foi possível conectar ao banco de dados: {e}")
+        logger.warning(f"Não foi possível inicializar banco de dados: {e}")
     
     yield
     

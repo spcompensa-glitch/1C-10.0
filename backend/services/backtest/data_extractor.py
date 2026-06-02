@@ -94,7 +94,7 @@ def get_eligible_pairs():
             if not inst_id.endswith("-USDT-SWAP"):
                 continue
 
-            # Converter para símbolo formato limpo/bybit (e.g. BTCUSDT)
+            # Converter para símbolo formato limpo/legacy (e.g. BTCUSDT)
             symbol = inst_id.replace("-SWAP", "").replace("-", "")
 
             # Check blocklist

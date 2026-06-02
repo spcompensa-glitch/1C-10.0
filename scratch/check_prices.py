@@ -6,7 +6,7 @@ def get_prices():
     results = {}
     for s in symbols:
         try:
-            url = f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={s}"
+            url = f"https://www.okx.com/api/v5/market/ticker?instId={s}-USDT-SWAP"
             r = requests.get(url).json()
             price = r["result"]["list"][0]["lastPrice"]
             results[s] = float(price)

@@ -4,7 +4,7 @@
 Serviço de Banco de Dados Seguro
 =================================
 
-Gerencia conexão com o banco de dados PostgreSQL para o sistema de autenticação.
+Gerencia conexão com o banco de dados para o sistema de autenticação.
 
 Author: Sistema 1Crypten
 Version: 1.0
@@ -12,10 +12,9 @@ Version: 1.0
 
 import logging
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from contextlib import contextmanager
 
 from config import settings
 
@@ -47,10 +46,9 @@ def get_engine():
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return engine
 
-@contextmanager
 def get_db() -> Generator[Session, None, None]:
     """
-    Context manager para obter sessão de banco de dados
+    Gerador para obter sessão de banco de dados (compatível com FastAPI Depends)
 
     Yields:
         Sessão do SQLAlchemy
@@ -108,7 +106,7 @@ def test_connection() -> bool:
     """
     try:
         with get_engine().connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             if result.scalar() == 1:
                 logger.info("Conexão com banco de dados estabelecida com sucesso")
                 return True

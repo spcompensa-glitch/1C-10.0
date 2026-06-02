@@ -8,14 +8,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from services.firebase_service import firebase_service
 from services.database_service import database_service
-from services.bankroll import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def cleanup():
     print("🧹 [CLEANUP] Iniciando limpeza atômica de resíduos de teste...")
     
     # 0. Garante BybitREST pronto
-    bybit_rest_service.is_ready = True
-    bybit_rest_service.execution_mode = "PAPER"
+    okx_rest_service.is_ready = True
+    okx_rest_service.execution_mode = "PAPER"
     
     # 1. Limpar as Moonbags de teste (BTC e PEPE) no Postgres
     print("\n🌔 Removendo Moonbags de teste do Postgres...")
@@ -44,11 +44,11 @@ async def cleanup():
     await firebase_service.free_slot(4, reason="PURGE_TEST_BASEDUSDT_ERROR")
     
     # Garante que removemos posições falsas da memória RAM local também
-    bybit_rest_service.paper_positions = [p for p in bybit_rest_service.paper_positions if p.get("symbol", "").upper() not in ["BTCUSDT", "PEPEUSDT", "SOLUSDT", "BASEDUSDT", "BASEUSDT"]]
+    okx_rest_service.paper_positions = [p for p in okx_rest_service.paper_positions if p.get("symbol", "").upper() not in ["BTCUSDT", "PEPEUSDT", "SOLUSDT", "BASEDUSDT", "BASEUSDT"]]
     
     # Salva o estado limpo
-    if hasattr(bybit_rest_service, "_save_paper_state"):
-        await bybit_rest_service._save_paper_state()
+    if hasattr(okx_rest_service, "_save_paper_state"):
+        await okx_rest_service._save_paper_state()
         
     print("\n✨ [CLEANUP] Limpeza concluída com sucesso absoluto!")
 

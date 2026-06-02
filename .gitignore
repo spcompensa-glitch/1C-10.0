@@ -10,6 +10,14 @@ backend/reports/
 reports/
 data/*.db
 
+# Scratch archive (FASE 4 — moved 2026-06-02)
+scratch/debug/
+scratch/reports/
+scratch/logs/
+scratch/*.py
+scratch/*.txt
+scratch/*.db
+
 # Frontend
 frontend/node_modules/
 frontend/.next/

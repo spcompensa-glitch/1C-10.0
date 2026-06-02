@@ -8,16 +8,17 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "backend"))
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from services.firebase_service import firebase_service
-from services.bankroll import bankroll_manager, bybit_rest_service
+from services.bankroll import bankroll_manager
+from services.okx_rest import okx_rest_service
 from services.database_service import database_service
 
 async def run_tests():
     print("🧪 [TESTS-FLOWS] Iniciando bateria de testes de fluxos e slots...")
     
     # 0. Garante que BybitREST está inicializado
-    bybit_rest_service.is_ready = True
-    bybit_rest_service.execution_mode = "PAPER"
-    bybit_rest_service.paper_positions = []
+    okx_rest_service.is_ready = True
+    okx_rest_service.execution_mode = "PAPER"
+    okx_rest_service.paper_positions = []
     
     # Limpa slot de teste (Slot 4)
     print("\n🧹 Limpando o Slot 4 para iniciar testes...")
@@ -49,7 +50,7 @@ async def run_tests():
     await firebase_service.update_slot(4, test_trade)
     
     # Cria a posição correspondente na RAM local para sincronizar
-    bybit_rest_service.paper_positions.append({
+    okx_rest_service.paper_positions.append({
         "symbol": "BTCUSDT",
         "side": "Buy",
         "size": "0.05",
@@ -151,7 +152,7 @@ async def run_tests():
     print("\n🚀 [TESTE 3] Testando se o Capitão pode abrir nova ordem com o slot liberado...")
     
     # Sincroniza posições simuladas para limpar o array
-    bybit_rest_service.paper_positions = []
+    okx_rest_service.paper_positions = []
     
     # Verifica disponibilidade de slot no bankroll
     slot_disponivel = await bankroll_manager.can_open_new_slot(symbol="SOLUSDT", slot_type="SNIPER")

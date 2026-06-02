@@ -83,7 +83,7 @@ def with_circuit_breaker(breaker_name: str, fallback_return: Any = None, is_crit
     Decorador asssíncrono para blindar funções com Circuit Breaker e Exponential Backoff.
     
     Args:
-        breaker_name: Nome do disjuntor (ex: "bybit_rest", "firestore")
+        breaker_name: Nome do disjuntor (ex: "okx_rest", "firestore")
         fallback_return: O valor a retornar se o circuito estiver aberto ou as tentativas esgotarem.
         is_critical: Se True, tenta forçar execução ignorando limitador de tentativas (Emergency Bypass).
     """

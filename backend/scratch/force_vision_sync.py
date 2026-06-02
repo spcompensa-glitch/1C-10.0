@@ -15,8 +15,8 @@ async def force_sync():
         await database_service.initialize()
         await sovereign_service.initialize()
         
-        from services.bybit_rest import bybit_rest_service
-        await bybit_rest_service.initialize()
+        from services.okx_rest import okx_rest_service
+        await okx_rest_service.initialize()
         
         print("Synchronizing slots...")
         # Aumentar timeout para Playwright

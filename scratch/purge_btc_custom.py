@@ -13,24 +13,24 @@ async def main():
     try:
         from services.database_service import database_service
         from services.firebase_service import firebase_service
-        from services.okx_rest import okx_rest_service as bybit_rest_service
+        from services.okx_rest import okx_rest_service
         
         print("--- INICIANDO PURGA CUSTOMIZADA DE BTCUSDT ---")
         
         # 1. Purgar posicoes de BTCUSDT da memoria Paper
-        pos_antes = len(bybit_rest_service.paper_positions)
-        bybit_rest_service.paper_positions = [p for p in bybit_rest_service.paper_positions if (p.get("symbol") or "").upper().replace(".P","") != "BTCUSDT"]
-        pos_depois = len(bybit_rest_service.paper_positions)
+        pos_antes = len(okx_rest_service.paper_positions)
+        okx_rest_service.paper_positions = [p for p in okx_rest_service.paper_positions if (p.get("symbol") or "").upper().replace(".P","") != "BTCUSDT"]
+        pos_depois = len(okx_rest_service.paper_positions)
         print(f"Paper positions: {pos_antes} -> {pos_depois} (residuos de BTC removidos)")
         
         # 2. Purgar moonbags de BTCUSDT da memoria Paper
-        moon_antes = len(bybit_rest_service.paper_moonbags)
-        bybit_rest_service.paper_moonbags = [p for p in bybit_rest_service.paper_moonbags if (p.get("symbol") or "").upper().replace(".P","") != "BTCUSDT"]
-        moon_depois = len(bybit_rest_service.paper_moonbags)
+        moon_antes = len(okx_rest_service.paper_moonbags)
+        okx_rest_service.paper_moonbags = [p for p in okx_rest_service.paper_moonbags if (p.get("symbol") or "").upper().replace(".P","") != "BTCUSDT"]
+        moon_depois = len(okx_rest_service.paper_moonbags)
         print(f"Paper moonbags: {moon_antes} -> {moon_depois} (residuos de BTC removidos)")
         
         # 3. Forcar persistencia do estado Paper limpo no Firestore
-        await bybit_rest_service._save_paper_state()
+        await okx_rest_service._save_paper_state()
         print("Estado Paper limpo sincronizado com o Firestore com sucesso.")
         
         # 4. Limpar slots do Postgres

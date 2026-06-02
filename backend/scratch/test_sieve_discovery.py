@@ -6,15 +6,15 @@ import os
 # Adiciona o diretório backend ao path para importar os serviços
 sys.path.append(os.path.join(os.getcwd(), "backend"))
 
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def test_sieve_discovery():
     print("🚀 [TEST] Iniciando descoberta do Sniper Sieve (Tier 1)...")
     
     # Inicializa o serviço (necessário para o session)
-    await bybit_rest_service.initialize()
+    await okx_rest_service.initialize()
     
-    candidates = await bybit_rest_service.get_sieve_candidates()
+    candidates = await okx_rest_service.get_sieve_candidates()
     
     print(f"\n📊 Resultados:")
     print(f"Total de ativos qualificados: {len(candidates)}")

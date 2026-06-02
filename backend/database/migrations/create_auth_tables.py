@@ -47,32 +47,22 @@ def create_tables():
 
 def check_tables_exist():
     """
-    Verifica se as tabelas já existem
+    Verifica se as tabelas já existem (compatível com SQLite e PostgreSQL)
     """
     try:
         from database.database_service_secure import get_engine
+        from sqlalchemy import inspect
         engine = get_engine()
         
-        # Lista das tabelas esperadas
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
         expected_tables = ['users', 'user_okx_tokens', 'audit_log', 'user_sessions']
 
-        # Verificar se as tabelas existem
         tables_exist = {}
         for table in expected_tables:
-            try:
-                with engine.connect() as conn:
-                    result = conn.execute(text(f"""
-                        SELECT EXISTS (
-                            SELECT FROM information_schema.tables
-                            WHERE table_schema = 'public'
-                            AND table_name = '{table}'
-                        )
-                    """)).scalar()
-                    tables_exist[table] = result
-                    logger.info(f"Tabela '{table}': {'Existe' if result else 'Não existe'}")
-            except Exception as e:
-                logger.error(f"Erro ao verificar tabela '{table}': {e}")
-                tables_exist[table] = False
+            exists = table in existing_tables
+            tables_exist[table] = exists
+            logger.info(f"Tabela '{table}': {'Existe' if exists else 'Não existe'}")
 
         return tables_exist
 
@@ -87,6 +77,7 @@ def create_admin_user():
     try:
         from auth.security.password_handler import password_handler
         from database.database_service_secure import get_engine
+        from datetime import datetime
 
         engine = get_engine()
 
@@ -109,23 +100,22 @@ def create_admin_user():
             email='admin@1crypten.com',
             password_hash=password_hash,
             is_active=True,
-            is_admin=True,
-            email_verified=True,
-            created_at='2026-06-01 10:00:00'
+            role='admin',
+            created_at=datetime.utcnow()
         )
 
         with engine.connect() as conn:
             conn.execute(text("""
-                INSERT INTO users (username, email, password_hash, is_active, is_admin, email_verified, created_at)
-                VALUES (:username, :email, :password_hash, :is_active, :is_admin, :email_verified, :created_at)
+                INSERT INTO users (username, email, password_hash, is_active, role, created_at, updated_at)
+                VALUES (:username, :email, :password_hash, :is_active, :role, :created_at, :updated_at)
             """), {
                 'username': admin_user.username,
                 'email': admin_user.email,
                 'password_hash': password_hash,
                 'is_active': admin_user.is_active,
-                'is_admin': admin_user.is_admin,
-                'email_verified': admin_user.email_verified,
-                'created_at': admin_user.created_at
+                'role': admin_user.role,
+                'created_at': admin_user.created_at,
+                'updated_at': admin_user.created_at
             })
             conn.commit()
 
@@ -153,7 +143,7 @@ def create_user_tables_indexes():
             "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
             "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
             "CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)",
-            "CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin)",
+            "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
 
             # Índices para tabela user_okx_tokens
             "CREATE INDEX IF NOT EXISTS idx_user_okx_tokens_user_id ON user_okx_tokens(user_id)",
@@ -165,12 +155,11 @@ def create_user_tables_indexes():
             "CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)",
             "CREATE INDEX IF NOT EXISTS idx_audit_log_resource ON audit_log(resource)",
-            "CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_audit_log_ip_address ON audit_log(ip_address)",
 
             # Índices para tabela user_sessions
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_user_sessions_session_type ON user_sessions(session_type)",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON user_sessions(is_active)",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_created_at ON user_sessions(created_at)",
             "CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON user_sessions(expires_at)"
@@ -197,27 +186,11 @@ def migrate_database():
     """
     logger.info("Iniciando migração do banco de dados...")
 
-    # Tentar verificar tabelas existentes
-    try:
-        tables_exist = check_tables_exist()
-        if tables_exist:
-            if not all(tables_exist.values()):
-                logger.info("Criando tabelas de autenticação...")
-                if not create_tables():
-                    logger.error("Falha ao criar tabelas")
-                    return False
-            else:
-                logger.info("Todas as tabelas já existem")
-        else:
-            logger.info("Não foi possível verificar tabelas, criando...")
-            if not create_tables():
-                logger.error("Falha ao criar tabelas")
-                return False
-    except Exception as e:
-        logger.info(f"Erro ao verificar tabelas, criando novas: {e}")
-        if not create_tables():
-            logger.error("Falha ao criar tabelas")
-            return False
+    # Criar tabelas (create_all é idempotente - não recria se já existir)
+    logger.info("Criando tabelas de autenticação...")
+    if not create_tables():
+        logger.error("Falha ao criar tabelas")
+        return False
 
     # Criar índices
     logger.info("Criando índices...")

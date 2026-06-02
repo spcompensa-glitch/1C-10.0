@@ -1,8 +1,0 @@
-# Force Railway Restart - V110.701 Complete System Cleanup
-
-This file forces a Railway deployment restart to apply:
-- P&L calculation fixes ($10 fixed margin per slot in PAPER mode)
-- Complete system cleanup across all 3 data stores
-- Bankroll reset to $100 with 4 slots available
-
-Delete this file after Railway restart is complete.

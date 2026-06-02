@@ -79,14 +79,13 @@ def check_dependencies():
     try:
         import fastapi
         import sqlalchemy
-        import psycopg2
         import bcrypt
         import jwt
-        print("✅ Todas as dependências principais estão instaladas")
+        print("Todas as dependencias principais estao instaladas")
         return True
     except ImportError as e:
-        print(f"❌ Dependência ausente: {e}")
-        print("Instale as dependências com: pip install -r requirements.txt")
+        print(f"Dependencia ausente: {e}")
+        print("Instale as dependencias com: pip install -r requirements.txt")
         return False
 
 def run_migrations():

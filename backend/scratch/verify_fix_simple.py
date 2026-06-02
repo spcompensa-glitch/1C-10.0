@@ -20,7 +20,7 @@ def verify():
     all_ok = True
     for phrase, label in checks:
         if phrase in content:
-            # Check if it's still inside an 'if bybit_rest_service.execution_mode == "PAPER":'
+            # Check if it's still inside an 'if okx_rest_service.execution_mode == "PAPER":'
             # (Note: Some phrases like 'Vision AI OFFLINE' might exist in logs but we removed the conditional)
             # A better check is to see if 'execution_mode == "PAPER"' exists near them.
             print(f"❌ {label} potentially still exists.")

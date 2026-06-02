@@ -1,0 +1,282 @@
+2026-06-01 18:30:07,850 - HermesBroker - WARNING - ⚠️ [gRPC] Falha ao carregar stubs compilados do Hermes: cannot import name 'runtime_version' from 'google.protobuf' (C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\google\protobuf\__init__.py). Execute a compilação do arquivo protos/hermes.proto. Usando Mocks em runtime.
+2026-06-01 18:30:07,884 - HermesBroker - WARNING - ⚠️ [MQTT] Módulo paho-mqtt não disponível - MQTT desativado
+2026-06-01 18:30:07,884 - HermesBroker - INFO - 💡 [MQTT] Instale com: pip install paho-mqtt
+2026-06-01 18:30:07,884 - HermesBroker - INFO - 🛰️ [HERMES] Inicializado. Broker MQTT: broker.hivemq.com:1883 | Porta gRPC: 50051
+2026-06-01 18:30:07,948 - OKXService - INFO - 🔌 [OKX] Inicializado em modo MAINNET. Mock=False
+2026-06-01 19:25:23,484 - HermesBroker - WARNING - ⚠️ [gRPC] Falha ao carregar stubs compilados do Hermes: cannot import name 'runtime_version' from 'google.protobuf' (C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\google\protobuf\__init__.py). Execute a compilação do arquivo protos/hermes.proto. Usando Mocks em runtime.
+2026-06-01 19:25:23,516 - HermesBroker - WARNING - ⚠️ [MQTT] Módulo paho-mqtt não disponível - MQTT desativado
+2026-06-01 19:25:23,516 - HermesBroker - INFO - 💡 [MQTT] Instale com: pip install paho-mqtt
+2026-06-01 19:25:23,516 - HermesBroker - INFO - 🛰️ [HERMES] Inicializado. Broker MQTT: broker.hivemq.com:1883 | Porta gRPC: 50051
+2026-06-01 19:25:23,602 - OKXService - INFO - 🔌 [OKX] Inicializado em modo MAINNET. Mock=False
+2026-06-01 19:25:23,802 - OKXWS - INFO - 🔌 [OKX-WS] Inicializado. Testnet=False, Mock=False
+2026-06-01 19:25:23,803 - PortfolioGuardian - INFO - 🛡️ [GUARDIAN] Inicializado. Gatilho de Ativação: 70.0% | Margem de Recuo: 15.0%
+2026-06-01 19:25:25,659 - HermesGuardian - INFO - 📁 Frontend encontrado em: c:\Users\spcom\Desktop\1C-7.0\frontend
+2026-06-01 19:25:25,676 - HermesGuardian - INFO - 🚀 Iniciando servidor Hermes Guardian na porta 8085
+2026-06-01 19:25:25,676 - HermesGuardian - INFO - 🌍 Host: 0.0.0.0
+2026-06-01 19:25:25,676 - HermesGuardian - INFO - 🚂 Ambiente Railway: production
+2026-06-01 19:25:26,231 - HermesGuardian - INFO - 📁 Frontend encontrado em: c:\Users\spcom\Desktop\1C-7.0\frontend
+2026-06-01 19:25:26,263 - HermesGuardian - INFO - 🚀 Iniciando Hermes Guardian System...
+2026-06-01 19:25:26,263 - HermesGuardian - INFO - 🌍 Ambiente: production
+2026-06-01 19:25:26,263 - HermesGuardian - INFO - 🚂 Railway URL: https://1crypten-hermes-agent-production.up.railway.app
+2026-06-01 19:25:26,264 - HermesGuardian - INFO - 🔌 Iniciando WebSocket Service...
+2026-06-01 19:25:26,266 - HermesGuardian - INFO - 📱 Telegram Service ativo - Iniciando Polling...
+2026-06-01 19:25:26,267 - TelegramService - INFO - 🤖 Telegram Polling INICIADO de forma inteligente pelo Hermes Guardian.
+2026-06-01 19:25:26,268 - HermesGuardian - INFO - 🛰️ Iniciando Hermes Broker...
+2026-06-01 19:25:26,268 - HermesBroker - WARNING - ⚠️ [MQTT] MQTT não disponível - pulando conexão
+2026-06-01 19:25:26,268 - HermesGuardian - INFO - 🛡️ Iniciando Portfolio Guardian...
+2026-06-01 19:25:26,268 - OKXWS - INFO - 📝 [OKX-WS] Callback registrado para receber dados de posições.
+2026-06-01 19:25:26,269 - PortfolioGuardian - INFO - 🛡️ [GUARDIAN] Escuta ativada no WebSocket privado da OKX Master.
+2026-06-01 19:25:26,269 - PortfolioGuardian - INFO - 🛡️ [GUARDIAN] Loop REST-Fallback iniciado (polling a cada 30s como redundância).
+2026-06-01 19:25:26,269 - HermesGuardian - INFO - 🔍 Iniciando Sentinel Auditor...
+2026-06-01 19:25:26,269 - HermesGuardian - INFO - ✅ Todos os serviços iniciados com sucesso!
+2026-06-01 19:25:36,029 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:25:51,849 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:26:06,871 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:26:17,769 - HermesBroker - WARNING - ⚠️ [gRPC] Falha ao carregar stubs compilados do Hermes: cannot import name 'runtime_version' from 'google.protobuf' (C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\google\protobuf\__init__.py). Execute a compilação do arquivo protos/hermes.proto. Usando Mocks em runtime.
+2026-06-01 19:26:17,769 - HermesBroker - WARNING - ⚠️ [MQTT] Módulo paho-mqtt não disponível - MQTT desativado
+2026-06-01 19:26:17,769 - HermesBroker - INFO - 💡 [MQTT] Instale com: pip install paho-mqtt
+2026-06-01 19:26:17,769 - HermesBroker - INFO - 🛰️ [HERMES] Inicializado. Broker MQTT: broker.hivemq.com:1883 | Porta gRPC: 50051
+2026-06-01 19:26:17,769 - OKXService - INFO - 🔌 [OKX] Inicializado em modo MAINNET. Mock=False
+2026-06-01 19:26:17,769 - OKXWS - INFO - 🔌 [OKX-WS] Inicializado. Testnet=False, Mock=False
+2026-06-01 19:26:17,769 - PortfolioGuardian - INFO - 🛡️ [GUARDIAN] Inicializado. Gatilho de Ativação: 70.0% | Margem de Recuo: 15.0%
+2026-06-01 19:26:17,934 - HermesGuardian - INFO - 📁 Frontend encontrado em: c:\Users\spcom\Desktop\1C-7.0\frontend
+2026-06-01 19:26:19,931 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:26:27,707 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 64s. Consultando REST OKX...
+2026-06-01 19:26:28,307 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:26:28,309 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:26:35,931 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:26:50,922 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:26:58,318 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 95s. Consultando REST OKX...
+2026-06-01 19:26:58,760 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:26:58,761 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:27:06,888 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:27:22,862 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:27:28,763 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 125s. Consultando REST OKX...
+2026-06-01 19:27:29,265 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:27:29,266 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:27:38,876 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:27:51,948 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:27:59,268 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 155s. Consultando REST OKX...
+2026-06-01 19:27:59,776 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:27:59,776 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:28:07,881 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:28:23,827 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:28:29,781 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 186s. Consultando REST OKX...
+2026-06-01 19:28:30,278 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:28:30,278 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:28:42,911 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:28:58,610 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:29:00,267 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 216s. Consultando REST OKX...
+2026-06-01 19:29:00,782 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:29:00,782 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:29:14,628 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:29:30,613 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:29:30,792 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 247s. Consultando REST OKX...
+2026-06-01 19:29:31,272 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:29:31,273 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:29:45,620 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:29:58,656 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:30:01,263 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 277s. Consultando REST OKX...
+2026-06-01 19:30:01,702 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:30:01,729 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:30:14,662 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:30:31,741 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 308s. Consultando REST OKX...
+2026-06-01 19:30:32,211 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:30:32,213 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:30:34,749 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:30:42,837 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:30:56,006 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:31:02,230 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 338s. Consultando REST OKX...
+2026-06-01 19:31:02,766 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:31:02,780 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:31:15,045 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:31:28,093 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:31:32,802 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 369s. Consultando REST OKX...
+2026-06-01 19:31:33,309 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:31:33,311 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:31:43,105 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:31:56,135 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:32:03,312 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 400s. Consultando REST OKX...
+2026-06-01 19:32:03,962 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:32:03,965 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:32:11,864 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:32:26,871 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:32:33,975 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 430s. Consultando REST OKX...
+2026-06-01 19:32:34,422 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:32:34,423 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:32:42,593 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:32:58,568 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:33:04,423 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 461s. Consultando REST OKX...
+2026-06-01 19:33:04,902 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:33:04,903 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:33:11,612 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:33:26,617 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:33:34,899 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 491s. Consultando REST OKX...
+2026-06-01 19:33:35,345 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:33:35,347 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:33:49,639 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:33:58,655 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:34:05,358 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 522s. Consultando REST OKX...
+2026-06-01 19:34:05,921 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:34:05,921 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:34:14,638 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:34:29,629 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:34:35,915 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 552s. Consultando REST OKX...
+2026-06-01 19:34:36,383 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:34:36,385 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:34:45,417 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:34:58,499 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:35:06,386 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 583s. Consultando REST OKX...
+2026-06-01 19:35:06,807 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:35:06,807 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:35:13,513 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:35:28,503 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:35:36,813 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 613s. Consultando REST OKX...
+2026-06-01 19:35:37,272 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:35:37,275 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:35:51,302 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:35:59,218 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:36:07,268 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 643s. Consultando REST OKX...
+2026-06-01 19:36:07,733 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:36:07,733 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:36:14,862 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:36:30,875 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:36:37,744 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 674s. Consultando REST OKX...
+2026-06-01 19:36:38,250 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:36:38,252 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:36:46,862 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:37:01,868 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:37:08,253 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 704s. Consultando REST OKX...
+2026-06-01 19:37:08,800 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:37:08,817 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:37:17,881 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:37:31,879 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:37:38,825 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 735s. Consultando REST OKX...
+2026-06-01 19:37:39,563 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:37:39,564 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:37:44,887 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:37:59,886 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:38:09,566 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 766s. Consultando REST OKX...
+2026-06-01 19:38:10,032 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:38:10,032 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:38:14,898 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:38:32,942 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:38:40,024 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 796s. Consultando REST OKX...
+2026-06-01 19:38:40,589 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:38:40,590 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:38:45,935 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:39:00,950 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:39:10,612 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 827s. Consultando REST OKX...
+2026-06-01 19:39:11,050 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:39:11,053 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:39:15,964 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:39:28,987 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:39:41,058 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 857s. Consultando REST OKX...
+2026-06-01 19:39:41,533 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:39:41,533 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:39:44,004 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:39:59,001 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:40:11,548 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 888s. Consultando REST OKX...
+2026-06-01 19:40:12,059 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:40:12,059 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:40:15,010 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:40:31,072 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:40:42,065 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 918s. Consultando REST OKX...
+2026-06-01 19:40:42,588 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:40:42,588 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:40:47,084 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:41:02,080 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:41:12,589 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 949s. Consultando REST OKX...
+2026-06-01 19:41:13,059 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:41:13,078 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:41:17,092 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:41:30,137 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:41:43,082 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 979s. Consultando REST OKX...
+2026-06-01 19:41:43,213 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:41:43,599 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:41:43,599 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:41:58,243 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:42:11,293 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:42:13,589 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1010s. Consultando REST OKX...
+2026-06-01 19:42:14,041 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:42:14,043 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:42:27,003 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:42:41,992 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:42:44,195 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1040s. Consultando REST OKX...
+2026-06-01 19:42:44,920 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:42:44,921 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:42:55,427 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:43:11,118 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:43:14,934 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1071s. Consultando REST OKX...
+2026-06-01 19:43:15,416 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:43:15,416 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:43:27,065 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:43:43,036 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:43:45,415 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1102s. Consultando REST OKX...
+2026-06-01 19:43:45,890 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:43:45,892 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:43:56,073 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:44:12,074 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:44:15,903 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1132s. Consultando REST OKX...
+2026-06-01 19:44:16,400 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:44:16,400 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:44:28,077 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:44:46,112 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:44:46,409 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1163s. Consultando REST OKX...
+2026-06-01 19:44:46,921 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:44:46,924 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:44:59,147 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:45:16,917 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1193s. Consultando REST OKX...
+2026-06-01 19:45:17,421 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:45:17,423 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:45:18,202 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:45:33,895 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:45:47,442 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1224s. Consultando REST OKX...
+2026-06-01 19:45:47,937 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:45:47,942 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:45:50,062 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:46:05,802 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:46:17,945 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1254s. Consultando REST OKX...
+2026-06-01 19:46:18,426 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:46:18,426 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:46:18,974 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:46:33,969 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:46:48,418 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1285s. Consultando REST OKX...
+2026-06-01 19:46:48,969 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:46:48,969 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:46:49,947 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:47:05,946 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:47:18,979 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1315s. Consultando REST OKX...
+2026-06-01 19:47:19,060 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:47:19,511 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:47:19,514 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:47:37,872 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:47:49,537 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1346s. Consultando REST OKX...
+2026-06-01 19:47:49,969 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:47:49,969 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:47:53,684 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:48:16,740 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:48:19,992 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1376s. Consultando REST OKX...
+2026-06-01 19:48:20,493 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:48:20,493 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:48:24,672 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:48:40,684 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:48:50,499 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1407s. Consultando REST OKX...
+2026-06-01 19:48:50,974 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:48:50,976 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:48:56,649 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:49:12,620 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:49:20,989 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1437s. Consultando REST OKX...
+2026-06-01 19:49:21,463 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:49:21,465 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:49:25,796 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:49:41,552 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:49:51,463 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1468s. Consultando REST OKX...
+2026-06-01 19:49:51,978 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:49:51,978 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:49:54,560 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:50:10,600 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"
+2026-06-01 19:50:22,004 - PortfolioGuardian - WARNING - 🛡️ [GUARDIAN-FALLBACK] WS silencioso por 1498s. Consultando REST OKX...
+2026-06-01 19:50:22,512 - httpx - INFO - HTTP Request: GET https://www.okx.com/api/v5/account/positions "HTTP/1.1 401 Unauthorized"
+2026-06-01 19:50:22,515 - OKXService - ERROR - ❌ [OKX REST] Erro de rede HTTP 401: {"msg":"Invalid OK-ACCESS-KEY","code":"50111"}
+2026-06-01 19:50:23,661 - httpx - INFO - HTTP Request: GET https://api.telegram.org/bot8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I/getUpdates?offset=1&timeout=30 "HTTP/1.1 409 Conflict"

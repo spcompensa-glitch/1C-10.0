@@ -9,14 +9,14 @@ async def main():
     try:
         from services.database_service import database_service
         from services.sovereign_service import sovereign_service
-        from services.bybit_rest import bybit_rest_service
+        from services.okx_rest import okx_rest_service
         
         print("--- INICIANDO LIMPEZA DE BTCUSDT ---")
         
         # 1. Limpar no Paper Engine (Memória)
-        initial_pos_count = len(bybit_rest_service.paper_positions)
-        bybit_rest_service.paper_positions = [p for p in bybit_rest_service.paper_positions if p.get("symbol") != "BTCUSDT"]
-        final_pos_count = len(bybit_rest_service.paper_positions)
+        initial_pos_count = len(okx_rest_service.paper_positions)
+        okx_rest_service.paper_positions = [p for p in okx_rest_service.paper_positions if p.get("symbol") != "BTCUSDT"]
+        final_pos_count = len(okx_rest_service.paper_positions)
         if initial_pos_count > final_pos_count:
             print(f"✅ Removida posição de BTCUSDT da memória Paper.")
         
@@ -31,7 +31,7 @@ async def main():
         # (Não removemos do histórico, apenas do estado ativo)
         
         # 4. Sincronizar com Firestore/RTDB
-        await bybit_rest_service._save_paper_state()
+        await okx_rest_service._save_paper_state()
         print("✅ Estado Paper sincronizado com Firestore.")
         
         # 5. Forçar reset de BTC no RTDB (Sovereign)

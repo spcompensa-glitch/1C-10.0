@@ -1,0 +1,159 @@
+2026-05-31 18:04:42,840 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:04:42,840 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:04:42,841 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:04:42,841 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:04:42,842 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:04:53,604 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 10.76s
+2026-05-31 18:04:53,612 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:04:53,614 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:04:53,615 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:04:56,467 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 2.85s
+2026-05-31 18:04:56,467 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:04:56,467 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:04:56,468 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:04:56,468 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:04:56,468 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:04:56,469 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:04:56,469 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:04:56,469 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:04:56,470 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:04:56,471 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:04:58,207 - ERROR - [MAIN] Erro na execução: '"cached_secret"'
+2026-05-31 18:05:42,138 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:05:42,138 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:05:42,141 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:05:42,142 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:05:42,142 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:05:45,666 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 3.52s
+2026-05-31 18:05:45,668 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:05:45,668 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:05:45,669 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:05:49,218 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 3.55s
+2026-05-31 18:05:49,219 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:05:49,221 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:05:49,221 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:05:49,221 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:05:49,221 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:05:49,221 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:05:49,224 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:05:49,229 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.01s
+2026-05-31 18:05:49,229 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:05:49,232 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:05:52,990 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_cache_integration.py -v --tb=short -x
+2026-05-31 18:05:55,808 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_auth_integration.py -v --tb=short -x
+2026-05-31 18:06:06,813 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_database_integration.py -v --tb=short -x
+2026-05-31 18:06:10,785 - INFO - [INTEGRATION] 0 passed, 4 failed in 21.55s
+2026-05-31 18:06:10,804 - INFO - [FINAL] Executando testes finais de regressão
+2026-05-31 18:06:10,812 - INFO - [FINAL] 0 passed, 0 failed in 0.00s
+2026-05-31 18:06:10,812 - ERROR - [MAIN] Erro na execução: 'skipped'
+2026-05-31 18:07:10,523 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:07:10,524 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:07:10,525 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:07:10,528 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:07:10,528 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:07:13,107 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 2.58s
+2026-05-31 18:07:13,108 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:07:13,108 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:07:13,108 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:07:15,683 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 2.58s
+2026-05-31 18:07:15,686 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:07:15,688 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:07:15,689 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:07:15,689 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:07:15,690 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:07:15,690 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:07:15,691 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:07:15,691 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:07:15,692 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:07:15,693 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:07:17,541 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_cache_integration.py -v --tb=short -x
+2026-05-31 18:07:19,808 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_auth_integration.py -v --tb=short -x
+2026-05-31 18:07:22,565 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_database_integration.py -v --tb=short -x
+2026-05-31 18:07:24,803 - INFO - [INTEGRATION] 0 passed, 4 failed in 9.11s
+2026-05-31 18:07:24,803 - INFO - [FINAL] Executando testes finais de regressão
+2026-05-31 18:07:24,803 - INFO - [FINAL] 0 passed, 0 failed in 0.00s
+2026-05-31 18:07:24,804 - ERROR - [MAIN] Erro na execução: 'skipped'
+2026-05-31 18:07:55,184 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:07:55,185 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:07:55,188 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:07:55,193 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:07:55,195 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:07:57,173 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 1.98s
+2026-05-31 18:07:57,174 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:07:57,174 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:07:57,175 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:07:59,008 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 1.83s
+2026-05-31 18:07:59,008 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:07:59,008 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:07:59,009 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:07:59,009 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:07:59,009 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:07:59,009 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:07:59,010 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:07:59,010 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:07:59,011 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:07:59,011 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:08:00,640 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_cache_integration.py -v --tb=short -x
+2026-05-31 18:08:02,126 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_auth_integration.py -v --tb=short -x
+2026-05-31 18:08:04,141 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_database_integration.py -v --tb=short -x
+2026-05-31 18:08:06,025 - INFO - [INTEGRATION] 0 passed, 4 failed in 7.01s
+2026-05-31 18:08:06,026 - INFO - [FINAL] Executando testes finais de regressão
+2026-05-31 18:08:06,027 - INFO - [FINAL] 0 passed, 0 failed in 0.00s
+2026-05-31 18:08:06,027 - ERROR - [MAIN] Erro na execução: 'skipped'
+2026-05-31 18:08:27,112 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:08:27,114 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:08:27,115 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:08:27,116 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:08:27,116 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:08:29,645 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 2.53s
+2026-05-31 18:08:29,645 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:08:29,645 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:08:29,645 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:08:31,951 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 2.31s
+2026-05-31 18:08:31,952 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:08:31,952 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:08:31,952 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:08:31,952 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:08:31,953 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:08:31,953 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:08:31,953 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:08:31,954 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:08:31,954 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:08:31,955 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:08:33,429 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_cache_integration.py -v --tb=short -x
+2026-05-31 18:08:34,940 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_auth_integration.py -v --tb=short -x
+2026-05-31 18:08:37,371 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_database_integration.py -v --tb=short -x
+2026-05-31 18:08:39,507 - INFO - [INTEGRATION] 0 passed, 4 failed in 7.55s
+2026-05-31 18:08:39,509 - INFO - [FINAL] Executando testes finais de regressão
+2026-05-31 18:08:39,511 - INFO - [FINAL] 0 passed, 0 failed in 0.00s
+2026-05-31 18:08:39,511 - ERROR - [MAIN] Erro na execução: 'skipped'
+2026-05-31 18:09:05,510 - INFO - [MAIN] Iniciando testes de regressão
+2026-05-31 18:09:05,510 - INFO - [REGRESSION] Iniciando testes de regressão completos
+2026-05-31 18:09:05,511 - INFO - [TEST] Executando módulo: security
+2026-05-31 18:09:05,511 - WARNING - [TEST] Arquivo não encontrado: test_security_unit.py
+2026-05-31 18:09:05,511 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_security_unit.py -v --tb=short -x
+2026-05-31 18:09:07,710 - INFO - [MODULE] security: 0 passed, 1 failed, 1 skipped in 2.20s
+2026-05-31 18:09:07,710 - INFO - [TEST] Executando módulo: performance
+2026-05-31 18:09:07,711 - WARNING - [TEST] Arquivo não encontrado: test_performance_integration.py
+2026-05-31 18:09:07,711 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_performance_integration.py -v --tb=short -x
+2026-05-31 18:09:10,207 - INFO - [MODULE] performance: 0 passed, 1 failed, 1 skipped in 2.50s
+2026-05-31 18:09:10,208 - INFO - [TEST] Executando módulo: integration
+2026-05-31 18:09:10,208 - WARNING - [TEST] Arquivo não encontrado: test_integration.py
+2026-05-31 18:09:10,208 - WARNING - [TEST] Arquivo não encontrado: tests/test_integration.py
+2026-05-31 18:09:10,208 - INFO - [MODULE] integration: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:09:10,209 - INFO - [TEST] Executando módulo: regression
+2026-05-31 18:09:10,209 - WARNING - [TEST] Arquivo não encontrado: test_regression.py
+2026-05-31 18:09:10,209 - WARNING - [TEST] Arquivo não encontrado: tests/test_regression.py
+2026-05-31 18:09:10,209 - INFO - [MODULE] regression: 0 passed, 0 failed, 2 skipped in 0.00s
+2026-05-31 18:09:10,210 - INFO - [INTEGRATION] Executando testes de integração
+2026-05-31 18:09:10,210 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_secrets_integration.py -v --tb=short -x
+2026-05-31 18:09:11,586 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_cache_integration.py -v --tb=short -x
+2026-05-31 18:09:12,920 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_auth_integration.py -v --tb=short -x
+2026-05-31 18:09:14,874 - INFO - [TEST] Executando: C:\Users\spcom\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m pytest test_database_integration.py -v --tb=short -x
+2026-05-31 18:09:16,815 - INFO - [INTEGRATION] 0 passed, 4 failed in 6.60s
+2026-05-31 18:09:16,816 - INFO - [FINAL] Executando testes finais de regressão
+2026-05-31 18:09:16,817 - INFO - [FINAL] 0 passed, 0 failed in 0.00s
+2026-05-31 18:09:16,819 - INFO - [REPORT] Relatório gerado: regression_test_report.json
+2026-05-31 18:09:16,820 - INFO - [REGRESSION] Testes completos em 11.31s
+2026-05-31 18:09:16,820 - INFO - [REGRESSION] Resumo: 0 passed, 6 failed, 2 skipped
+2026-05-31 18:09:16,822 - WARNING - [WARNING] Algumas falhas detectadas

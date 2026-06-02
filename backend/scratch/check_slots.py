@@ -25,8 +25,8 @@ async def main():
             print(f"Moonbag: {m.symbol} | ROI: {m.pnl_percent}%")
             
         print("\n--- Paper Positions (Memory) ---")
-        from services.bybit_rest import bybit_rest_service
-        for p in bybit_rest_service.paper_positions:
+        from services.okx_rest import okx_rest_service
+        for p in okx_rest_service.paper_positions:
             print(f"Paper: {p.get('symbol')} | Entry: {p.get('entry_price')}")
 
     except Exception as e:

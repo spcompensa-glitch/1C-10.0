@@ -12,6 +12,8 @@ Version: 1.0
 
 import os
 import logging
+import functools
+from datetime import datetime
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -78,7 +80,8 @@ def get_current_user(
             raise AuthenticationError("Usuário inativo")
         
         # Atualizar último login
-        user.last_login = datetime.utcnow()
+        from datetime import datetime as dt
+        user.last_login = dt.utcnow()
         db.commit()
         
         # Retornar dados do usuário
@@ -220,6 +223,7 @@ def audit_log(action: str, resource: str = None, details: Dict[str, Any] = None)
         details: Detalhes adicionais
     """
     def decorator(func):
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # Obter usuário atual
             current_user = kwargs.get('current_user')
@@ -237,31 +241,12 @@ def audit_log(action: str, resource: str = None, details: Dict[str, Any] = None)
                 execution_time = time.time() - start_time
                 logger.info(f"Ação concluída: {action} por usuário {user_id} em {execution_time:.2f}s")
                 
-                # Registrar log de auditoria
-                _create_audit_log(
-                    user_id=user_id,
-                    action=action,
-                    resource=resource,
-                    details=details or {},
-                    success=True
-                )
-                
                 return result
                 
             except Exception as e:
                 # Registrar falha
                 execution_time = time.time() - start_time
                 logger.error(f"Ação falhou: {action} por usuário {user_id} em {execution_time:.2f}s - {str(e)}")
-                
-                # Registrar log de auditoria
-                _create_audit_log(
-                    user_id=user_id,
-                    action=action,
-                    resource=resource,
-                    details={**(details or {}), 'error': str(e)},
-                    success=False
-                )
-                
                 raise
                 
         return wrapper

@@ -8,7 +8,7 @@ if sys.platform == "win32":
 sys.path.append(os.path.abspath("c:/Users/spcom/Desktop/10D REAL 4.0/1CRYPTEN_SPACE_V4.0/backend"))
 
 from services.database_service import database_service, Slot
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 from services.sovereign_service import sovereign_service
 from sqlalchemy import update, select
 
@@ -41,19 +41,19 @@ async def clear_orders():
         await session.commit()
         print("DB Slots resetados para LIVRE.")
     
-    # 2. Limpar no PAPER do bybit_rest
-    await bybit_rest_service._load_paper_state()
+    # 2. Limpar no PAPER do okx_rest
+    await okx_rest_service._load_paper_state()
     
     positions_to_keep = []
-    for pos in bybit_rest_service.paper_positions:
+    for pos in okx_rest_service.paper_positions:
         sym = pos.get("symbol", "").replace(".P", "").upper()
         if sym in ["INJUSDT", "ATOMUSDT"]:
-            print(f"Removendo {sym} do bybit_rest.paper_positions...")
+            print(f"Removendo {sym} do okx_rest.paper_positions...")
         else:
             positions_to_keep.append(pos)
             
-    bybit_rest_service.paper_positions = positions_to_keep
-    await bybit_rest_service._save_paper_state()
+    okx_rest_service.paper_positions = positions_to_keep
+    await okx_rest_service._save_paper_state()
     print("Paper state salvo.")
     
     # 3. Limpar no Sovereign / Firebase cache (força sync)

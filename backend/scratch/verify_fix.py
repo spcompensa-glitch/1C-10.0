@@ -7,14 +7,14 @@ import os
 sys.path.append(os.getcwd())
 
 from services.agents.captain import CaptainAgent
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def test_paper_block():
     print("Testing Anti-Trap Block in PAPER Mode...")
     captain = CaptainAgent()
     
     # Force paper mode
-    bybit_rest_service.execution_mode = "PAPER"
+    okx_rest_service.execution_mode = "PAPER"
     
     # Mock signal
     signal = {
@@ -30,7 +30,7 @@ async def test_paper_block():
     # Let's read the file and check if the bypass is gone.
     with open('services/agents/captain.py', 'r', encoding='utf-8') as f:
         content = f.read()
-        if 'if bybit_rest_service.execution_mode == "PAPER":' in content and 'Capitão ignorando ANTI-TRAP' in content:
+        if 'if okx_rest_service.execution_mode == "PAPER":' in content and 'Capitão ignorando ANTI-TRAP' in content:
             print("❌ FAIL: Paper bypass still exists!")
         else:
             print("✅ SUCCESS: Paper bypass for ANTI-TRAP removed.")

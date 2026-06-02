@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-05-31T18:09:05.510815",
+  "total_tests": 8,
+  "passed_tests": 0,
+  "failed_tests": 6,
+  "skipped_tests": 2,
+  "test_duration": 11.305216550827026,
+  "modules": {
+    "security": {
+      "module": "security",
+      "tests": [
+        {
+          "file": "test_security_unit.py",
+          "status": "skipped",
+          "duration": 0,
+          "output": "",
+          "error": ""
+        },
+        {
+          "file": "tests/test_security_unit.py",
+          "status": "failed",
+          "duration": 2.1985137462615967,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items / 1 error\n\n=================================== ERRORS ====================================\n________________ ERROR collecting tests/test_security_unit.py _________________\n..\\..\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\_pytest\\python.py:507: in importtestmodule\n    mod = import_path(\n..\\..\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\_pytest\\pathlib.py:587: in import_path\n    importlib.import_module(module_name)\n..\\..\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\importlib\\__init__.py:126: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<frozen importlib._bootstrap>:1204: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1176: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:690: in _load_unlocked\n    ???\n..\\..\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\_pytest\\assertion\\rewrite.py:188: in exec_module\n    source_stat, co = _rewrite_test(fn, self.config)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\_pytest\\assertion\\rewrite.py:359: in _rewrite_test\n    co = compile(tree, strfn, \"exec\", dont_inherit=True)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE     File \"c:\\Users\\spcom\\Desktop\\1C-7.0\\tests\\test_security_unit.py\", line 365\nE       result1 = await test_function(1, 2)\nE                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE   SyntaxError: 'await' outside async function\n=========================== short test summary info ===========================\nERROR tests/test_security_unit.py\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n============================== 1 error in 0.80s ===============================\n",
+          "error": ""
+        }
+      ],
+      "passed": 0,
+      "failed": 1,
+      "skipped": 1,
+      "duration": 2.1985137462615967
+    },
+    "performance": {
+      "module": "performance",
+      "tests": [
+        {
+          "file": "test_performance_integration.py",
+          "status": "skipped",
+          "duration": 0,
+          "output": "",
+          "error": ""
+        },
+        {
+          "file": "tests/test_performance_integration.py",
+          "status": "failed",
+          "duration": 2.4963014125823975,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items / 1 error\n\n=================================== ERRORS ====================================\n___________ ERROR collecting tests/test_performance_integration.py ____________\ntests\\test_performance_integration.py:39: in <module>\n    from backend.services.safe_cache import SafeCache, get_cache, cached\nbackend\\services\\safe_cache.py:352: in <module>\n    _signal_cache = SafeCache(max_size_mb=50, default_ttl=60)  # 1 minuto para sinais\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nbackend\\services\\safe_cache.py:78: in __init__\n    self._start_cleanup_task()\nbackend\\services\\safe_cache.py:83: in _start_cleanup_task\n    self._cleanup_task = asyncio.create_task(self._periodic_cleanup())\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\asyncio\\tasks.py:381: in create_task\n    loop = events.get_running_loop()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nE   RuntimeError: no running event loop\n=========================== short test summary info ===========================\nERROR tests/test_performance_integration.py - RuntimeError: no running event ...\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n============================== 1 error in 0.79s ===============================\n",
+          "error": ""
+        }
+      ],
+      "passed": 0,
+      "failed": 1,
+      "skipped": 1,
+      "duration": 2.4973037242889404
+    },
+    "integration": {
+      "module": "integration",
+      "tests": [
+        {
+          "file": "test_secrets_integration.py",
+          "status": "failed",
+          "duration": 1.374171257019043,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.04s ============================\n",
+          "error": ""
+        },
+        {
+          "file": "test_cache_integration.py",
+          "status": "failed",
+          "duration": 1.334859848022461,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.03s ============================\n",
+          "error": ""
+        },
+        {
+          "file": "test_auth_integration.py",
+          "status": "failed",
+          "duration": 1.9523158073425293,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items / 1 error\n\n=================================== ERRORS ====================================\n__________________ ERROR collecting test_auth_integration.py __________________\ntest_auth_integration.py:21: in <module>\n    from backend.services.safe_cache import get_cache\nbackend\\services\\safe_cache.py:352: in <module>\n    _signal_cache = SafeCache(max_size_mb=50, default_ttl=60)  # 1 minuto para sinais\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nbackend\\services\\safe_cache.py:78: in __init__\n    self._start_cleanup_task()\nbackend\\services\\safe_cache.py:83: in _start_cleanup_task\n    self._cleanup_task = asyncio.create_task(self._periodic_cleanup())\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\asyncio\\tasks.py:381: in create_task\n    loop = events.get_running_loop()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nE   RuntimeError: no running event loop\n=========================== short test summary info ===========================\nERROR test_auth_integration.py - RuntimeError: no running event loop\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n============================== 1 error in 0.60s ===============================\n",
+          "error": ""
+        },
+        {
+          "file": "test_database_integration.py",
+          "status": "failed",
+          "duration": 1.9407305717468262,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\spcom\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: c:\\Users\\spcom\\Desktop\\1C-7.0\nplugins: anyio-4.12.1, asyncio-1.3.0, timeout-2.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items / 1 error\n\n=================================== ERRORS ====================================\n________________ ERROR collecting test_database_integration.py ________________\ntest_database_integration.py:21: in <module>\n    from backend.services.safe_cache import get_cache\nbackend\\services\\safe_cache.py:352: in <module>\n    _signal_cache = SafeCache(max_size_mb=50, default_ttl=60)  # 1 minuto para sinais\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nbackend\\services\\safe_cache.py:78: in __init__\n    self._start_cleanup_task()\nbackend\\services\\safe_cache.py:83: in _start_cleanup_task\n    self._cleanup_task = asyncio.create_task(self._periodic_cleanup())\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\Lib\\asyncio\\tasks.py:381: in create_task\n    loop = events.get_running_loop()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nE   RuntimeError: no running event loop\n=========================== short test summary info ===========================\nERROR test_database_integration.py - RuntimeError: no running event loop\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n============================== 1 error in 0.52s ===============================\n",
+          "error": ""
+        }
+      ],
+      "passed": 0,
+      "failed": 4,
+      "duration": 6.604370832443237
+    },
+    "regression": {
+      "module": "final_regression",
+      "tests": [],
+      "passed": 0,
+      "failed": 0,
+      "duration": 0.0010123252868652344
+    }
+  },
+  "summary": {
+    "status": "WARNING",
+    "message": "Success rate: 0.0%"
+  },
+  "success_rate": 0.0
+}

@@ -5,7 +5,7 @@ import sys
 # Add backend to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 from config import settings
 
 async def test():
@@ -17,8 +17,8 @@ async def test():
     # Initialize settings if needed (usually done by import)
     # Mocking necessary parts if needed, but let's try direct call
     
-    await bybit_rest_service.initialize()
-    klines = await bybit_rest_service.get_klines(symbol, interval, limit=limit, kline_type="last")
+    await okx_rest_service.initialize()
+    klines = await okx_rest_service.get_klines(symbol, interval, limit=limit, kline_type="last")
     
     print(f"Result count: {len(klines)}")
     if klines:

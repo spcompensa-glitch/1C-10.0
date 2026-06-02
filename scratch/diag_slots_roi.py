@@ -8,14 +8,14 @@ sys.path.append(os.path.join(os.getcwd(), "1CRYPTEN_SPACE_V4.0", "backend"))
 
 from services.sovereign_service import sovereign_service
 from services.execution_protocol import execution_protocol
-from services.bybit_rest import bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 async def diag():
     print("--- DIAGNÓSTICO DE SLOTS ATIVOS ---")
     slots = await sovereign_service.get_active_slots()
     
     # Simula a captura de preços como no loop real
-    resp = await bybit_rest_service.get_tickers()
+    resp = await okx_rest_service.get_tickers()
     ticker_list = resp.get("result", {}).get("list", [])
     price_map = {t["symbol"]: float(t.get("lastPrice", 0)) for t in ticker_list}
 

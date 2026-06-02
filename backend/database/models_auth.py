@@ -27,8 +27,7 @@ class User(Base):
     password_hash = sa.Column(sa.String(255), nullable=False)
     
     # Configuração de conta
-    role = sa.Column(sa.Enum('admin', 'user', name='user_role'), 
-                     default='user', nullable=False, index=True)
+    role = sa.Column(sa.String(10), default='user', nullable=False, index=True)
     is_active = sa.Column(sa.Boolean, default=True, nullable=False)
     
     # Timestamps
@@ -46,7 +45,7 @@ class User(Base):
     @property
     def permissions(self):
         """Retorna lista de permissões baseado no role"""
-        from backend.auth.permissions import PERMISSIONS
+        from auth.permissions import PERMISSIONS
         return PERMISSIONS.get(self.role, [])
     
     def has_permission(self, permission: str) -> bool:

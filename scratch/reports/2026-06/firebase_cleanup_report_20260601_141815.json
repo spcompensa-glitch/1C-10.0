@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-06-01T14:18:00.891533",
+  "action": "FIREBASE_CLEANUP_SIMPLE",
+  "total_actions": 12,
+  "successful_actions": 11,
+  "failed_actions": 1,
+  "status": "SUCCESS",
+  "details": [
+    "import_services",
+    "bankroll_reset",
+    "slot_1_reset",
+    "slot_2_reset",
+    "slot_3_reset",
+    "slot_4_reset",
+    "moonbags_cleaned_1",
+    "no_trades_found",
+    "no_orders_found",
+    "no_positions_found",
+    "no_firestore_moonbags",
+    "system_state_reset_error"
+  ],
+  "next_step": "RESTART_RAILWAY_BACKEND"
+}

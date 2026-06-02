@@ -9,9 +9,9 @@ async def diag_slots():
     print("--- Iniciando Diagnostico de Slots ---")
     try:
         from services.sovereign_service import sovereign_service
-        from services.bybit_rest import bybit_rest_service
+        from services.okx_rest import okx_rest_service
         
-        print(f"Modo de Execucao: {bybit_rest_service.execution_mode}")
+        print(f"Modo de Execucao: {okx_rest_service.execution_mode}")
         
         slots = await sovereign_service.get_active_slots(force_refresh=True)
         print("\n--- Estado dos Slots (Sovereign) ---")
@@ -19,9 +19,9 @@ async def diag_slots():
             symbol = slot.get('symbol')
             print(f"Slot {slot.get('id')}: {symbol if symbol else 'LIVRE'} | PnL: {slot.get('pnl_percent', 0):.2f}%")
             
-        if bybit_rest_service.execution_mode == "PAPER":
+        if okx_rest_service.execution_mode == "PAPER":
             print("\n--- Posicoes em Paper Mode ---")
-            positions = bybit_rest_service.paper_positions
+            positions = okx_rest_service.paper_positions
             if not positions:
                 print("Nenhuma posicao ativa em Paper.")
             for pos in positions:

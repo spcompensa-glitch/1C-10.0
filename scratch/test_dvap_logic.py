@@ -99,7 +99,7 @@ def find_pivots_30m(highs, lows, window=2):
 async def test_dvap_simulation(symbol="SOLUSDT"):
     print(f"Iniciando simulacao DVAP direta para {symbol}...")
     try:
-        url = f"https://api.bybit.com/v5/market/kline?category=linear&symbol={symbol}&interval=30&limit=100"
+        url = f"https://www.okx.com/api/v5/market/candles?instId={symbol}-USDT-SWAP&bar=30m&limit=100"
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=10)
             if response.status_code != 200:

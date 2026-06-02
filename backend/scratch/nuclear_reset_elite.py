@@ -79,11 +79,11 @@ async def elite_nuclear_reset():
                 print("vision_history.json resetado.")
             except: pass
             
-        # 4. BYBIT PAPER ENGINE
-        from services.bybit_rest import bybit_rest_service
-        if bybit_rest_service:
-            bybit_rest_service.paper_positions = []
-            bybit_rest_service.paper_balance = BANKROLL
+        # 4. OKX PAPER ENGINE
+        from services.okx_rest import okx_rest_service
+        if okx_rest_service:
+            okx_rest_service.paper_positions = []
+            okx_rest_service.paper_balance = BANKROLL
             print("Bybit Paper Engine resetado.")
 
         print("\nRESET NUCLEAR ELITE CONCLUIDO!")

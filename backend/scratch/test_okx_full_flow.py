@@ -10,8 +10,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import settings
 from services.okx_service import okx_service
-from services.bybit_rest import bybit_rest_service
-from services.bybit_ws import bybit_ws_service
+from services.okx_rest import okx_rest_service
+from services.okx_ws_public import okx_ws_public_service
 from services.bankroll import bankroll_manager
 from services.anti_slippage import anti_slippage_engine
 
@@ -32,16 +32,16 @@ async def run_full_flow_test():
 
     # 2. Teste de Mapeamento de Símbolos
     logger.info("\n➡️ [1] TESTANDO TRADUÇÃO DE SÍMBOLOS")
-    sym_bybit = "AVAXUSDT.P"
+    sym_legacy = "AVAXUSDT.P"
     sym_okx_expected = "AVAX-USDT-SWAP"
     
-    translated_okx = okx_service.bybit_to_okx(sym_bybit)
-    translated_bybit = okx_service.okx_to_bybit(translated_okx)
+    translated_okx = okx_service.to_okx_inst_id(sym_legacy)
+    translated_legacy = okx_service.from_okx_inst_id(translated_okx)
     
-    logger.info(f"Bybit ➔ OKX: {sym_bybit} ➔ {translated_okx} (Esperado: {sym_okx_expected})")
-    logger.info(f"OKX ➔ Bybit: {translated_okx} ➔ {translated_bybit} (Esperado: {sym_bybit})")
+    logger.info(f"Legacy ➔ OKX: {sym_legacy} ➔ {translated_okx} (Esperado: {sym_okx_expected})")
+    logger.info(f"OKX ➔ Legacy: {translated_okx} ➔ {translated_legacy} (Esperado: {sym_legacy})")
     
-    if translated_okx == sym_okx_expected and translated_bybit == sym_bybit:
+    if translated_okx == sym_okx_expected and translated_legacy == sym_legacy:
         logger.info("✅ Mapeamento de Símbolos OK!")
     else:
         logger.error("❌ Falha no mapeamento de símbolos!")
@@ -51,15 +51,15 @@ async def run_full_flow_test():
     test_symbol = "BTCUSDT.P"
     
     logger.info(f"Buscando Klines para {test_symbol} via OKX REST...")
-    klines = await bybit_rest_service.get_klines(test_symbol, interval="60", limit=3)
+    klines = await okx_rest_service.get_klines(test_symbol, interval="60", limit=3)
     logger.info(f"Retorno Klines (Primeiras 3): {klines}")
     
     logger.info(f"Buscando Open Interest para {test_symbol} via OKX REST...")
-    oi = await bybit_rest_service.get_open_interest(test_symbol)
+    oi = await okx_rest_service.get_open_interest(test_symbol)
     logger.info(f"Retorno Open Interest: {oi}")
     
     logger.info(f"Buscando Long/Short Ratio para {test_symbol} via OKX REST...")
-    ratio = await bybit_rest_service.get_account_ratio(test_symbol, period="5min")
+    ratio = await okx_rest_service.get_account_ratio(test_symbol, period="5min")
     logger.info(f"Retorno Long/Short Ratio: {ratio}")
     
     if klines and oi >= 0 and ratio >= 0:
@@ -71,7 +71,7 @@ async def run_full_flow_test():
     logger.info("\n➡️ [3] TESTANDO CALIBRAÇÃO DE BANCA VIRTUAL DE $100")
     
     # Simula get_wallet_balance() desviado
-    balance = await bybit_rest_service.get_wallet_balance()
+    balance = await okx_rest_service.get_wallet_balance()
     logger.info(f"Saldo simulado Sniper: ${balance:.2f} (Esperado: $100.0 em modo Demo/Mock)")
     
     # Simula cálculo de tamanho de lote (margem de $10 com 50x alavancagem = $500 nominal)
@@ -102,7 +102,7 @@ async def run_full_flow_test():
     logger.info(f"Enviando ordem atômica de mercado de COMPRA (LONG) para {sim_entry_symbol}...")
     
     # Dispara a ordem (deixando SL/TP virtuais a cargo do loop local do Sniper)
-    order_res = await bybit_rest_service.place_atomic_order(
+    order_res = await okx_rest_service.place_atomic_order(
         symbol=sim_entry_symbol,
         side="Buy",
         qty=entry_qty,
@@ -122,7 +122,7 @@ async def run_full_flow_test():
         
         # Lê posições ativas traduzidas para Bybit
         logger.info("Buscando posições ativas reais na OKX traduzidas para Bybit...")
-        positions = await bybit_rest_service.get_active_positions()
+        positions = await okx_rest_service.get_active_positions()
         logger.info(f"Posições ativas detectadas: {positions}")
         
         target_pos = next((p for p in positions if p.get("symbol") == sim_entry_symbol), None)
@@ -134,7 +134,7 @@ async def run_full_flow_test():
             logger.info(f"\n➡️ [5] TESTANDO FECHAMENTO INDIVIDUAL DE POSIÇÃO")
             logger.info(f"Enviando fechamento de mercado para a posição de {sim_entry_symbol}...")
             
-            close_success = await bybit_rest_service.close_position(
+            close_success = await okx_rest_service.close_position(
                 symbol=sim_entry_symbol,
                 side="Buy", # Long
                 qty=entry_qty,
@@ -146,7 +146,7 @@ async def run_full_flow_test():
                 
                 # Verifica se a posição foi zerada
                 await asyncio.sleep(1.0)
-                positions_after = await bybit_rest_service.get_active_positions()
+                positions_after = await okx_rest_service.get_active_positions()
                 target_pos_after = next((p for p in positions_after if p.get("symbol") == sim_entry_symbol), None)
                 if not target_pos_after:
                     logger.info("✅ Confirmação final: Posição removida da exchange!")
@@ -165,21 +165,21 @@ async def run_full_flow_test():
     
     # Inicia com lista de símbolos para testar subscrição
     test_symbols_ws = ["BTCUSDT.P", "ETHUSDT.P"]
-    await bybit_ws_service.start(test_symbols_ws)
+    await okx_ws_public_service.start(test_symbols_ws)
     
     # Aguarda 3 segundos para ler dados em tempo real (se real) ou mockados
     logger.info("Aguardando batimento e dados do WebSocket...")
     await asyncio.sleep(3.0)
     
     # Verifica preços em cache traduzidos
-    price_btc = bybit_ws_service.get_current_price("BTCUSDT.P")
-    price_eth = bybit_ws_service.get_current_price("ETHUSDT.P")
+    price_btc = okx_ws_public_service.get_current_price("BTCUSDT.P")
+    price_eth = okx_ws_public_service.get_current_price("ETHUSDT.P")
     
     logger.info(f"Preço BTCUSDT no WebSocket: ${price_btc:.2f}")
     logger.info(f"Preço ETHUSDT no WebSocket: ${price_eth:.2f}")
     
     # Para o WebSocket
-    bybit_ws_service.stop()
+    okx_ws_public_service.stop()
     
     if price_btc > 0 or is_mock:
         logger.info("✅ Oráculo WebSocket Público OKX funcionando perfeitamente!")

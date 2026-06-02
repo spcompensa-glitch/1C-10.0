@@ -341,7 +341,19 @@
     </div>
 
     <script>
-        const API_BASE = '';
+                // API Base dinâmico - detecta automaticamente o ambiente
+        const API_BASE = (() => {
+            // 1. Check URL query parameters (?api=... or ?api_base=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryApi = urlParams.get('api') || urlParams.get('api_base');
+            
+            if (queryApi) {
+                return queryApi;
+            }
+            
+            // 2. Fallback para o hostname atual
+            return window.location.origin;
+        })();
         let currentTab = 'login';
 
         const authTabs = document.querySelectorAll('.auth-tab');

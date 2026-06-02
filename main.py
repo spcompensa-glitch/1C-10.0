@@ -148,6 +148,11 @@ def _init_auth_db():
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')
 if os.path.exists(frontend_path):
     logger.info(f"📁 Frontend encontrado em: {frontend_path}")
+    # [V110.186] Serve /vendor/* for pre-compiled JSX chunks
+    vendor_path = os.path.join(frontend_path, 'vendor')
+    if os.path.exists(vendor_path):
+        app.mount("/vendor", StaticFiles(directory=vendor_path), name="vendor")
+        logger.info(f"📦 Vendor mountado em /vendor -> {vendor_path}")
 else:
     logger.warning("⚠️ Diretório frontend não encontrado")
 
@@ -160,6 +165,92 @@ RAILWAY_URL = os.getenv("RAILWAY_URL", "https://1crypten-hermes-agent-production
 async def redirect_root():
     """Redirecionar root para a página de login"""
     return "/login"
+
+@app.get("/health")
+async def health_check():
+    """Endpoint de saúde do sistema"""
+    try:
+        health_status = {
+            "timestamp": time.time(),
+            "status": "healthy",
+            "services": {},
+            "overall": "ok"
+        }
+
+        # Verificar serviços
+        services_status = {}
+
+        # Secrets Manager
+        try:
+            services_status["secrets"] = {
+                "healthy": True,
+                "environment": secrets_manager.environment.value,
+                "production_ready": secrets_manager.validate_production_readiness()
+            }
+        except Exception as e:
+            services_status["secrets"] = {"healthy": False, "error": str(e)}
+
+        # WebSocket Service
+        try:
+            services_status["websocket"] = {
+                "healthy": True,
+                "connections": len(websocket_service.active_connections),
+                "slots_available": len(websocket_service._last_slots_snapshot),
+                "radar_available": bool(websocket_service._last_radar_snapshot)
+            }
+        except Exception as e:
+            services_status["websocket"] = {"healthy": False, "error": str(e)}
+
+        # Telegram Service
+        try:
+            services_status["telegram"] = {
+                "healthy": telegram_service.is_active,
+                "configured": bool(os.getenv("TELEGRAM_BOT_TOKEN"))
+            }
+        except Exception as e:
+            services_status["telegram"] = {"healthy": False, "error": str(e)}
+
+        # Hermes Broker
+        try:
+            services_status["hermes_broker"] = {
+                "healthy": True,
+                "mqtt_available": hermes_broker._check_mqtt_availability(),
+                "grpc_ready": hermes_broker.grpc_server is not None
+            }
+        except Exception as e:
+            services_status["hermes_broker"] = {"healthy": False, "error": str(e)}
+
+        # Portfolio Guardian
+        try:
+            services_status["portfolio_guardian"] = {
+                "healthy": True,
+                "state": portfolio_guardian.state,
+                "max_roi_registered": portfolio_guardian.max_roi_registered,
+                "current_roi": portfolio_guardian.current_roi
+            }
+        except Exception as e:
+            services_status["portfolio_guardian"] = {"healthy": False, "error": str(e)}
+
+        # Sentinel Auditor
+        try:
+            services_status["sentinel_auditor"] = {
+                "healthy": True,
+                "auto_healing_active": sentinel_auditor.auto_healing_active,
+                "last_check": sentinel_auditor.last_check_time
+            }
+        except Exception as e:
+            services_status["sentinel_auditor"] = {"healthy": False, "error": str(e)}
+
+        health_status["services"] = services_status
+
+        # Determinar status geral
+        all_services_healthy = all(service.get("healthy", False) for service in services_status.values())
+        health_status["overall"] = "healthy" if all_services_healthy else "degraded"
+
+        return health_status
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 @app.get("/kanban", response_class=FileResponse)
 async def serve_kanban():

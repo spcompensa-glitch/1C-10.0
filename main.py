@@ -81,24 +81,46 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 
 def _init_auth_db():
-    """Cria tabelas de auth (users, audit_log, user_sessions, user_okx_tokens) e garante admin/admin123."""
+    """Cria tabelas de auth e garante admin/admin123 (UPSERT para Postgres)."""
     try:
         engine = get_engine()
+        logger.info(f"🔐 [AUTH] DATABASE_URL detectada: {engine.url.drivername}://***")
         AuthBase.metadata.create_all(bind=engine)
-        with engine.connect() as conn:
-            existing = conn.execute(
-                _sql_text("SELECT id FROM users WHERE username = :u"),
-                {"u": "admin"},
-            ).scalar()
-            if not existing:
-                pwd_hash = password_handler.hash_password("admin123", rounds=12)
-                now = _dt.utcnow()
-                conn.execute(
-                    _sql_text("""
+        pwd_hash = password_handler.hash_password("admin123", rounds=12)
+        now = _dt.utcnow()
+        dialect = engine.dialect.name
+        with engine.begin() as conn:
+            if dialect == "postgresql":
+                # UPSERT nativo do Postgres
+                conn.execute(_sql_text("""
+                    INSERT INTO users (username, email, password_hash, is_active, role, created_at, updated_at)
+                    VALUES (:username, :email, :password_hash, :is_active, :role, :created_at, :updated_at)
+                    ON CONFLICT (username) DO UPDATE
+                      SET password_hash = EXCLUDED.password_hash,
+                          email = EXCLUDED.email,
+                          is_active = EXCLUDED.is_active,
+                          role = EXCLUDED.role,
+                          updated_at = EXCLUDED.updated_at
+                """), {
+                    "username": "admin",
+                    "email": "admin@1crypten.com",
+                    "password_hash": pwd_hash,
+                    "is_active": True,
+                    "role": "admin",
+                    "created_at": now,
+                    "updated_at": now,
+                })
+            else:
+                # SQLite (e outros): tenta insert, se já existir faz update
+                existing = conn.execute(
+                    _sql_text("SELECT id FROM users WHERE username = :u"),
+                    {"u": "admin"},
+                ).scalar()
+                if not existing:
+                    conn.execute(_sql_text("""
                         INSERT INTO users (username, email, password_hash, is_active, role, created_at, updated_at)
                         VALUES (:username, :email, :password_hash, :is_active, :role, :created_at, :updated_at)
-                    """),
-                    {
+                    """), {
                         "username": "admin",
                         "email": "admin@1crypten.com",
                         "password_hash": pwd_hash,
@@ -106,14 +128,21 @@ def _init_auth_db():
                         "role": "admin",
                         "created_at": now,
                         "updated_at": now,
-                    },
-                )
-                conn.commit()
-                logger.info("✅ [AUTH] Usuário admin/admin123 criado")
-            else:
-                logger.info("✅ [AUTH] Usuário admin já existe")
+                    })
+                else:
+                    conn.execute(
+                        _sql_text("""
+                            UPDATE users
+                            SET password_hash = :h, email = :e, is_active = 1, role = 'admin', updated_at = :u
+                            WHERE username = 'admin'
+                        """),
+                        {"h": pwd_hash, "e": "admin@1crypten.com", "u": now},
+                    )
+        logger.info("✅ [AUTH] Usuário admin/admin123 garantido (Postgres UPSERT)" if dialect == "postgresql" else "✅ [AUTH] Usuário admin/admin123 garantido (SQLite)")
     except Exception as e:
-        logger.error(f"❌ [AUTH] Falha ao inicializar banco de auth: {e}")
+        logger.error(f"❌ [AUTH] Falha ao inicializar banco de auth: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 # Configurar caminho do frontend
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')

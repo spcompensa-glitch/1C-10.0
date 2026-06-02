@@ -2,7 +2,7 @@
 
 ## Resumo Executivo
 * **Versão:** `V110.701: Ceifeiro 1200% & Escadinha Expandida`
-* **Data:** 2026-05-31
+* **Data:** 2026-06-02
 * **Estado:** `OPERATIONAL ✅`
 * **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real.
 
@@ -39,6 +39,17 @@
 
 ## Componentes do Sistema e Status de Serviços
 
+| Componente | Função | Porta | Status |
+| :--- | :--- | :--- | :--- |
+| **FastAPI Backend** | API de sincronização e WebSockets | `8085` | `OPERATIONAL ✅` |
+| **Hermes Dashboard** | Kanban e interface interativa do Hermes | `9119` | `OPERATIONAL ✅` |
+| **gRPC Hermes** | Tenancy em tempo real e gRPC Stream | `50051` | `OPERATIONAL ✅` |
+| **Cockpit UI** | Interface Cyberpunk com Vault unificado Desktop/Mobile | `-` | `OPERATIONAL ✅` |
+| **PostgreSQL** | Banco de dados Master e persistência de pulso | `5432` | `ONLINE ✅` |
+| **Firebase RTDB** | Sincronizador reativo da UI | `-` | `ONLINE ✅` |
+| **N8N DAG** | Macro-orchestrator (ciclo 5min, 4 paths paralelos) | `-` | `ONLINE ✅` |
+| **OKX Master** | Portfolio Margin + WebSocket privado (Hermes broker) | `-` | `CONNECTED ✅` |
+
 ## Testes Validados
 
 ### ✅ Ceifeiro 1200% (test_ceifeiro.py)
@@ -53,12 +64,3 @@ Validação ponta a ponta com **0 falhas**:
 - **FASE 1 - Slot Ativo**: STOP INICIAL (-100% ROI) → Break-Even (+30%) → Profit Bridge (+50%) → Risk Zero (+70%) → Profit Lock (+110%) → EMANCIPAÇÃO (+150%)
 - **FASE 2 - Moonbag**: WAVE (200%) → ROCKET (300%) → STAR (400%) → CROWN (500%) → SUPERNOVA (600%) → GOD_MODE (700%) → CHOKE_HOLD (800-1200%) com colheitas parciais no caminho
 - **FASE 3 - Tabela Consolidada**: Visualização completa da trajetória de $0 a 1200% ROI
-
-| Componente | Função | Porta | Status |
-| :--- | :--- | :--- | :--- |
-| **FastAPI Backend** | API de sincronização e WebSockets | `8085` | `OPERATIONAL ✅` |
-| **Hermes Dashboard** | Kanban e interface interativa do Hermes | `9119` | `OPERATIONAL ✅` |
-| **gRPC Hermes** | Tenancy em tempo real e gRPC Stream | `50051` | `OPERATIONAL ✅` |
-| **Cockpit UI** | Interface Cyberpunk com Vault unificado Desktop/Mobile | `-` | `OPERATIONAL ✅` |
-| **PostgreSQL** | Banco de dados Master e persistência de pulso | `5432` | `ONLINE ✅` |
-| **Firebase RTDB** | Sincronizador reativo da UI | `-` | `ONLINE ✅` |

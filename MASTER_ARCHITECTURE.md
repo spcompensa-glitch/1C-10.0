@@ -1,6 +1,8 @@
 # MASTER_ARCHITECTURE.md — V110.701 "Ceifeiro 1200% & Escadinha Expandida"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.701)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.701)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
 *   **V110.701: CEIFEIRO 1200% & ESCADINHA EXPANDIDA (PROFIT-LOCK) [MAY 31]**
@@ -25,7 +27,7 @@
     - **Radar Pulse PostgreSQL Persistence**: Os sinais e decisões do Radar Pulse agora são salvos de forma robusta e transparente na tabela `radar_pulse` do banco de dados Postgres de produção para sobreviver a resets de RAM do contêiner Railway.
     - **Firebase Failover & Fallbacks**: Em caso de inatividade ou queda do SDK do Firebase, o backend redireciona a leitura de pulso de radar, banca e histórico (`trade_history`) diretamente para o Postgres in-real-time, eliminando o eterno "Scanning Slot..." na UI.
     - **Unified Desktop/Mobile Vault UI**: Alinhamento visual do histórico da Vault no cockpit Desktop com o layout Mobile (cards ricos com badges, selo de prova do Agente Visão, genesys ID e TriumphModal de briefing de triunfo por clique).
-    - **SignalGenerator Scope Fix**: Correção de escopo de variável local de `bybit_ws_service` que causava eterno status "Scanning Slot" em produção.
+    - **SignalGenerator Scope Fix**: Correção de escopo de variável local de `okx_ws_public_service` que causava eterno status "Scanning Slot" em produção.
     - **Telegram /banca Command & Guardian Soul Shield**: Comando `/banca` no bot de Telegram integrado com leitura em tempo real e blindagem de persona com o `GUARDIAN_PROMPT.md` ativado sob a flag `HERMES_GUARDIAN=1` no Railway, junto com permissões corretas do Dockerfile.
 
 *   **V110.800: N8N HYBRID MACRO-ORCHESTRATOR & NATIVE TELEGRAM [MAY 26]**
@@ -34,11 +36,11 @@
     - **HTTP Telegram Push**: Integração de alertas nativos disparados via requisições HTTP REST diretamente do n8n (Node Telegram) para envio de relatórios de orquestração e abertura de ordens, complementando a telemetria do Hermes.
     - **Clean Slate Protocol**: Purga massiva de `.db` legados, logs velhos (40MB+) e scripts `.bat`/`.py` de build local que atulhavam a raiz do projeto, consolidando a infraestrutura 100% cloud.
 
-*   **V110.701: OKX MASTER BYPASS & ANTI-FACÃO (MOONBAG SHIELD) [MAY 25]**
+*   **V110.850: OKX MASTER BYPASS & ANTI-FACÃO (MOONBAG SHIELD) [MAY 25]**
     - **Captain Master Bypass**: O Capitão (Agente de Execução) agora possui um bypass nativo em `_process_single_signal`. Se `OKX_API_KEY_MASTER` estiver no `.env`, o motor descarta a busca vazia do multitenant da Bybit e força a execução cirúrgica global diretamente na conta Master (mock tenant "master").
     - **Guardian Anti-Facão**: O `portfolio_guardian.py` (Knife-Drop) agora faz cross-check em tempo real com os Slots Emancipados (Moonbags) via `firebase_service.get_moonbags()`. Posições marcadas como emancipada são ocultadas do cálculo de ROI unificado e blindadas contra encerramento abrupto, corrigindo o erro de encerramento precoce de ordens bem-sucedidas.
 
-*   **V110.700: INTEGRATION SAAS V5.5.0 & OKX PORTFOLIO GUARDIAN [MAY 22]**
+*   **V110.830: INTEGRATION SAAS V5.5.0 & OKX PORTFOLIO GUARDIAN [MAY 22]**
     - **OKX Suite Migration**: Transição completa da conta Master da Bybit para o **OKX (Portfolio Margin Mode)**. Conexão WebSocket privada resiliente em `okx_ws.py` com watchdog de silêncio de 45s e autenticação HMAC-SHA256 robusta no `okx_service.py`.
     - **Portfolio Guardian & Knife-Drop**: Máquina de estados atômica unificada monitorando o ROI consolidado da conta Master. Ativação automática em 70% ROI, acompanhamento de pico e fechamento concorrente em lote ultra-rápido via `/api/v5/trade/batch-orders` (Algoritmo **Knife-Drop** / "O Facão") se houver recuo de 15% a partir do pico, emitindo sinal de pânico global.
     - **Hermes Broker (MQTT/gRPC)**: Servidor gRPC HTTP/2 assíncrono na porta `50051` provendo tenancy em tempo real. Cliente MQTT conectado de forma resiliente ao broker nuvem HiveMQ (`broker.hivemq.com`) para despacho leve de sinais de cohorts com QoS 2.
@@ -86,7 +88,7 @@
     - **Agressive Fleet Consensus (60%):** Redução do threshold de aprovação final de 70% para 60% durante regimes `ROARING` ou sinais `Blitz`, acelerando a entrada em setups de alta convicção.
     - **Score Audit Telemetry:** Injeção de logs detalhados (`💎 [SCORE-AUDIT]`) para rastrear a contribuição individual de cada agente no score unificado.
 
-*   **V110.511: ELITE BYPASS & ROARING REGIME ADAPTATION [MAY 08]**
+*   **V110.515: ELITE BYPASS & ROARING REGIME ADAPTATION [MAY 08]**
     - **Radar-Throttle Elite Bypass:** Permissão para sinais com Score >= 95 ignorarem a trava de ADX < 20 no `SignalGenerator`. Isso garante que confluências técnicas fortes não sejam desperdiçadas em ativos com baixa volatilidade nominal.
     - **Adaptive Lateral Bypass:** Redução do threshold de bypass de bloqueio lateral do Captain de 95 para 90 quando o regime do BTC for `ROARING` (ADX > 30).
     - **Market Direction Resilience:** Melhora na detecção de oportunidades durante lateralizações de alta força (BTC forte mas estável).
@@ -207,7 +209,7 @@
     - **Context Persistence:** Adição de cache para `market_context` no `SovereignService` para garantir estabilidade da UI durante a inicialização.
 
 *   **V110.251: PAPER MODE ENFORCEMENT & TZ STABILITY [APR 25]**
-    - **Paper Mode Injection:** Ativação forçada via variáveis de ambiente Railway (`BYBIT_EXECUTION_MODE=PAPER`) para garantir isolamento total e saldo de $100.00.
+    - **Paper Mode Injection:** Ativação forçada via variáveis de ambiente Railway (`OKX_EXECUTION_MODE=PAPER`) para garantir isolamento total e saldo de $100.00.
     - **Timezone Fix:** Normalização de todos os campos `DateTime` para naive (sem offset) no Postgres, eliminando erros de persistência no `VaultCycle`.
     - **Leverage 50x Standard:** Unificação da alavancagem de 50x em todos os slots (Blitz e Swing) para acelerar o crescimento da banca simulada.
     - **Database Repair:** Sincronização de IDs de banca (ID 1 e 'status') e correção de esquema de colunas dinâmicas no Postgres.
@@ -251,7 +253,7 @@
     - **Guardian Agent:** Implementação do agente de custódia para manutenção de integridade e segurança.
     - **Scrubbing:** Limpeza de >150 arquivos legados, reduzindo a dívida técnica e poluição do backend.
 
-*   **V110.200: MIGRATION COMPLETE TO OKX & DASHBOARD BLINDING [MAY 26]**
+*   **V110.870: MIGRATION COMPLETE TO OKX & DASHBOARD BLINDING [MAY 26]**
     - **OKX Frontend Integration:** Migração de 100% dos canais públicos de WebSockets e APIs de cotação externa da Bybit no frontend para a **OKX** (`wss://ws.okx.com:8443/ws/v5/public` e `https://www.okx.com/api/v5/market/candles`).
     - **PnL Fallback System:** Implementação de fallback inteligente e robusto no cockpit: se o WebSocket da exchange falhar no navegador, a UI consome de forma instantânea o PnL real e os dados calculados de forma cirúrgica pelo nosso backend.
     - **Visual Hardening:** Adequação de 100% dos painéis, nomenclaturas de Health Check e modal de decolagem de "Bybit" para "OKX", erradicando qualquer resíduo legado.
@@ -326,22 +328,42 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.176)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.701)
 
 ### 1. Camada de Dados (Persistência)
-- **Primary DB:** PostgreSQL (Railway) — Armazena banca, histórico e registros permanentes.
-- **In-Memory Store:** `paper_positions` e `slots_cache` — Gerenciamento de estado de ultra-baixa latência.
+- **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
+- **In-Memory Cache:** `paper_positions` + `slots_cache` para latência ultra-baixa no path crítico de execução.
+- **Espelho Reativo (Opcional):** Firebase RTDB — broadcast 1Hz para o Cockpit; desativável sem downtime (fallback transparente para Postgres via `SovereignService`).
 
 ### 2. Camada de Comunicação (Real-time)
-- **WebSocket Gateway:** FastAPI WebSockets — Broadcast de sinais, pulso de mercado e atualizações de UI.
-- **Integrity Guard:** O sistema detecta a ausência de chaves API e entra automaticamente em modo PAPER, garantindo segurança operacional.
+- **WebSocket Gateway:** FastAPI nativo em `/ws/cockpit` (porta `8085`) — broadcast de sinais, pulso de mercado e estado de slot.
+- **N8N DAG Orchestrator:** ciclo de 5min, 4 paths paralelos (1 por slot físico 1-4), Node Telegram para alertas HTTP REST.
+- **Hermes Broker:** gRPC HTTP/2 async na porta `50051` (tenancy) + cliente MQTT HiveMQ (`broker.hivemq.com`) com QoS 2.
+- **Telegram Native:** comando `/banca` com blindagem GUARDIAN_PROMPT.md sob `HERMES_GUARDIAN=1`.
 
-### 3. Motor de Execução (Agentes)
-- **Captain:** Despachante de sinais e orquestrador de consenso da frota.
-- **SlotOperatorAgent (1-4):** Agentes independentes que gerenciam a execução e monitoramento de cada trade.
-- **BlitzSniper:** Motor de inteligência para sinais de alta frequência (M30).
-- **Harvester:** Inteligência de colheita e gestão de Moonbags.
-- **Oracle:** Validador de integridade, regime de mercado e SSOT de dados.
+### 3. Camada de Execução (Actor Model)
+- **4 × SlotOperatorAgent:** instâncias independentes, ciclo de vida próprio (Gênesis → Escadinha → Arquivamento), self-auditing nativo via `FleetAudit`.
+- **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`.
+- **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
+- **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
+- **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
+- **Oracle:** SSOT de regime de mercado (ALTA/BAIXA/LATERAL com threshold ADX>30), validação e FleetAudit pós-trade.
+- **Anti-Slippage Engine:** Greedy Snake Sharding em 4 cohorts balanceados com Random Jitter 0-350ms para pulverizar ordens no book.
+
+### 4. Motor de Trading (Sniper + Escadinha)
+- **Ciclo:** 0.2s de alta frequência para captura de pavios rápidos.
+- **ROI Triggers (T1-T5):**
+  - **T1 Break-Even:** 30% ROI → Stop Loss movido para 0%
+  - **T2 Profit Bridge:** 50% ROI → Stop Loss movido para 20%
+  - **T3 Risk-Zero:** 70% ROI → Stop Loss movido para 5%
+  - **T4 Profit-Lock:** 110% ROI → Stop Loss movido para 70%
+  - **T5 Emancipação / Moonbag:** 150% ROI → Stop Loss movido para 110%
+- **Ceifeiro (pós-emancipação):** 200% WAVE → 300% ROCKET → 400% STAR → 500% CROWN → 600% SUPERNOVA → 700% GOD_MODE → 800-1200% CHOKE_HOLD/APEX.
+
+### 5. Auth & Failsafe
+- **Fortress Auth:** JWT + bypass admin `123` (papel "Sovereign").
+- **PAPER Mode automático:** detectado se chaves OKX ausentes — banca $100 injetada e modo de simulação ativado.
+- **GUARDIAN_PROMPT.md:** blindagem de persona do bot Telegram sob flag `HERMES_GUARDIAN=1`.
 
 ---
 
@@ -365,5 +387,5 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-05-31 (V110.200) Sincronizado*
+*Documento atualizado em: 2026-06-02 (V110.701) Sincronizado*
 *Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*

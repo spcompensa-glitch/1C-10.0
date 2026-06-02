@@ -3,10 +3,10 @@
 FROM python:3.12-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 # V5.2.4.4: Force native DNS resolver for Google API stability in Cloud Run
-ENV GRPC_DNS_RESOLVER native
+ENV GRPC_DNS_RESOLVER=native
 
 # Set work directory
 WORKDIR /app
@@ -33,12 +33,12 @@ RUN playwright install --with-deps chromium
 # Copy the entire project
 COPY . .
 
-# Change to backend directory for execution
-WORKDIR /app/backend
+# Set frontend directory as static root
+WORKDIR /app
 
-# Expose port (Cloud Run Standard: 8085)
-ENV PORT 8085
+# Expose port (Railway Standard: 8085)
+ENV PORT=8085
 EXPOSE 8085
 
-# Command to run the application using Gunicorn (Production Standard)
-CMD exec gunicorn --bind :$PORT --workers 1 --worker-class uvicorn.workers.UvicornWorker --threads 8 --timeout 0 main:app
+# Command to run the application using Uvicorn (Railway Standard)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8085", "--workers", "1"]

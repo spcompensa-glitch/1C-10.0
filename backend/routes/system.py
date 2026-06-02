@@ -11,11 +11,11 @@ logger = logging.getLogger("1CRYPTEN-SYSTEM")
 
 def get_services():
     from services.firebase_service import firebase_service
-    from services.okx_rest import okx_rest_service as bybit_rest_service
+    from services.okx_rest import okx_rest_service
     from services.vault_service import vault_service
     from services.bankroll import bankroll_manager
     from services.execution_protocol import execution_protocol
-    return firebase_service, bybit_rest_service, vault_service, bankroll_manager, execution_protocol
+    return firebase_service, okx_rest_service, vault_service, bankroll_manager, execution_protocol
 
 async def verify_api_key(x_api_key: str = Header(None)):
     if settings.DEBUG:
@@ -36,22 +36,22 @@ async def debug_test():
 
 @router.get("/health")
 async def health_check():
-    firebase_service, bybit_rest_service, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     from main import VERSION, DEPLOYMENT_ID, FRONTEND_DIR
     frontend_files = []
     if os.path.exists(FRONTEND_DIR):
         try: frontend_files = os.listdir(FRONTEND_DIR)
         except: frontend_files = ["Permission Error"]
-    bybit_conn = False
+    okx_conn = False
     balance = 0.0
-    if bybit_rest_service:
+    if okx_rest_service:
         try:
-            bybit_conn = True 
-            balance = bybit_rest_service.last_balance
+            okx_conn = True
+            balance = okx_rest_service.last_balance
         except: pass
     return {
         "status": "online", "version": VERSION, "deployment_id": DEPLOYMENT_ID,
-        "bybit_connected": bybit_conn, "balance": balance,
+        "okx_connected": okx_conn, "balance": balance,
         "frontend_path": FRONTEND_DIR, "frontend_found": os.path.exists(FRONTEND_DIR),
         "frontend_files": frontend_files,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -59,7 +59,7 @@ async def health_check():
 
 @router.get("/banca/data")
 async def get_banca_data(current_user: User = Depends(get_current_user)):
-    firebase_service, bybit_rest_service, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     try:
         status = await firebase_service.get_banca_status(username=current_user.username)
         if not status or status.get("saldo_total", 0) == 0:
@@ -115,11 +115,11 @@ async def get_system_settings():
     from main import VERSION
     return {
         "version": VERSION,
-        "execution_mode": settings.BYBIT_EXECUTION_MODE,
+        "execution_mode": settings.OKX_EXECUTION_MODE,
         "max_slots": settings.MAX_SLOTS,
         "leverage": settings.LEVERAGE,
         "risk_cap": settings.RISK_CAP_PERCENT,
         "debug_mode": settings.DEBUG,
-        "testnet": settings.BYBIT_TESTNET,
+        "testnet": settings.OKX_TESTNET,
         "server_time": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }

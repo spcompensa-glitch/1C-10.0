@@ -7,8 +7,8 @@ import math
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 from services.firebase_service import firebase_service
-from services.okx_rest import okx_rest_service as bybit_rest_service
-from services.bybit_ws import bybit_ws_service
+from services.okx_rest import okx_rest_service
+from services.okx_ws_public import okx_ws_public_service
 from services.vault_service import vault_service
 from services.execution_protocol import execution_protocol
 from services.agents.oracle_agent import oracle_agent
@@ -22,7 +22,7 @@ def normalize_symbol(symbol: str) -> str:
     if not symbol:
         return symbol
     norm = symbol.replace(".P", "").upper()
-    # V6.0: Robust Mapping - Ensure it ends with USDT to match BybitREST
+    # V6.0: Robust Mapping - Ensure it ends with USDT to match OKXRest
     if not (norm.endswith("USDT") or norm.endswith("USDC")):
         norm = f"{norm}USDT"
     return norm
@@ -163,7 +163,7 @@ class SignalGenerator:
         """
         try:
             # Fetch 5m candles (last 20 = 100 minutes)
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="5", limit=20)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="5", limit=20)
             if not klines or len(klines) < 10:
                 return {'has_trigger': False, 'trigger_type': None, 'confidence': 0, 'funding_rate': 0, 'volume_confirmed': False}
             
@@ -190,11 +190,11 @@ class SignalGenerator:
             volume_confirmed = trigger_vol >= (avg_vol_10 * 1.5)
             
             # Funding rate
-            funding_rate = await bybit_rest_service.get_funding_rate(symbol)
+            funding_rate = await okx_rest_service.get_funding_rate(symbol)
             
             # [V46.0] Premium Liquidity & Sentiment Injection
-            ls_ratio = await bybit_rest_service.get_account_ratio(symbol)
-            oi_history = await bybit_rest_service.get_open_interest_history(symbol, interval="5min", limit=3)
+            ls_ratio = await okx_rest_service.get_account_ratio(symbol)
+            oi_history = await okx_rest_service.get_open_interest_history(symbol, interval="5min", limit=3)
             
             oi_rising = False
             if len(oi_history) >= 2:
@@ -214,7 +214,7 @@ class SignalGenerator:
             )
             if zone_result['detected']:
                 # [V27.6] CVD Needle Flip Confirmation
-                cvd = bybit_ws_service.get_cvd_score(symbol)
+                cvd = okx_ws_public_service.get_cvd_score(symbol)
                 # For Longs (support rejection), we want CVD to be recovering (not deeply negative anymore)
                 cvd_flip_confirmed = (side_norm == "buy" and cvd > -10000) or (side_norm == "sell" and cvd < 10000)
                 
@@ -246,7 +246,7 @@ class SignalGenerator:
             if not trigger_type:
                 # Long squeeze: funding very negative + CVD turning heavily positive + volume
                 # Short squeeze: funding very positive + CVD turning heavily negative + volume
-                cvd = bybit_ws_service.get_cvd_score(symbol)
+                cvd = okx_ws_public_service.get_cvd_score(symbol)
                 # [V28.2] Strict Funding Squeeze: Raised from 5k to 80k CVD and requires volume bump
                 if side_norm == "buy" and funding_rate < -0.0003 and cvd > 80000 and volume_confirmed:
                     trigger_type = "FUNDING_SQUEEZE"
@@ -257,7 +257,7 @@ class SignalGenerator:
                     
             # === TRIGGER D: MOMENTUM SURFE (TREND FOLLOWING) ===
             if not trigger_type:
-                cvd = bybit_ws_service.get_cvd_score(symbol)
+                cvd = okx_ws_public_service.get_cvd_score(symbol)
                 try:
                     regime_data = await self.detect_market_regime(symbol)
                     is_trending = regime_data.get('regime') == 'TRENDING'
@@ -357,8 +357,8 @@ class SignalGenerator:
                     logger.info(f"🦇 [V55.0] LIQUIDITY SWEEP DETECTED! {symbol} | {spring['type']}")
 
             # 4. Microstructure (VAMP & OBI)
-            vamp = bybit_ws_service.vamp_cache.get(symbol, 0)
-            obi = bybit_ws_service.obi_cache.get(symbol, 0)
+            vamp = okx_ws_public_service.vamp_cache.get(symbol, 0)
+            obi = okx_ws_public_service.obi_cache.get(symbol, 0)
             
             if vamp > 0:
                 # If Long, price below VAMP = "Cheap/Attractive"
@@ -385,11 +385,11 @@ class SignalGenerator:
             min_confidence = 70 if is_market_ranging else 65
             
             # [V62.0] Filtro de Baixa Volatilidade (Mar Morto)
-            atr = bybit_ws_service.atr_cache.get(symbol, 0)
+            atr = okx_ws_public_service.atr_cache.get(symbol, 0)
             asset_volatility = (atr / current_close) if (atr and current_close > 0) else 0
             is_dead_market = asset_volatility < 0.002 # Menos de 0.2% de volatilidade ATR
             
-            cvd = bybit_ws_service.get_cvd_score(symbol)
+            cvd = okx_ws_public_service.get_cvd_score(symbol)
             is_exhausted = False
             is_heavy_momentum = False
             
@@ -531,7 +531,7 @@ class SignalGenerator:
             return
         self._is_syncing_radar = True
         try:
-            from services.bybit_ws import bybit_ws_service
+            from services.okx_ws_public import okx_ws_public_service
             # V15.7.5: Added logging to verify sync is happening
             logger.info("📡 [RADAR-PULSE] Syncing signals and decisions to RTDB...")
             signals = await firebase_service.get_recent_signals(limit=25)
@@ -543,8 +543,8 @@ class SignalGenerator:
                 
                 # [V46.0] Real-time Pressure Injection for Radar
                 # We fetch live metrics from BybitWS to override staleFirestore data
-                cvd_5m = bybit_ws_service.get_cvd_score_time(symbol, 300)
-                cvd_total = bybit_ws_service.get_cvd_score(symbol)
+                cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300)
+                cvd_total = okx_ws_public_service.get_cvd_score(symbol)
                 
                 if "indicators" not in sig:
                     sig["indicators"] = {}
@@ -662,7 +662,7 @@ class SignalGenerator:
             # [V110.36.7] SSOT M-ADX para o RadarPulse (Fim da Dualidade Visual)
             # Utiliza estritamente o M-ADX master computado assincronamente pelo websocket 
             # para remover completamente resquícios do 1H-ADX antigo e cravando a consistência UI.
-            m_adx_radar = getattr(bybit_ws_service, 'btc_adx', 0)
+            m_adx_radar = getattr(okx_ws_public_service, 'btc_adx', 0)
             
             # Inferir regime puramente pelo threshold M-ADX oficial do backend
             if m_adx_radar >= 30: inferred_regime = "ROARING"
@@ -684,8 +684,8 @@ class SignalGenerator:
             
             # [V110.950] Calculate Global Heat Index (Average velocity of monitored symbols)
             try:
-                from services.bybit_ws import bybit_ws_service
-                velocities = list(bybit_ws_service.velocity_cache.values())
+                from services.okx_ws_public import okx_ws_public_service
+                velocities = list(okx_ws_public_service.velocity_cache.values())
                 global_heat = sum(velocities) / len(velocities) if velocities else 0.0
             except Exception:
                 global_heat = 0.0
@@ -696,10 +696,10 @@ class SignalGenerator:
                 "btc_regime": btc_regime.get("regime", "TRANSITION"),
                 "btc_adx": btc_regime.get("adx", 20),
                 "btc_dominance": round(mock_dom, 1),
-                "btc_price": bybit_ws_service.btc_price,
-                "btc_variation_1h": round(bybit_ws_service.btc_variation_1h, 2),
-                "btc_variation_24h": round(bybit_ws_service.btc_variation_24h, 2),
-                "btc_variation_15m": round(bybit_ws_service.btc_variation_15m, 2),
+                "btc_price": okx_ws_public_service.btc_price,
+                "btc_variation_1h": round(okx_ws_public_service.btc_variation_1h, 2),
+                "btc_variation_24h": round(okx_ws_public_service.btc_variation_24h, 2),
+                "btc_variation_15m": round(okx_ws_public_service.btc_variation_15m, 2),
                 "decorrelation_avg": round(avg_d_score, 1),
                 "decorrelation_active_count": len(d_active),
                 "heat_index": round(global_heat, 2), # 🆕 [V110.950] UI Sync for Global Heat Index
@@ -733,7 +733,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.trend_cache_daily_ttl:
                 return cached
             
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="D", limit=200)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="D", limit=200)
             
             if not klines or len(klines) < 50:
                 return {'trend': 'sideways', 'ema50': 0, 'sma200': 0, 'above_200sma': True, 'pct_from_ema50': 0}
@@ -812,11 +812,11 @@ class SignalGenerator:
         V43.0: Market Regime Detection using ADX & Squeeze logic.
         """
         try:
-            # [V110.36.10] SSOT OVERRIDE: SE FOR BTC, USAR M-ADX MASTER (BYBIT-WS)
+            # [V110.36.10] SSOT OVERRIDE: SE FOR BTC, USAR M-ADX MASTER (OKX-WS)
             # Isso elimina a esquizofrenia de regime entre execuo e visor lateral.
             if symbol == "BTCUSDT.P":
-                from services.bybit_ws import bybit_ws_service
-                m_adx = getattr(bybit_ws_service, "btc_adx", 20.0)
+                from services.okx_ws_public import okx_ws_public_service
+                m_adx = getattr(okx_ws_public_service, "btc_adx", 20.0)
                 
                 # Inferir regime baseado no M-ADX Master
                 if m_adx >= 30: regime = "ROARING"
@@ -838,7 +838,7 @@ class SignalGenerator:
                 return cached
             
             # V110.30.2: Increased limit to 100 for stable ADX calculation (Wilder memory)
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="60", limit=100)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="60", limit=100)
             
             if not klines or len(klines) < 30:
                 return {'regime': 'TRANSITION', 'adx': 20, 'bb_width': 0, 'updated_at': time.time()}
@@ -953,7 +953,7 @@ class SignalGenerator:
         (for Long) or Low of candle 1 and High of candle 3 (for Short).
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval=interval, limit=10)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval=interval, limit=10)
             if not klines or len(klines) < 3: return []
             
             # Klines: [newest, ..., oldest] -> Revers para [oldest, ..., newest]
@@ -997,7 +997,7 @@ class SignalGenerator:
         BoS = Confirmation of existing trend.
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="15", limit=20)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="15", limit=20)
             if not klines or len(klines) < 15: return {"trend": "NEUTRAL"}
             
             c = klines[::-1]
@@ -1033,7 +1033,7 @@ class SignalGenerator:
         Requirement: Break below recent low + Immediate reclaim (fake breakout).
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
             if not klines or len(klines) < 6: return {"detected": False}
             
             c = klines[::-1]
@@ -1073,7 +1073,7 @@ class SignalGenerator:
         Looks for a deep wick below/above recent structure followed by a fast return.
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
             if not klines or len(klines) < 6: return {"detected": False}
             
             candles = klines[::-1]
@@ -1107,7 +1107,7 @@ class SignalGenerator:
         V42.0: Detects breakouts from consolidation boxes.
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="60", limit=24)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="60", limit=24)
             if not klines or len(klines) < 20: return {"detected": False}
             
             closes = [float(c[4]) for c in klines[::-1]]
@@ -1135,7 +1135,7 @@ class SignalGenerator:
             if (time.time() - self.btc_direction_cache.get('updated_at', 0)) < self.btc_direction_cache_ttl:
                 return self.btc_direction_cache
             
-            klines = await bybit_rest_service.get_klines(symbol="BTCUSDT.P", interval="60", limit=30)
+            klines = await okx_rest_service.get_klines(symbol="BTCUSDT.P", interval="60", limit=30)
             
             if not klines or len(klines) < 26:
                 return {'direction': 'NEUTRAL', 'strength': 0, 'aligned_with': 'Both', 'updated_at': time.time()}
@@ -1164,10 +1164,10 @@ class SignalGenerator:
             momentum = (recent[-1] - recent[0]) / recent[0] * 100 if recent[0] > 0 else 0
             
             # Direction classification
-            btc_var_15m = bybit_ws_service.btc_variation_15m
+            btc_var_15m = okx_ws_public_service.btc_variation_15m
             
             # [V110.36.10] FORCE DIRECTION FROM ADX REGIME
-            m_adx = getattr(bybit_ws_service, "btc_adx", 20.0)
+            m_adx = getattr(okx_ws_public_service, "btc_adx", 20.0)
             
             # Se o ADX  muito forte, no permitimos NEUTRAL se houver qualquer vis
             if m_adx >= 30:
@@ -1235,12 +1235,12 @@ class SignalGenerator:
 
     async def detect_btc_decorrelation(self, symbol: str, alt_cvd: float = None, alt_ls_ratio: float = None, alt_oi: float = None) -> Any:
         try:
-            from services.bybit_ws import bybit_ws_service
+            from services.okx_ws_public import okx_ws_public_service
             from services.redis_service import redis_service
             
             # Fetch missing data if not provided
             if alt_cvd is None:
-                alt_cvd = bybit_ws_service.get_cvd_score(symbol)
+                alt_cvd = okx_ws_public_service.get_cvd_score(symbol)
             if alt_ls_ratio is None:
                 alt_ls_ratio = await redis_service.get_ls_ratio(symbol)
             
@@ -1248,8 +1248,8 @@ class SignalGenerator:
             correlation_data = {"is_decorrelated": False, "correlation": 1.0}
             try:
                 # Fetch last 15 1h candles for both
-                btc_klines = await bybit_rest_service.get_klines(symbol="BTCUSDT.P", interval="60", limit=15)
-                sym_klines = await bybit_rest_service.get_klines(symbol=symbol, interval="60", limit=15)
+                btc_klines = await okx_rest_service.get_klines(symbol="BTCUSDT.P", interval="60", limit=15)
+                sym_klines = await okx_rest_service.get_klines(symbol=symbol, interval="60", limit=15)
                 
                 if btc_klines and sym_klines and len(btc_klines) >= 10 and len(sym_klines) >= 10:
                     btc_returns = []
@@ -1288,17 +1288,17 @@ class SignalGenerator:
                 logger.warning(f"Pearson calculation error for {symbol}: {e}")
 
             # 2. Captura estado do BTC
-            btc_var = bybit_ws_service.btc_variation_1h
-            btc_cvd = bybit_ws_service.get_cvd_score("BTCUSDT")
+            btc_var = okx_ws_public_service.btc_variation_1h
+            btc_cvd = okx_ws_public_service.get_cvd_score("BTCUSDT")
             abs_btc_var = abs(btc_var)
             abs_btc_cvd = abs(btc_cvd)
             
             # 3. Captura variação da altcoin
-            alt_price = bybit_ws_service.get_current_price(symbol)
+            alt_price = okx_ws_public_service.get_current_price(symbol)
             if alt_price <= 0:
                 return {'is_decorrelated': False, 'confidence': 0.0, 'direction': 'Neutral', 'signals': [], 'reason': 'no_price', 'correlation': 1.0}
             
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="60", limit=2)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="60", limit=2)
             if not klines or len(klines) < 2:
                 return {'is_decorrelated': False, 'confidence': 0.0, 'direction': 'Neutral', 'signals': [], 'reason': 'no_klines', 'correlation': 1.0}
             
@@ -1330,7 +1330,7 @@ class SignalGenerator:
             # 6. [V46.0] Injeção de Liquidez & Smart Money
             oi_status = "STABLE"
             try:
-                oi_history = await bybit_rest_service.get_open_interest_history(symbol, interval="5min", limit=5)
+                oi_history = await okx_rest_service.get_open_interest_history(symbol, interval="5min", limit=5)
                 if len(oi_history) >= 2:
                     o1 = float(oi_history[0].get("openInterest", 0))
                     o2 = float(oi_history[1].get("openInterest", 0))
@@ -1411,7 +1411,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.trend_cache_4h_ttl:
                 return cached
             
-            klines = await bybit_rest_service.get_klines(
+            klines = await okx_rest_service.get_klines(
                 symbol=symbol,
                 interval="240",  # 4H
                 limit=24  # Last 4 days
@@ -1468,7 +1468,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.zones_cache_15m_ttl:
                 return cached
             
-            klines = await bybit_rest_service.get_klines(
+            klines = await okx_rest_service.get_klines(
                 symbol=symbol,
                 interval="15",  # 15m
                 limit=48  # Last 12 hours
@@ -1525,7 +1525,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.trend_cache_2h_ttl:
                 return cached
             
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="120", limit=50)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="120", limit=50)
             if not klines:
                 return {'trend': 'sideways', 'pivot': 0, 'sma8': 0, 'sma21': 0}
                 
@@ -1629,7 +1629,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.trend_cache_30m_ttl:
                 return cached
 
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="30", limit=30)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="30", limit=30)
             if not klines or len(klines) < 21:
                 return {'trend': 'NEUTRAL', 'sma8': 0, 'sma21': 0, 'freshness': 0, 'slope': 0, 'updated_at': time.time()}
 
@@ -1700,7 +1700,7 @@ class SignalGenerator:
         Intervals: '60' (1h) for Macro, '15' for Tactical.
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval=interval, limit=limit)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval=interval, limit=limit)
             if not klines or len(klines) < 10:
                 return {}
 
@@ -1784,7 +1784,7 @@ class SignalGenerator:
             limit: Quantidade de velas para analisar
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval=interval, limit=limit)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval=interval, limit=limit)
             if not klines or len(klines) < 10:
                 return {}
 
@@ -1860,7 +1860,7 @@ class SignalGenerator:
         Identifies significant buy/sell walls nearby to avoid entering into a wall.
         """
         try:
-            ob = await bybit_rest_service.get_orderbook(symbol, limit=50)
+            ob = await okx_rest_service.get_orderbook(symbol, limit=50)
             if not ob:
                 return {'buy_walls': [], 'sell_walls': [], 'obi': 0}
 
@@ -1900,7 +1900,7 @@ class SignalGenerator:
         """
         try:
             # 1. Fetch 1m candles for velocity check
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="1", limit=10)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="1", limit=10)
             if not klines or len(klines) < 5:
                 return False, 0.0
 
@@ -1912,7 +1912,7 @@ class SignalGenerator:
             stretch_pct = abs(current_price - price_5m_ago) / price_5m_ago * 100
             
             # [V15.1] Dynamic Threshold based on ATR
-            atr = bybit_ws_service.atr_cache.get(symbol, 0)
+            atr = okx_ws_public_service.atr_cache.get(symbol, 0)
             if atr > 0 and current_price > 0:
                 # O gatilho é 1.5x a volatilidade média (ATR de 1h)
                 atr_pct = (atr / current_price) * 100
@@ -1932,7 +1932,7 @@ class SignalGenerator:
         Returns: {'scalp_valid': bool, 'rsi_1m': float, 'cvd_condition': str}
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="1", limit=15)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="1", limit=15)
             if not klines or len(klines) < 15:
                 return {'scalp_valid': False, 'rsi_1m': 50, 'cvd_condition': 'unknown'}
                 
@@ -1967,7 +1967,7 @@ class SignalGenerator:
                     rsi = 100 - (100 / (1 + rs))
                 
             # Check real-time CVD for exhaustion
-            cvd = bybit_ws_service.get_cvd_score(symbol)
+            cvd = okx_ws_public_service.get_cvd_score(symbol)
             cvd_condition = 'neutral'
             if cvd > 100000: cvd_condition = 'exhausted_buy'
             elif cvd < -100000: cvd_condition = 'exhausted_sell'
@@ -1997,7 +1997,7 @@ class SignalGenerator:
         - Short: Current Close < Previous Low
         """
         try:
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="1", limit=3)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="1", limit=3)
             if not klines or len(klines) < 2:
                 return {'confirmed': False, 'reason': 'insufficient_data'}
             
@@ -2039,7 +2039,7 @@ class SignalGenerator:
             if cached and (time.time() - cached.get('updated_at', 0)) < self.trend_cache_ttl:
                 return cached
             
-            klines = await bybit_rest_service.get_klines(
+            klines = await okx_rest_service.get_klines(
                 symbol=symbol,
                 interval="60",  # 1H
                 limit=24  # Last 24 hours
@@ -2209,7 +2209,7 @@ class SignalGenerator:
         """
         try:
             # [V20.4] Increased from 80 to 200 for more accurate CVD calculation
-            trades = await bybit_rest_service.get_public_trade_history(symbol, limit=200)
+            trades = await okx_rest_service.get_public_trade_history(symbol, limit=200)
             if not trades: return 0.0
             
             rest_cvd = 0.0
@@ -2246,7 +2246,7 @@ class SignalGenerator:
         logger.info("🪐 [MACRO SYNC] Iniciando sincronização em background do Gráfico de 2H...")
         while self.is_running:
             try:
-                symbols = getattr(bybit_ws_service, 'active_symbols', [])
+                symbols = getattr(okx_ws_public_service, 'active_symbols', [])
                 if not symbols:
                     await asyncio.sleep(10)
                     continue
@@ -2269,7 +2269,7 @@ class SignalGenerator:
         logger.info("⏱️ [30M SYNC] Iniciando sincronização em background do Gráfico de 30min...")
         while self.is_running:
             try:
-                symbols = getattr(bybit_ws_service, 'active_symbols', [])
+                symbols = getattr(okx_ws_public_service, 'active_symbols', [])
                 if not symbols:
                     await asyncio.sleep(10)
                     continue
@@ -2412,7 +2412,7 @@ class SignalGenerator:
                 # [V38.1] PRE-WARM 2H CACHE — Once on startup before first Stage 1 runs
                 if not hasattr(self, '_2h_warmup_done'):
                     self._2h_warmup_done = True
-                    warmup_symbols = await bybit_rest_service.get_elite_50x_pairs()
+                    warmup_symbols = await okx_rest_service.get_elite_50x_pairs()
                     logger.info(f"🔥 [MACRO WARMUP] Pré-aquecendo cache 2H + 30min para {len(warmup_symbols)} pares...")
                     async def warmup_worker(wsym):
                         try:
@@ -2435,13 +2435,13 @@ class SignalGenerator:
                 now = time.time()
                 if now - self.last_context_update > 15:
                     # [V16.3.1] Run in background to prevent funnel deadlock
-                    asyncio.create_task(bybit_ws_service.update_market_context())
+                    asyncio.create_task(okx_ws_public_service.update_market_context())
                     self.last_context_update = now
                     
                     # Update Drag Mode State
-                    btc_var = bybit_ws_service.btc_variation_1h
-                    btc_cvd = bybit_ws_service.get_cvd_score("BTCUSDT")
-                    btc_price = bybit_ws_service.get_current_price("BTCUSDT")
+                    btc_var = okx_ws_public_service.btc_variation_1h
+                    btc_cvd = okx_ws_public_service.get_cvd_score("BTCUSDT")
+                    btc_price = okx_ws_public_service.get_current_price("BTCUSDT")
                     
                     abs_btc_cvd = abs(btc_cvd)
                     base_exhaustion = (abs_btc_cvd / 1000000) * 100
@@ -2453,7 +2453,7 @@ class SignalGenerator:
                     
                     if btc_price == 0:
                         try:
-                            ticker = await bybit_rest_service.get_tickers(symbol="BTCUSDT")
+                            ticker = await okx_rest_service.get_tickers(symbol="BTCUSDT")
                             btc_price = float(ticker.get("result", {}).get("list", [{}])[0].get("lastPrice", 0))
                             logger.info(f"📊 [SIG-GEN] BTC Fallback REST: ${btc_price:,.0f}")
                         except Exception as e:
@@ -2462,7 +2462,7 @@ class SignalGenerator:
                     # [V110.36.6] M-ADX SSOT para Telemetria UI (Zero Flicker)
                     # Utiliza desde o início o M-ADX calculado pelo Websocket, 
                     # removendo as amnésias causadas por detect_market_regime.
-                    btc_adx_inner = getattr(bybit_ws_service, 'btc_adx', 0)
+                    btc_adx_inner = getattr(okx_ws_public_service, 'btc_adx', 0)
                     if btc_adx_inner == 0:
                         # Fallback se ws ainda não tiver aquecido
                         _fallback_regime = await self.detect_market_regime("BTCUSDT.P")
@@ -2480,8 +2480,8 @@ class SignalGenerator:
 
                         await firebase_service.update_pulse_drag(
                             self.btc_drag_mode, abs_btc_cvd, self.exhaustion_level,
-                            bybit_ws_service.btc_price, bybit_ws_service.btc_variation_1h,
-                            btc_adx_inner, 0, bybit_ws_service.btc_variation_24h,
+                            okx_ws_public_service.btc_price, okx_ws_public_service.btc_variation_1h,
+                            btc_adx_inner, 0, okx_ws_public_service.btc_variation_24h,
                             btc_direction=inferred_dir, # <-- Fix: Direção Real
                             oracle_context=oracle_ctx
                         )
@@ -2492,12 +2492,12 @@ class SignalGenerator:
                 # A slot is only truly occupied if it has a symbol, AND qty > 0 AND entry_price > 0.
                 occupied_count = sum(1 for s in slots if s.get("symbol") and float(s.get("qty", 0)) > 0 and float(s.get("entry_price", 0)) > 0)
                 
-                # [V110.36.3] Usar M-ADX do bybit_ws (Fonte Única de Verdade) em vez de recalcular.
+                # [V110.36.3] Usar M-ADX do okx_ws_public (Fonte Única de Verdade) em vez de recalcular.
                 # Elimina conflito entre ADX 1H (22.46) e M-ADX ponderado (34.0).
-                m_adx = getattr(bybit_ws_service, 'btc_adx', 0)
+                m_adx = getattr(okx_ws_public_service, 'btc_adx', 0)
                 if m_adx and m_adx > 0:
                     btc_adx = m_adx
-                    logger.debug(f"🔮 [S1-ADX] Usando M-ADX={btc_adx:.1f} (Fonte: bybit_ws)")
+                    logger.debug(f"🔮 [S1-ADX] Usando M-ADX={btc_adx:.1f} (Fonte: okx_ws_public)")
                 elif 'btc_adx_inner' in dir():
                     btc_adx = btc_adx_inner
                 else:
@@ -2506,11 +2506,11 @@ class SignalGenerator:
                 is_btc_lateral = btc_adx < 28  # [V110.12.2] Anti-Microspike Buffer
                 
                 # [V110.17.0] UNIFY DRAG MODE: Sync UI status with ADX logic
-                btc_var_15m = bybit_ws_service.btc_variation_15m
+                btc_var_15m = okx_ws_public_service.btc_variation_15m
                 if not is_btc_lateral:
                     self.btc_drag_mode = "UP" if btc_var_15m >= 0 else "DOWN"
                     # [V14.0 Log]
-                    logger.info(f"🦅 V14.0: BTC DRAG MODE ACTIVE ({self.btc_drag_mode}) | ADX: {btc_adx:.1f} | Var: {btc_var_15m:.2f}% | CVD: ${bybit_ws_service.get_cvd_score('BTCUSDT')/1000000:.2f}M")
+                    logger.info(f"🦅 V14.0: BTC DRAG MODE ACTIVE ({self.btc_drag_mode}) | ADX: {btc_adx:.1f} | Var: {btc_var_15m:.2f}% | CVD: ${okx_ws_public_service.get_cvd_score('BTCUSDT')/1000000:.2f}M")
                 else:
                     self.btc_drag_mode = False
                     
@@ -2522,9 +2522,9 @@ class SignalGenerator:
 
                 await firebase_service.update_pulse_drag(
                     self.btc_drag_mode, 
-                    abs(bybit_ws_service.get_cvd_score("BTCUSDT")), getattr(self, 'exhaustion_level', 0),
-                    bybit_ws_service.btc_price, bybit_ws_service.btc_variation_1h,
-                    btc_adx, 0, bybit_ws_service.btc_variation_24h,
+                    abs(okx_ws_public_service.get_cvd_score("BTCUSDT")), getattr(self, 'exhaustion_level', 0),
+                    okx_ws_public_service.btc_price, okx_ws_public_service.btc_variation_1h,
+                    btc_adx, 0, okx_ws_public_service.btc_variation_24h,
                     btc_direction=inferred_dir, # <-- Fix: Direção Real
                     oracle_context=oracle_ctx
                 )
@@ -2539,7 +2539,7 @@ class SignalGenerator:
                 if btc_dominance <= 0:
                     btc_dominance = 58.0
                 
-                btc_var_1h = bybit_ws_service.btc_variation_1h
+                btc_var_1h = okx_ws_public_service.btc_variation_1h
                 self.is_btc_tsunami = (btc_dominance > 55.0) and (btc_adx > 30.0) and (btc_var_1h > 0)
                 if self.is_btc_tsunami:
                     logger.warning(f"🚨 [BTC CLIMATE] TSUNAMI DETECTADO! Dominancia BTC: {btc_dominance:.1f}% | ADX: {btc_adx:.1f} | Var 1h: {btc_var_1h:.2f}%. Shorts em altcoins serao bloqueados globalmente.")
@@ -2565,7 +2565,7 @@ class SignalGenerator:
                     logger.info(f"🔄 [V75.2 HYSTERESIS] Radar switched to SCAVENGER_RANGE after {self._RADAR_HYSTERESIS_THRESHOLD} consecutive RANGING readings.")
 
                 # [V71.0] HYBRID FUNNEL: Global Radar (600) -> Focused WS (90) OR Elite 30
-                all_liquid_symbols = await bybit_rest_service.get_elite_50x_pairs() # Now returns 600
+                all_liquid_symbols = await okx_rest_service.get_elite_50x_pairs() # Now returns 600
                 
                 # [V75.2] Elite 50 — Almirante's Selection (Expanded for Variety)
                 ELITE_50_PAIRS = [
@@ -2592,7 +2592,7 @@ class SignalGenerator:
                             logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC TRENDING! Locking WebSocket to ELITE 50 Majors.")
                         else:
                             # 1. Fetch Tickers for ALL symbols to identify laggards/leaders vs BTC
-                            ticker_resp = await bybit_rest_service.get_tickers()
+                            ticker_resp = await okx_rest_service.get_tickers()
                             tickers = ticker_resp.get("result", {}).get("list", [])
                             
                             btc_ticker = next((t for t in tickers if t.get("symbol") == "BTCUSDT"), {})
@@ -2619,12 +2619,12 @@ class SignalGenerator:
                             if "BTCUSDT.P" not in top_90: top_90.insert(0, "BTCUSDT.P")
                             logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC RANGING! Rebalanced WebSocket with Top 90 Descorrelated Assets (SCAVENGER MODE).")
                             
-                        await bybit_ws_service.sync_topics(top_90)
+                        await okx_ws_public_service.sync_topics(top_90)
                         self._last_ws_rebalance = now
                     except Exception as rb_err:
                         logger.error(f"Failed to rebalance WS: {rb_err}")
 
-                active_symbols_ws = bybit_ws_service.active_symbols
+                active_symbols_ws = okx_ws_public_service.active_symbols
                 
                 # [V32.0] PERIODIC DASHBOARD SYNC (BTC Context & Radar)
                 if now - self.last_radar_sync > 10:
@@ -2685,7 +2685,7 @@ class SignalGenerator:
                 # ═══════════════════════════════════════════════════════════════
                 # [V110.36.4] USA O M-ADX GLOBAL DO LOOP.
                 # Removida a chamada redundante detect_market_regime() que corrompia o M-ADX.
-                # is_btc_lateral já está corretamente definido pela fonte única (bybit_ws_service.btc_adx)
+                # is_btc_lateral já está corretamente definido pela fonte única (okx_ws_public_service.btc_adx)
 
                 # [V43.0] PARALLEL RADAR STAGE 1
                 async def stage1_worker(symbol, is_btc_lateral):
@@ -2696,8 +2696,8 @@ class SignalGenerator:
                         auto_block = self.auto_blocked_assets.get(norm_sym)
                         if auto_block and time.time() < auto_block.get('blocked_until', 0): return None
                         
-                        cvd_val = bybit_ws_service.get_cvd_score(symbol)
-                        ws_freshness = getattr(bybit_ws_service, '_last_trade_ts', {}).get(symbol, 0)
+                        cvd_val = okx_ws_public_service.get_cvd_score(symbol)
+                        ws_freshness = getattr(okx_ws_public_service, '_last_trade_ts', {}).get(symbol, 0)
                         cvd_is_stale = (time.time() - ws_freshness > 30) if ws_freshness > 0 else False
                         
                         # [V20.4] REST Fallback if WS CVD is zero/stale
@@ -2741,14 +2741,14 @@ class SignalGenerator:
                         # [V44.3] ADX Slope (Acceleration) & Temporal CVD (5m)
                         trend_1h_data = self.trend_cache.get(symbol) or self.trend_cache.get(norm_sym, {})
                         adx_slope = trend_1h_data.get('adx_slope', 0)
-                        cvd_5m = bybit_ws_service.get_cvd_score_time(symbol, 300) # 5m window
+                        cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300) # 5m window
                         
                         adx_slope_score = min(20, adx_slope * 10) if adx_slope > 0 else 0
                         cvd_5m_score = min(25, (abs(cvd_5m) / 100000.0) * 25.0) if (cvd_5m > 0 and side_label == "Long") or (cvd_5m < 0 and side_label == "Short") else 0
 
-                        rsi = bybit_ws_service.rsi_cache.get(symbol, 50)
-                        oi_val = bybit_ws_service.oi_cache.get(symbol, 0)
-                        ls_ratio = bybit_ws_service.ls_ratio_cache.get(symbol, 1.0)
+                        rsi = okx_ws_public_service.rsi_cache.get(symbol, 50)
+                        oi_val = okx_ws_public_service.oi_cache.get(symbol, 0)
+                        ls_ratio = okx_ws_public_service.ls_ratio_cache.get(symbol, 1.0)
                         ls_score = 15 if (side_label == "Long" and ls_ratio < 0.9) or (side_label == "Short" and ls_ratio > 1.5) else 0
                         rsi_score = min(30.0, ((65 - rsi) / 35.0) * 30.0) if (side_label == "Long" and rsi < 65) else (min(30.0, ((rsi - 35) / 35.0) * 30.0) if (side_label == "Short" and rsi > 35) else 0)
                         whale_bonus = 20 if abs_cvd > 250000 else 0
@@ -2789,8 +2789,8 @@ class SignalGenerator:
                         # Em vez de bloquear tudo no S1, permite candidatos elite ou descorrelacionados passarem para o Captain decidir.
                         if is_btc_lateral:
                             # Pré-qualificação: Score alto + CVD positivo (mesmos critérios do Vanguard Bypass)
-                            btc_cvd_total = bybit_ws_service.get_cvd_score("BTCUSDT")
-                            btc_cvd_5m    = bybit_ws_service.get_cvd_score_time("BTCUSDT", 300)
+                            btc_cvd_total = okx_ws_public_service.get_cvd_score("BTCUSDT")
+                            btc_cvd_5m    = okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300)
                             has_real_flow = (btc_cvd_total > 0) and (btc_cvd_5m > 0)
                             is_vanguard_pre = (preliminary_score >= 90) and has_real_flow
 
@@ -2835,7 +2835,7 @@ class SignalGenerator:
                 s1_filtered = []
                 for candidate in stage1_candidates:
                     symbol = candidate['symbol']
-                    turnover_24h = bybit_ws_service.turnover_24h_cache.get(symbol, 0)
+                    turnover_24h = okx_ws_public_service.turnover_24h_cache.get(symbol, 0)
                     
                     # [V38.0] Macro Swing needs less liquidity ($500k) because it trades slow timeframes
                     min_turnover = 500000 if candidate.get('is_swing_macro') else 1000000
@@ -2911,7 +2911,7 @@ class SignalGenerator:
                     
                     try:
                         # Buscar velas de 30M para cálculo de Divergência, Volume e CHoCH
-                        klines_30m = await bybit_rest_service.get_klines(symbol=symbol, interval="30", limit=100)
+                        klines_30m = await okx_rest_service.get_klines(symbol=symbol, interval="30", limit=100)
                         if klines_30m and len(klines_30m) >= 40:
                             candles_30m = klines_30m[::-1]
                             closes_30m = [float(c[4]) for c in candles_30m]
@@ -2981,10 +2981,10 @@ class SignalGenerator:
                     
                     # [V110.36.5] VANGUARD PRE-QUALIFIER (S2): Alinhado com o Stage 1 e Captain.
                     # Usa M-ADX autêntico e permite passe livre para ativos com Score >= 90 e fluxo BTC Positivo.
-                    m_adx = getattr(bybit_ws_service, 'btc_adx', 0)
-                    if m_adx and m_adx < 28 and _settings.BYBIT_EXECUTION_MODE != "PAPER":
-                        btc_cvd_total = bybit_ws_service.get_cvd_score("BTCUSDT")
-                        btc_cvd_5m    = bybit_ws_service.get_cvd_score_time("BTCUSDT", 300)
+                    m_adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                    if m_adx and m_adx < 28 and _settings.OKX_EXECUTION_MODE != "PAPER":
+                        btc_cvd_total = okx_ws_public_service.get_cvd_score("BTCUSDT")
+                        btc_cvd_5m    = okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300)
                         has_real_flow = (btc_cvd_total > 0) and (btc_cvd_5m > 0)
                         is_vanguard_pre = (candidate.get('preliminary_score', 0) >= 90) and has_real_flow
 
@@ -2994,23 +2994,23 @@ class SignalGenerator:
                             logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO SENTINELA ADX GUARD PARA {symbol}.")
                             # self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             # return None
-                    elif m_adx and m_adx < 28 and _settings.BYBIT_EXECUTION_MODE == "PAPER":
+                    elif m_adx and m_adx < 28 and _settings.OKX_EXECUTION_MODE == "PAPER":
                         logger.info(f"🛡️ [PAPER] Ignorando trava ADX Sentinela (M-ADX {m_adx:.1f} < 28) para permitir ampla emanação de sinais no radar local.")
                     
                     self._diag_counters['ema4h_pass'] += 1
                     
                     # 🔍 [V15.5] LS Ratio & Open Interest Validation
-                    ls_ratio = bybit_ws_service.ls_ratio_cache.get(symbol, 1.0)
-                    oi_val = bybit_ws_service.oi_cache.get(symbol, 0)
-                    turnover_24h = bybit_ws_service.turnover_24h_cache.get(symbol, 0)
+                    ls_ratio = okx_ws_public_service.ls_ratio_cache.get(symbol, 1.0)
+                    oi_val = okx_ws_public_service.oi_cache.get(symbol, 0)
+                    turnover_24h = okx_ws_public_service.turnover_24h_cache.get(symbol, 0)
                     
                     # 🔍 [V15.7.7] Volume Fallback: Fetch from REST if cache is zero (happens on startup)
                     if turnover_24h < 1000000:
                         try:
-                            ticker_resp = await bybit_rest_service.get_tickers(symbol=symbol.replace(".P", ""))
+                            ticker_resp = await okx_rest_service.get_tickers(symbol=symbol.replace(".P", ""))
                             ticker_data = ticker_resp.get("result", {}).get("list", [{}])[0]
                             turnover_24h = float(ticker_data.get("turnover24h", 0))
-                            bybit_ws_service.turnover_24h_cache[symbol] = turnover_24h 
+                            okx_ws_public_service.turnover_24h_cache[symbol] = turnover_24h 
                             logger.info(f"📊 [V15.7.7] Volume Fallback for {symbol}: ${turnover_24h/1000000:.1f}M")
                         except Exception as e:
                             logger.warning(f"Failed turnover fallback for {symbol}: {e}")
@@ -3018,7 +3018,7 @@ class SignalGenerator:
                     # 🔍 [V15.6] Volume Filter: Liquidity Guard
                     # [V96.1] Mínimo de $1M - RELAXADO para $100k em PAPER MODE para ver sinais rolando
                     is_swing_macro_s3 = candidate.get('is_swing_macro', False)
-                    if _settings.BYBIT_EXECUTION_MODE == "PAPER":
+                    if _settings.OKX_EXECUTION_MODE == "PAPER":
                         volume_min = 100000 # $100k is enough for simulation
                     else:
                         volume_min = 500000 if is_swing_macro_s3 else 1000000  # $1M / $500k
@@ -3120,9 +3120,9 @@ class SignalGenerator:
                     # — penalizing them for going against the daily is redundant and kills the signal
                     is_decorrelation_play = candidate.get('is_decorrelated', False)
                     
-                    # [V28.2 PAPER FIX] Penalidade relaxada de -40 para -15 quando em BYBIT_EXECUTION_MODE = PAPER
+                    # [V28.2 PAPER FIX] Penalidade relaxada de -40 para -15 quando em OKX_EXECUTION_MODE = PAPER
                     # Para permitir testes de reversão SWING no Simulador.
-                    fatal_penalty = -15 if _settings.BYBIT_EXECUTION_MODE == 'PAPER' else -40
+                    fatal_penalty = -15 if _settings.OKX_EXECUTION_MODE == 'PAPER' else -40
                     
                     if is_exempt:
                         daily_penalty = 0  # [V110.999] Exempt: decorrelation/DVAP/FLEX is the edge
@@ -3183,13 +3183,13 @@ class SignalGenerator:
                     if btc_aligned != 'Both' and btc_strength > 30:
                         if (side_label == 'Long' and btc_aligned == 'Short') or (side_label == 'Short' and btc_aligned == 'Long'):
                             # [V42.0] Sharper Crash Protection: Block bypass if BTC is dumping
-                            btc_dumping = bybit_ws_service.btc_variation_15m < -0.4 or bybit_ws_service.btc_variation_1h < -0.6
+                            btc_dumping = okx_ws_public_service.btc_variation_15m < -0.4 or okx_ws_public_service.btc_variation_1h < -0.6
                             
                             if is_decorrelation_play and not btc_dumping:
                                 logger.info(f"🎯 [V41.0] {symbol} (Decorrelation Play) IGNOROU O GUARDA DO BTC.")
                             else:
                                 if is_decorrelation_play and btc_dumping:
-                                    logger.warning(f"⚠️ [V42.0] {symbol} Decorrelation bypass REVOKED: BTC is dumping ({bybit_ws_service.btc_variation_15m:.2f}%)")
+                                    logger.warning(f"⚠️ [V42.0] {symbol} Decorrelation bypass REVOKED: BTC is dumping ({okx_ws_public_service.btc_variation_15m:.2f}%)")
                                 
                                 # [V41.0] Calcular score projetado para decidir se matar ou penalizar
                                 projected_score = int(candidate['tactical_score'] + zone_bonus + ema4h_penalty + ls_bonus + fleet_bonus + daily_penalty + regime_penalty + btc_penalty + master_shield_penalty)
@@ -3227,10 +3227,10 @@ class SignalGenerator:
                         logger.info(f"💎 [DVAP SCORE BOOST] final_score forcado para {final_score} para garantir execucao imediata!")
                     
                     # Shadow Needle Detection (uses 1m klines)
-                    current_price_ws = bybit_ws_service.get_current_price(symbol)
+                    current_price_ws = okx_ws_public_service.get_current_price(symbol)
                     is_stretched, stretch_val = await self.is_price_stretched(symbol, current_price_ws)
                     
-                    cvd_5m_ws = bybit_ws_service.get_cvd_score_time(symbol, 300)
+                    cvd_5m_ws = okx_ws_public_service.get_cvd_score_time(symbol, 300)
                     
                     if final_score >= min_threshold:
                         self._diag_counters['score_pass'] += 1
@@ -3258,7 +3258,7 @@ class SignalGenerator:
                         # return None
                         
                     # V15.3: Calcular targets estruturais e espaço restante
-                    current_price_now = bybit_ws_service.get_current_price(symbol)
+                    current_price_now = okx_ws_public_service.get_current_price(symbol)
                     if current_price_now <= 0:
                         current_price_now = current_price_ws
                     if current_price_now <= 0:
@@ -3334,7 +3334,7 @@ class SignalGenerator:
                         # MOMENTUM LAYER: Good signal but no confirmed trigger
                         signal_layer = "MOMENTUM"
                         # [V27.6] SNIPER-ONLY Restriction for $5M - $1M pairs
-                        if turnover_24h < 1000000 and _settings.BYBIT_EXECUTION_MODE != 'PAPER' and not candidate.get('is_swing_macro'):
+                        if turnover_24h < 1000000 and _settings.OKX_EXECUTION_MODE != 'PAPER' and not candidate.get('is_swing_macro'):
                             logger.info(f"🚫 [V27.6] {symbol} MOMENTUM Blocked: Pairs under $1M must be SNIPER-ONLY. turnover=${turnover_24h/1000000:.1f}M")
                             # return None
                             
@@ -3377,7 +3377,7 @@ class SignalGenerator:
                         entry_pattern = "standard"
                     
                     # [V42.0] Fetch Max Leverage for display in Radar
-                    inst_info = await bybit_rest_service.get_instrument_info(symbol)
+                    inst_info = await okx_rest_service.get_instrument_info(symbol)
                     max_lev = float(inst_info.get("leverageFilter", {}).get("maxLeverage", 50.0))
                     
                     norm_symbol = normalize_symbol(symbol) # Ensure norm_symbol is defined
@@ -3434,7 +3434,7 @@ class SignalGenerator:
                             "is_shadow_needle": is_stretched,
                             "stretch_pct": round(stretch_val, 2),
                             "strategy_type": "DVAP" if is_dvap_play else self._classify_strategy(move_room_pct, entry_pattern, candidate.get('trend', 'sideways'), macro_2h.get('trend', 'sideways'), abs(cvd_val), market_regime.get('regime', 'TRANSITION')),
-                            "atr": bybit_ws_service.atr_cache.get(symbol, 0),
+                            "atr": okx_ws_public_service.atr_cache.get(symbol, 0),
                             "structural_target": round(structural_target, 8),
                             "target_extended": round(target_extended, 8),
                             "move_room_pct": round(move_room_pct, 3),
@@ -3527,15 +3527,15 @@ class SignalGenerator:
                 used_symbols = [s.upper() for s in cycle_status.get("used_symbols_in_cycle", [])]
                 
                 radar_batch = {}
-                active_symbols = bybit_ws_service.active_symbols
+                active_symbols = okx_ws_public_service.active_symbols
                 
                 for symbol in active_symbols:
                     norm_sym = symbol.replace(".P", "").replace(".p", "").upper()
-                    cvd = bybit_ws_service.get_cvd_score(symbol)
-                    cvd_5m = bybit_ws_service.get_cvd_score_time(symbol, 300) # 5m window
+                    cvd = okx_ws_public_service.get_cvd_score(symbol)
+                    cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300) # 5m window
                     
                     # Radar Heuristic: $500k USD delta = 99% intensity
-                    if settings.BYBIT_EXECUTION_MODE == "PAPER":
+                    if settings.OKX_EXECUTION_MODE == "PAPER":
                         # Em PAPER, reduzimos o threshold para preencher as cores e gerar a disputa visual no Radar
                         import random
                         score = min(99, max(30, int(abs(cvd) / 500) + random.randint(10, 40)))
@@ -3545,7 +3545,7 @@ class SignalGenerator:
                         side_val = "LONG" if cvd > 10000 else "SHORT" if cvd < -10000 else "NEUTRAL"
                     
                     # Fetch enriched metrics
-                    rsi = bybit_ws_service.rsi_cache.get(symbol, 50)
+                    rsi = okx_ws_public_service.rsi_cache.get(symbol, 50)
                     trend_data = self.trend_cache.get(symbol, {})
                     trend = trend_data.get('trend', 'sideways')
                     
@@ -3557,8 +3557,8 @@ class SignalGenerator:
                     is_blocked = norm_sym in used_symbols
                     
                     # [V46.0] Real-time Liquidity & Retail Sentiment
-                    ls_ratio = bybit_ws_service.ls_ratio_cache.get(symbol, 1.0)
-                    oi_prev = bybit_ws_service.oi_cache.get(symbol, 0)
+                    ls_ratio = okx_ws_public_service.ls_ratio_cache.get(symbol, 1.0)
+                    oi_prev = okx_ws_public_service.oi_cache.get(symbol, 0)
                     
                     # [V45.2] RTDB Keys: No dots. We use clean norm_sym.
                     radar_batch[norm_sym] = { 
@@ -3646,7 +3646,7 @@ class SignalGenerator:
                             
                         if (now - ts) > timedelta(minutes=5):
                             # Use the centralized service to handle .P suffix
-                            ticker_resp = await bybit_rest_service.get_tickers(symbol=signal["symbol"])
+                            ticker_resp = await okx_rest_service.get_tickers(symbol=signal["symbol"])
                             ticker_data = ticker_resp.get("result", {}).get("list", [{}])[0]
                             current_price = float(ticker_data.get("lastPrice", 0))
                             

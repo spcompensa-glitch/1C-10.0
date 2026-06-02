@@ -13,10 +13,10 @@ def get_services():
     service_names = ["BybitRest", "BybitWS", "Firebase", "SignalGen", "Captain", "Oracle"]
     
     try:
-        from services.okx_rest import okx_rest_service as bybit_rest_service
-        services[0] = bybit_rest_service
-        from services.bybit_ws import bybit_ws_service
-        services[1] = bybit_ws_service
+        from services.okx_rest import okx_rest_service as okx_rest_service
+        services[0] = okx_rest_service
+        from services.okx_ws_public import okx_ws_public_service
+        services[1] = okx_ws_public_service
         from services.firebase_service import firebase_service
         services[2] = firebase_service
         from services.signal_generator import signal_generator
@@ -34,9 +34,9 @@ def get_services():
 @router.get("/elite-pairs")
 async def get_elite_pairs():
     try:
-        bybit_rest_service, _, _, _, _, _ = get_services()
-        if not bybit_rest_service: return {"symbols": ["BTCUSDT.P", "ETHUSDT.P", "SOLUSDT.P"], "count": 3}
-        symbols = await bybit_rest_service.get_elite_50x_pairs()
+        okx_rest_service, _, _, _, _, _ = get_services()
+        if not okx_rest_service: return {"symbols": ["BTCUSDT.P", "ETHUSDT.P", "SOLUSDT.P"], "count": 3}
+        symbols = await okx_rest_service.get_elite_50x_pairs()
         return {"symbols": symbols, "count": len(symbols)}
     except Exception as e:
         logger.error(f"Error fetching elite pairs: {e}")
@@ -128,11 +128,11 @@ async def get_trend_analysis(symbol: str):
 
 @router.get("/market/klines")
 async def get_klines_proxy(symbol: str, interval: str = "60", limit: int = 200):
-    bybit_rest_service, _, _, _, _, _ = get_services()
+    okx_rest_service, _, _, _, _, _ = get_services()
     try:
         int_map = {"15m": "15", "1h": "60", "4h": "240"}
-        bybit_interval = int_map.get(str(interval), str(interval))
-        data = await bybit_rest_service.get_klines(symbol=symbol, interval=bybit_interval, limit=limit)
+        interval_str = int_map.get(str(interval), str(interval))
+        data = await okx_rest_service.get_klines(symbol=symbol, interval=interval_str, limit=limit)
         if data: 
             data = data.copy()
             data.reverse()
@@ -155,7 +155,7 @@ async def get_system_state():
     try:
         # [V20.0] Safe Access to main variables to avoid circular imports during startup
         from main import sig_gen as main_sig_gen
-        bybit_rest_service, bybit_ws_service, firebase_service, signal_generator, captain_agent, oracle_agent = get_services()
+        okx_rest_service, okx_ws_public_service, firebase_service, signal_generator, captain_agent, oracle_agent = get_services()
         
         target_sig_gen = main_sig_gen if main_sig_gen is not None else signal_generator
         
@@ -166,11 +166,11 @@ async def get_system_state():
         btc_adx = 0
         btc_dominance = 0
         
-        if bybit_ws_service:
+        if okx_ws_public_service:
             try:
-                btc_price = bybit_ws_service.get_current_price("BTCUSDT")
-                btc_var_1h = getattr(bybit_ws_service, 'btc_variation_1h', 0)
-                btc_cvd = bybit_ws_service.get_cvd_score("BTCUSDT")
+                btc_price = okx_ws_public_service.get_current_price("BTCUSDT")
+                btc_var_1h = getattr(okx_ws_public_service, 'btc_variation_1h', 0)
+                btc_cvd = okx_ws_public_service.get_cvd_score("BTCUSDT")
             except Exception as btc_err:
                 logger.warning(f"Error fetching BTC telemetry: {btc_err}")
 
@@ -205,8 +205,8 @@ async def get_system_state():
                 logger.warning(f"Error fetching Chat Status: {chat_err}")
 
         # 🆕 [V110.34] Calculate Captain-Aligned Direction for REST fallback
-        btc_var_15m = getattr(bybit_ws_service, 'btc_variation_15m', 0) if bybit_ws_service else 0
-        effective_adx = btc_adx if btc_adx else (getattr(bybit_ws_service, 'btc_adx', 0) if bybit_ws_service else 0)
+        btc_var_15m = getattr(okx_ws_public_service, 'btc_variation_15m', 0) if okx_ws_public_service else 0
+        effective_adx = btc_adx if btc_adx else (getattr(okx_ws_public_service, 'btc_adx', 0) if okx_ws_public_service else 0)
         if effective_adx >= 30:
             if btc_var_15m > 0 and btc_var_1h > 0:
                 btc_direction = "UP"
@@ -229,9 +229,9 @@ async def get_system_state():
             "last_reconciliation": getattr(captain_agent, 'last_reconciliation_time', 0) * 1000 if captain_agent else 0,
             "btc_price": btc_price, 
             "btc_variation_1h": btc_var_1h, 
-            "btc_variation_24h": getattr(bybit_ws_service, 'btc_variation_24h', 0) if bybit_ws_service else 0,
+            "btc_variation_24h": getattr(okx_ws_public_service, 'btc_variation_24h', 0) if okx_ws_public_service else 0,
             "btc_adx": effective_adx, 
-            "decorrelation_avg": getattr(bybit_ws_service, 'decorrelation_avg', 0) if bybit_ws_service else 0,
+            "decorrelation_avg": getattr(okx_ws_public_service, 'decorrelation_avg', 0) if okx_ws_public_service else 0,
             "btc_dominance": btc_dominance,
             "btc_var_15m": btc_var_15m,
             "btc_direction": btc_direction,
@@ -260,14 +260,14 @@ async def get_system_state():
 async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
     try:
         services = get_services()
-        bybit_rest_service = services[0]
+        okx_rest_service = services[0]
         signal_generator = services[3]
         
         # 1. Obter Klines reais (deviadas para OKX em BybitRestService se configurada)
         clean_symbol = symbol.replace(".P", "").replace(".p", "").upper()
         
         # O observatório manda o intervalo em minutos (ex: 30, 120, 240)
-        data = await bybit_rest_service.get_klines(symbol=clean_symbol, interval=str(interval), limit=limit)
+        data = await okx_rest_service.get_klines(symbol=clean_symbol, interval=str(interval), limit=limit)
         if not data:
             return {"klines": [], "patterns_abcd": [], "patterns_mola": [], "patterns_123": [], "swing_alignment": "NEUTRAL", "fvg": [], "ob": []}
             
@@ -399,7 +399,7 @@ async def get_market_study(symbol: str, interval: str = "30", limit: int = 600):
                 dvap_data = None
                 dvap_history = []
                 try:
-                    klines_30m = await bybit_rest_service.get_klines(symbol=clean_symbol + ".P", interval="30", limit=200)
+                    klines_30m = await okx_rest_service.get_klines(symbol=clean_symbol + ".P", interval="30", limit=200)
                     if klines_30m and len(klines_30m) >= 40:
                         candles_30m = klines_30m[::-1]
                         
@@ -499,7 +499,7 @@ async def get_radar_regimes():
     
     try:
         services = get_services()
-        bybit_rest_service = services[0]
+        okx_rest_service = services[0]
         signal_generator = services[3]
         
         if not signal_generator:
@@ -543,7 +543,7 @@ async def get_radar_regimes():
                         is_dvap_active = False
                         try:
                             klines_30m = await asyncio.wait_for(
-                                bybit_rest_service.get_klines(symbol=symbol + ".P", interval="30", limit=40),
+                                okx_rest_service.get_klines(symbol=symbol + ".P", interval="30", limit=40),
                                 timeout=5.0
                             )
                             if klines_30m and len(klines_30m) >= 30:

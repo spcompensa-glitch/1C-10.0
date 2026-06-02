@@ -21,13 +21,13 @@ class OKXRest:
     def __init__(self):
         self._global_session = None # Sessão padrão do admin (legado/fallback)
         self._user_sessions = {} # Cache de sessões: {username: HTTP_Session}
-        self.category = settings.BYBIT_CATEGORY
+        self.category = "linear"  # TODO: substituir por OKX instType='SWAP' quando pybit for removido (dead code path)
         self.time_offset = 0
         self.is_initialized = False
         
         # Paper Trading State
-        self.execution_mode = settings.BYBIT_EXECUTION_MODE # "REAL" or "PAPER"
-        self.paper_balance = settings.BYBIT_SIMULATED_BALANCE
+        self.execution_mode = settings.OKX_EXECUTION_MODE # "REAL" or "PAPER"
+        self.paper_balance = settings.OKX_SIMULATED_BALANCE
         self.paper_positions = [] # List of dicts matching Bybit schema
         self.paper_moonbags = [] # [V110.0] List of emancipated trades in Paper Mode
         self.paper_orders_history = [] 
@@ -71,7 +71,7 @@ class OKXRest:
                 self.paper_positions = [p for p in self.paper_positions if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_moonbags = data.get("moonbags", [])
                 self.paper_moonbags = [p for p in self.paper_moonbags if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
-                self.paper_balance = data.get("balance", settings.BYBIT_SIMULATED_BALANCE)
+                self.paper_balance = data.get("balance", settings.OKX_SIMULATED_BALANCE)
                 if self.paper_balance != 100.0:
                     logger.info(f"💰 [V110.176 User Rule] Forçando recalibração da banca Paper de ${self.paper_balance:.2f} para $100.00.")
                     self.paper_balance = 100.0
@@ -92,7 +92,7 @@ class OKXRest:
                             symbol = v_moon.get("symbol")
                             if symbol and symbol not in ram_symbols:
                                 logger.warning(f"🚑 [AUTO-ADOPT] Ordem órfã detectada no Vault: {symbol}. Adotando para o motor.")
-                                # Adaptar schema Firestore para schema RAM do BybitREST
+                                # Adaptar schema Firestore para schema RAM do OKXRest
                                 pos_obj = {
                                     "symbol": symbol,
                                     "side": v_moon.get("side", "Buy"),
@@ -150,7 +150,7 @@ class OKXRest:
 
             else:
                 # Silencioso se estiver vazio para não poluir o Cloud Run
-                self.paper_balance = settings.BYBIT_SIMULATED_BALANCE
+                self.paper_balance = settings.OKX_SIMULATED_BALANCE
                 self._last_paper_load_time = time.time()
         except Exception as e:
             logger.error(f"❌ [PAPER] Failed to load global state: {e}")
@@ -210,7 +210,7 @@ class OKXRest:
             
             logger.info(f"🔌 [V120] Criando sessão Bybit privada para: @{username}")
             session = HTTP(
-                testnet=settings.BYBIT_TESTNET,
+                testnet=settings.OKX_TESTNET,
                 api_key=api_key.strip(),
                 api_secret=api_secret.strip(),
                 recv_window=20000 # Increased for stability
@@ -221,9 +221,9 @@ class OKXRest:
         # 2. Fallback para sessão global (Admin)
         if not self._global_session:
              self._global_session = HTTP(
-                testnet=settings.BYBIT_TESTNET,
-                api_key=settings.BYBIT_API_KEY.strip() if settings.BYBIT_API_KEY else None,
-                api_secret=settings.BYBIT_API_SECRET.strip() if settings.BYBIT_API_SECRET else None,
+                testnet=settings.OKX_TESTNET,
+                api_key=settings.OKX_API_KEY.strip() if settings.OKX_API_KEY else None,
+                api_secret=settings.OKX_API_SECRET.strip() if settings.OKX_API_SECRET else None,
                 recv_window=30000
             )
         return self._global_session
@@ -236,7 +236,7 @@ class OKXRest:
                 logger.warning("☣️ [FACTORY-RESET] Iniciando purgação atômica (V110.29.0)...")
                 self.paper_moonbags = []
                 self.paper_positions = []
-                self.paper_balance = settings.BYBIT_SIMULATED_BALANCE
+                self.paper_balance = settings.OKX_SIMULATED_BALANCE
                 if os.path.exists(self.PAPER_STORAGE_FILE):
                     os.remove(self.PAPER_STORAGE_FILE)
                     logger.warning(f"🗑️ [FACTORY-RESET] Arquivo de estado deletado: {self.PAPER_STORAGE_FILE}")
@@ -267,14 +267,14 @@ class OKXRest:
         # Create the actual global session
         self._global_session = self.get_session()
         self.is_initialized = True
-        logger.info("BybitREST: Session initialized.")
+        logger.info("OKXRest: Session initialized.")
         
         # [V53.6] Load Paper State on startup (Global Firestore Sync)
         if self.execution_mode == "PAPER":
             await self._load_paper_state()
             
         self.is_ready = True
-        logger.info("BybitREST: Session and state initialized.")
+        logger.info("OKXRest: Session and state initialized.")
 
 
     @property
@@ -282,9 +282,9 @@ class OKXRest:
         """Returns the fallback global Bybit HTTP session."""
         if not self._global_session:
             self._global_session = HTTP(
-                testnet=settings.BYBIT_TESTNET,
-                api_key=settings.BYBIT_API_KEY.strip() if settings.BYBIT_API_KEY else None,
-                api_secret=settings.BYBIT_API_SECRET.strip() if settings.BYBIT_API_SECRET else None,
+                testnet=settings.OKX_TESTNET,
+                api_key=settings.OKX_API_KEY.strip() if settings.OKX_API_KEY else None,
+                api_secret=settings.OKX_API_SECRET.strip() if settings.OKX_API_SECRET else None,
                 recv_window=30000,
             )
         return self._global_session
@@ -298,7 +298,7 @@ class OKXRest:
             return self._elite_cache
 
         try:
-            logger.info("BybitREST: Fetching Elite 50x Instruments from OKX (Sniper Strategy)...")
+            logger.info("OKXRest: Fetching Elite 50x Instruments from OKX (Sniper Strategy)...")
             from services.okx_service import okx_service
             
             candidates = {}
@@ -314,11 +314,11 @@ class OKXRest:
                             if not inst_id.endswith("-USDT-SWAP"):
                                 continue
                             
-                            # Converte para formato Bybit para check da blocklist
-                            bybit_sym = okx_service.okx_to_bybit(inst_id)
-                            bybit_sym_clean = bybit_sym.replace(".P", "")
+                            # Converte para formato legacy (com sufixo .P) para check da blocklist
+                            legacy_sym = okx_service.from_okx_inst_id(inst_id)
+                            legacy_sym_clean = legacy_sym.replace(".P", "")
                             
-                            if bybit_sym_clean in settings.ASSET_BLOCKLIST:
+                            if legacy_sym_clean in settings.ASSET_BLOCKLIST:
                                 continue
                                 
                             lev_str = info.get("lever", "0")
@@ -326,9 +326,9 @@ class OKXRest:
                                 lev_str = "0"
                             max_lev = float(lev_str)
                             if max_lev >= 50.0:
-                                candidates[inst_id] = bybit_sym_clean
+                                candidates[inst_id] = legacy_sym_clean
 
-            logger.info(f"BybitREST: Identified {len(candidates)} SWAP pairs on OKX with leverage >= 50x.")
+            logger.info(f"OKXRest: Identified {len(candidates)} SWAP pairs on OKX with leverage >= 50x.")
             
             # 2. Get tickers to sort by 24h volume/turnover
             url_tickers = "https://www.okx.com/api/v5/market/tickers?instType=SWAP"
@@ -345,14 +345,14 @@ class OKXRest:
                                 if not vol_str:
                                     vol_str = "0"
                                 turnover = float(vol_str) # Volume das últimas 24h na moeda de cotação (USDT)
-                                bybit_sym_clean = candidates[inst_id]
+                                legacy_sym_clean = candidates[inst_id]
                                 final_candidates.append({
-                                    "symbol": bybit_sym_clean,
+                                    "symbol": legacy_sym_clean,
                                     "turnover": turnover
                                 })
                                 # Prime turnover cache in WS
-                                from services.bybit_ws import bybit_ws_service
-                                bybit_ws_service.turnover_24h_cache[f"{bybit_sym_clean}.P"] = turnover
+                                from services.okx_ws_public import okx_ws_public_service
+                                okx_ws_public_service.turnover_24h_cache[f"{legacy_sym_clean}.P"] = turnover
 
             # Ordenar por volume/turnover
             final_candidates.sort(key=lambda x: x["turnover"], reverse=True)
@@ -364,7 +364,7 @@ class OKXRest:
             if not final_symbols:
                 final_symbols = [f"{s}.P" for s in settings.ELITE_40_MATRIX if f"{s}.P" not in settings.ASSET_BLOCKLIST]
                 
-            logger.info(f"BybitREST: Mass Sniper Elite Scan Successful (OKX Source). Monitoring Top {len(final_symbols)} high-leverage assets.")
+            logger.info(f"OKXRest: Mass Sniper Elite Scan Successful (OKX Source). Monitoring Top {len(final_symbols)} high-leverage assets.")
             
             self._elite_cache = final_symbols
             self._elite_cache_time = now
@@ -385,7 +385,7 @@ class OKXRest:
         pairs = await self.get_elite_50x_pairs()
         return pairs[:20] if pairs else []
 
-    @with_circuit_breaker(breaker_name="bybit_rest_public", fallback_return=0.0)
+    @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return=0.0)
     async def get_wallet_balance(self):
         """Fetches the total equity from the Bybit account (UNIFIED or CONTRACT)."""
         # logger.info(f"[DEBUG] get_wallet_balance called. Mode: {self.execution_mode}")
@@ -450,7 +450,7 @@ class OKXRest:
                 logger.error(f"Error fetching wallet balance: {e}")
                 return self.last_balance # V5.2.4.6: Return cached on error
 
-    @with_circuit_breaker(breaker_name="bybit_rest_private", fallback_return=[])
+    @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=[])
     async def get_active_positions(self, symbol: str = None, username: str = None):
         """
         [V120] Busca posições ativas isoladas por usuário.
@@ -470,7 +470,7 @@ class OKXRest:
                         continue
                         
                     translated_pos = {
-                        "symbol": okx_service.okx_to_bybit(op.get("instId")),
+                        "symbol": okx_service.from_okx_inst_id(op.get("instId")),
                         "side": "Buy" if op.get("posSide") == "long" else "Sell",
                         "size": pos_qty,
                         "avgPrice": avg_px,
@@ -516,12 +516,11 @@ class OKXRest:
                 logger.error(f"Error fetching positions: {e}")
                 return []
 
-    @with_circuit_breaker(breaker_name="bybit_rest_public", fallback_return={"retCode": -1, "result": {"list": []}})
+    @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return={"retCode": -1, "result": {"list": []}})
     async def get_tickers(self, symbol: str = None):
         """
         [V110.999] Busca preços em tempo real de forma ultra-resiliente.
-        Se a OKX bloquear o IP (comum em servidores de nuvem como Railway localizados nos EUA),
-        o sistema realiza fallback transparente e instantâneo para as APIs públicas da Bybit (api.bybit.com / api.bygames.com).
+        Após a migração para OKX como fonte única, sem contingência para corretora legada.
         """
         async with self._http_semaphore:
             # 1. Verificar Cache Global primeiro
@@ -534,7 +533,7 @@ class OKXRest:
             from services.okx_service import okx_service
             okx_urls = []
             if symbol:
-                inst_id = okx_service.bybit_to_okx(symbol)
+                inst_id = okx_service.to_okx_inst_id(symbol)
                 okx_urls.append(f"https://www.okx.com/api/v5/market/ticker?instId={inst_id}")
                 okx_urls.append(f"https://aws.okx.com/api/v5/market/ticker?instId={inst_id}")
             else:
@@ -553,10 +552,10 @@ class OKXRest:
                             if data.get("code") == "0" and data.get("data"):
                                 okx_list = data["data"]
                                 for ot in okx_list:
-                                    bybit_sym = okx_service.okx_to_bybit(ot.get("instId"))
-                                    bybit_sym_clean = bybit_sym.replace(".P", "")
+                                    legacy_sym = okx_service.from_okx_inst_id(ot.get("instId"))
+                                    legacy_sym_clean = legacy_sym.replace(".P", "")
                                     translated_list.append({
-                                        "symbol": bybit_sym_clean,
+                                        "symbol": legacy_sym_clean,
                                         "lastPrice": ot.get("last", "0"),
                                         "turnover24h": ot.get("volCcy24h", "0")
                                     })
@@ -578,55 +577,13 @@ class OKXRest:
                     self._global_ticker_cache_time = time.time()
                 return res_payload
 
-            # 3. FALLBACK DE ALTA DISPONIBILIDADE: Bybit APIs (Nativa e Espelho)
-            # Acionado se a OKX falhar devido a restrição de IP de servidores americanos.
-            logger.warning(f"⚠️ [OKX-REST FALLBACK] OKX Tickers falhou ou bloqueou conexão para {symbol or 'GLOBAL'}. Ativando contingência via Bybit!")
-            
-            bybit_urls = []
-            if symbol:
-                clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
-                bybit_urls.append(f"https://api.bybit.com/v5/market/tickers?category=linear&symbol={clean_sym}")
-                bybit_urls.append(f"https://api.bygames.com/v5/market/tickers?category=linear&symbol={clean_sym}")
-            else:
-                bybit_urls.append("https://api.bybit.com/v5/market/tickers?category=linear")
-                bybit_urls.append("https://api.bygames.com/v5/market/tickers?category=linear")
-
-            for url in bybit_urls:
-                try:
-                    async with httpx.AsyncClient(timeout=4.0) as client:
-                        response = await client.get(url)
-                        if response.status_code == 200:
-                            data = response.json()
-                            if data.get("retCode") == 0 and data.get("result", {}).get("list"):
-                                b_list = data["result"]["list"]
-                                bybit_translated = []
-                                for bt in b_list:
-                                    sym = bt.get("symbol", "").replace(".P", "").replace(".p", "").upper()
-                                    bybit_translated.append({
-                                        "symbol": sym,
-                                        "lastPrice": bt.get("lastPrice", "0"),
-                                        "turnover24h": bt.get("turnover24h", "0")
-                                    })
-                                
-                                if symbol:
-                                    api_symbol = self.normalize_symbol(symbol)
-                                    bybit_translated = [t for t in bybit_translated if t["symbol"] == api_symbol]
-
-                                if bybit_translated:
-                                    logger.info(f"✅ [OKX-REST FALLBACK SUCCESS] Tickers públicos da Bybit obtidos com sucesso em contingência!")
-                                    res_payload = {"retCode": 0, "result": {"list": bybit_translated}}
-                                    if symbol is None:
-                                        self._global_ticker_cache = res_payload
-                                        self._global_ticker_cache_time = time.time()
-                                    return res_payload
-                except Exception as byb_err:
-                    logger.debug(f"[BYBIT-FALLBACK-TRY] Falha em {url}: {byb_err}")
-
-            # 4. Fallback final em caso de apagão de rede completo
-            logger.error("🚨 [OKX-REST FATAL] Apagão de Rede Completo: OKX e Bybit falharam em fornecer tickers!")
+            # 3. Sem contingência: OKX é a única fonte de tickers após a migração.
+            # Caso a OKX falhe ou bloqueie o IP, retornamos lista vazia para o circuit breaker
+            # abrir e o sistema seguir sem dependência de corretora legada.
+            logger.error(f"🚨 [OKX-REST FATAL] OKX falhou em fornecer tickers para {symbol or 'GLOBAL'}. Sem contingência legada configurada.")
             return {"retCode": -1, "result": {"list": []}}
 
-    @with_circuit_breaker(breaker_name="bybit_rest_public", fallback_return={})
+    @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return={})
     async def get_instrument_info(self, symbol: str):
         """Fetches precision and lot size filtering for a symbol with local caching."""
         if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
@@ -741,7 +698,7 @@ class OKXRest:
 
 
 
-    @with_circuit_breaker(breaker_name="bybit_rest_private", fallback_return={"retCode": -1, "retMsg": "Circuit Breaker Active"})
+    @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return={"retCode": -1, "retMsg": "Circuit Breaker Active"})
     async def set_leverage(self, symbol: str, leverage: int = 50):
         """
         🚀 V12.0: Ajusta a alavancagem para o símbolo antes de abrir a ordem.
@@ -779,7 +736,7 @@ class OKXRest:
             logger.warning(f"Failed to set leverage for {symbol}: {e}")
             return {"retCode": -1, "retMsg": str(e)}
 
-    @with_circuit_breaker(breaker_name="bybit_rest_private", fallback_return=None)
+    @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=None)
     async def place_atomic_order(self, symbol: str, side: str, qty: float, sl_price: float, tp_price: float = None, slot_id: int = 0, leverage: float = 50, username: str = None, **kwargs):
         """
         [V120] Envio de Ordem Atômica com isolamento de sessão por usuário.
@@ -919,7 +876,7 @@ class OKXRest:
             logger.error(f"Failed to place atomic order for {symbol} ({username}): {e}")
             return None
 
-    @with_circuit_breaker(breaker_name="bybit_rest_private", fallback_return=False, is_critical=True)
+    @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=False, is_critical=True)
     async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", is_partial: bool = False, username: str = None) -> bool:
         """
         [V120] Encerramento Multitenant Soberano.
@@ -945,7 +902,7 @@ class OKXRest:
 
         try:
             if not is_partial and norm_symbol in self.pending_closures:
-                logger.info(f"🛡️ [BYBIT] {norm_symbol} already has a local pending closure. Skipping.")
+                logger.info(f"🛡️ [OKX] {norm_symbol} already has a local pending closure. Skipping.")
                 return False
             
             # [V5.3.4] Add to pending_closures immediately to prevent sync flapping
@@ -985,8 +942,8 @@ class OKXRest:
                             # Safely fetch current price
                             try:
                                 # [V110.125 FIX] Tenta pegar o preço do WebSocket (LKG) primeiro pois é mais rápido e confiável que o Ticker REST em picos
-                                from services.bybit_ws import bybit_ws_service
-                                ws_price = bybit_ws_service.get_current_price(symbol)
+                                from services.okx_ws_public import okx_ws_public_service
+                                ws_price = okx_ws_public_service.get_current_price(symbol)
                                 
                                 if ws_price and ws_price > 0:
                                     exit_price = ws_price
@@ -1196,7 +1153,7 @@ class OKXRest:
                 result_list = response.get("result", {}).get("list", [])
                 if not result_list:
                     # [V43.2] Traceability: Log when no history is found despite sync trigger
-                    logger.debug(f"🔍 [BYBIT-REST] No closed PnL found for {symbol} in last {limit} trades.")
+                    logger.debug(f"🔍 [OKX-REST] No closed PnL found for {symbol} in last {limit} trades.")
                 return result_list
             except Exception as e:
                 logger.error(f"Error fetching closed PnL for {symbol}: {e}")
@@ -1211,7 +1168,7 @@ class OKXRest:
             # 1. Tentar buscar dados públicos nativos da OKX
             try:
                 from services.okx_service import okx_service
-                inst_id = okx_service.bybit_to_okx(symbol)
+                inst_id = okx_service.to_okx_inst_id(symbol)
                 url = f"https://www.okx.com/api/v5/market/trades?instId={inst_id}&limit={limit}"
                 
                 async with httpx.AsyncClient(timeout=4.0) as client:
@@ -1263,7 +1220,7 @@ class OKXRest:
         """[V12.0] Fetches L2 orderbook for localized depth analysis from OKX public API."""
         try:
             from services.okx_service import okx_service
-            inst_id = okx_service.bybit_to_okx(symbol)
+            inst_id = okx_service.to_okx_inst_id(symbol)
             url = f"https://www.okx.com/api/v5/market/books?instId={inst_id}&sz={limit}"
             async with httpx.AsyncClient(timeout=4.0) as client:
                 response = await client.get(url)
@@ -1318,7 +1275,7 @@ class OKXRest:
         # 4. Tentar obter via OKX
         try:
             from services.okx_service import okx_service
-            inst_id = okx_service.bybit_to_okx(symbol)
+            inst_id = okx_service.to_okx_inst_id(symbol)
             
             # Mapeamento do intervalo Bybit -> OKX
             interval_map = {
@@ -1435,41 +1392,8 @@ class OKXRest:
         except Exception as gate_err:
             logger.debug(f"[GATEIO-KLINES-FALLBACK-TRY] Falha ao obter da Gate.io: {gate_err}")
 
-        # B. Contingência secundária via Bybit (Caso a Gate.io falhe e o IP permita)
-        clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
-        bybit_urls = [
-            f"https://api.bytick.com/v5/market/kline?category=linear&symbol={clean_sym}&interval={interval}&limit={limit}",
-            f"https://api.bygames.com/v5/market/kline?category=linear&symbol={clean_sym}&interval={interval}&limit={limit}",
-            f"https://api.bybit.com/v5/market/kline?category=linear&symbol={clean_sym}&interval={interval}&limit={limit}"
-        ]
-
-        for url in bybit_urls:
-            try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    response = await client.get(url)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data.get("retCode") == 0 and data.get("result", {}).get("list"):
-                            bybit_candles = data["result"]["list"]
-                            formatted = []
-                            for c in bybit_candles:
-                                if len(c) >= 5:
-                                    formatted.append([
-                                        c[0], # start_time
-                                        c[1], # open
-                                        c[2], # high
-                                        c[3], # low
-                                        c[4], # close
-                                        c[5] if len(c) > 5 else "0", # volume
-                                        c[6] if len(c) > 6 else "0"  # turnover
-                                    ])
-                            if formatted:
-                                logger.info(f"✅ [BYBIT-FALLBACK SUCCESS] Candles públicos da Bybit obtidos com sucesso!")
-                                _GLOBAL_KLINES_CACHE[cache_key] = (time.time(), formatted)
-                                return formatted[:limit]
-            except Exception as byb_err:
-                logger.debug(f"[BYBIT-KLINES-FALLBACK-TRY] Falha ao obter de {url}: {byb_err}")
-
+        # B. Sem contingência secundária: Gate.io é a única contingência de klines após a migração.
+        # Caso Gate.io e OKX falhem, retornamos lista vazia para o sistema seguir.
         return []
 
     async def get_open_interest(self, symbol: str, interval: str = "1h") -> float:
@@ -1478,7 +1402,7 @@ class OKXRest:
         """
         try:
             from services.okx_service import okx_service
-            inst_id = okx_service.bybit_to_okx(symbol)
+            inst_id = okx_service.to_okx_inst_id(symbol)
             url = f"https://www.okx.com/api/v5/public/open-interest?instId={inst_id}"
             async with httpx.AsyncClient(timeout=4.0) as client:
                 response = await client.get(url)
@@ -1496,7 +1420,7 @@ class OKXRest:
         """
         try:
             from services.okx_service import okx_service
-            inst_id = okx_service.bybit_to_okx(symbol)
+            inst_id = okx_service.to_okx_inst_id(symbol)
             url = f"https://www.okx.com/api/v5/public/open-interest?instId={inst_id}"
             async with httpx.AsyncClient(timeout=4.0) as client:
                 response = await client.get(url)
@@ -1543,7 +1467,7 @@ class OKXRest:
                     return cached["rate"]
                 
                 from services.okx_service import okx_service
-                inst_id = okx_service.bybit_to_okx(symbol)
+                inst_id = okx_service.to_okx_inst_id(symbol)
                 url = f"https://www.okx.com/api/v5/public/funding-rate?instId={inst_id}"
                 
                 async with httpx.AsyncClient(timeout=4.0) as client:
@@ -1667,7 +1591,7 @@ class OKXRest:
                             opened_at = slot.get("opened_at", 0)
                             if (time.time() - opened_at) > 300: # 5 min grace period
                                 logger.warning(f"🌙 [GHOST-PURGE] Moonbag {symbol} não encontrada na Bybit. Removendo do Vault.")
-                                await firebase_service.remove_moonbag(moon_uuid, reason="GHOST_SYCH_BYBIT")
+                                await firebase_service.remove_moonbag(moon_uuid, reason="GHOST_SYNC_OKX")
                                 continue
 
                         slot_data = {
@@ -1938,7 +1862,7 @@ class OKXRest:
         if self.execution_mode != "PAPER":
             return
 
-        from services.bybit_ws import bybit_ws_service
+        from services.okx_ws_public import okx_ws_public_service
         from services.execution_protocol import execution_protocol
         from services.firebase_service import firebase_service
 
@@ -1964,7 +1888,7 @@ class OKXRest:
                 price_map = {}
                 for pos in combined_paper:
                     sym = pos["symbol"]
-                    ws_price = bybit_ws_service.get_current_price(sym)
+                    ws_price = okx_ws_public_service.get_current_price(sym)
                     if ws_price and ws_price > 0: price_map[sym] = ws_price
                     else:
                         ticker = await self.get_tickers(symbol=sym)
@@ -2255,6 +2179,4 @@ class OKXRest:
         self.emancipating_symbols.discard(symbol)
 
 okx_rest_service = OKXRest()
-bybit_rest_service = okx_rest_service
-BybitREST = OKXRest
 

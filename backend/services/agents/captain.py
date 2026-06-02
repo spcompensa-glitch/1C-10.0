@@ -16,8 +16,8 @@ from services.agents.aios_adapter import AIOSAgent, AgentMessage
 from services.agents.jarvis_brain import jarvis_brain
 from services.kernel.dispatcher import kernel
 from services.kernel.tools import kernel_tools
-from services.okx_rest import okx_rest_service as bybit_rest_service
-from services.bybit_ws import bybit_ws_service
+from services.okx_rest import okx_rest_service as okx_rest_service
+from services.okx_ws_public import okx_ws_public_service
 from services.execution_protocol import execution_protocol
 from services.google_calendar_service import google_calendar_service
 from config import settings
@@ -223,7 +223,7 @@ class CaptainAgent(AIOSAgent):
             if "TRAP" in nectar_seal:
                 # [V110.999] Permite bypass do Trap Shield em modo PAPER ou para Sinais de Elite (SMC Score >= 95)
                 from config import settings
-                is_paper = settings.BYBIT_EXECUTION_MODE == "PAPER"
+                is_paper = settings.OKX_EXECUTION_MODE == "PAPER"
                 if is_paper or smc_score >= 95:
                     logger.info(f"⚡ [LIBRARIAN-TRAP-BYPASS] {symbol} (SMC={smc_score}) ignorou Trap Shield (Paper={is_paper} | Elite={smc_score>=95}).")
                 else:
@@ -265,8 +265,8 @@ class CaptainAgent(AIOSAgent):
                 reasons.append(f"LOW_FLEET_CONFIDENCE: {unified_score:.1f}% < 50.0%")
                 logger.warning(f"🛡️ [V110.100] {symbol} {side} BLOCKED by Low Confidence ({unified_score:.1f}%)")
                 
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            if bybit_rest_service.execution_mode == "PAPER":
+            from services.okx_rest import okx_rest_service
+            if okx_rest_service.execution_mode == "PAPER":
                 approved = True
                 unified_score = max(unified_score, 88.0)
                 logger.info(f"💎 [PAPER-BYPASS] Forçando aprovação e confiança para {symbol} em modo simulado.")
@@ -357,7 +357,7 @@ class CaptainAgent(AIOSAgent):
             try:
                 # 0. Global Authorization Check
                 from services.vault_service import vault_service
-                from services.okx_rest import okx_rest_service as bybit_rest_service
+                from services.okx_rest import okx_rest_service
                 allowed, reason = await vault_service.is_trading_allowed()
                 if not allowed:
                     if not hasattr(self, "_last_block_log") or (time.time() - self._last_block_log) > 300:
@@ -386,7 +386,7 @@ class CaptainAgent(AIOSAgent):
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
                     balance = await bankroll_manager._get_operating_balance()
                     vault_ok, vault_reason = await vault_service.is_trading_allowed()
-                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {bybit_rest_service.execution_mode} | Slots: {occupied_count}/4 | Balance: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
+                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {okx_rest_service.execution_mode} | Slots: {occupied_count}/4 | Balance: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
                     self._last_heartbeat = time.time()
                 
                 free_slots = 4 - occupied_count
@@ -454,8 +454,8 @@ class CaptainAgent(AIOSAgent):
                     continue
 
                 # 2. Posição Ativa (No Servidor Paper/Exchange)
-                if bybit_rest_service.execution_mode == "PAPER":
-                    if any(p.get("symbol") == symbol for p in bybit_rest_service.paper_positions):
+                if okx_rest_service.execution_mode == "PAPER":
+                    if any(p.get("symbol") == symbol for p in okx_rest_service.paper_positions):
                         logger.warning(f"🚫 [DUP-BLOCK] {symbol} já possui posição ativa em Paper Mode. Abortando nova entrada.")
                         continue
                 else:
@@ -488,7 +488,7 @@ class CaptainAgent(AIOSAgent):
         """
         from services.agents.blitz_sniper import blitz_sniper_agent
         from services.signal_generator import signal_generator
-        from services.okx_rest import okx_rest_service as bybit_rest_service
+        from services.okx_rest import okx_rest_service
 
         BLITZ_SCAN_INTERVAL = 300  # 5 minutos entre ciclos de scan
 
@@ -606,14 +606,14 @@ class CaptainAgent(AIOSAgent):
     async def get_deep_macro_status(self):
         """[V110.36.8] Guilhotina Reforçada com SSOT M-ADX (Sem falsos laterais)."""
 
-        adx = getattr(bybit_ws_service, 'btc_adx', 0)
+        adx = getattr(okx_ws_public_service, 'btc_adx', 0)
         
         if adx >= 30: regime = "ROARING"
         elif adx >= 25: regime = "TRENDING"
         else: regime = "RANGING"
 
-        variation_1h = bybit_ws_service.btc_variation_1h
-        variation_15m = bybit_ws_service.btc_variation_15m
+        variation_1h = okx_ws_public_service.btc_variation_1h
+        variation_15m = okx_ws_public_service.btc_variation_15m
         
         # [V110.116] DYNAMIC ADX THRESHOLD: 25 for Elite Transitions (was 30)
         if adx >= 25:
@@ -640,8 +640,8 @@ class CaptainAgent(AIOSAgent):
             "var_15m": variation_15m,
             "var_1h": variation_1h,
             # [V110.36.0] CVD Anti Fake-Out: Fluxo financeiro real do BTC (Vanguard Bypass)
-            "cvd_total": bybit_ws_service.get_cvd_score("BTCUSDT"),
-            "cvd_5m": bybit_ws_service.get_cvd_score_time("BTCUSDT", 300),
+            "cvd_total": okx_ws_public_service.get_cvd_score("BTCUSDT"),
+            "cvd_5m": okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300),
         }
 
     async def _find_stagnant_slot_for_preemption(self) -> Optional[int]:
@@ -671,7 +671,7 @@ class CaptainAgent(AIOSAgent):
                 is_old_enough = (now - opened_at) > 2700
                 
                 # Rule 3: Low Gas (institutional volume)
-                cvd_score = bybit_ws_service.get_cvd_score(symbol)
+                cvd_score = okx_ws_public_service.get_cvd_score(symbol)
                 is_low_gas = abs(cvd_score) < 15000
                 
                 if is_stagnant_roi and is_old_enough and is_low_gas:
@@ -708,7 +708,7 @@ class CaptainAgent(AIOSAgent):
         
         # [MASTER BYPASS] - Se existir OKX Master ou for modo PAPER, ignora os inscritos e executa o sinal na conta Master/Simulada.
         from config import settings
-        if settings.OKX_API_KEY_MASTER or settings.BYBIT_EXECUTION_MODE == "PAPER":
+        if settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER":
             logger.info(f"🚀 [BYPASS MASTER/PAPER] Sinal de {symbol} roteado diretamente para OKX Master/Paper global.")
             await self._run_user_execution_logic(None, {}, best_signal)
             return
@@ -745,7 +745,7 @@ class CaptainAgent(AIOSAgent):
                 logger.warning(f"🔒 [V120-AUTH] Usuário {username} sem sessão de cofre ativa na RAM. Ignorando.")
                 return
 
-            vault_blob = user_data.get("bybit_vault", {})
+            vault_blob = user_data.get("okx_vault", {})
             api_key = crypto_service.decrypt(vault_blob.get("key"), vault_pass)
             api_secret = crypto_service.decrypt(vault_blob.get("secret"), vault_pass)
 
@@ -866,9 +866,9 @@ class CaptainAgent(AIOSAgent):
                 
                 # [V110.137] Blitz Sniper ignora o ADX Slope Guard em laterais
                 can_bypass_lateral = (is_elite_nectar or is_elite_score) and is_warming_up
-                if is_blitz or is_decorrelated or bybit_rest_service.execution_mode == "PAPER":
+                if is_blitz or is_decorrelated or okx_rest_service.execution_mode == "PAPER":
                     can_bypass_lateral = True
-                    logger.info(f"⚡ [BYPASS-LATERAL] {symbol} ({side}) ignorando trava lateral Sentinel (Paper={bybit_rest_service.execution_mode == 'PAPER'}, Decor={is_decorrelated}).")
+                    logger.info(f"⚡ [BYPASS-LATERAL] {symbol} ({side}) ignorando trava lateral Sentinel (Paper={okx_rest_service.execution_mode == 'PAPER'}, Decor={is_decorrelated}).")
 
                 if True: # FORCING BYPASS FOR TESTE DE FOGO
                     bypass_reason = "TestFire"
@@ -901,18 +901,18 @@ class CaptainAgent(AIOSAgent):
                 # is_blitz unified from above
                 
                 active_slots_data = await firebase_service.get_active_slots()
-                if bybit_rest_service.execution_mode == "PAPER":
-                    occ_count = len(bybit_rest_service.paper_positions)
+                if okx_rest_service.execution_mode == "PAPER":
+                    occ_count = len(okx_rest_service.paper_positions)
                 else:
                     occ_count = sum(1 for s in active_slots_data if s.get("symbol"))
                 
-                local_cvd = bybit_ws_service.get_cvd_score(symbol)
+                local_cvd = okx_ws_public_service.get_cvd_score(symbol)
                 is_whale_strong = abs(local_cvd) >= 15000 or score >= 88
                 
-                if (occ_count < 2 and is_whale_strong) or is_blitz or is_decorrelated or bybit_rest_service.execution_mode == "PAPER":
+                if (occ_count < 2 and is_whale_strong) or is_blitz or is_decorrelated or okx_rest_service.execution_mode == "PAPER":
                     if is_blitz:
                         msg = f"⚡ [BLITZ-PRIORITY] {symbol} ({side}) ignorando bloqueio ADX lateral (M30 Blitz Mode)."
-                    elif bybit_rest_service.execution_mode == "PAPER":
+                    elif okx_rest_service.execution_mode == "PAPER":
                         msg = f"💎 [PAPER-BYPASS] ADX {current_btc_adx:.1f} < 18, mas {symbol} ({side}) ignorando bloqueio ADX (Paper mode ativo)."
                     elif is_decorrelated:
                         msg = f"💎 [DECOR-BYPASS] ADX {current_btc_adx:.1f} < 18, mas {symbol} ({side}) ignorando bloqueio ADX (Ativo Descorrelacionado)."
@@ -937,7 +937,7 @@ class CaptainAgent(AIOSAgent):
 
             # [V110.64.0] VANGUARD QUALITY FILTER (Score >= 80)
             # is_blitz unified from above
-            if "VANGUARD" in nectar_seal and score < 80 and not is_blitz and bybit_rest_service.execution_mode != "PAPER":
+            if "VANGUARD" in nectar_seal and score < 80 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
                 msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 80. Ativos Vanguard exigem confiança mínima. Abortando."
                 logger.warning(msg)
                 await firebase_service.log_event("CAPTAIN", msg, "INFO")
@@ -950,7 +950,7 @@ class CaptainAgent(AIOSAgent):
 
             # [V110.38.0] ABSOLUTE TRAP SHIELD - Bloqueia QUALQUER entrada em moedas classificadas como TRAP
             if "TRAP" in nectar_seal:
-                if bybit_rest_service.execution_mode == "PAPER" or score >= 95:
+                if okx_rest_service.execution_mode == "PAPER" or score >= 95:
                     logger.info(f"💎 [PAPER-TEST-FIRE] Ignorando TRAP SHIELD para {symbol} ({score}) para forçar disparo (Elite/Paper Bypass).")
                 else:
                     msg = f"🛡️ [LIBRARIAN-TRAP-BLOCK] {symbol} ({side}) negado: Zona de armadilha pelo Bibliotecário. Abortando caçada."
@@ -993,7 +993,7 @@ class CaptainAgent(AIOSAgent):
             btc_variation_15m = deep_macro.get("var_15m", 0)
             is_violent_trend = abs(btc_variation_15m) >= 0.5
             
-            if is_counter_trend and bybit_rest_service.execution_mode != "PAPER":
+            if is_counter_trend and okx_rest_service.execution_mode != "PAPER":
                 can_bypass = False
                 # [V110.128] CONTRATENDÊNCIA VIOLENTA: Bloqueio total se var_15m > 0.8%
                 if abs(btc_variation_15m) >= 0.8:
@@ -1040,8 +1040,8 @@ class CaptainAgent(AIOSAgent):
                     logger.info(f"🌊 [V38.0] MACRO SWING promovido: {symbol} ({score})")
                 else:
                     # [V110.12.8] RE-VERIFY SYMBOL LOCK JUST BEFORE EXECUTION (Double Shield)
-                    if bybit_rest_service.execution_mode == "PAPER":
-                        if any(p.get("symbol") == symbol for p in bybit_rest_service.paper_positions):
+                    if okx_rest_service.execution_mode == "PAPER":
+                        if any(p.get("symbol") == symbol for p in okx_rest_service.paper_positions):
                             logger.error(f"🛑 [CRITICAL-DUP-SHIELD] {symbol} detectado em PaperPositions durante processamento. Abortando execuçao tardia.")
                             self.active_tocaias.discard(symbol)
                             return
@@ -1064,7 +1064,7 @@ class CaptainAgent(AIOSAgent):
                         allow_momentum = True # Se não for RANGING, Momentum é liberado
                         
                     from config import settings
-                    if settings.BYBIT_EXECUTION_MODE == "PAPER" and score >= 80:
+                    if settings.OKX_EXECUTION_MODE == "PAPER" and score >= 80:
                         allow_momentum = True
                     if not allow_momentum:
                         msg = f"⏭️ {symbol} rejeitado: SCORE={score} em LAYER={signal_layer} | Regime: {market_regime} | ADX: {current_btc_adx:.1f}"
@@ -1144,7 +1144,7 @@ class CaptainAgent(AIOSAgent):
             # [V68.0] ENGINE SPACE CHECK (POTENTIAL AUDIT)
             # Only proceed if there is enough "room to move" until next resistance/liquidity zone.
             # [V110.16.0] MODO ASSALTO REMOVIDO: Todos os sinais (mesmo Score 95+) devem passar pela auditoria de espaço.
-            current_p_audit = bybit_ws_service.get_current_price(symbol)
+            current_p_audit = okx_ws_public_service.get_current_price(symbol)
             if current_p_audit > 0:
                 space_audit = await self._check_engine_space(symbol, side, current_p_audit)
                 if not space_audit.get("valid", True):
@@ -1321,7 +1321,7 @@ class CaptainAgent(AIOSAgent):
             for slot in active_slots:
                 active_sym = slot.get("symbol")
                 if active_sym and active_sym != symbol:
-                    correlation = bybit_ws_service.get_correlation(active_sym, symbol)
+                    correlation = okx_ws_public_service.get_correlation(active_sym, symbol)
                     if abs(correlation) >= 0.85:
                         logger.warning(f"🛡️ [V110.62 CORRELATION-SHIELD] Bloqueando entrada em {symbol}. Correlação de {correlation:.2f} com {active_sym} (Limite: 0.85).")
                         await firebase_service.update_signal_outcome(best_signal.get("id"), f"CORRELATION_BLOCK_{active_sym}")
@@ -1532,7 +1532,7 @@ class CaptainAgent(AIOSAgent):
             logger.info(f"🔄 [V57.0 DECORRELATION SWAP] Initiating swap in Slot {slot_id}: {symbol_to_close} (DEAD) -> {symbol_to_open} (ALIVE)")
             
             # 1. Close the weak position
-            close_ok = await bybit_rest_service.close_position(
+            close_ok = await okx_rest_service.close_position(
                 symbol=symbol_to_close,
                 side=target_to_close.get("side", "Buy"),
                 qty=float(target_to_close.get("qty", 0)),
@@ -1562,7 +1562,7 @@ class CaptainAgent(AIOSAgent):
         """
         logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO NEEDLE FLIP PARA {symbol}.")
         return True
-        from services.bybit_ws import bybit_ws_service
+        from services.okx_ws_public import okx_ws_public_service
         from services.redis_service import redis_service
         from services.signal_generator import signal_generator
         
@@ -1661,7 +1661,7 @@ class CaptainAgent(AIOSAgent):
         logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO PULLBACK HUNTER PARA {symbol}.")
         return {"confirmed": True, "rejection_type": None, "adaptive_sl": 0, "final_price": 0, "max_drawdown_pct": 0}
         
-        signal_price = bybit_ws_service.get_current_price(symbol)
+        signal_price = okx_ws_public_service.get_current_price(symbol)
         if signal_price <= 0:
             logger.warning(f"⚠️ [PULLBACK HUNTER] Preco invalido para {symbol}. Abortando Tocaia por falta de dados.")
             return {"confirmed": False, "rejection_type": "INVALID_PRICE", "max_drawdown_pct": 0}
@@ -1733,7 +1733,7 @@ class CaptainAgent(AIOSAgent):
         # Loop principal do observador de Pullback
         for elapsed in range(max_tocaia_seconds):
             await asyncio.sleep(1)
-            current_price = bybit_ws_service.get_current_price(symbol)
+            current_price = okx_ws_public_service.get_current_price(symbol)
             if current_price <= 0:
                 continue
                 
@@ -1830,7 +1830,7 @@ class CaptainAgent(AIOSAgent):
         
         # FIM DO TEMPO (Timeout de 240s)
         # [V40.0] ZERO TOLERANCE ANTI-FAKE: Acabou a mamata de entrar pior que o sinal por fim do tempo.
-        final_price = bybit_ws_service.get_current_price(symbol)
+        final_price = okx_ws_public_service.get_current_price(symbol)
         commit_tolerance = 0.0005  # [V41.1] Micro-tolerância de 0.05% (spread + noise)
         
         if side_norm == "buy":

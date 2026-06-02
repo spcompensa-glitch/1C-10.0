@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Dict, Any, List
 from services.agents.aios_adapter import AIOSAgent
-from services.okx_rest import okx_rest_service as bybit_rest_service
+from services.okx_rest import okx_rest_service
 
 logger = logging.getLogger("SentimentSpecialist")
 
@@ -39,10 +39,10 @@ class SentimentSpecialist(AIOSAgent):
         """Calculates sentiment score based on LS-Ratio and Funding Rate."""
         try:
             # 1. Get Long/Short Ratio (Retail Positioning)
-            ls_ratio = await bybit_rest_service.get_account_ratio(symbol)
+            ls_ratio = await okx_rest_service.get_account_ratio(symbol)
             
             # 2. Get Funding Rate (Pressure)
-            funding = await bybit_rest_service.get_funding_rate(symbol)
+            funding = await okx_rest_service.get_funding_rate(symbol)
             
             # Sentiment Score (0-100)
             # 50: Neutral
@@ -67,8 +67,8 @@ class SentimentSpecialist(AIOSAgent):
                 logger.info(f"🛡️ [V43.0 RIGOR] Ranging market detected. Punishing LS-Ratio {ls_ratio:.2f}")
 
             # [V55.0] Microstructure OBI Injection
-            from services.bybit_ws import bybit_ws_service
-            obi = bybit_ws_service.obi_cache.get(symbol, 0)
+            from services.okx_ws_public import okx_ws_public_service
+            obi = okx_ws_public_service.obi_cache.get(symbol, 0)
             if (obi > 0.5): # Strong Buy pressure
                 score += 10
             elif (obi < -0.5): # Strong Sell pressure
@@ -125,8 +125,8 @@ class SentimentSpecialist(AIOSAgent):
         If LS Ratio is high (Retail Long), pain points are below (liquidation prices).
         If LS Ratio is low (Retail Short), pain points are above.
         """
-        from services.bybit_ws import bybit_ws_service
-        current_price = bybit_ws_service.get_current_price(symbol)
+        from services.okx_ws_public import okx_ws_public_service
+        current_price = okx_ws_public_service.get_current_price(symbol)
         if current_price <= 0: return {}
 
         # Estimativa simplificada baseada em alavancagem comum (10x, 25x, 50x)

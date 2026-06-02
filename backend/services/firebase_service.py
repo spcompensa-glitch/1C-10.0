@@ -251,13 +251,13 @@ class FirebaseService:
         if not self.is_active: return {}
         try:
             def _get():
-                # Filtra usuários com role 'user' ou 'admin' e que tenham o campo 'bybit_vault'
+                # Filtra usuários com role 'user' ou 'admin' e que tenham o campo 'okx_vault'
                 # Em produção, você pode adicionar um check de assinatura (subscription_active == True)
                 docs = self.db.collection("users").where("role", "in", ["user", "admin"]).stream()
                 users = {}
                 for doc in docs:
                     d = doc.to_dict()
-                    if "bybit_vault" in d:
+                    if "okx_vault" in d:
                         users[doc.id] = d
                 return users
             
@@ -798,7 +798,7 @@ class FirebaseService:
             return []
 
     async def get_all_moonbags(self):
-        """[V110.28.5] Alias for get_moonbags to support auto-adoption in BybitREST."""
+        """[V110.28.5] Alias for get_moonbags to support auto-adoption in OKXRest."""
         return await self.get_moonbags()
 
     async def log_signal(self, signal_data: dict):
@@ -1171,7 +1171,7 @@ class FirebaseService:
         This is the SINGLE source of truth for slot closure. All closures must flow through here.
         """
         # [V5.3.4] Cross-Loop Idempotency check:
-        # If this slot was already reset by another loop (e.g. Guardian vs BybitREST), 
+        # If this slot was already reset by another loop (e.g. Guardian vs OKXRest), 
         # we skip the logging to avoid duplicates.
         current_state = await self.get_slot(slot_id)
         if not current_state or not current_state.get("symbol"):
@@ -1235,8 +1235,8 @@ class FirebaseService:
             # Método B: WebSocket da Bybit
             if market_price <= 0:
                 try:
-                    from services.bybit_ws import bybit_ws_service
-                    market_price = getattr(bybit_ws_service, 'get_current_price', lambda s: 0.0)(clean_sym)
+                    from services.okx_ws_public import okx_ws_public_service
+                    market_price = getattr(okx_ws_public_service, 'get_current_price', lambda s: 0.0)(clean_sym)
                 except Exception as e:
                     logger.debug(f"Bybit WS price fallback failed: {e}")
                     

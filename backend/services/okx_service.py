@@ -16,8 +16,8 @@ logger = logging.getLogger("OKXService")
 
 class OKXService:
     @staticmethod
-    def bybit_to_okx(symbol: str) -> str:
-        """Converte símbolo Bybit (ex: AVAXUSDT ou AVAXUSDT.P) para formato OKX (ex: AVAX-USDT-SWAP)."""
+    def to_okx_inst_id(symbol: str) -> str:
+        """Converte símbolo legacy Bybit (ex: AVAXUSDT ou AVAXUSDT.P) para formato OKX nativo (ex: AVAX-USDT-SWAP)."""
         if not symbol:
             return ""
         norm = symbol.strip().upper()
@@ -34,8 +34,8 @@ class OKXService:
         return f"{norm}-USDT-SWAP"
 
     @staticmethod
-    def okx_to_bybit(symbol: str) -> str:
-        """Converte símbolo OKX (ex: AVAX-USDT-SWAP) para formato Bybit com sufixo .P (ex: AVAXUSDT.P)."""
+    def from_okx_inst_id(symbol: str) -> str:
+        """Converte símbolo OKX nativo (ex: AVAX-USDT-SWAP) para formato legacy com sufixo .P (ex: AVAXUSDT.P) usado em chaves de cache interno."""
         if not symbol:
             return ""
         norm = symbol.strip().upper()
@@ -240,7 +240,7 @@ class OKXService:
         Puxa e coloca em cache os limites de precisão (lotSize e stepSize) para evitar
         erros de precisão de ordens no book da OKX.
         """
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         
         if inst_id in self._instrument_cache:
             return self._instrument_cache[inst_id]
@@ -303,7 +303,7 @@ class OKXService:
         [Fase 1] Envia uma ordem de mercado (Market) atômica para a OKX Testnet/Mainnet
         com Stop Loss e Take Profit acoplados.
         """
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         
         # Converte o lado (side)
         # Bybit: Buy/Sell ➔ OKX: buy/sell
@@ -405,7 +405,7 @@ class OKXService:
                         if data.get("data"):
                             ord_err = data["data"][0]
                             err_detail = f" | sCode: {ord_err.get('sCode')} | sMsg: {ord_err.get('sMsg')}"
-                            if ord_err.get("sCode") == "51001" and settings.BYBIT_EXECUTION_MODE == "PAPER":
+                            if ord_err.get("sCode") == "51001" and settings.OKX_EXECUTION_MODE == "PAPER":
                                 logger.warning(f"🤖 [OKX-REST MOCK] {inst_id} não existe na Testnet (erro 51001). Simulando execução local com sucesso.")
                                 return {
                                     "code": "0",
@@ -426,7 +426,7 @@ class OKXService:
         [Fase 1] Encerra uma posição individual de forma isolada na OKX Testnet/Mainnet
         enviando uma ordem de fechamento a mercado.
         """
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         side_norm = side.strip().lower()
         
         # No fechamento:
@@ -503,7 +503,7 @@ class OKXService:
             logger.info(f"ℹ️ [OKX REST] Ignorando chamada kline para {symbol} na OKX Testnet (cobertura reduzida).")
             return []
 
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         
         # Mapeamento de intervalos Bybit -> OKX
         interval_map = {
@@ -580,7 +580,7 @@ class OKXService:
         if self.testnet and clean_sym not in ["BTCUSDT", "ETHUSDT"]:
             return 0.0
 
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         
         if self.is_mock:
             return 1500000.0
@@ -609,7 +609,7 @@ class OKXService:
         """
         Busca a proporção Long/Short para o símbolo na OKX.
         """
-        inst_id = self.bybit_to_okx(symbol)
+        inst_id = self.to_okx_inst_id(symbol)
         ccy = inst_id.split("-")[0] # ex: BTC
         
         # Mapeamento do período Bybit -> OKX

@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any, List
 from services.agents.aios_adapter import AIOSAgent
-from services.okx_rest import okx_rest_service as bybit_rest_service
+from services.okx_rest import okx_rest_service
 from services.signal_generator import signal_generator
 
 logger = logging.getLogger("WhaleTracker")
@@ -33,15 +33,15 @@ class WhaleTracker(AIOSAgent):
     async def _check_liquidity(self, symbol: str) -> Dict[str, Any]:
         """Analyzes CVD and OI to detect institutional presence and absorption."""
         try:
-            from services.bybit_ws import bybit_ws_service
+            from services.okx_ws_public import okx_ws_public_service
             import time
 
             # 1. Get CVD (from Signal Generator helper)
             cvd = await signal_generator.calculate_rest_cvd(symbol)
-            current_price = bybit_ws_service.get_current_price(symbol)
+            current_price = okx_ws_public_service.get_current_price(symbol)
             
             # 2. Get Open Interest
-            oi_data = await bybit_rest_service.get_open_interest(symbol, interval="5min")
+            oi_data = await okx_rest_service.get_open_interest(symbol, interval="5min")
             oi_val = 0
             if oi_data and isinstance(oi_data, list) and len(oi_data) > 0:
                 oi_val = float(oi_data[0].get("openInterest", 0))

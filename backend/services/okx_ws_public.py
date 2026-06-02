@@ -4,19 +4,16 @@ import logging
 import time
 import math
 from collections import deque
-from pybit.unified_trading import WebSocket
 from config import settings
 from services.redis_service import redis_service
+from services.okx_service import okx_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OKXWSPublic")
 
 class OKXWSPublic:
     def __init__(self):
-        self.endpoint = "wss://stream-testnet.bybit.com/v5/public/linear" if settings.BYBIT_TESTNET else "wss://stream.bybit.com/v5/public/linear"
-        self.ws = None
-        
-        # OKX public WS properties
+        # OKX public WS connection state
         self._okx_ws = None
         self._okx_ws_task = None
         self._okx_ping_task = None
@@ -69,37 +66,31 @@ class OKXWSPublic:
         self.price_history = {}
         self.last_history_update = {} # {symbol: timestamp}
 
-    def handle_trade_message(self, message):
-        """[V110.50] Decoupled: Only injects into queue to keep WS thread fast."""
-        try:
-            if self.loop and self.loop.is_running():
-                message["_type"] = "trade"
-                self.loop.call_soon_threadsafe(self.msg_queue.put_nowait, message)
-        except Exception as e:
-            logger.error(f"Error queuing trade message: {e}")
-
     async def _process_trade(self, message):
-        """Processes trade messages to calculate CVD."""
+        """Processes OKX trade messages to calculate CVD."""
         try:
             # 🆕 V6.0: Latency Tracking
             receive_ts = time.time() * 1000
-            msg_ts = message.get("ts", receive_ts)
+            first_trade_ts = 0
+            data = message.get("data", [])
+            if data and isinstance(data, list) and data[0].get("ts"):
+                first_trade_ts = float(data[0]["ts"])
+            msg_ts = first_trade_ts or receive_ts
             self.latency_ms = max(0, receive_ts - msg_ts)
             self.last_message_time = receive_ts
 
-            data = message.get("data", [])
-            topic = message.get("topic", "")
-            # V5.2.2: Keep symbol consistent with topic (No .P suffix for Mainnet/Testnet public topics)
-            symbol = topic.replace("publicTrade.", "")
+            inst_id = message.get("arg", {}).get("instId", "")
+            # Converte instId OKX (ex: BTC-USDT-SWAP) para símbolo legacy (ex: BTCUSDT) usado em chaves internas
+            symbol = okx_service.from_okx_inst_id(inst_id).replace(".P", "") if inst_id else ""
 
             if symbol not in self.cvd_data:
                 self.cvd_data[symbol] = deque(maxlen=self.max_cvd_history)
 
             for trade in data:
-                side = trade.get("S") # 'Buy' or 'Sell'
-                size = float(trade.get("v", 0))
-                price = float(trade.get("p", 0))
-                trade_ts = float(trade.get("T", time.time() * 1000))
+                side = "Buy" if trade.get("side") == "buy" else "Sell"
+                size = float(trade.get("sz", 0))
+                price = float(trade.get("px", 0))
+                trade_ts = float(trade.get("ts", time.time() * 1000))
                 
                 # UPDATE: Normalize CVD to USD Value for fair comparison
                 norm_sym = symbol.replace(".P", "").upper()
@@ -124,26 +115,19 @@ class OKXWSPublic:
         except Exception as e:
             logger.error(f"Error processing trade message: {e}")
 
-    def handle_orderbook_message(self, message):
-        """[V110.50] Decoupled into queue."""
-        try:
-            if self.loop and self.loop.is_running():
-                message["_type"] = "orderbook"
-                self.loop.call_soon_threadsafe(self.msg_queue.put_nowait, message)
-        except Exception as e:
-            logger.error(f"Error queuing orderbook message: {e}")
-
     async def _process_orderbook(self, message):
-        """[V55.0] Processes orderbook updates to calculate VAMP and OBI."""
+        """[V55.0] Processes OKX orderbook updates to calculate VAMP and OBI."""
         try:
-            data = message.get("data", {})
-            topic = message.get("topic", "")
-            symbol = topic.replace("orderbook.50.", "")
+            data = message.get("data", [])
+            inst_id = message.get("arg", {}).get("instId", "")
+            symbol = okx_service.from_okx_inst_id(inst_id).replace(".P", "") if inst_id else ""
             norm_sym = symbol.replace(".P", "").upper()
-            
-            bids = data.get("b", [])  # [[price, size], ...]
-            asks = data.get("a", [])  # [[price, size], ...]
-            
+
+            # OKX books5 retorna array de snapshots; pega o primeiro
+            book = data[0] if isinstance(data, list) and data else {}
+            bids = book.get("bids", [])  # [[price, size, _, ...], ...]
+            asks = book.get("asks", [])  # [[price, size, _, ...], ...]
+
             if not bids or not asks:
                 return
 
@@ -174,31 +158,25 @@ class OKXWSPublic:
         except Exception as e:
             logger.error(f"Error processing orderbook message: {e}")
 
-    def handle_ticker_message(self, message):
-        """[V110.50] Decoupled into queue."""
-        try:
-            if self.loop and self.loop.is_running():
-                message["_type"] = "ticker"
-                self.loop.call_soon_threadsafe(self.msg_queue.put_nowait, message)
-        except Exception as e:
-            logger.error(f"Error queuing ticker message: {e}")
-
     async def _process_ticker(self, message):
-        """Processes ticker updates to maintain current price references."""
+        """Processes OKX ticker updates to maintain current price references."""
         try:
-            data = message.get("data", {})
-            topic = message.get("topic", "")
-            symbol = topic.replace("tickers.", "")
-            
+            data = message.get("data", [])
+            inst_id = message.get("arg", {}).get("instId", "")
+            symbol = okx_service.from_okx_inst_id(inst_id).replace(".P", "") if inst_id else ""
+
             # Update health
             self.last_message_time = time.time() * 1000
 
-            if "lastPrice" in data:
+            if data and isinstance(data, list):
+                # OKX tickers retorna array com snapshot único
+                okx_ticker = data[0]
                 norm_sym = symbol.replace(".P", "").upper()
-                price = float(data["lastPrice"])
+                price = float(okx_ticker.get("last", 0))
                 self.prices[norm_sym] = price
-                if "turnover24h" in data:
-                    self.turnover_24h_cache[norm_sym] = float(data["turnover24h"])
+                vol_ccy_24h = okx_ticker.get("volCcy24h")
+                if vol_ccy_24h is not None:
+                    self.turnover_24h_cache[norm_sym] = float(vol_ccy_24h)
                 
                 # Sync to Redis
                 await redis_service.set_ticker(norm_sym, price)
@@ -332,12 +310,12 @@ class OKXWSPublic:
         V110.36.0: Updates BTC variation and calculates Master ADX (M-ADX).
         M-ADX Weights: 4H (40%), 1H (40%), 15m (20%).
         """
-        from services.okx_rest import okx_rest_service as bybit_rest_service
+        from services.okx_rest import okx_rest_service
         now = time.time()
         
         try:
             # 1. Update BTC Variation (1h)
-            btc_klines_1h = await bybit_rest_service.get_klines(symbol="BTCUSDT", interval="60", limit=30)
+            btc_klines_1h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="60", limit=30)
             if len(btc_klines_1h) >= 2:
                 # Bybit returns newest first: [current, previous]
                 close_latest = float(btc_klines_1h[0][4])
@@ -347,8 +325,8 @@ class OKXWSPublic:
 
             # 2. [V110.36.0] Master ADX (M-ADX) Calculation
             # Fetch 4H and 15m klines concurrently alongside the already fetched 1H
-            btc_klines_4h = await bybit_rest_service.get_klines(symbol="BTCUSDT", interval="240", limit=30)
-            btc_klines_15m = await bybit_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=30)
+            btc_klines_4h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="240", limit=30)
+            btc_klines_15m = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=30)
             
             adx_4h = self._calculate_adx(btc_klines_4h)
             adx_1h = self._calculate_adx(btc_klines_1h)
@@ -363,14 +341,14 @@ class OKXWSPublic:
                 logger.info(f"🔮 [M-ADX Fallback] Using 1H ADX: {adx_1h}")
 
             # [V42.0] Short-term variation (15m) for crash detection
-            btc_15m = await bybit_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=2)
+            btc_15m = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=2)
             if len(btc_15m) >= 2:
                 c15_latest = float(btc_15m[0][4])
                 c15_prev = float(btc_15m[1][4])
                 self.btc_variation_15m = ((c15_latest - c15_prev) / c15_prev) * 100
 
             # [V110.30.2] BTC Variation (24h)
-            btc_24h = await bybit_rest_service.get_klines(symbol="BTCUSDT", interval="D", limit=2)
+            btc_24h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="D", limit=2)
             if len(btc_24h) >= 2:
                 c24_latest = float(btc_24h[0][4])
                 c24_prev = float(btc_24h[1][4])
@@ -379,7 +357,7 @@ class OKXWSPublic:
             # 🆕 [V110.32.1] Sync with Oracle Agent
             try:
                 from services.agents.oracle_agent import oracle_agent
-                await oracle_agent.update_market_data("bybit_ws", {
+                await oracle_agent.update_market_data("okx_ws_public", {
                     "btc_price": self.btc_price,
                     "btc_variation_1h": self.btc_variation_1h,
                     "btc_variation_24h": self.btc_variation_24h,
@@ -399,7 +377,7 @@ class OKXWSPublic:
                             if norm_sym in settings.ASSET_BLOCKLIST:
                                 return
                             # ATR & RSI fetch
-                            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="60", limit=16)
+                            klines = await okx_rest_service.get_klines(symbol=symbol, interval="60", limit=16)
                             if len(klines) >= 15:
                                 # --- ATR Calculation ---
                                 tr_list = []
@@ -422,8 +400,8 @@ class OKXWSPublic:
                                     logger.error(f"RSI Calc error for {symbol}: {rsi_err}")
 
                             # --- LS Ratio & OI ---
-                            ls_ratio = await bybit_rest_service.get_account_ratio(symbol)
-                            oi = await bybit_rest_service.get_open_interest(symbol)
+                            ls_ratio = await okx_rest_service.get_account_ratio(symbol)
+                            oi = await okx_rest_service.get_open_interest(symbol)
 
                             self.ls_ratio_cache[symbol] = ls_ratio
                             self.oi_cache[symbol] = oi
@@ -447,7 +425,7 @@ class OKXWSPublic:
                     logger.info(f"V15.7: Sniper Pulse (ATR/RSI/LS/OI) updated for {processed_total} symbols (Chunked Processing).")
 
         except Exception as e:
-            logger.error(f"Error updating market context in BybitWS: {e}")
+            logger.error(f"Error updating market context in OKXWSPublic: {e}")
 
     async def start(self, symbols: list):
         """Starts the WebSocket connection for a list of symbols (V4.3 Expansion)."""
@@ -483,7 +461,7 @@ class OKXWSPublic:
         import websockets
         from services.okx_service import okx_service
         
-        endpoint = "wss://ws.okx.com:8443/ws/v5/public"
+        endpoint = "wss://wspap.okx.com:8443/ws/v5/public" if settings.OKX_TESTNET else "wss://ws.okx.com:8443/ws/v5/public"
         
         while True:
             try:
@@ -496,7 +474,7 @@ class OKXWSPublic:
                     monitored = self.active_symbols[:95]
                     args_sub = []
                     for s in monitored:
-                        inst_id = okx_service.bybit_to_okx(s)
+                        inst_id = okx_service.to_okx_inst_id(s)
                         args_sub.extend([
                             {"channel": "trades", "instId": inst_id},
                             {"channel": "tickers", "instId": inst_id},
@@ -535,49 +513,16 @@ class OKXWSPublic:
                                 continue
                                 
                             inst_id = data_okx["arg"]["instId"]
-                            bybit_symbol = okx_service.okx_to_bybit(inst_id)
-                            bybit_symbol_no_p = bybit_symbol.replace(".P", "")
-                            
-                            # Tradução e injeção transparente na fila
-                            if channel == "trades":
-                                formatted_msg = {
-                                    "_type": "trade",
-                                    "topic": f"publicTrade.{bybit_symbol_no_p}",
-                                    "ts": float(data_okx["data"][0]["ts"]) if data_okx["data"] else time.time() * 1000,
-                                    "data": [
-                                        {
-                                            "S": "Buy" if t["side"] == "buy" else "Sell",
-                                            "v": t["sz"],
-                                            "p": t["px"],
-                                            "T": t["ts"]
-                                        } for t in data_okx.get("data", [])
-                                    ]
-                                }
-                                await self.msg_queue.put(formatted_msg)
-                                
-                            elif channel == "tickers":
-                                okx_ticker = data_okx["data"][0] if data_okx["data"] else {}
-                                formatted_msg = {
-                                    "_type": "ticker",
-                                    "topic": f"tickers.{bybit_symbol_no_p}",
-                                    "data": {
-                                        "lastPrice": okx_ticker.get("last", "0"),
-                                        "turnover24h": okx_ticker.get("volCcy24h", "0")
-                                    }
-                                }
-                                await self.msg_queue.put(formatted_msg)
-                                
-                            elif channel == "books5":
-                                okx_book = data_okx["data"][0] if data_okx["data"] else {}
-                                formatted_msg = {
-                                    "_type": "orderbook",
-                                    "topic": f"orderbook.50.{bybit_symbol_no_p}",
-                                    "data": {
-                                        "b": okx_book.get("bids", []),
-                                        "a": okx_book.get("asks", [])
-                                    }
-                                }
-                                await self.msg_queue.put(formatted_msg)
+
+                            # Injeta mensagem OKX bruta na fila (formato nativo).
+                            # Os consumers (_process_*) convertem instId → símbolo legacy internamente.
+                            if channel in ("trades", "tickers", "books5"):
+                                _type_map = {"trades": "trade", "tickers": "ticker", "books5": "orderbook"}
+                                await self.msg_queue.put({
+                                    "_type": _type_map[channel],
+                                    "arg": data_okx["arg"],
+                                    "data": data_okx.get("data", [])
+                                })
                                 
                         except asyncio.timeout: # compatibilidade 3.11/3.10
                             logger.warning("⚠️ [OKX-WS PUBLIC] Silêncio de dados. Enviando ping manual...")
@@ -609,101 +554,59 @@ class OKXWSPublic:
 
     async def sync_topics(self, new_symbols: list):
         """
-        [V6.0] Rebalances WebSocket subscriptions to match a new list of active symbols.
+        [V6.0] Rebalances OKX WebSocket subscriptions to match a new list of active symbols.
         Ensures we stay within the 200 topic limit while rotating candidates.
         """
         # Sempre faz o rebalanceamento no WebSocket público da OKX (mesmo sem Master key / Paper Mode)
-        if True:
-            if not self._okx_ws or not self._okx_ws.open:
-                self.active_symbols = new_symbols
-                return
-                
-            if "BTCUSDT" not in [s.replace(".P", "").upper() for s in new_symbols]:
-                new_symbols.insert(0, "BTCUSDT.P")
-                
-            new_monitored = new_symbols[:95]
-            new_set = {s.replace(".P", "").upper() for s in new_monitored}
-            old_set = {s.replace(".P", "").upper() for s in self.active_symbols[:95]}
-            
-            to_add = [s for s in new_monitored if s.replace(".P", "").upper() not in old_set]
-            to_remove = [s for s in self.active_symbols[:95] if s.replace(".P", "").upper() not in new_set]
-            
-            if to_add or to_remove:
-                from services.okx_service import okx_service
-                logger.info(f"🔄 [OKX-WS PUBLIC] Rebalancing: +{len(to_add)} | -{len(to_remove)} symbols.")
-                
-                # 1. Unsubscribe from old
-                if to_remove:
-                    args_unsub = []
-                    for s in to_remove:
-                        inst_id = okx_service.bybit_to_okx(s)
-                        args_unsub.extend([
-                            {"channel": "trades", "instId": inst_id},
-                            {"channel": "tickers", "instId": inst_id},
-                            {"channel": "books5", "instId": inst_id}
-                        ])
-                    try:
-                        await self._okx_ws.send(json.dumps({"op": "unsubscribe", "args": args_unsub}))
-                    except Exception as e:
-                        logger.debug(f"Unsubscribe from OKX failed: {e}")
-                        
-                # 2. Subscribe to new
-                if to_add:
-                    args_sub = []
-                    for s in to_add:
-                        inst_id = okx_service.bybit_to_okx(s)
-                        args_sub.extend([
-                            {"channel": "trades", "instId": inst_id},
-                            {"channel": "tickers", "instId": inst_id},
-                            {"channel": "books5", "instId": inst_id}
-                        ])
-                    try:
-                        await self._okx_ws.send(json.dumps({"op": "subscribe", "args": args_sub}))
-                    except Exception as e:
-                        logger.error(f"Subscribe to OKX failed: {e}")
-                        
-                self.active_symbols = new_symbols
+        if not self._okx_ws or not self._okx_ws.open:
+            self.active_symbols = new_symbols
             return
 
-        if not self.ws: return
-        
-        # Ensure BTC is always monitored
         if "BTCUSDT" not in [s.replace(".P", "").upper() for s in new_symbols]:
             new_symbols.insert(0, "BTCUSDT.P")
-        
+
         new_monitored = new_symbols[:95]
         new_set = {s.replace(".P", "").upper() for s in new_monitored}
         old_set = {s.replace(".P", "").upper() for s in self.active_symbols[:95]}
-        
+
         to_add = [s for s in new_monitored if s.replace(".P", "").upper() not in old_set]
         to_remove = [s for s in self.active_symbols[:95] if s.replace(".P", "").upper() not in new_set]
-        
+
         if not to_add and not to_remove:
             return
- 
+
         logger.info(f"🔄 [OKX-WS PUBLIC] Rebalancing: +{len(to_add)} | -{len(to_remove)} symbols.")
-        
+
         # 1. Unsubscribe from old
-        for s in to_remove:
+        if to_remove:
+            args_unsub = []
+            for s in to_remove:
+                inst_id = okx_service.to_okx_inst_id(s)
+                args_unsub.extend([
+                    {"channel": "trades", "instId": inst_id},
+                    {"channel": "tickers", "instId": inst_id},
+                    {"channel": "books5", "instId": inst_id}
+                ])
             try:
-                api_symbol = s.replace(".P", "")
-                if hasattr(self.ws, "unsubscribe"):
-                     self.ws.unsubscribe(f"publicTrade.{api_symbol}")
-                     self.ws.unsubscribe(f"tickers.{api_symbol}")
+                await self._okx_ws.send(json.dumps({"op": "unsubscribe", "args": args_unsub}))
             except Exception as e:
-                logger.debug(f"Unsubscribe from {s} failed (expected if not supported): {e}")
-        
+                logger.debug(f"Unsubscribe from OKX failed: {e}")
+
         # 2. Subscribe to new
-        for s in to_add:
+        if to_add:
+            args_sub = []
+            for s in to_add:
+                inst_id = okx_service.to_okx_inst_id(s)
+                args_sub.extend([
+                    {"channel": "trades", "instId": inst_id},
+                    {"channel": "tickers", "instId": inst_id},
+                    {"channel": "books5", "instId": inst_id}
+                ])
             try:
-                api_symbol = s.replace(".P", "")
-                self.ws.trade_stream(symbol=api_symbol, callback=self.handle_trade_message)
-                self.ws.ticker_stream(symbol=api_symbol, callback=self.handle_ticker_message)
-                # [V55.0] Subscribe to orderbook
-                self.ws.orderbook_stream(symbol=api_symbol, depth=50, callback=self.handle_orderbook_message)
+                await self._okx_ws.send(json.dumps({"op": "subscribe", "args": args_sub}))
             except Exception as e:
-                logger.error(f"Subscription to {s} failed: {e}")
-        
+                logger.error(f"Subscribe to OKX failed: {e}")
+
         self.active_symbols = new_symbols
         logger.info(f"✅ [OKX-WS PUBLIC] Sync complete. Total active: {len(self.active_symbols)}")
 

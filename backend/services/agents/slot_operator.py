@@ -6,8 +6,8 @@ from typing import Optional, Dict, Any
 from config import settings
 from services.agents.aios_adapter import AIOSAgent
 from services.database_service import database_service
-from services.okx_rest import OKXRest as BybitREST
-from services.bybit_ws import bybit_ws_service
+from services.okx_rest import OKXRest as OKXRest
+from services.okx_ws_public import okx_ws_public_service
 
 logger = logging.getLogger("SlotOperator")
 
@@ -23,7 +23,7 @@ class SlotOperatorAgent(AIOSAgent):
             capabilities=["slot_lifecycle_management", "stop_loss_escalation", "emancipation"]
         )
         self.slot_id = slot_id
-        self.bybit_rest = BybitREST()
+        self.okx_rest = OKXRest()
         self.loop_interval = 3.0  # Executar a cada 3 segundos
         self._task = None
         self.is_running = False
@@ -45,9 +45,9 @@ class SlotOperatorAgent(AIOSAgent):
         if self.is_running:
             return
         
-        # Garante a inicialização da BybitREST e Database
-        if not self.bybit_rest.is_initialized:
-            await self.bybit_rest.initialize()
+        # Garante a inicialização da OKXRest e Database
+        if not self.okx_rest.is_initialized:
+            await self.okx_rest.initialize()
         if not database_service.is_active:
             await database_service.initialize()
             
@@ -104,8 +104,8 @@ class SlotOperatorAgent(AIOSAgent):
                 
             if is_stop_violated:
                 logger.critical(f"💥 [STOP-VIRTUAL-{self.slot_id}] {symbol} violou Stop Loss ({current_stop:.4f}) a {current_price:.4f}! Disparando fechamento imediato na OKX...")
-                # Fecha a posição na OKX via bybit_rest (que redireciona para OKX)
-                await self.bybit_rest.close_position(symbol, side, qty, reason=reason_sl)
+                # Fecha a posição na OKX via okx_rest
+                await self.okx_rest.close_position(symbol, side, qty, reason=reason_sl)
                 
                 # [HERMES TELEGRAM] Alerta de Fechamento (SL)
                 try:
@@ -146,8 +146,8 @@ class SlotOperatorAgent(AIOSAgent):
             else:
                 new_stop_price = entry_price * (1 - price_offset_pct)
 
-            # Formatar precisão (evitar erro de API da Bybit)
-            new_stop_price = await self.bybit_rest.format_precision(symbol, new_stop_price)
+            # Formatar precisão (evitar erro de API OKX)
+            new_stop_price = await self.okx_rest.format_precision(symbol, new_stop_price)
 
             # Só atualiza se o stop melhorou
             should_update = False
@@ -195,7 +195,7 @@ class SlotOperatorAgent(AIOSAgent):
     async def _get_current_price(self, symbol: str) -> float:
         """Obtém o preço do WS, com fallback para REST."""
         try:
-            price = getattr(bybit_ws_service, 'get_current_price', lambda s: 0.0)(symbol)
+            price = getattr(okx_ws_public_service, 'get_current_price', lambda s: 0.0)(symbol)
             if price > 0:
                 return price
         except Exception:
@@ -203,7 +203,7 @@ class SlotOperatorAgent(AIOSAgent):
             
         # Fallback para REST
         try:
-            ticker = await self.bybit_rest.get_tickers(symbol)
+            ticker = await self.okx_rest.get_tickers(symbol)
             if ticker and ticker.get("result", {}).get("list"):
                 return float(ticker["result"]["list"][0].get("lastPrice", 0))
         except Exception as e:
@@ -243,19 +243,19 @@ class SlotOperatorAgent(AIOSAgent):
         return "MONITORANDO"                         # Ainda no stop inicial
 
     async def _update_stop_loss(self, symbol: str, side: str, sl_price: float, slot_id: int, qty: float):
-        """Atualiza o Stop Loss na Bybit (Real), OKX ou na memória (Paper)."""
+        """Atualiza o Stop Loss na OKX (Real) ou na memória (Paper)."""
         if settings.OKX_API_KEY_MASTER:
             # Em modo OKX Master, usamos o Stop Loss Virtual Ativo monitorado a cada ciclo.
             # O preço de stop atualizado já é persistido no banco local.
             logger.info(f"🛡️ [SlotOperator-{self.slot_id}] {symbol} Stop virtual atualizado no banco para {sl_price:.4f} (Failsafe OKX ativo).")
             return
 
-        if self.bybit_rest.execution_mode == "PAPER":
+        if self.okx_rest.execution_mode == "PAPER":
             # Atualização em memória
-            pos = next((p for p in self.bybit_rest.paper_positions if self.bybit_rest.normalize_symbol(p["symbol"]) == self.bybit_rest.normalize_symbol(symbol)), None)
+            pos = next((p for p in self.okx_rest.paper_positions if self.okx_rest.normalize_symbol(p["symbol"]) == self.okx_rest.normalize_symbol(symbol)), None)
             if pos:
                 pos["stopLoss"] = str(sl_price)
-                await self.bybit_rest._save_paper_state()
+                await self.okx_rest._save_paper_state()
             return
             
         # Execução Real
@@ -263,14 +263,14 @@ class SlotOperatorAgent(AIOSAgent):
             position_idx = 1 if side.upper() == "BUY" else 2 # Assumindo Hedge Mode por padrão de segurança
             
             # Alguns motores precisam recuperar o mode:
-            mode = self.bybit_rest._position_mode_cache.get(self.bybit_rest.normalize_symbol(symbol), "ONE_WAY")
+            mode = self.okx_rest._position_mode_cache.get(self.okx_rest.normalize_symbol(symbol), "ONE_WAY")
             if mode == "ONE_WAY":
                 position_idx = 0
                 
             await asyncio.to_thread(
-                self.bybit_rest.session.set_trading_stop,
-                category=self.bybit_rest.category,
-                symbol=self.bybit_rest.normalize_symbol(symbol),
+                self.okx_rest.session.set_trading_stop,
+                category=self.okx_rest.category,
+                symbol=self.okx_rest.normalize_symbol(symbol),
                 stopLoss=str(sl_price),
                 tpslMode="Full",
                 positionIdx=position_idx

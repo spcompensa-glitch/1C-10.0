@@ -255,8 +255,8 @@ class VaultService:
             # [V15.8 FIX] Fetch the configured balance first
             banca_status = await firebase_service.get_banca_status()
             config_balance = banca_status.get("configured_balance", 0)
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            real_balance = await bybit_rest_service.get_wallet_balance()
+            from services.okx_rest import okx_rest_service
+            real_balance = await okx_rest_service.get_wallet_balance()
             
             # [V19.0] Base for compound is ALWAYS the total equity (Capital + Total PnL)
             new_balance = banca_status.get("saldo_total", config_balance if config_balance >= 5 else real_balance)
@@ -810,8 +810,8 @@ class VaultService:
         """
         try:
             # [V110.178] PAPER MODE BYPASS: Paper mode has no cycle restrictions
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            if bybit_rest_service and bybit_rest_service.execution_mode == "PAPER":
+            from services.okx_rest import okx_rest_service
+            if okx_rest_service and okx_rest_service.execution_mode == "PAPER":
                 return True, "Paper mode bypasses Almirante restrictions"
 
             status = await self.get_cycle_status()
@@ -839,8 +839,8 @@ class VaultService:
         Garante o crescimento exponencial conforme planejado.
         """
         try:
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            balance = await bybit_rest_service.get_wallet_balance()
+            from services.okx_rest import okx_rest_service
+            balance = await okx_rest_service.get_wallet_balance()
             
             # Margem = 5% do saldo total atual
             margin = balance * 0.05

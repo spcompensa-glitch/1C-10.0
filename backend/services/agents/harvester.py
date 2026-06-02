@@ -2,7 +2,7 @@ import logging
 import time
 import asyncio
 from typing import Dict, Any, Optional
-from services.bybit_ws import bybit_ws_service
+from services.okx_ws_public import okx_ws_public_service
 from config import settings
 
 logger = logging.getLogger("HarvesterAgent")
@@ -126,7 +126,7 @@ class HarvesterAgent:
             # === 3. God-Candle Climax (Parabolic Hunter V110.138) ===
             # Substitui a velha "Safety Net" engessada de 700% que limitava grandes pernadas.
             if current_roi >= 1000.0:
-                rsi_1m = getattr(bybit_ws_service, "rsi_cache", {}).get(symbol, 50)
+                rsi_1m = getattr(okx_ws_public_service, "rsi_cache", {}).get(symbol, 50)
                 # Verifica exaustão: RSI bombando comprando o topo (Long) ou derretendo (Short)
                 if (side.upper() == "BUY" and rsi_1m >= 85) or (side.upper() == "SELL" and rsi_1m <= 15):
                     proportion = 0.90
@@ -231,8 +231,8 @@ class HarvesterAgent:
                 }
 
             # === 6. Análise de Momentum (CVD + RSI) ===
-            cvd_5m = bybit_ws_service.get_cvd_score_time(symbol, 300)
-            rsi_1m = getattr(bybit_ws_service, "rsi_cache", {}).get(symbol, 50)
+            cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300)
+            rsi_1m = getattr(okx_ws_public_service, "rsi_cache", {}).get(symbol, 50)
 
             side_upper = side.upper()
             is_exhausted = False    # Sinal de topo: hora de colher

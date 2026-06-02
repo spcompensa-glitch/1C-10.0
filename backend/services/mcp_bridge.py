@@ -8,7 +8,7 @@ import asyncio
 from mcp.server.fastmcp import FastMCP
 
 # Core Service Imports
-from services.okx_rest import okx_rest_service as bybit_rest_service
+from services.okx_rest import okx_rest_service
 from services.bankroll import bankroll_manager
 from services.firebase_service import firebase_service
 
@@ -30,7 +30,7 @@ async def get_balance():
     Returns the balance as a float value.
     """
     try:
-        balance = await bybit_rest_service.get_wallet_balance()
+        balance = await okx_rest_service.get_wallet_balance()
         return {"status": "success", "balance": balance}
     except Exception as e:
         return {"status": "error", "message": f"Failed to fetch balance: {str(e)}"}
@@ -42,7 +42,7 @@ async def get_positions():
     Returns a list of positions with their respective symbols, sides, and PnL.
     """
     try:
-        positions = await bybit_rest_service.get_active_positions()
+        positions = await okx_rest_service.get_active_positions()
         return {"status": "success", "positions": positions}
     except Exception as e:
         return {"status": "error", "message": f"Failed to fetch positions: {str(e)}"}
@@ -60,7 +60,7 @@ async def close_position(symbol: str, side: str, qty: float):
     - qty: The quantity to close.
     """
     try:
-        success = await bybit_rest_service.close_position(symbol, side, qty)
+        success = await okx_rest_service.close_position(symbol, side, qty)
         return {"status": "success" if success else "failed", "symbol": symbol}
     except Exception as e:
         return {"status": "error", "message": str(e)}

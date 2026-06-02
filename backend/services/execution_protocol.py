@@ -294,8 +294,8 @@ class ExecutionProtocol:
 
         # [V110.12.11] PRICE FAILOVER (Redundância REST)
         if not current_price or current_price <= 0:
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            ticker_data = await bybit_rest_service.get_tickers(symbol)
+            from services.okx_rest import okx_rest_service
+            ticker_data = await okx_rest_service.get_tickers(symbol)
             if ticker_data and ticker_data.get("result", {}).get("list"):
                 current_price = float(ticker_data["result"]["list"][0].get("lastPrice", 0))
                 logger.info(f"🛡️ [FAILOVER-REST] Price recovered for {symbol}: ${current_price}")
@@ -343,8 +343,8 @@ class ExecutionProtocol:
         # Muitas moedas ACUMULAM por horas antes de explodir. 4h era pouco.
         # PROTEÇÃO: Se ADX > 25, não mata por inércia (tendência pode estar se armando).
         if life_seconds > 28800 and abs(roi) < 5.0 and not is_emancipated:
-            from services.bybit_ws import bybit_ws_service
-            current_adx = getattr(bybit_ws_service, 'btc_adx', 0)
+            from services.okx_ws_public import okx_ws_public_service
+            current_adx = getattr(okx_ws_public_service, 'btc_adx', 0)
             if current_adx < 25:
                 logger.warning(f"🧟 [SHADOW-PREEMPTION] Inertia Detected: {symbol} estagnado por {int(life_seconds/3600)}h (ROI={roi:.1f}%) e ADX {current_adx:.1f} baixo. Liberando slot.")
                 return True, "INERTIA_EXIT_FOR_PREEMPTION", None
@@ -435,8 +435,8 @@ class ExecutionProtocol:
                 if trailing_res.get("action") == "UPDATE_SL":
                     new_trailing_sl = trailing_res["new_stop"]
                     # Arredonda o preço antes de retornar
-                    from services.okx_rest import okx_rest_service as bybit_rest_service
-                    new_trailing_sl = await bybit_rest_service.round_price(symbol, new_trailing_sl)
+                    from services.okx_rest import okx_rest_service
+                    new_trailing_sl = await okx_rest_service.round_price(symbol, new_trailing_sl)
                     
                     logger.info(
                         f"🛡️ [MOONBAG-TRAIL] {symbol} SL atualizado para "
@@ -454,7 +454,7 @@ class ExecutionProtocol:
                         f"🌾 [HARVESTER-TRIGGER] {symbol} pronto para {harvest_res.get('phase', 'COLHEITA')} "
                         f"de {harvest_res['proportion']*100:.0f}%. ROI: {harvest_res['current_roi']:.1f}%"
                     )
-                    # Retorna ação especial para ser tratada pelo executor (bybit_rest)
+                    # Retorna ação especial para ser tratada pelo executor (okx_rest)
                     return False, "PARTIAL_HARVEST", harvest_res
                     
             except Exception as e:
@@ -500,10 +500,10 @@ class ExecutionProtocol:
                 # SL fixado em +110% para garantir lucro mesmo que o preço recue
                 target_stop_blitz = 110.0
                 logger.info(f"[V124 BLITZ-EMANCIPAÇÃO] {symbol} ROI={roi:.0f}% >= 150% -> Emancipando para Moonbag! SL: +110%")
-                from services.okx_rest import okx_rest_service as bybit_rest_service
+                from services.okx_rest import okx_rest_service
                 price_offset_pct = target_stop_blitz / (leverage * 100)
                 new_stop = entry * (1 + price_offset_pct) if side_norm == "buy" else entry * (1 - price_offset_pct)
-                new_stop = await bybit_rest_service.round_price(symbol, new_stop)
+                new_stop = await okx_rest_service.round_price(symbol, new_stop)
                 if not is_emancipated:
                     return False, "EMANCIPATE_SLOT", new_stop
                 return False, None, new_stop
@@ -519,10 +519,10 @@ class ExecutionProtocol:
                 target_stop_blitz = 5.0  # Break-Even Adaptativo (cobre taxas)
 
             if target_stop_blitz > 0:
-                from services.okx_rest import okx_rest_service as bybit_rest_service
+                from services.okx_rest import okx_rest_service
                 price_offset_pct = target_stop_blitz / (leverage * 100)
                 new_stop = entry * (1 + price_offset_pct) if side_norm == "buy" else entry * (1 - price_offset_pct)
-                new_stop = await bybit_rest_service.round_price(symbol, new_stop)
+                new_stop = await okx_rest_service.round_price(symbol, new_stop)
 
                 # Paciencia Absoluta: so move SL para direcao favoravel
                 if (side_norm == "buy" and new_stop > current_sl) or \
@@ -583,8 +583,8 @@ class ExecutionProtocol:
                     )
                     new_stop = current_price * (1 + price_offset_pct) if side_norm == "buy" else current_price * (1 - price_offset_pct)
 
-                from services.okx_rest import okx_rest_service as bybit_rest_service
-                new_stop = await bybit_rest_service.round_price(symbol, new_stop)
+                from services.okx_rest import okx_rest_service
+                new_stop = await okx_rest_service.round_price(symbol, new_stop)
                 
                 # Check Emancipação (V110.4: Gatilho em 150% ROI)
                 if roi >= 150.0 and not is_emancipated:
@@ -605,9 +605,9 @@ class ExecutionProtocol:
 
         # [V27.6] EXPANSÃO DE FÔLEGO (Buffer de RSI e Regra SURF)
         # Buscar RSI do cache local via WebSocket (atualiza a cada 60s)
-        from services.bybit_ws import bybit_ws_service
+        from services.okx_ws_public import okx_ws_public_service
         try:
-            rsi_1m = bybit_ws_service.rsi_cache.get(symbol, 50.0)
+            rsi_1m = okx_ws_public_service.rsi_cache.get(symbol, 50.0)
         except Exception:
             rsi_1m = 50.0
 
@@ -708,11 +708,11 @@ class ExecutionProtocol:
         Verifica se o fluxo monetário (CVD) ainda sustenta a impulsão.
         """
         try:
-            from services.bybit_ws import bybit_ws_service
+            from services.okx_ws_public import okx_ws_public_service
             from services.signal_generator import signal_generator
             
             # 1. CVD de curto prazo (5m)
-            cvd_5m = bybit_ws_service.get_cvd_score_time(symbol, window_seconds=300)
+            cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, window_seconds=300)
             side_norm = side.lower()
             
             # 2. ADX Slope (Aceleração da Tendência)
@@ -722,7 +722,7 @@ class ExecutionProtocol:
             adx_slope = adx_val - adx_prev
             
             # Threshold adaptativo baseado no turnover
-            turnover = bybit_ws_service.turnover_24h_cache.get(symbol, 50_000_000)
+            turnover = okx_ws_public_service.turnover_24h_cache.get(symbol, 50_000_000)
             threshold = max(5000, turnover * 0.00005)
             
             # Condição de Gás: CVD a favor + (ADX não está morrendo ou CVD é muito forte)
@@ -745,8 +745,8 @@ class ExecutionProtocol:
         Retorna: 'WICK_REJECTION', 'SOLID_EXPANSION' ou 'NEUTRAL'
         """
         try:
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="1", limit=2)
+            from services.okx_rest import okx_rest_service
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="1", limit=2)
             if not klines or len(klines) < 1:
                 return "NEUTRAL"
             
@@ -881,8 +881,8 @@ class ExecutionProtocol:
         roi = self.calculate_roi(entry, current_price, side, leverage=leverage)
         
         # 2. Get ATR for volatility-based decisions
-        from services.bybit_ws import bybit_ws_service
-        atr = bybit_ws_service.atr_cache.get(symbol)
+        from services.okx_ws_public import okx_ws_public_service
+        atr = okx_ws_public_service.atr_cache.get(symbol)
 
         # 3. Executar lógica Sniper
         return await self.process_sniper_logic(slot_data, current_price, roi, atr=atr)

@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Dict, Any, List
 from services.agents.aios_adapter import AIOSAgent
-from services.bybit_ws import bybit_ws_service
+from services.okx_ws_public import okx_ws_public_service
 
 logger = logging.getLogger("MacroAnalyst")
 
@@ -54,7 +54,7 @@ class MacroAnalyst(AIOSAgent):
     async def _get_macro_bias(self) -> Dict[str, Any]:
         """Calculates macro risk based on BTC variation and Dominance."""
         try:
-            btc_var = bybit_ws_service.btc_variation_1h
+            btc_var = okx_ws_public_service.btc_variation_1h
             btc_dom = await self._get_btc_dominance()
             
             # Risk Score Logic (0-10)

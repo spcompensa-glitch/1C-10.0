@@ -64,8 +64,8 @@ class BlitzSniperAgent(AIOSAgent):
             Um dicionário de sinal ou None se nenhum setup de qualidade for encontrado.
         """
         try:
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            from services.bybit_ws import bybit_ws_service
+            from services.okx_rest import okx_rest_service
+            from services.okx_ws_public import okx_ws_public_service
 
             # Throttle: Evita scans repetidos para o mesmo ativo
             now = time.time()
@@ -75,7 +75,7 @@ class BlitzSniperAgent(AIOSAgent):
             self.last_scan_time[symbol] = now
 
             # ── 1. Busca candles M30 (últimos 60 = 30 horas de dados)
-            klines = await bybit_rest_service.get_klines(symbol=symbol, interval="30", limit=60)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="30", limit=60)
             if not klines or len(klines) < 30:
                 return None
 
@@ -97,7 +97,7 @@ class BlitzSniperAgent(AIOSAgent):
             fib   = self._fibonacci_levels(highs, lows, lookback=30)
             vol_avg_10 = sum(volumes[-11:-1]) / 10.0 if len(volumes) >= 11 else 1.0
             last_vol   = volumes[-1]
-            cvd        = bybit_ws_service.get_cvd_score(symbol)
+            cvd        = okx_ws_public_service.get_cvd_score(symbol)
 
             current_close = closes[-1]
             current_high  = highs[-1]
@@ -494,11 +494,11 @@ class BlitzSniperAgent(AIOSAgent):
         logger.info("⚡ [BLITZ-SCAN] Injetor Blitz M30 iniciado.")
         while True:
             try:
-                from services.okx_rest import okx_rest_service as bybit_rest_service
+                from services.okx_rest import okx_rest_service
                 from services.agents.oracle_agent import oracle_agent
 
                 # 1. Obtém lista de ativos (Top 100 líquidos com 50x+)
-                symbols = await bybit_rest_service.get_elite_50x_pairs()
+                symbols = await okx_rest_service.get_elite_50x_pairs()
                 if not symbols:
                     await asyncio.sleep(60)
                     continue

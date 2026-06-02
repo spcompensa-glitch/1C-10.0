@@ -7,7 +7,7 @@ import math
 import os
 from typing import Optional, List, Dict, Any, Tuple
 from services.firebase_service import firebase_service
-from services.okx_rest import okx_rest_service as bybit_rest_service
+from services.okx_rest import okx_rest_service as okx_rest_service
 from services.vault_service import vault_service
 from config import settings
 
@@ -83,7 +83,7 @@ class BankrollManager:
 
     async def _force_paper_reset_v110(self):
         """
-        [V110.6.2] NUCLEAR RESET: Força a banca ao valor do settings.BYBIT_SIMULATED_BALANCE absoluto no Firebase.
+        [V110.6.2] NUCLEAR RESET: Força a banca ao valor do settings.OKX_SIMULATED_BALANCE absoluto no Firebase.
         Útil para limpar a memória de profit acumulado em ambientes Cloud Run.
         """
         if not firebase_service.is_active:
@@ -95,7 +95,7 @@ class BankrollManager:
 
         try:
             from services.vault_service import vault_service
-            target_bal = settings.BYBIT_SIMULATED_BALANCE
+            target_bal = settings.OKX_SIMULATED_BALANCE
             logger.warning(f"💥 [V110.6.2] Performing absolute bankroll reset to ${target_bal:.2f}...")
             
             # 1. Reset no DB (Atômico)
@@ -179,12 +179,12 @@ class BankrollManager:
             if not sym or not slot_id or slot.get("status") == "EMANCIPATED":
                 continue
                 
-            norm_sym = bybit_rest_service._strip_p(sym).upper()
+            norm_sym = okx_rest_service._strip_p(sym).upper()
             
             # Fonte da Verdade: A Corretora Real ou a Memória Paper
             is_alive = False
-            if bybit_rest_service.execution_mode == "PAPER":
-                is_alive = any((bybit_rest_service._strip_p(p.get("symbol", "")) or "").upper() == norm_sym for p in bybit_rest_service.paper_positions)
+            if okx_rest_service.execution_mode == "PAPER":
+                is_alive = any((okx_rest_service._strip_p(p.get("symbol", "")) or "").upper() == norm_sym for p in okx_rest_service.paper_positions)
             else:
                 is_alive = norm_sym in exchange_map
                 
@@ -255,19 +255,19 @@ class BankrollManager:
         [V110.8] Critical Synchronization: Bybit-as-Truth Model.
         Reconciles Firestore slots with real/simulated exchange positions.
         """
-        # [V110.25.0] Initialization Safety: Wait until BybitREST is ready (Paper/Real)
-        if not bybit_rest_service.is_ready:
-            # logger.info("🛡️ [SYNC-GUARD] BybitREST base not ready. Postponing sync cycle.")
+        # [V110.25.0] Initialization Safety: Wait until OKXRest is ready (Paper/Real)
+        if not okx_rest_service.is_ready:
+            # logger.info("🛡️ [SYNC-GUARD] OKXRest base not ready. Postponing sync cycle.")
             return
 
         logger.info("🛡️ [SYNC] Starting Bybit-as-Truth Synchronization...")
         try:
             # [V110.180] AUTO-ADOPT-DYNAMIC (Amnesia-Guard dinâmico para evitar purga fantasma)
-            if bybit_rest_service.execution_mode == "PAPER":
+            if okx_rest_service.execution_mode == "PAPER":
                 try:
                     slots_for_adopt = await firebase_service.get_active_slots(force_refresh=True)
                     if slots_for_adopt:
-                        local_symbols = {p.get("symbol", "").upper().replace(".P", "") for p in bybit_rest_service.paper_positions}
+                        local_symbols = {p.get("symbol", "").upper().replace(".P", "") for p in okx_rest_service.paper_positions}
                         for f_slot in slots_for_adopt:
                             symbol = f_slot.get("symbol")
                             entry_price = float(f_slot.get("entry_price", 0))
@@ -295,13 +295,13 @@ class BankrollManager:
                                         "pensamento": f_slot.get("pensamento", ""),
                                         "slot_type": f_slot.get("slot_type", "SNIPER"),
                                     }
-                                    bybit_rest_service.paper_positions.append(recovered_pos)
+                                    okx_rest_service.paper_positions.append(recovered_pos)
                                     local_symbols.add(norm_symbol)
                 except Exception as adopt_err:
                     logger.error(f"❌ [AUTO-ADOPT-DYNAMIC-ERROR] Falha ao auto-adotar posições simuladas: {adopt_err}")
 
             # 1. Fetch Current State
-            exchange_positions = await bybit_rest_service.get_active_positions()
+            exchange_positions = await okx_rest_service.get_active_positions()
             slots = await firebase_service.get_active_slots(force_refresh=True)
             
             # Map normalized symbols for comparison (with null-safety)
@@ -309,7 +309,7 @@ class BankrollManager:
             for p in exchange_positions:
                 sym = p.get("symbol")
                 if sym:
-                    exchange_map[bybit_rest_service._strip_p(sym).upper()] = p
+                    exchange_map[okx_rest_service._strip_p(sym).upper()] = p
             
             current_exchange_symbols = set(exchange_map.keys())
             active_symbols = list(current_exchange_symbols)
@@ -324,10 +324,10 @@ class BankrollManager:
             
             if disappeared:
                 # Get tracked tactical symbols
-                tactical_symbols = {bybit_rest_service._strip_p(s.get("symbol") or "").upper() for s in slots if s.get("symbol")}
+                tactical_symbols = {okx_rest_service._strip_p(s.get("symbol") or "").upper() for s in slots if s.get("symbol")}
                 # Also Moonbags
                 moonbags = await firebase_service.get_moonbags()
-                moon_symbols = {bybit_rest_service._strip_p(m.get("symbol") or "").upper() for m in moonbags}
+                moon_symbols = {okx_rest_service._strip_p(m.get("symbol") or "").upper() for m in moonbags}
                 all_tracked_symbols = tactical_symbols.union(moon_symbols)
                 
                 for sym in disappeared:
@@ -336,7 +336,7 @@ class BankrollManager:
                     if sym not in all_tracked_symbols:
                         logger.warning(f"⚠️ [SAFETY REAPER] Orphan closure detected for {sym}. Documenting now.")
                         try:
-                            closed_list = await bybit_rest_service.get_closed_pnl(symbol=sym, limit=3)
+                            closed_list = await okx_rest_service.get_closed_pnl(symbol=sym, limit=3)
                             if closed_list:
                                 last_pnl = closed_list[0]
                                 pnl_val = float(last_pnl.get("closedPnl", 0))
@@ -377,7 +377,7 @@ class BankrollManager:
             for slot in slots:
                 symbol = slot.get("symbol")
                 if not symbol: continue
-                norm_symbol = (bybit_rest_service._strip_p(symbol) or "").upper()
+                norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                 slot_id = slot["id"]
 
                 entry_ts = slot.get("timestamp_last_update") or 0
@@ -388,8 +388,8 @@ class BankrollManager:
                      continue
 
                 # [V110.36.10] SSOT ADX: Usar o M-ADX Master real para evitar rejeições fantasmas de sinal
-                from services.bybit_ws import bybit_ws_service
-                btc_adx = getattr(bybit_ws_service, "btc_adx", 0)
+                from services.okx_ws_public import okx_ws_public_service
+                btc_adx = getattr(okx_ws_public_service, "btc_adx", 0)
                 
                 if norm_symbol in exchange_map:
                     # [V110.64 FIX] Reduzido de 28→18, consistente com a nova Guilhotina.
@@ -530,10 +530,10 @@ class BankrollManager:
                     }
                     continue
 
-                if bybit_rest_service.execution_mode == "PAPER":
+                if okx_rest_service.execution_mode == "PAPER":
                     # [V25.0] ANTI-ZOMBIE SHIELD (3 Layers):
                     # Layer 1: Check pending_closures (short-term, 15s window)
-                    if norm_symbol in bybit_rest_service.pending_closures:
+                    if norm_symbol in okx_rest_service.pending_closures:
                         logger.info(f"Sync [PAPER]: {symbol} has a pending closure. Blocking phantom re-adoption and CLEARING SLOT.")
                         await firebase_service.hard_reset_slot(slot_id, reason="PAPER_CLOSED_SYNC")
                         continue
@@ -554,7 +554,7 @@ class BankrollManager:
                         })
                         continue
 
-                    combined_all = bybit_rest_service.paper_positions + bybit_rest_service.paper_moonbags
+                    combined_all = okx_rest_service.paper_positions + okx_rest_service.paper_moonbags
                     if any(p.get("symbol", "").upper() == norm_symbol for p in combined_all):
                         # Se já está no motor de simulação, não precisamos re-adotar, mas atualizamos o mapa local
                         logger.info(f"Sync [PAPER]: {symbol} já está no motor (Positions ou Moonbags). Pulando re-adoção.")
@@ -660,7 +660,7 @@ class BankrollManager:
                             # [V43.2.3] Robust PnL Search: Wait for Bybit synchronization if necessary (Retries)
                             closed_list = []
                             for attempt in range(3):
-                                closed_list = await bybit_rest_service.get_closed_pnl(symbol=symbol, limit=5)
+                                closed_list = await okx_rest_service.get_closed_pnl(symbol=symbol, limit=5)
                                 if closed_list:
                                     break
                                 logger.info(f"Sync [REAL]: PnL for {symbol} not available yet (Attempt {attempt+1}/3). Waiting...")
@@ -798,7 +798,7 @@ class BankrollManager:
                                 }
                                 
                                 # 1. Register and Reset using Idempotent Hard Reset
-                                # This prevents duplicate logs from concurrent loops (Guardian vs BybitREST)
+                                # This prevents duplicate logs from concurrent loops (Guardian vs OKXRest)
                                 success = await firebase_service.hard_reset_slot(
                                     slot_id=slot_id, 
                                     reason=diagnostic_reason, 
@@ -820,12 +820,12 @@ class BankrollManager:
             
             # [V110.4] Busca Moonbags para evitar re-adotar trades emancipadas em slots táticos
             moonbags_list = await firebase_service.get_moonbags()
-            moon_symbols = {bybit_rest_service._strip_p(m.get("symbol") or "").upper() for m in moonbags_list}
+            moon_symbols = {okx_rest_service._strip_p(m.get("symbol") or "").upper() for m in moonbags_list}
             
             logger.info(f"🔍 [SYNC-S4] Checking {len(exchange_map)} exchange positions for import into {sum(1 for s in slots if not s.get('symbol'))} empty slots")
             for symbol, pos in exchange_map.items():
                 # [V110.4] Se a trade já estiver nos slots OU no Vault (Moonbag), não importa novamente.
-                if any(bybit_rest_service._strip_p(s.get("symbol") or "").upper() == symbol for s in slots):
+                if any(okx_rest_service._strip_p(s.get("symbol") or "").upper() == symbol for s in slots):
                     continue 
                 
                 if symbol in moon_symbols:
@@ -911,7 +911,7 @@ class BankrollManager:
     async def _get_total_unrealized_pnl(self):
         """[V110.8] Calculates unrealized PnL from ALL positions (slots + orphans)."""
         try:
-            positions = await bybit_rest_service.get_active_positions()
+            positions = await okx_rest_service.get_active_positions()
             total_unrealized = 0.0
             for pos in positions:
                 total_unrealized += float(pos.get("unrealisedPnl", 0))
@@ -950,8 +950,8 @@ class BankrollManager:
             # [V29.0/V34.2] PAPER MODE FIX: Ensure we check Firestore first
             slots = await firebase_service.get_active_slots()
             
-            if bybit_rest_service.execution_mode == "PAPER":
-                paper_positions = bybit_rest_service.paper_positions
+            if okx_rest_service.execution_mode == "PAPER":
+                paper_positions = okx_rest_service.paper_positions
                 # First, ensure we don't exceed 4 slots TOTAL
                 if len(paper_positions) >= 4:
                     return None
@@ -1000,7 +1000,7 @@ class BankrollManager:
                 del self.pending_slots[k]
                 
             if symbol:
-                norm_symbol = (bybit_rest_service._strip_p(symbol) or "").upper()
+                norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                 if any(k[0] == norm_symbol for k in self.pending_slots):
                     logger.warning(f"🛡️ [SYMBOL LOCK] {symbol} already being processed. BLOCKED.")
                     return None
@@ -1010,10 +1010,10 @@ class BankrollManager:
             # [V43.2] Pre-fetch slots for Risk-Free check (Ancorado na SSOT Postgres)
             from services.database_service import database_service
             slots = await database_service.get_active_slots()
-            active_slots_data = slots if bybit_rest_service.execution_mode == "REAL" else []
-            if bybit_rest_service.execution_mode == "PAPER":
+            active_slots_data = slots if okx_rest_service.execution_mode == "REAL" else []
+            if okx_rest_service.execution_mode == "PAPER":
                 # Create a structure matching REAL slots for the risk check
-                for p in bybit_rest_service.paper_positions:
+                for p in okx_rest_service.paper_positions:
                     active_slots_data.append({
                         "symbol": p.get("symbol"),
                         "side": p.get("side"),
@@ -1073,8 +1073,8 @@ class BankrollManager:
                 return None
 
             # [V29.0] PAPER MODE: Use local paper positions as source of truth
-            if bybit_rest_service.execution_mode == "PAPER":
-                paper_positions = bybit_rest_service.paper_positions
+            if okx_rest_service.execution_mode == "PAPER":
+                paper_positions = okx_rest_service.paper_positions
                 
                 # [V29.1] HYBRID OCCUPIED COUNT: Anti-Flap Shield
                 # Prevent the Single Order Rule from breaking if memory is momentarily blank but Firestore is not
@@ -1084,7 +1084,7 @@ class BankrollManager:
                 
                 # Check if symbol is already pending or active
                 if symbol:
-                    norm_symbol = (bybit_rest_service._strip_p(symbol) or "").upper()
+                    norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                     if any(k[0] == norm_symbol for k in self.pending_slots):
                         return None
                     # Check if symbol already in a paper position
@@ -1132,7 +1132,7 @@ class BankrollManager:
             
             # Check if this symbol is already pending
             if symbol:
-                norm_symbol = (bybit_rest_service._strip_p(symbol) or "").upper()
+                norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                 if any(k[0] == norm_symbol for k in self.pending_slots):
                     return None
                 # [V110.25.6] STRICT SYMBOL NORMALIZATION
@@ -1157,7 +1157,7 @@ class BankrollManager:
 
             # [V110.8] Anti-Orphan Exchange Guard
             # Se já temos 4 ordens na Bybit/Simulação, BLOQUEIA mesmo que o Firebase diga que há slots vazios.
-            live_positions = await bybit_rest_service.get_active_positions()
+            live_positions = await okx_rest_service.get_active_positions()
             
             # [V110.178] Moonbag Exclusion: Ignore positions that are registered as Moonbags in the database
             moonbags_data = await firebase_service.get_moonbags()
@@ -1198,7 +1198,7 @@ class BankrollManager:
             available_slots_count = sum(1 for s in slots if s["symbol"] is None)
             
             # Fetch real balance from Bybit - NON-BLOCKING
-            total_equity = await bybit_rest_service.get_wallet_balance()
+            total_equity = await okx_rest_service.get_wallet_balance()
             
             banca = await firebase_service.get_banca_status()
             if banca:
@@ -1230,35 +1230,35 @@ class BankrollManager:
                 config_bal = banca.get("configured_balance")
                 
                 # [V110.9] Calculations logic for PAPER and REAL parity
-                if bybit_rest_service.execution_mode == "PAPER":
+                if okx_rest_service.execution_mode == "PAPER":
                     # [V110.118 FIX-B] Inclui PnL não realizado das paper_positions
                     # para que a banca reflita o patrimônio líquido real (aberto + fechado).
                     # Nota: o frontend NÃO soma mais float separado pois agora já vem consolidado aqui.
                     float_pnl = 0.0
                     try:
-                        for p in bybit_rest_service.paper_positions:
+                        for p in okx_rest_service.paper_positions:
                             raw_float = p.get("unrealisedPnl", 0)
                             if raw_float:
                                 float_pnl += float(raw_float)
                     except Exception:
                         float_pnl = 0.0
                     calculated_equity = (config_bal or 100.0) + total_pnl + float_pnl
-                    reported_real_bybit = 0.0
+                    reported_real_okx = 0.0
                     logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | VaultPnl={total_pnl:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
 
                 else:
                     # REAL MODE: Bybit is the absolute source of truth for Equity
                     if total_equity > 0:
                         calculated_equity = total_equity
-                        reported_real_bybit = total_equity
+                        reported_real_okx = total_equity
                     else:
                         # Fallback if API fails
                         calculated_equity = (config_bal or 100.0) + total_pnl
-                        reported_real_bybit = 0.0
+                        reported_real_okx = 0.0
 
                 update_data = {
                     "id": banca.get("id", "status"),
-                    "saldo_real_bybit": reported_real_bybit,
+                    "saldo_real_okx": reported_real_okx,
                     "risco_real_percent": real_risk,
                     "slots_disponiveis": available_slots_count,
                     "lucro_total_acumulado": total_pnl,
@@ -1314,7 +1314,7 @@ class BankrollManager:
         async with self.execution_lock:
             try:
                 # 1. Total Awareness: Check availability & local lock
-                norm_symbol = (bybit_rest_service._strip_p(symbol) or "").upper()
+                norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                 
                 # 1.1 Duplicate Guard (Firebase + Memory + Real Exchange)
                 
@@ -1325,7 +1325,7 @@ class BankrollManager:
 
                 from services.database_service import database_service
                 active_slots = await database_service.get_active_slots()
-                if any(bybit_rest_service._strip_p(S.get("symbol") or "").upper() == norm_symbol for S in active_slots):
+                if any(okx_rest_service._strip_p(S.get("symbol") or "").upper() == norm_symbol for S in active_slots):
                     logger.warning(f"Iron Lock: Signal {symbol} already active in Postgres (SSOT). BLOCKED.")
                     return None
                 
@@ -1335,7 +1335,7 @@ class BankrollManager:
 
                 # [V60.0] The Ultimate Duplicate Guard (Exigência Direta do Usuário)
                 # Verifica DIRETAMENTE na exchange/simulação se a ordem já existe antes de enviar a nova.
-                live_positions = await bybit_rest_service.get_active_positions(symbol=symbol)
+                live_positions = await okx_rest_service.get_active_positions(symbol=symbol)
                 if live_positions:
                     logger.warning(f"Iron Lock: {symbol} JÁ ESTÁ ABERTO na Exchange/Paper! Varredura bloqueou duplicata absoluta.")
                     return None
@@ -1391,7 +1391,7 @@ class BankrollManager:
 
             try:
                 # 2. Fetch Market Data & Calculate Order
-                ticker = await bybit_rest_service.get_tickers(symbol=symbol)
+                ticker = await okx_rest_service.get_tickers(symbol=symbol)
                 ticker_list = ticker.get("result", {}).get("list", [])
                 if not ticker_list:
                     logger.error(f"Could not fetch exact price for {symbol} (Match Failed)")
@@ -1403,7 +1403,7 @@ class BankrollManager:
                     logger.error(f"Could not fetch price for {symbol}")
                     return None
 
-                info = await bybit_rest_service.get_instrument_info(symbol)
+                info = await okx_rest_service.get_instrument_info(symbol)
                 if not info:
                     logger.error(f"Could not fetch instrument info for {symbol}")
                     return None
@@ -1609,7 +1609,7 @@ class BankrollManager:
                 squadron_emoji = "🎯" if slot_type == "SNIPER" else "🏄"
                 
                 # [V12.0] Leverage Enforcement: Ensure dynamic target leverage before order entry
-                await bybit_rest_service.set_leverage(symbol, current_leverage)
+                await okx_rest_service.set_leverage(symbol, current_leverage)
                 
                 # Log exact expected margin usage
                 margin_usd = (qty * current_price) / current_leverage
@@ -1627,7 +1627,7 @@ class BankrollManager:
                         ambush_price = execution_protocol.calculate_ambush_price(current_price, final_sl, side, multiplier=0.50)
                         logger.info(f"🎯 [V110.65] Ambush Zone calculada: ${ambush_price:.6f} (Entry: ${current_price:.6f})")
                 
-                order = await asyncio.wait_for(bybit_rest_service.place_atomic_order(symbol, side, qty, final_sl, final_tp, slot_id=slot_id, leverage=current_leverage, ambush_price=ambush_price), timeout=10.0)
+                order = await asyncio.wait_for(okx_rest_service.place_atomic_order(symbol, side, qty, final_sl, final_tp, slot_id=slot_id, leverage=current_leverage, ambush_price=ambush_price), timeout=10.0)
                 
                 if order and order.get("retCode") == 0:
                     # [V58.0] Refresh opening timestamp on success
@@ -1757,7 +1757,7 @@ class BankrollManager:
                 # O close_position no modo PAPER já cuida de: calcular PNL, registrar no Vault e dar hard_reset_slot.
                 # No modo REAL, ele fecha na Bybit e o sync_slots_with_exchange registra o PNL depois.
                 if qty > 0:
-                    await bybit_rest_service.close_position(symbol, side, qty, reason=reason)
+                    await okx_rest_service.close_position(symbol, side, qty, reason=reason)
                 else:
                     # Lixo residual sem quantidade: Limpeza manual
                     await firebase_service.hard_reset_slot(slot_id, reason=f"CLEANUP_{reason}")
@@ -1787,11 +1787,11 @@ class BankrollManager:
                 side = slot.get("side")
                 try:
                     # Fetch position to get size (Simulation aware)
-                    pos_list = await bybit_rest_service.get_active_positions(symbol=symbol)
+                    pos_list = await okx_rest_service.get_active_positions(symbol=symbol)
                     for pos in pos_list:
                         size = float(pos.get("size", 0))
                         if size > 0:
-                            await bybit_rest_service.close_position(symbol, pos["side"], size)
+                            await okx_rest_service.close_position(symbol, pos["side"], size)
                 except Exception as e:
                     logger.error(f"Error closing {symbol}: {e}")
                 
@@ -1895,8 +1895,8 @@ class BankrollManager:
             # REMOVED double-counting. We do NOT add PnL to configured_balance anymore.
             # BankrollManager.update_banca_status() naturally calculates total_pnl from Vault History
             # and adds it to the base configured_balance to yield exactly accurate `saldo_total`.
-            from services.okx_rest import okx_rest_service as bybit_rest_service
-            if bybit_rest_service.execution_mode == "PAPER":
+            from services.okx_rest import okx_rest_service
+            if okx_rest_service.execution_mode == "PAPER":
                 logger.info(f"✅ [PAPER PARITY] Trade {trade_data.get('symbol')} fechado. O saldo_total será atualizado via sincronização do Vault.")
         except Exception as e:
             logger.error(f"Error registering trade in vault: {e}")
@@ -1924,7 +1924,7 @@ class BankrollManager:
             logger.info(f"🛡️ [GUARDIAN-HEDGE] Encerrando seguro. Motivo: {reason}")
             try:
                 # Encerra a posição no BTC
-                success = await bybit_rest_service.close_position("BTCUSDT", side="Sell") # Close Short
+                success = await okx_rest_service.close_position("BTCUSDT", side="Sell") # Close Short
                 if success:
                     self.hedge_active = False
                     self.hedge_position_id = None

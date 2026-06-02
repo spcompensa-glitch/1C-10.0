@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 from services.agents.aios_adapter import AIOSAgent
 from services.backtest.engine import backtest_engine
 from services.backtest import data_extractor
-from services.bybit_ws import bybit_ws_service
+from services.okx_ws_public import okx_ws_public_service
 from services.google_calendar_service import google_calendar_service
 from services.agents.quartermaster import quartermaster_agent # [V110.135]
 from services.firebase_service import firebase_service
@@ -185,7 +185,7 @@ class LibrarianAgent(AIOSAgent):
             data_extractor.init_db()
             
             # Pega a frota do WebSocket (Ativos reais do Radar)
-            monitored = list(bybit_ws_service.active_symbols) if bybit_ws_service and bybit_ws_service.active_symbols else []
+            monitored = list(okx_ws_public_service.active_symbols) if okx_ws_public_service and okx_ws_public_service.active_symbols else []
             
             if not monitored:
                 # Fallback 1: Tenta pegar do histórico do banco local

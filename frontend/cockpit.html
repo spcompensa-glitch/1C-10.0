@@ -7180,7 +7180,7 @@
             const liveTotalProfit = (banca.lucro_total_acumulado || 0) + liveTotalPnL;
             // [V28.2] PAPER MODE FIX: Prioriza saldo_total (calculado pelo backend com lógica PAPER)
             // O saldo_real_okx vem da OKX diretamente e não reflete o modo simulado.
-            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || banca.saldo_real_bybit || 10));
+            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 10));
             const liveEquity = baseEquity + liveTotalPnL;
 
             // Map Best Signals
@@ -7856,11 +7856,11 @@
                             console.log("Health Response:", data);
 
                             // OKX connection check
-                            const okxOk = data.bybit_connected === true;
+                            const okxOk = data.okx_connected === true;
                             setChecks(prev => ({ ...prev, api: { ...prev.api, status: okxOk ? 'success' : 'error', label: 'Conexão com OKX' } }));
 
                             // Balance sync check
-                            const balanceOk = data.balance > 0 || data.bybit_connected === true;
+                            const balanceOk = data.balance > 0 || data.okx_connected === true;
                             setChecks(prev => ({ ...prev, balance: { ...prev.balance, status: balanceOk ? 'success' : 'error' } }));
                         } else {
                             setChecks(prev => ({ ...prev, api: { ...prev.api, status: 'error' } }));

@@ -34,7 +34,7 @@ class AmbushAgent(AIOSAgent):
         - {"action": "TIMEOUT", "reason": "..."}
         """
         from services.signal_generator import signal_generator
-        from services.bybit_ws import bybit_ws_service
+        from services.okx_ws_public import okx_ws_public_service
         from services.redis_service import redis_service
         from services.agents.librarian import librarian_agent
 
@@ -70,7 +70,7 @@ class AmbushAgent(AIOSAgent):
             sweep_detected = False
             
             while (time.time() - start_time) < self.max_wait_seconds:
-                current_price = bybit_ws_service.get_current_price(symbol)
+                current_price = okx_ws_public_service.get_current_price(symbol)
                 if not current_price:
                     await asyncio.sleep(2)
                     continue
@@ -112,7 +112,7 @@ class AmbushAgent(AIOSAgent):
                     if zone_reached:
                         # 2. Avaliação de Exaustão (CVD) e Momento (RSI)
                         cvd = await redis_service.get_cvd(symbol)
-                        rsi = bybit_ws_service.rsi_cache.get(symbol, 50.0)
+                        rsi = okx_ws_public_service.rsi_cache.get(symbol, 50.0)
                         
                         logger.info(f"🥷 [AMBUSH-ZONE] {symbol} tocou a zona ({current_price:.6f}). Flow Institucional -> CVD: {cvd}, RSI: {rsi:.1f}")
 

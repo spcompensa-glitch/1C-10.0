@@ -4,7 +4,7 @@ import time
 import traceback
 from typing import Dict, Any, List
 from services.firebase_service import firebase_service
-from services.okx_rest import okx_rest_service as bybit_rest_service
+from services.okx_rest import okx_rest_service
 from services.agents.aios_adapter import AIOSAgent
 
 logger = logging.getLogger("FleetAudit")
@@ -56,7 +56,7 @@ class FleetAudit(AIOSAgent):
         self.last_reconciliation_time = now
         logger.info("🛡️ [AUDIT] Monitoring state parity & Early ROI Safety...")
         
-        execution_mode = bybit_rest_service.execution_mode
+        execution_mode = okx_rest_service.execution_mode
         
         try:
             # 1. Fetch current state
@@ -98,9 +98,9 @@ class FleetAudit(AIOSAgent):
                         logger.warning(msg)
                         
                         if execution_mode == "REAL":
-                            await bybit_rest_service.close_position(sym, side, qty)
+                            await okx_rest_service.close_position(sym, side, qty)
                         else:
-                            await bybit_rest_service.paper_close_position(sym)
+                            await okx_rest_service.paper_close_position(sym)
                             
                         await firebase_service.hard_reset_slot(s["id"], "EARLY_ROI_PANIC", pnl)
                         await firebase_service.log_event("AUDIT", msg, "CRITICAL")
@@ -108,7 +108,7 @@ class FleetAudit(AIOSAgent):
 
             # 3. [V110.125] State Parity (REAL MODE ONLY)
             if execution_mode == "REAL":
-                real_positions = await bybit_rest_service.get_active_positions()
+                real_positions = await okx_rest_service.get_active_positions()
                 moonbags = await firebase_service.get_moonbags()
                 
                 # Active symbols on Bybit (Normalized)
@@ -136,8 +136,8 @@ class FleetAudit(AIOSAgent):
                     db_entry = active_db_map.get(norm_symbol)
                     
                     if not db_entry:
-                        logger.warning(f"🚨 [AUDIT] GHOST POSITION ON BYBIT: {symbol}. AUTO-CLOSING.")
-                        await bybit_rest_service.close_position(symbol, side, size, reason="AUDIT_GHOST_BYBIT")
+                        logger.warning(f"🚨 [AUDIT] GHOST POSITION ON OKX: {symbol}. AUTO-CLOSING.")
+                        await okx_rest_service.close_position(symbol, side, size, reason="AUDIT_GHOST_OKX")
                         continue
                     
                     slot_or_moon = db_entry["data"]
@@ -149,8 +149,8 @@ class FleetAudit(AIOSAgent):
                         if recovery_sl <= 0:
                             recovery_sl = entry * 0.99 if side == "Buy" else entry * 1.01
                         
-                        recovery_sl = await bybit_rest_service.round_price(symbol, recovery_sl)
-                        await bybit_rest_service.set_trading_stop(category="linear", symbol=symbol, stopLoss=str(recovery_sl))
+                        recovery_sl = await okx_rest_service.round_price(symbol, recovery_sl)
+                        await okx_rest_service.set_trading_stop(category="linear", symbol=symbol, stopLoss=str(recovery_sl))
                         
                         if db_entry["type"] == "SLOT":
                             await firebase_service.update_slot(slot_or_moon["id"], {"current_stop": recovery_sl})

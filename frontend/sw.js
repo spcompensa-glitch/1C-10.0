@@ -59,12 +59,12 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
-    // 1. BYPASS para APIs, WebSockets, Bybit e Observatory (Dynamic Paths)
-    if (url.pathname.startsWith('/api/') || 
-        url.pathname.startsWith('/observatory/') || 
+    // 1. BYPASS para APIs, WebSockets, OKX e Observatory (Dynamic Paths)
+    if (url.pathname.startsWith('/api/') ||
+        url.pathname.startsWith('/observatory/') ||
         url.pathname === '/observatory' ||
-        url.hostname.includes('firebaseio.com') || 
-        url.hostname.includes('bybit') ||
+        url.hostname.includes('firebaseio.com') ||
+        url.hostname.includes('okx.com') ||
         url.hostname.includes('railway.app')) {
         return; // Network Only (Bypass total do Service Worker!)
     }

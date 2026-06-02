@@ -12,11 +12,11 @@ logger = logging.getLogger("1CRYPTEN-TRADING")
 # Imports lazy to avoid circular dependency if any
 def get_services():
     from services.firebase_service import firebase_service
-    from services.okx_rest import okx_rest_service as bybit_rest_service
+    from services.okx_rest import okx_rest_service
     from services.execution_protocol import execution_protocol
     from services.vault_service import vault_service
     from services.bankroll import bankroll_manager
-    return firebase_service, bybit_rest_service, execution_protocol, vault_service, bankroll_manager
+    return firebase_service, okx_rest_service, execution_protocol, vault_service, bankroll_manager
 
 async def verify_api_key(x_api_key: str = Header(None)):
     if settings.DEBUG:
@@ -30,7 +30,7 @@ async def verify_api_key(x_api_key: str = Header(None)):
 async def get_slots():
     """[V110.999] Rota pública — lê slots globais do Postgres. Auth removida para evitar 401 com Fortress Auth."""
     from services.database_service import database_service as _ds
-    _, bybit_rest_service, execution_protocol, _, _ = get_services()
+    _, okx_rest_service, execution_protocol, _, _ = get_services()
     try:
         db_slots = await _ds.get_active_slots()
         slots = []
@@ -77,7 +77,7 @@ async def get_slots():
             
         if slots:
             try:
-                resp = await bybit_rest_service.get_tickers()
+                resp = await okx_rest_service.get_tickers()
                 ticker_list = resp.get("result", {}).get("list", [])
                 price_map = {t["symbol"]: float(t.get("lastPrice", 0)) for t in ticker_list}
             except Exception:
@@ -104,7 +104,7 @@ async def get_slots():
                     slot["slot_type"] = slot.get("slot_type") or "BLITZ"
                     entry = float(slot.get("entry_price", 0))
                     side = slot.get("side", "Buy")
-                    sym_clean = bybit_rest_service._strip_p(slot["symbol"])
+                    sym_clean = okx_rest_service._strip_p(slot["symbol"])
                     live_price = price_map.get(sym_clean, 0)
                     
                     if live_price > 0 and entry > 0:
@@ -204,20 +204,20 @@ async def get_moonbags(limit: int = 10):
 
 @router.post("/nuke-paper")
 async def nuke_paper_state(current_user: User = Depends(get_current_user)):
-    _, bybit_rest_service, _, _, bankroll_manager = get_services()
+    _, okx_rest_service, _, _, bankroll_manager = get_services()
     from services.firebase_service import firebase_service
     cleared = []
-    if bybit_rest_service:
-        bybit_rest_service.paper_positions.clear()
-        bybit_rest_service.paper_moonbags.clear()
-        bybit_rest_service.paper_orders_history.clear()
-        bybit_rest_service.paper_balance = 100.0
-        if hasattr(bybit_rest_service, 'pending_closures'):
-             bybit_rest_service.pending_closures.clear()
-        if hasattr(bybit_rest_service, 'emancipating_symbols'):
-             bybit_rest_service.emancipating_symbols.clear()
+    if okx_rest_service:
+        okx_rest_service.paper_positions.clear()
+        okx_rest_service.paper_moonbags.clear()
+        okx_rest_service.paper_orders_history.clear()
+        okx_rest_service.paper_balance = 100.0
+        if hasattr(okx_rest_service, 'pending_closures'):
+             okx_rest_service.pending_closures.clear()
+        if hasattr(okx_rest_service, 'emancipating_symbols'):
+             okx_rest_service.emancipating_symbols.clear()
         cleared.append("RAM deep cleanup")
-        bybit_rest_service._save_paper_state()
+        okx_rest_service._save_paper_state()
         cleared.append("disk-sync")
     if firebase_service:
         for i in range(1, 5):

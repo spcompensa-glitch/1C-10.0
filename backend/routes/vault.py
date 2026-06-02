@@ -21,7 +21,7 @@ async def save_vault(req: VaultSaveRequest, current_user: User = Depends(get_cur
         
     try:
         vault_data = {
-            "bybit_vault": {
+            "okx_vault": {
                 "key": req.encrypted_key,
                 "secret": req.encrypted_secret,
                 "hint": req.hint,
@@ -47,10 +47,10 @@ async def get_vault_status(current_user: User = Depends(get_current_user)):
         )
         if user_doc.exists:
             data = user_doc.to_dict()
-            has_vault = "bybit_vault" in data
+            has_vault = "okx_vault" in data
             return {
                 "has_vault": has_vault,
-                "updated_at": data.get("bybit_vault", {}).get("updated_at") if has_vault else None
+                "updated_at": data.get("okx_vault", {}).get("updated_at") if has_vault else None
             }
         return {"has_vault": False}
     except Exception as e:

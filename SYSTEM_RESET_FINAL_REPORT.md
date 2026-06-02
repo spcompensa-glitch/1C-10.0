@@ -97,8 +97,8 @@ est_pnl = (roi_val / 100.0) * margin_used
 ### Nova Configuração
 ```python
 # backend/config.py
-BYBIT_SIMULATED_BALANCE: float = 100.0
-BYBIT_EXECUTION_MODE: str = "PAPER"
+OKX_SIMULATED_BALANCE: float = 100.0
+OKX_EXECUTION_MODE: str = "PAPER"
 ```
 
 ## 🚀 PRÓXIMOS PASSOS
@@ -110,7 +110,7 @@ BYBIT_EXECUTION_MODE: str = "PAPER"
 - ✅ Todas as dependências funcionando
 
 ### Checklist de Transição para Real Trading
-1. [ ] Alterar `BYBIT_EXECUTION_MODE` para "REAL"
+1. [ ] Alterar `OKX_EXECUTION_MODE` para "REAL"
 2. [ ] Configurar chaves de API reais
 3. [] Ajustar gerenciamento de risco para capital real
 4. [] Implementar monitoramento de risco adicional

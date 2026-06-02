@@ -27,7 +27,7 @@ def fix_railway_environment():
         "TELEGRAM_CHAT_ID": "1249100206",
         "JWT_SECRET_KEY": "1crypten-jwt-secret-2026-production",
         "ENVIRONMENT": "production",
-        "PORT": "8080"
+        "PORT": "8085"
     }
     
     # Verificar Railway CLI

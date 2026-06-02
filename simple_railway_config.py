@@ -40,7 +40,7 @@ def create_railway_deployment():
                     "JWT_SECRET_KEY": "1crypten-jwt-secret-2026-production",
                     "RAILWAY_URL": "https://1crypten-hermes-agent-production.up.railway.app",
                     "ENVIRONMENT": "production",
-                    "PORT": "8080"
+                    "PORT": "8085"
                 },
                 "runtime": "python",
                 "memoryLimit": "512MB",
@@ -76,7 +76,7 @@ TELEGRAM_BOT_TOKEN=8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I
 TELEGRAM_CHAT_ID=1249100206
 JWT_SECRET_KEY=1crypten-jwt-secret-2026-production
 ENVIRONMENT=production
-PORT=8080
+PORT=8085
 """
     with open('.env.production', 'w') as f:
         f.write(env_content)

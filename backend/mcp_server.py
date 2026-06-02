@@ -40,6 +40,6 @@ async def status_okx() -> str:
     return "OKX Conectada (Testnet). Saldo: $5000."
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8085))
     print(f"Iniciando Servidor MCP SSE na porta {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)

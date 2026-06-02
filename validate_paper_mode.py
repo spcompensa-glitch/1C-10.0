@@ -133,7 +133,7 @@ async def validate_paper_mode():
         print("\n⚙️  Testando configurações do sistema...")
         
         # Verificar modo de execução
-        if settings.BYBIT_EXECUTION_MODE == "PAPER":
+        if settings.OKX_EXECUTION_MODE == "PAPER":
             print("   ✅ Configuração de modo paper correta")
             validation_results.append("paper_config")
         else:
@@ -141,7 +141,7 @@ async def validate_paper_mode():
             validation_results.append("paper_config_error")
         
         # Verificar saldo simulado
-        if settings.BYBIT_SIMULATED_BALANCE == 100.0:
+        if settings.OKX_SIMULATED_BALANCE == 100.0:
             print("   ✅ Configuração de saldo simulado correta")
             validation_results.append("balance_config")
         else:
@@ -195,8 +195,8 @@ async def validate_paper_mode():
             "status": status,
             "details": validation_results,
             "system_config": {
-                "execution_mode": settings.BYBIT_EXECUTION_MODE,
-                "simulated_balance": settings.BYBIT_SIMULATED_BALANCE,
+                "execution_mode": settings.OKX_EXECUTION_MODE,
+                "simulated_balance": settings.OKX_SIMULATED_BALANCE,
                 "paper_balance": okx_service.paper_balance
             }
         }

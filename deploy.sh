@@ -24,7 +24,7 @@ railway variables set TELEGRAM_CHAT_ID=1249100206
 railway variables set JWT_SECRET_KEY=1crypten-jwt-secret-2026-production
 railway variables set NVAPI_KEY=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
 railway variables set ENVIRONMENT=production
-railway variables set PORT=8080
+railway variables set PORT=8085
 
 # 4. Adicionar serviço
 railway add hermes-guardian

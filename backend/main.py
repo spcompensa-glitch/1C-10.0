@@ -84,8 +84,8 @@ print(f"[DEBUG] FRONTEND_DIR: {FRONTEND_DIR}")
 sovereign_service = None
 database_service = None # V110.175
 websocket_service = None # V110.175
-bybit_rest_service = None
-bybit_ws_service = None
+okx_rest_service = None
+okx_ws_public_service = None
 bankroll_manager = None
 redis_service = None
 captain_agent = None  # V12.2: Standardized global
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initializing 1CRYPTEN SPACE {VERSION}...")
     
     async def start_services():
-        global sovereign_service, database_service, websocket_service, bybit_rest_service, bybit_ws_service, bankroll_manager, redis_service, captain_agent, sig_gen
+        global sovereign_service, database_service, websocket_service, okx_rest_service, okx_ws_public_service, bankroll_manager, redis_service, captain_agent, sig_gen
         
         logger.info("Step 0: Loading services (slow-walk mode)...")
         try:
@@ -158,15 +158,15 @@ async def lifespan(app: FastAPI):
             await sovereign_service.initialize()
             
             logger.info("Step 0.2: Loading OKX REST Service...")
-            bybit_rest_service = importlib.import_module("services.okx_rest").okx_rest_service
+            okx_rest_service = importlib.import_module("services.okx_rest").okx_rest_service
             try:
                 # V5.2.4.3: Added 60s timeout for OKX initialization
-                await asyncio.wait_for(bybit_rest_service.initialize(), timeout=60.0)
+                await asyncio.wait_for(okx_rest_service.initialize(), timeout=60.0)
             except Exception as e:
                 logger.error(f"⚠️ OKX REST Init Error (Continuing anyway): {e}")
 
-            logger.info("Step 0.3: Loading Bybit WS Service...")
-            bybit_ws_service = importlib.import_module("services.bybit_ws").bybit_ws_service
+            logger.info("Step 0.3: Loading OKX WS Public Service...")
+            okx_ws_public_service = importlib.import_module("services.okx_ws_public").okx_ws_public_service
             await asyncio.sleep(0.5) 
             
             # Use bankroll_manager from services.bankroll
@@ -190,13 +190,13 @@ async def lifespan(app: FastAPI):
                     try:
                         # [V110.173] Usar get_elite_focus_pairs para concentrar nos Top 20 Elite
                         s = await asyncio.wait_for(
-                            bybit_rest_service.get_elite_focus_pairs(),
+                            okx_rest_service.get_elite_focus_pairs(),
                             timeout=90
                         )
-                        if s: await bybit_ws_service.start(s)
+                        if s: await okx_ws_public_service.start(s)
                     except Exception as e: 
                         logger.error(f"Step 2: Symbol Scan or WS Start Error: {e}")
-                        await bybit_ws_service.start(symbols)
+                        await okx_ws_public_service.start(symbols)
                 asyncio.create_task(fetch_and_start_ws())
                 # [V110.202] Force slot sync on startup - ensuring persistence during deploys
                 logger.info("📡 [V110.202] Syncing slots from persistence layer...")
@@ -338,7 +338,7 @@ async def lifespan(app: FastAPI):
                 
                 # 4. [V4.0] DECENTRALIZED EXECUTION: Removed centralized loops.
                 # Every SlotOperatorAgent handles its own execution and monitoring.
-                logger.info(f"Step 4: [V4.0] Decentralized Execution Engine ACTIVE (Modo: {bybit_rest_service.execution_mode})")
+                logger.info(f"Step 4: [V4.0] Decentralized Execution Engine ACTIVE (Modo: {okx_rest_service.execution_mode})")
 
                 # Sovereign Pulse Loop (WebSocket only)
                 async def pulse_loop():
@@ -350,18 +350,18 @@ async def lifespan(app: FastAPI):
                 async def market_context_loop():
                     while True:
                         try:
-                            if bybit_ws_service:
-                                # [V16.3.1] Read consolidated cached metrics from BybitWS to prevent duplicate REST calls.
+                            if okx_ws_public_service:
+                                # [V16.3.1] Read consolidated cached metrics from OKX WS Public to prevent duplicate REST calls.
                                 pass
                                 
                                 # 🆕 [V110.175] FEED THE ORACLE: Alimenta o oráculo com dados reais do WebSocket
                                 if oracle_agent:
-                                    await oracle_agent.update_market_data("bybit_ws", {
-                                        "btc_price": bybit_ws_service.btc_price,
-                                        "btc_adx": bybit_ws_service.btc_adx,
-                                        "btc_variation_1h": bybit_ws_service.btc_variation_1h,
-                                        "btc_variation_24h": bybit_ws_service.btc_variation_24h,
-                                        "btc_variation_15m": bybit_ws_service.btc_variation_15m
+                                    await oracle_agent.update_market_data("okx_ws_public", {
+                                        "btc_price": okx_ws_public_service.btc_price,
+                                        "btc_adx": okx_ws_public_service.btc_adx,
+                                        "btc_variation_1h": okx_ws_public_service.btc_variation_1h,
+                                        "btc_variation_24h": okx_ws_public_service.btc_variation_24h,
+                                        "btc_variation_15m": okx_ws_public_service.btc_variation_15m
                                     })
 
                                 # Sync to RTDB for immediate UI update
@@ -371,9 +371,9 @@ async def lifespan(app: FastAPI):
                                     if oracle_agent:
                                         oracle_ctx = oracle_agent.get_validated_context()
                                         # Use Oracle ADX if available to ensure "Amnesia Guard" consistency in UI
-                                        current_adx = oracle_ctx.get("btc_adx", getattr(bybit_ws_service, 'btc_adx', 20.0))
+                                        current_adx = oracle_ctx.get("btc_adx", getattr(okx_ws_public_service, 'btc_adx', 20.0))
                                     else:
-                                        current_adx = getattr(bybit_ws_service, 'btc_adx', 20.0)
+                                        current_adx = getattr(okx_ws_public_service, 'btc_adx', 20.0)
                                     
                                     # Fallback final para evitar "..."
                                     if not current_adx or current_adx < 0.1:
@@ -390,29 +390,29 @@ async def lifespan(app: FastAPI):
                                     except Exception as dom_err:
                                         logger.error(f"Error fetching dominance: {dom_err}")
 
-                                    btc_var_15m = getattr(bybit_ws_service, 'btc_variation_15m', 0.0)
-                                    btc_var_1h = bybit_ws_service.btc_variation_1h
+                                    btc_var_15m = getattr(okx_ws_public_service, 'btc_variation_15m', 0.0)
+                                    btc_var_1h = okx_ws_public_service.btc_variation_1h
                                     captain_direction = getattr(captain_agent, 'last_decision', "LATERAL")
 
                                     # [V5.5.0] Calculate Global Heat Index (Average velocity of monitored symbols)
                                     try:
-                                        velocities = list(bybit_ws_service.velocity_cache.values())
+                                        velocities = list(okx_ws_public_service.velocity_cache.values())
                                         global_heat = sum(velocities) / len(velocities) if velocities else 0.0
                                     except:
                                         global_heat = 0.0
 
                                     await sovereign_service.update_pulse_drag(
                                         btc_drag_mode=getattr(sig_gen, 'btc_drag_mode', False),
-                                        btc_cvd=bybit_ws_service.get_cvd_score("BTCUSDT"),
+                                        btc_cvd=okx_ws_public_service.get_cvd_score("BTCUSDT"),
                                         exhaustion=getattr(sig_gen, 'exhaustion_level', 0.0),
-                                        btc_price=bybit_ws_service.btc_price,
+                                        btc_price=okx_ws_public_service.btc_price,
                                         btc_var_1h=btc_var_1h,
                                         btc_adx=current_adx,
-                                        decorrelation_avg=getattr(bybit_ws_service, 'decorrelation_avg', 0.0),
-                                        btc_var_24h=bybit_ws_service.btc_variation_24h,
+                                        decorrelation_avg=getattr(okx_ws_public_service, 'decorrelation_avg', 0.0),
+                                        btc_var_24h=okx_ws_public_service.btc_variation_24h,
                                         btc_dominance=current_dominance,
                                         btc_var_15m=btc_var_15m,
-                                        btc_var_4h=getattr(bybit_ws_service, 'btc_variation_4h', 0.0),
+                                        btc_var_4h=getattr(okx_ws_public_service, 'btc_variation_4h', 0.0),
                                         btc_direction=None, # Centralized logic in SovereignService
                                         oracle_context={**oracle_ctx, "heat_index": global_heat}
                                     )
@@ -421,7 +421,7 @@ async def lifespan(app: FastAPI):
                                     btc_direction_ssot = sovereign_service._pulse_cache.get("btc_direction", "LATERAL")
                                     
                                     payload = {
-                                        "btc_price": bybit_ws_service.btc_price,
+                                        "btc_price": okx_ws_public_service.btc_price,
                                         "btc_variation_1h": btc_var_1h,
                                         "btc_adx": current_adx,
                                         "btc_direction": btc_direction_ssot, # SSOT consistency
@@ -564,8 +564,8 @@ async def lifespan(app: FastAPI):
     # 🛑 [V110.176] CLEAN SHUTDOWN PROTOCOL
     logger.info("🛑 [V110.176] 10D Sniper Intelligence Lab - SHUTTING DOWN...")
     try:
-        if bybit_ws_service:
-            bybit_ws_service.stop()
+        if okx_ws_public_service:
+            okx_ws_public_service.stop()
         if redis_service:
             # redis_service has an async client but connect() doesn't expose a clean close yet, 
             # let's try a best effort if it has aclose

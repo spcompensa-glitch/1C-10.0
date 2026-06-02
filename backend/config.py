@@ -14,24 +14,23 @@ class Settings(BaseSettings):
     FIREBASE_DATABASE_URL: Optional[str] = None
     ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "1crypten-admin-key-2026-production")
 
-    # Bybit
-    BYBIT_API_KEY: Optional[str] = None
-    BYBIT_API_SECRET: Optional[str] = None
-    BYBIT_CATEGORY: str = "linear"
-    BYBIT_TESTNET: bool = False # FALSE = Mainnet Data (Real Prices)
-    BYBIT_EXECUTION_MODE: str = os.getenv("BYBIT_EXECUTION_MODE", "PAPER") # "PAPER" = Simulated Execution
-    BYBIT_SIMULATED_BALANCE: float = 100.0 # [V110.175] Reset para banca padrão Sniper
+    # OKX (Única exchange integrada — V110.701: OKX Portfolio Margin)
+    OKX_API_KEY: Optional[str] = None
+    OKX_API_SECRET: Optional[str] = None
+    OKX_INST_TYPE: str = "SWAP" # OKX API: SPOT / MARGIN / SWAP / FUTURES
+    OKX_EXECUTION_MODE: str = os.getenv("OKX_EXECUTION_MODE", "PAPER") # "PAPER" = Simulated Execution
+    OKX_SIMULATED_BALANCE: float = 100.0 # [V110.175] Reset para banca padrão Sniper
     FACTORY_RESET_V110: bool = False # [V110.29.0] Reset atômico do sistema
 
     # [V28.3] Strip whitespace from critical env vars to prevent 'PAPER ' != 'PAPER' bugs
-    @field_validator('BYBIT_EXECUTION_MODE', mode='before')
+    @field_validator('OKX_EXECUTION_MODE', mode='before')
     @classmethod
     def strip_execution_mode(cls, v):
         if isinstance(v, str):
             return v.strip().upper()
         return v
 
-    @field_validator('BYBIT_TESTNET', 'FACTORY_RESET_V110', 'SERVE_STATIC_FRONTEND', 'OKX_TESTNET', mode='before')
+    @field_validator('FACTORY_RESET_V110', 'SERVE_STATIC_FRONTEND', 'OKX_TESTNET', mode='before')
     @classmethod
     def parse_testnet(cls, v):
         if isinstance(v, str):
@@ -39,7 +38,7 @@ class Settings(BaseSettings):
             return v_clean in ('true', '1', 't', 'y', 'yes')
         return bool(v)
 
-    @field_validator('BYBIT_API_KEY', 'BYBIT_API_SECRET', 'OKX_API_KEY_MASTER', 'OKX_API_SECRET_MASTER', 'OKX_PASSPHRASE_MASTER', mode='before')
+    @field_validator('OKX_API_KEY', 'OKX_API_SECRET', 'OKX_API_KEY_MASTER', 'OKX_API_SECRET_MASTER', 'OKX_PASSPHRASE_MASTER', mode='before')
     @classmethod
     def strip_api_keys(cls, v):
         if isinstance(v, str):

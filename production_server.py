@@ -261,7 +261,7 @@ async def root():
 
 if __name__ == "__main__":
     # Configurar servidor de produção
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 8085))
     host = os.getenv("HOST", "0.0.0.0")
     
     logger.info(f"🚀 Iniciando servidor de produção na porta {port}")

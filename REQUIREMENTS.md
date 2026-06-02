@@ -19,7 +19,7 @@ Este documento lista os requisitos necessários para execução, hospedagem e mo
   * WebSocket Privado da OKX para acompanhamento de posições em tempo real.
   * API HTTP de ordens em lote (`/api/v5/trade/batch-orders`) para fechamento rápido via Knife-Drop.
 * **Hermes Broker:** Porta `50051` (gRPC assíncrono HTTP/2) liberada para tenancy em tempo real.
-* **FastAPI Portas:** Porta `8002` (ou porta padrão configurada via `API_BASE`) para atendimento REST e Websockets no cockpit.
+* **FastAPI Portas:** Porta `8085` por default (`Dockerfile` EXPOSE + `backend/config.py:65`). Plataformas de deploy (Railway, Cloud Run) podem injetar override via env var `PORT` em tempo de execução. O Gunicorn sempre vincula em `:$PORT`.
 
 ---
 

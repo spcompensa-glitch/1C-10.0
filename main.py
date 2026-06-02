@@ -302,8 +302,13 @@ async def serve_login():
     else:
         raise HTTPException(status_code=404, detail="Login page not found")
 
-@app.get("/auth", response_class=FileResponse)
+@app.get("/auth", response_class=RedirectResponse)
 async def serve_auth():
+    """Redirecionar para auth.html"""
+    return "/auth.html"
+
+@app.get("/auth.html", response_class=FileResponse)
+async def serve_auth_html():
     """Servir página de Autenticação"""
     auth_path = os.path.join(frontend_path, "auth.html")
     if os.path.exists(auth_path):

@@ -93,13 +93,13 @@ def run_migrations():
     """Executa migrações do banco de dados"""
     try:
         from database.migrations.create_auth_tables import migrate_database
-        print("🔄 Executando migrações do banco de dados...")
+        print("Executando migracoes do banco de dados...")
         
         if migrate_database():
-            print("✅ Migrações concluídas com sucesso")
+            print("Migracoes concluidas com sucesso")
             return True
         else:
-            print("❌ Falha nas migrações")
+            print("Falha nas migracoes")
             return False
     except Exception as e:
         print(f"❌ Erro ao executar migrações: {e}")
@@ -109,13 +109,13 @@ def start_server(mode="production"):
     """Inicia o servidor"""
     try:
         if mode == "development":
-            print("🚀 Iniciando servidor em modo desenvolvimento...")
+            print("Iniciando servidor em modo desenvolvimento...")
             os.system("python auth_main.py")
         else:
-            print("🚀 Iniciando servidor em modo produção...")
+            print("Iniciando servidor em modo producao...")
             os.system("python auth_main.py")
     except KeyboardInterrupt:
-        print("\n👋 Servidor encerrado pelo usuário")
+        print("\n Servidor encerrado pelo usuário")
     except Exception as e:
         print(f"❌ Erro ao iniciar servidor: {e}")
 
@@ -137,39 +137,39 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
-    print("🔐 Sistema de Autenticação 1Crypten")
+    print("Sistema de Autenticação 1Crypten")
     print("=" * 40)
     
     if args.action == "setup":
-        print("🔧 Configurando ambiente...")
+        print("Configurando ambiente...")
         
         if not setup_environment():
-            print("❌ Falha na configuração do ambiente")
+            print("Falha na configuracao do ambiente")
             sys.exit(1)
         
         if not check_dependencies():
-            print("❌ Dependências faltando")
+            print("Dependencias faltando")
             sys.exit(1)
         
-        print("✅ Configuração concluída")
+        print("Configuracao concluida")
         print("Execute 'python start_auth_system.py migrate' para criar as tabelas do banco de dados")
         
     elif args.action == "migrate":
-        print("🔄 Executando migrações...")
+        print("Executando migracoes...")
         
         if not check_dependencies():
-            print("❌ Dependências faltando")
+            print("Dependencias faltando")
             sys.exit(1)
         
         if run_migrations():
-            print("✅ Migrações concluídas")
+            print("Migracoes concluidas")
             print("Execute 'python start_auth_system.py start' para iniciar o servidor")
         else:
-            print("❌ Falha nas migrações")
+            print("Falha nas migracoes")
             sys.exit(1)
             
     elif args.action == "start":
-        print("🚀 Iniciando servidor...")
+        print("Iniciando servidor...")
         start_server(args.mode)
 
 if __name__ == "__main__":

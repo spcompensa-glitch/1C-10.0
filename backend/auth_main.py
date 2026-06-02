@@ -23,14 +23,16 @@ import uvicorn
 from config import settings
 
 # Importar rotas
-from routes import auth_router, tokens_router
+from routes.auth import router as auth_router
+from routes.tokens import router as tokens_router
 
 # Importar middlewares
 from auth.middleware import setup_middleware
 
 # Configurar logging
+log_level = getattr(logging, getattr(settings, 'log_level', 'INFO').upper(), logging.INFO)
 logging.basicConfig(
-    level=getattr(logging, settings.log_level),
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -88,7 +90,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"] if settings.debug else ["1crypten.com", "localhost"]
+    allowed_hosts=["*"] if settings.DEBUG else ["1crypten.com", "localhost"]
 )
 
 # Manipulador de erros global
@@ -149,6 +151,6 @@ if __name__ == "__main__":
         "auth_main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=settings.debug,
-        log_level=settings.log_level.lower()
+        reload=settings.DEBUG,
+        log_level=getattr(settings, 'LOG_LEVEL', 'INFO').lower()
     )

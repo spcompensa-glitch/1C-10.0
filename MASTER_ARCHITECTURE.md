@@ -5,7 +5,10 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
-*   **V110.704: LOCAL SERVER STABILITY, M-ADX & CAPITAL PRESERVATION [JUN 03]**
+*   **V110.704: LOCAL SERVER STABILITY, M-ADX, CAPITAL PRESERVATION & MOONBAG SYNC [JUN 03]**
+    - **Sincronização de Moonbags no Postgres & UI**: Correção do fluxo de atualização e remoção de Moonbags. Quando o Firebase está inativo, as alterações e encerramentos de Moonbags agora refletem corretamente no PostgreSQL (através de `update_moonbag` e `remove_moonbag` em `database_service.py`).
+    - **Transmissão WebSocket de Moonbags**: Implementado broadcast em tempo real da tabela `moonbags` a cada 5 segundos no loop principal do backend para manter a UI em sincronia imediata.
+    - **Correção de Cache no Frontend**: Corrigido o hook `useMoonbagsRT` e a escuta WebSocket no `cockpit.html` para aceitar os eventos em tempo real e atualizar incondicionalmente pelo REST fallback, eliminando cards de Moonbags travados com PnL antigo ou exibidos incorretamente ("fantasmas").
     - **M-ADX Wilder Smoothing Fix**: Aumento do limite de klines requisitadas da OKX de 30 para `144` no cálculo do ADX do BTC, permitindo que a suavização de Wilder se estabilize e eliminando o travamento do indicador em 10.1.
     - **Modo de Preservação de Capital**: Bloqueio preventivo de todas as estratégias de tendência/rompimento (como BLITZ) quando o M-ADX do BTC estiver abaixo de `22.0` (Mercado Morto), liberando passe livre exclusivamente para sinais de reversão estrutural da estratégia **DVAP**.
     - **Postgres Schema Auto-Healing**: Adicionadas colunas necessárias como `vision_url` e tratamentos no `database_service.py` e `okx_rest.py` para auto-migração de bancos legados e fallback offline robusto.
@@ -14,7 +17,7 @@
     - **Self-Healing URL Router**: Implementação de roteamento automático de subpastas do Observatório e redirecionamento de assets relativos erráticos de volta para a raiz `/vendor/` e `/manifest.json`.
     - **Ascending OKX Klines & SMA100 Padding**: Ordenação correta das velas e técnica de padding simulado de 200+ candles para permitir o cálculo e renderização da linha amarela da SMA 100.
     - **Consenso Agressivo 60% & DVAP Mock Triggers**: Redução do threshold de entrada do Capitão local de 70% para 60% e mapeamento de `dvap_history` e `dvap_data` com marcas douradas e canais estruturais ativos.
-    - **SPOT Tickers optimization**: Leitura centralizada de preços de todas as 42 moedas da OKX em lote em um único request REST para evitar limites de taxa de chamadas.
+    - **SPOT Tickers optimization**: Leitura centralizada de preços de todas as 42 moedas da OKX in lote em um único request REST para evitar limites de taxa de chamadas.
 
 *   **V110.701: CEIFEIRO 1200% & ESCADINHA EXPANDIDA (PROFIT-LOCK) [MAY 31]**
     - **Escadinha Profit-Lock Expandida até 1200% ROI**: Expansão completa dos níveis de trailing stop do Ceifeiro (HarvesterAgent) para cobrir todo o espectro de 150% até 1200% ROI, espelhando fielmente os níveis do Ceifeiro nos cards da UI.

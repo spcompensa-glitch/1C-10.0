@@ -279,7 +279,6 @@ class FirebaseService:
             logger.error(f"Erro ao buscar assinantes ativos: {e}")
             return USERS_CACHE
 
-    @with_circuit_breaker(breaker_name="firebase_rest", fallback_return=None)
     async def log_trade(self, trade_data: dict):
         """
         Logs a completed trade to history.
@@ -328,6 +327,11 @@ class FirebaseService:
 
         if not self.is_active: return
 
+        # Delegate to firestore logging protected by circuit breaker
+        await self._log_trade_firestore(trade_data, order_id, symbol, pnl)
+
+    @with_circuit_breaker(breaker_name="firebase_rest", fallback_return=None)
+    async def _log_trade_firestore(self, trade_data: dict, order_id: str, symbol: str, pnl: float):
         try:
             # 3. Firestore Logging
             def _log():
@@ -369,9 +373,9 @@ class FirebaseService:
                     self.db.collection("trade_history").add(final_data)
             
             await asyncio.to_thread(_log)
-            logger.info(f"✅ [HISTORY-SUCCESS] {symbol} logged. OrderID: {order_id}")
+            logger.info(f"✅ [HISTORY-SUCCESS] {symbol} logged in Firestore. OrderID: {order_id}")
         except Exception as e:
-            logger.error(f"❌ [LOG-CRITICAL] Failure logging {symbol}: {e}")
+            logger.error(f"❌ [LOG-CRITICAL] Failure logging {symbol} in Firestore: {e}")
 
     async def register_order_genesis(self, order_data: dict):
         """
@@ -446,7 +450,12 @@ class FirebaseService:
         if not self.is_active:
             try:
                 from services.database_service import database_service
-                trades = await database_service.get_trade_history(limit=limit)
+                trades = await database_service.get_trade_history(
+                    limit=limit,
+                    symbol=symbol,
+                    start_date=start_date,
+                    end_date=end_date
+                )
                 for t in trades:
                     if t.get("timestamp") and hasattr(t["timestamp"], "isoformat"):
                         t["timestamp"] = t["timestamp"].isoformat()

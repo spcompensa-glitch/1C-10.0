@@ -2248,7 +2248,7 @@
 
                                 <div className="bg-black/60 p-5 rounded-2xl border border-white/10 relative">
                                     <span className="absolute top-2 right-4 text-[7px] font-mono text-white/40 uppercase">Vincit Qui Patitur</span>
-                                    <p className="font-mono text-[10px] text-gray-300 leading-relaxed italic">
+                                    <p className="font-mono text-[10px] text-gray-300 leading-relaxed italic whitespace-pre-wrap">
                                         "{selectedHistoryLog.reasoning_report || selectedHistoryLog.pensamento || "A IA confirmou o padrão e executou o protocolo de elite com precisão cirúrgica."}"
                                     </p>
                                 </div>
@@ -5150,8 +5150,8 @@
                                 <span className={`text-[12px] font-black font-mono leading-none ${roi >= 0 ? 'text-white' : 'text-red-400'}`}>
                                     {roi >= 0 ? '+' : ''}{roi.toFixed(1)}%
                                 </span>
-                                <div className={`text-[9px] font-bold font-mono mt-0.5 ${roi >= 0 ? 'text-white/80' : 'text-orange-500/80'}`}>
-                                    {roi >= 0 ? '+' : '-'}${Math.abs((roi / 100) * (moonbag.margin || 10)).toFixed(2)}
+                                <div className={`text-[11px] font-black font-mono mt-0.5 ${roi >= 0 ? 'text-white/90' : 'text-orange-400'}`}>
+                                    {roi >= 0 ? '+' : '-'}${Math.abs((roi / 100) * (moonbag.entry_margin || moonbag.margin || 10)).toFixed(2)}
                                 </div>
                             </div>
                         </div>
@@ -5435,11 +5435,11 @@
                         </div>
                         
                         <div className="flex flex-col items-end">
-                            <span className={`text-3xl font-black font-mono leading-none ${isProfit ? 'text-success' : 'text-danger'}`} style={{ textShadow: isProfit ? '0 0 15px rgba(34, 197, 94, 0.3)' : '0 0 15px rgba(239, 68, 68, 0.2)' }}>
+                            <span className={`text-4xl font-black font-mono leading-none ${isProfit ? 'text-success' : 'text-danger'}`} style={{ textShadow: isProfit ? '0 0 15px rgba(34, 197, 94, 0.3)' : '0 0 15px rgba(239, 68, 68, 0.2)' }}>
                                 {isProfit ? '+' : ''}{displayPnl.toFixed(1)}%
                             </span>
-                            <span className={`text-[11px] font-bold font-mono mt-1 ${isProfit ? 'text-success' : 'text-danger'} opacity-80`}>
-                                {isProfit ? '+' : '-'}${Math.abs((displayPnl / 100) * (s.margin || (s.bankroll * 0.1) || 10)).toFixed(2)}
+                            <span className={`text-sm font-black font-mono mt-1 ${isProfit ? 'text-success' : 'text-danger'}`}>
+                                {isProfit ? '+' : '-'}${Math.abs((displayPnl / 100) * (s.entry_margin || s.margin || (s.bankroll * 0.1) || 10)).toFixed(2)}
                             </span>
                         </div>
                     </div>
@@ -5447,20 +5447,20 @@
                     {/* Execution Panel - Grayscale Pill Style */}
                     <div className="flex justify-between items-center bg-white/[0.03] p-3 rounded-2xl border border-white/5 gap-4">
                         <div className="flex flex-col flex-1">
-                            <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Entry</span>
-                            <span className="text-xs font-bold text-white font-mono">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Entry</span>
+                            <span className="text-sm font-black text-white font-mono">
                                 ${formatPrice(s.entry_price)}
                             </span>
                         </div>
                         <div className="flex flex-col flex-1 items-center border-x border-white/5 px-2">
-                            <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop Loss</span>
-                            <span className="text-xs font-bold text-secondary font-mono">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stop Loss</span>
+                            <span className="text-sm font-black text-secondary font-mono">
                                 ${formatPrice(s.current_stop || s.stop_loss)}
                             </span>
                         </div>
                         <div className="flex flex-col flex-1 items-end">
-                            <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Target</span>
-                            <span className="text-xs font-bold text-white font-mono">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target</span>
+                            <span className="text-sm font-black text-white font-mono">
                                 ${formatPrice(s.side === 'Buy' || s.side === 'LONG' ? Number(s.entry_price || 0) * (1 + 1.5/(Number(s.leverage)||50)) : Number(s.entry_price || 0) * (1 - 1.5/(Number(s.leverage)||50)))}
                             </span>
                         </div>

@@ -461,7 +461,7 @@ class DatabaseService:
                     ts_val = datetime.utcnow()
                 
                 new_trade = TradeHistory(
-                    order_id=str(trade_data.get("order_id")),
+                    order_id=str(trade_data.get("order_id")) if trade_data.get("order_id") else None,
                     genesis_id=trade_data.get("genesis_id"),
                     symbol=trade_data.get("symbol"),
                     side=trade_data.get("side"),
@@ -472,7 +472,8 @@ class DatabaseService:
                     strategy=trade_data.get("strategy"),
                     close_reason=trade_data.get("close_reason"),
                     timestamp=ts_val,
-                    data=clean_data
+                    data=clean_data,
+                    vision_url=trade_data.get("vision_url")
                 )
                 session.add(new_trade)
                 await session.commit()
@@ -480,11 +481,34 @@ class DatabaseService:
             except Exception as e:
                 logger.error(f"Error logging trade: {e}")
 
-    async def get_trade_history(self, limit: int = 50):
+    async def get_trade_history(self, limit: int = 50, symbol: str = None, start_date: str = None, end_date: str = None):
         async with self.AsyncSessionLocal() as session:
-            result = await session.execute(select(TradeHistory).order_by(desc(TradeHistory.timestamp)).limit(limit))
-            trades = result.scalars().all()
-            return [{c.name: getattr(t, c.name) for c in t.__table__.columns} for t in trades]
+            try:
+                stmt = select(TradeHistory)
+                if symbol:
+                    stmt = stmt.where(TradeHistory.symbol == symbol.upper())
+                if start_date:
+                    try:
+                        from datetime import datetime as dt
+                        sd = dt.fromisoformat(start_date.replace("Z", "+00:00")).replace(tzinfo=None)
+                        stmt = stmt.where(TradeHistory.timestamp >= sd)
+                    except:
+                        pass
+                if end_date:
+                    try:
+                        from datetime import datetime as dt
+                        ed = dt.fromisoformat(end_date.replace("Z", "+00:00")).replace(tzinfo=None)
+                        stmt = stmt.where(TradeHistory.timestamp <= ed)
+                    except:
+                        pass
+                
+                stmt = stmt.order_by(desc(TradeHistory.timestamp)).limit(limit)
+                result = await session.execute(stmt)
+                trades = result.scalars().all()
+                return [{c.name: getattr(t, c.name) for c in t.__table__.columns} for t in trades]
+            except Exception as e:
+                logger.error(f"Error fetching trade history from database: {e}")
+                return []
 
     # --- RADAR PULSE PERSISTENCE ---
     async def update_radar_pulse(self, data: dict):

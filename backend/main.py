@@ -852,14 +852,24 @@ if settings.SERVE_STATIC_FRONTEND:
             )
 
     @app.get("/{full_path:path}")
-    async def catch_all(full_path: str):
+    async def catch_all(full_path: str, request: Request):
+        # Remove query params/hash if they exist in full_path or resolve via request.url.path
+        # When request has query parameters, Uvicorn might pass full_path as the path without parameters,
+        # but just in case, let's clean full_path or use request.url.path
+        clean_path = request.url.path.lstrip("/")
+        
         # Search for physical file first (crucial for manifest.json, sw.js, etc.)
-        file_path = os.path.join(FRONTEND_DIR, full_path)
+        file_path = os.path.join(FRONTEND_DIR, clean_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
             
+        # Fallback using original full_path just in case
+        file_path_alt = os.path.join(FRONTEND_DIR, full_path)
+        if os.path.isfile(file_path_alt):
+            return FileResponse(file_path_alt)
+            
         # SECURITY: Never catch-all API routes that DON'T correspond to files
-        if full_path.startswith("api/"):
+        if clean_path.startswith("api/") or full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="API endpoint not found")
         
         # SPA Fallback

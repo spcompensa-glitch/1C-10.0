@@ -988,46 +988,41 @@ async def get_market_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit
 @app.get("/api/moonbags")
 async def get_moonbags():
     """Moonbags - tokens com potencial"""
-    return {
-        "timestamp": time.time(),
-        "moonbags": [
-            {
-                "symbol": "PEPEUSDT",
-                "name": "Pepe",
-                "price": 0.00001234,
-                "24h_change": "+15.2%",
-                "volume": "125M",
-                "holders": "1.2M",
-                "potential": "HIGH",
-                "moonbag_score": 87,
-                "last_signal": "STRONG BUY"
-            },
-            {
-                "symbol": "SHIBUSDT",
-                "name": "Shiba Inu", 
-                "price": 0.00002345,
-                "24h_change": "+8.7%",
-                "volume": "89M",
-                "holders": "3.8M",
-                "potential": "MEDIUM",
-                "moonbag_score": 72,
-                "last_signal": "BUY"
-            },
-            {
-                "symbol": "DOGEUSDT",
-                "name": "Dogecoin",
-                "price": 0.15678,
-                "24h_change": "+5.2%",
-                "volume": "2.1B",
-                "holders": "5.2M",
-                "potential": "LOW",
-                "moonbag_score": 58,
-                "last_signal": "HOLD"
-            }
-        ],
-        "total_moonbags": 3,
-        "average_score": 72
-    }
+    return [
+        {
+            "symbol": "PEPEUSDT",
+            "name": "Pepe",
+            "price": 0.00001234,
+            "24h_change": "+15.2%",
+            "volume": "125M",
+            "holders": "1.2M",
+            "potential": "HIGH",
+            "moonbag_score": 87,
+            "last_signal": "STRONG BUY"
+        },
+        {
+            "symbol": "SHIBUSDT",
+            "name": "Shiba Inu", 
+            "price": 0.00002345,
+            "24h_change": "+8.7%",
+            "volume": "89M",
+            "holders": "3.8M",
+            "potential": "MEDIUM",
+            "moonbag_score": 72,
+            "last_signal": "BUY"
+        },
+        {
+            "symbol": "DOGEUSDT",
+            "name": "Dogecoin",
+            "price": 0.15678,
+            "24h_change": "+5.2%",
+            "volume": "412M",
+            "holders": "6.2M",
+            "potential": "MEDIUM",
+            "moonbag_score": 68,
+            "last_signal": "HOLD"
+        }
+    ]
 
 @app.get("/api/history")
 async def get_history(limit: int = 50):

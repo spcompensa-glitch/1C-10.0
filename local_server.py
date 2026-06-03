@@ -586,7 +586,7 @@ async def get_klines(symbol: str = "BTC-USDT", interval: str = "15m", limit: int
 # ─── Moonbags ─────────────────────────────────────────────────────────────────
 @app.get("/api/moonbags")
 async def get_moonbags():
-    return {"moonbags": []}
+    return []
 
 # ─── Banca ($100 PAPER) ──────────────────────────────────────────────────────
 @app.get("/api/banca/data")

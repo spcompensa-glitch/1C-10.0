@@ -201,10 +201,10 @@ async def get_moonbags(limit: int = 10):
         # Se for None ou não for lista, garante lista vazia
         if not isinstance(moonbags_list, list):
             moonbags_list = []
-        return {"moonbags": moonbags_list}
+        return moonbags_list
     except Exception as e:
         logger.error(f"Error fetching moonbags: {e}")
-        return {"moonbags": []}
+        return []
 
 @router.post("/nuke-paper")
 async def nuke_paper_state(current_user: User = Depends(get_current_user)):

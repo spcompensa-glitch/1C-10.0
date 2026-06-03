@@ -5435,10 +5435,10 @@
                         </div>
                         
                         <div className="flex flex-col items-end">
-                            <span className={`text-4xl font-black font-mono leading-none ${isProfit ? 'text-success' : 'text-danger'}`} style={{ textShadow: isProfit ? '0 0 15px rgba(34, 197, 94, 0.3)' : '0 0 15px rgba(239, 68, 68, 0.2)' }}>
+                            <span className={`text-base font-black font-mono leading-none opacity-85 ${isProfit ? 'text-success' : 'text-danger'}`}>
                                 {isProfit ? '+' : ''}{displayPnl.toFixed(1)}%
                             </span>
-                            <span className={`text-sm font-black font-mono mt-1 ${isProfit ? 'text-success' : 'text-danger'}`}>
+                            <span className={`text-2xl font-black font-mono mt-1 ${isProfit ? 'text-success' : 'text-danger'}`} style={{ textShadow: isProfit ? '0 0 15px rgba(34, 197, 94, 0.4)' : '0 0 15px rgba(239, 68, 68, 0.3)' }}>
                                 {isProfit ? '+' : '-'}${Math.abs((displayPnl / 100) * (s.entry_margin || s.margin || (s.bankroll * 0.1) || 10)).toFixed(2)}
                             </span>
                         </div>
@@ -6638,9 +6638,9 @@
                             <section>
                                 <button 
                                     onClick={() => window.open('/observatory', '_blank')}
-                                    className="w-full h-11 flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-[#00ffcc] text-black font-black text-[11px] uppercase tracking-[0.2em] hover:shadow-[0_0_20px_rgba(0,255,204,0.4)] transition-all duration-300 border border-white/10 group cursor-pointer"
+                                    className="w-full h-11 flex items-center justify-center gap-3 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-indigo-500/50 hover:bg-white/[0.05] text-gray-300 hover:text-white font-bold text-[11px] uppercase tracking-[0.25em] transition-all duration-300 group cursor-pointer shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                                 >
-                                    <span className="material-icons-round text-lg group-hover:rotate-12 transition-transform duration-300">visibility</span>
+                                    <span className="material-icons-round text-sm text-indigo-400 group-hover:text-[#00ffcc] transition-colors duration-300">visibility</span>
                                     <span>Observatório Premium</span>
                                 </button>
                             </section>

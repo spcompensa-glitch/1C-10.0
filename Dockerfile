@@ -40,6 +40,6 @@ WORKDIR /app
 ENV PORT=8085
 EXPOSE 8085
 
-# Command to run the application using Uvicorn (Railway Standard with Dynamic Port fallback)
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1
+# Command to run the application using Uvicorn (Railway Standard with Fixed Port 8085 to match proxy routing)
+CMD uvicorn main:app --host 0.0.0.0 --port 8085 --workers 1
 

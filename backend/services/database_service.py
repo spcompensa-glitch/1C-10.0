@@ -260,21 +260,29 @@ class DatabaseService:
         if not slot or not slot.get("symbol"):
             return False
             
-        import uuid
+        # V110.704: UUID determinístico baseado no símbolo e timestamp de abertura para evitar duplicidades
+        open_ts = int(slot.get("opened_at") or time.time())
+        moon_uuid = f"{slot['symbol'].replace('.P','')}_{open_ts}"
+        
         async with self.AsyncSessionLocal() as session:
             try:
-                moon = Moonbag(
-                    uuid=str(uuid.uuid4()),
-                    symbol=slot["symbol"],
-                    side=slot.get("side", "BUY"),
-                    qty=float(slot.get("qty", 0)),
-                    entry_price=float(slot.get("entry_price", 0)),
-                    current_stop=float(slot.get("current_stop", 0)),
-                    pnl_percent=float(slot.get("pnl_percent", 0))
-                )
-                session.add(moon)
-                await session.commit()
-                logger.info(f"🚀 Moonbag criada para {slot['symbol']}")
+                # [V110.704] Impedir duplicação atômica no Postgres
+                existing = await session.get(Moonbag, moon_uuid)
+                if existing:
+                    logger.warning(f"🛡️ [V110.704] Moonbag {slot['symbol']} com UUID {moon_uuid} já existe no Postgres. Pulando inserção.")
+                else:
+                    moon = Moonbag(
+                        uuid=moon_uuid,
+                        symbol=slot["symbol"],
+                        side=slot.get("side", "BUY"),
+                        qty=float(slot.get("qty", 0)),
+                        entry_price=float(slot.get("entry_price", 0)),
+                        current_stop=float(slot.get("current_stop", 0)),
+                        pnl_percent=float(slot.get("pnl_percent", 0))
+                    )
+                    session.add(moon)
+                    await session.commit()
+                    logger.info(f"🚀 Moonbag criada para {slot['symbol']} no Postgres (UUID: {moon_uuid})")
                 
                 # [V110.183] Libera o slot no Postgres após emancipação
                 reset_data = {

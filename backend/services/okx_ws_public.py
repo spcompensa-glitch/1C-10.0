@@ -315,7 +315,7 @@ class OKXWSPublic:
         
         try:
             # 1. Update BTC Variation (1h)
-            btc_klines_1h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="60", limit=30)
+            btc_klines_1h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="60", limit=144)
             if len(btc_klines_1h) >= 2:
                 # Bybit returns newest first: [current, previous]
                 close_latest = float(btc_klines_1h[0][4])
@@ -325,8 +325,8 @@ class OKXWSPublic:
 
             # 2. [V110.36.0] Master ADX (M-ADX) Calculation
             # Fetch 4H and 15m klines concurrently alongside the already fetched 1H
-            btc_klines_4h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="240", limit=30)
-            btc_klines_15m = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=30)
+            btc_klines_4h = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="240", limit=144)
+            btc_klines_15m = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="15", limit=144)
             
             adx_4h = self._calculate_adx(btc_klines_4h)
             adx_1h = self._calculate_adx(btc_klines_1h)

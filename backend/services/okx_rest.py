@@ -149,9 +149,70 @@ class OKXRest:
 
 
             else:
-                # Silencioso se estiver vazio para não poluir o Cloud Run
-                self.paper_balance = settings.OKX_SIMULATED_BALANCE
+                # [V110.704] FALLBACK POSTGRESQL PARA MODO OFFLINE / SEM FIREBASE
+                # Carregar o saldo, slots e moonbags diretamente do Postgres para evitar posições zumbis
+                from services.database_service import database_service
+                
+                # 1. Carregar Banca Status
+                banca_db = await database_service.get_banca_status()
+                self.paper_balance = float(banca_db.get("saldo_total", settings.OKX_SIMULATED_BALANCE))
+                if self.paper_balance != 100.0:
+                    self.paper_balance = 100.0
+                
+                # 2. Carregar Slots do Postgres para self.paper_positions
+                slots_db = await database_service.get_active_slots()
+                self.paper_positions = []
+                for f_slot in slots_db:
+                    symbol = f_slot.get("symbol")
+                    entry_price = float(f_slot.get("entry_price", 0))
+                    # [V125 Sem BTC] Purga qualquer resíduo de BTCUSDT da memória Paper
+                    if symbol and symbol.upper().replace(".P", "") != "BTCUSDT" and entry_price > 0:
+                        recovered_pos = {
+                            "symbol": symbol,
+                            "side": f_slot.get("side", "Buy"),
+                            "size": str(f_slot.get("qty", 0)),
+                            "avgPrice": str(f_slot.get("entry_price", 0)),
+                            "leverage": str(f_slot.get("leverage", 50)),
+                            "status": "RECOVERED",
+                            "stopLoss": str(f_slot.get("current_stop", 0)),
+                            "takeProfit": str(f_slot.get("target_price", 0)),
+                            "opened_at": f_slot.get("opened_at", time.time()),
+                            "is_paper": True,
+                            "slot_id": f_slot.get("id", 0),
+                            "entry_margin": f_slot.get("entry_margin", 0),
+                            "genesis_id": f_slot.get("genesis_id", ""),
+                            "score": f_slot.get("score", 0),
+                            "fleet_intel": f_slot.get("fleet_intel", {}),
+                            "pensamento": f_slot.get("pensamento", ""),
+                            "slot_type": f_slot.get("slot_type", "SNIPER"),
+                        }
+                        self.paper_positions.append(recovered_pos)
+                
+                # 3. Carregar Moonbags do Postgres para self.paper_moonbags
+                moons_db = await database_service.get_moonbags()
+                self.paper_moonbags = []
+                for v_moon in moons_db:
+                    symbol = v_moon.get("symbol")
+                    if symbol and symbol.upper().replace(".P", "") != "BTCUSDT":
+                        pos_obj = {
+                            "symbol": symbol,
+                            "side": v_moon.get("side", "Buy"),
+                            "size": str(v_moon.get("qty", 0)),
+                            "avgPrice": str(v_moon.get("entry_price", 0)),
+                            "leverage": str(v_moon.get("leverage", 50)),
+                            "status": "EMANCIPATED",
+                            "stopLoss": str(v_moon.get("current_stop", 0)),
+                            "takeProfit": "0",
+                            "is_paper": True,
+                            "entry_margin": (float(v_moon.get("qty", 10)) * float(v_moon.get("entry_price", 0))) / float(v_moon.get("leverage", 50)),
+                            "opened_at": v_moon.get("opened_at", time.time())
+                        }
+                        self.paper_moonbags.append(pos_obj)
+                
                 self._last_paper_load_time = time.time()
+                if self.paper_positions or self.paper_moonbags:
+                    logger.info(f"📂 [PAPER-POSTGRES-FALLBACK] State Synced from DB: {len(self.paper_positions)} Pos | {len(self.paper_moonbags)} Moons | ${self.paper_balance:.2f}")
+
         except Exception as e:
             logger.error(f"❌ [PAPER] Failed to load global state: {e}")
 

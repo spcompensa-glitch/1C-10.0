@@ -1,5 +1,5 @@
 # Use official Python runtime as a parent image
-# Build trigger: 2026-06-03 (V110.705 Cache Buster)
+# Build trigger: 2026-06-03 (V110.706 Full Backend)
 FROM python:3.12-slim
 
 # Set environment variables
@@ -41,5 +41,5 @@ ENV PORT=8085
 EXPOSE 8085
 
 # Command to run the application using Uvicorn (Railway Standard with Fixed Port 8085 to match proxy routing)
-CMD uvicorn main:app --host 0.0.0.0 --port 8085 --workers 1
+CMD uvicorn backend.main:app --host 0.0.0.0 --port 8085 --workers 1
 

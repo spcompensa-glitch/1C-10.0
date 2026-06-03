@@ -197,10 +197,14 @@ A diretriz segue inalterada: Disciplina sobre a emoção."""
 async def get_moonbags(limit: int = 10):
     firebase_service, _, _, _, _ = get_services()
     try:
-        return await firebase_service.get_moonbags(limit=limit)
+        moonbags_list = await firebase_service.get_moonbags(limit=limit)
+        # Se for None ou não for lista, garante lista vazia
+        if not isinstance(moonbags_list, list):
+            moonbags_list = []
+        return {"moonbags": moonbags_list}
     except Exception as e:
         logger.error(f"Error fetching moonbags: {e}")
-        return []
+        return {"moonbags": []}
 
 @router.post("/nuke-paper")
 async def nuke_paper_state(current_user: User = Depends(get_current_user)):

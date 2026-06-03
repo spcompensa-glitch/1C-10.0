@@ -80,10 +80,14 @@ class HermesBrokerService:
             return
             
         try:
-            # Paho MQTT 2.0+ exige a declaração da versão da API de callback
-            self.mqtt_client = mqtt.Client(
-                callback_api_version=mqtt.CallbackAPIVersion.VERSION2
-            )
+            # Paho MQTT 2.0+ exige a declaração da versão da API de callback.
+            # Verificamos hasattr para compatibilidade com versões antigas (como 1.6.x) no Railway.
+            if hasattr(mqtt, "CallbackAPIVersion"):
+                self.mqtt_client = mqtt.Client(
+                    callback_api_version=mqtt.CallbackAPIVersion.VERSION2
+                )
+            else:
+                self.mqtt_client = mqtt.Client()
 
             if self.mqtt_user and self.mqtt_password:
                 self.mqtt_client.username_pw_set(self.mqtt_user, self.mqtt_password)

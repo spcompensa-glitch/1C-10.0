@@ -76,8 +76,8 @@ class Settings(BaseSettings):
 
     # [V110.550] OKX Master Account Credentials
     OKX_API_KEY_MASTER: Optional[str] = os.getenv("OKX_API_KEY_MASTER", None)
-    OKX_API_SECRET_MASTER: Optional[str] = os.getenv("OKX_API_SECRET_MASTER", None)
-    OKX_PASSPHRASE_MASTER: Optional[str] = os.getenv("OKX_PASSPHRASE_MASTER", None)
+    OKX_API_SECRET_MASTER: Optional[str] = os.getenv("OKX_API_SECRET_MASTER", os.getenv("OKX_SECRET_KEY", None))
+    OKX_PASSPHRASE_MASTER: Optional[str] = os.getenv("OKX_PASSPHRASE_MASTER", os.getenv("OKX_PASSPHRASE", None))
 
     # NVIDIA AI Configuration - Hermes-Crypten
     NVAPI_KEY: Optional[str] = os.getenv("NVAPI_KEY", None)

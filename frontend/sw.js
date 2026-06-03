@@ -7,7 +7,7 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.185.0'; // [SILENCED LOGS] cockpit.html console noise removed
+const CACHE_NAME = '1crypten-sniper-v110.186.0'; // [V110.186] Pre-compiled JSX (no Babel runtime)
 const OFFLINE_URL = '/offline.html';
 
 // Assets that must be available offline
@@ -19,13 +19,7 @@ const STATIC_ASSETS = [
     '/logo10D.png',
     '/logo10DTrasp.png',
     '/favicon.ico',
-    '/vendor/react.production.min.js',
-    '/vendor/react-dom.production.min.js',
-    '/vendor/react-router.production.min.js',
-    '/vendor/react-router-dom.production.min.js',
-    '/vendor/babel.min.js',
-    '/vendor/framer-motion.js',
-    '/vendor/lightweight-charts.standalone.production.js'
+    '/vendor/cockpit.bundle.js'
 ];
 
 // Instalação: Cacheia arquivos críticos
@@ -48,7 +42,7 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
-    console.log('[SW] V110.183.0 Activated ✅');
+    console.log('[SW] V110.186.0 Activated (pre-compiled JSX) ✅');
     return self.clients.claim();
 });
 

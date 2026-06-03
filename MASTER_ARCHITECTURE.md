@@ -1,9 +1,16 @@
-# MASTER_ARCHITECTURE.md — V110.701 "Ceifeiro 1200% & Escadinha Expandida"
+# MASTER_ARCHITECTURE.md — V110.704 "Ceifeiro 1200% & Escadinha Expandida"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.701)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.701)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.704)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.704)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.704: LOCAL SERVER STABILITY & INDICATOR REFINEMENT [JUN 03]**
+    - **Service Worker Asset Alignment**: Purga de dependências ausentes na pasta local `/vendor/` da lista de cache em `sw.js` para sanar erros de instalação.
+    - **Self-Healing URL Router**: Implementação de roteamento automático de subpastas do Observatório e redirecionamento de assets relativos erráticos de volta para a raiz `/vendor/` e `/manifest.json`.
+    - **Ascending OKX Klines & SMA100 Padding**: Ordenação correta das velas e técnica de padding simulado de 200+ candles para permitir o cálculo e renderização da linha amarela da SMA 100.
+    - **Consenso Agressivo 60% & DVAP Mock Triggers**: Redução do threshold de entrada do Capitão local de 70% para 60% e mapeamento de `dvap_history` e `dvap_data` com marcas douradas e canais estruturais ativos.
+    - **SPOT Tickers optimization**: Leitura centralizada de preços de todas as 42 moedas da OKX em lote em um único request REST para evitar limites de taxa de chamadas.
 
 *   **V110.701: CEIFEIRO 1200% & ESCADINHA EXPANDIDA (PROFIT-LOCK) [MAY 31]**
     - **Escadinha Profit-Lock Expandida até 1200% ROI**: Expansão completa dos níveis de trailing stop do Ceifeiro (HarvesterAgent) para cobrir todo o espectro de 150% até 1200% ROI, espelhando fielmente os níveis do Ceifeiro nos cards da UI.
@@ -328,7 +335,7 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.701)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.704)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.

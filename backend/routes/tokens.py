@@ -2,49 +2,79 @@
 # -*- coding: utf-8 -*-
 """
 Rotas de Gerenciamento de Tokens OKX
-===================================
+=====================================
 
 Endpoints para gerenciamento de tokens OKX criptografados.
+Versão 2.0 — Suporte a chaves reais OKX (formato UUID), teste em tempo real.
 
 Author: Sistema 1Crypten
-Version: 1.0
+Version: 2.0
 """
 
 import logging
-from typing import List, Dict, Any
+import hmac
+import hashlib
+import base64
+import httpx
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
-from datetime import datetime
 
-from auth.middleware import get_current_user, require_permission, audit_log
+from auth.middleware import get_current_user, audit_log
 from database.models_auth import UserOKXTokens
 from database.database_service_secure import get_db
 from security.encryption import get_encryption_instance, get_data_masker
-from services.okx_user_service import OKXUserService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/account", tags=["tokens"])
 
+# ---------------------------------------------------------------------------
 # Modelos de request/response
+# ---------------------------------------------------------------------------
+
 class OKXTokenRequest(BaseModel):
-    """Request de token OKX"""
+    """Request de token OKX — aceita formato real da OKX (UUID com hífens)"""
     api_key: str
     secret_key: str
-    passphrase: str = None
-    
+    passphrase: Optional[str] = None
+
     @validator('api_key')
     def validate_api_key(cls, v):
-        if len(v) != 32 or not v.isalnum():
-            raise ValueError('API Key OKX deve ter 32 caracteres alfanuméricos')
+        v = v.strip()
+        if not v:
+            raise ValueError('API Key não pode ser vazia')
+        # Formato UUID OKX: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars)
+        # Ou formato legado: 32 chars alfanuméricos
+        clean = v.replace('-', '')
+        if len(clean) < 16:
+            raise ValueError('API Key OKX muito curta (mínimo 16 caracteres)')
         return v
-    
+
     @validator('secret_key')
     def validate_secret_key(cls, v):
+        v = v.strip()
         if not v or len(v) < 10:
-            raise ValueError('Secret Key OKX inválida')
+            raise ValueError('Secret Key OKX inválida (mínimo 10 caracteres)')
         return v
+
+    @validator('passphrase')
+    def validate_passphrase(cls, v):
+        if v is not None:
+            v = v.strip()
+            if not v:
+                return None
+        return v
+
+
+class OKXTokenTestRequest(BaseModel):
+    """Request para testar credenciais ANTES de salvar"""
+    api_key: str
+    secret_key: str
+    passphrase: Optional[str] = None
+
 
 class OKXTokenResponse(BaseModel):
     """Response de token OKX"""
@@ -55,51 +85,198 @@ class OKXTokenResponse(BaseModel):
     updated_at: str
     masked_api_key: str
 
+
 class OKXTokensListResponse(BaseModel):
     """Response de lista de tokens"""
-    tokens: List[OKXTokenResponse]
+    tokens: list
     total: int
 
-class TokenActivationRequest(BaseModel):
-    """Request para ativar/desativar token"""
-    is_active: bool
 
-# Instâncias globais
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 encryption = get_encryption_instance()
 data_masker = get_data_masker()
 
-@router.get("/okx-tokens", response_model=OKXTokensListResponse)
-@audit_log(action="list_tokens", resource="okx_tokens")
-async def get_okx_tokens(
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
+OKX_BASE_URL = "https://www.okx.com"
+
+def _build_okx_signature(timestamp: str, method: str, path: str, body: str, secret_key: str) -> str:
+    """Gera assinatura HMAC-SHA256 para a OKX API (modo REAL)"""
+    prehash = timestamp + method.upper() + path + body
+    mac = hmac.new(
+        secret_key.encode('utf-8'),
+        prehash.encode('utf-8'),
+        hashlib.sha256
+    )
+    return base64.b64encode(mac.digest()).decode()
+
+
+def _okx_headers(api_key: str, secret_key: str, passphrase: str) -> dict:
+    """Monta os headers de autenticação da OKX API"""
+    ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    path = '/api/v5/account/balance'
+    signature = _build_okx_signature(ts, 'GET', path, '', secret_key)
+    return {
+        'OK-ACCESS-KEY': api_key,
+        'OK-ACCESS-SIGN': signature,
+        'OK-ACCESS-TIMESTAMP': ts,
+        'OK-ACCESS-PASSPHRASE': passphrase or '',
+        'Content-Type': 'application/json',
+        # SEM x-simulated-trading — modo REAL apenas
+    }
+
+
+async def _test_okx_credentials(api_key: str, secret_key: str, passphrase: Optional[str]) -> dict:
+    """
+    Faz chamada real à OKX API para testar as credenciais.
+    Retorna saldo ou erro.
+    """
+    headers = _okx_headers(api_key.strip(), secret_key.strip(), (passphrase or '').strip())
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{OKX_BASE_URL}/api/v5/account/balance",
+                headers=headers
+            )
+        data = resp.json()
+        if data.get('code') == '0':
+            # Extrair saldo USDT
+            details = data.get('data', [{}])
+            total_equity = '0'
+            usdt_balance = '0'
+            if details:
+                total_equity = details[0].get('totalEq', '0')
+                for asset in details[0].get('details', []):
+                    if asset.get('ccy') == 'USDT':
+                        usdt_balance = asset.get('availBal', '0')
+                        break
+            return {
+                'success': True,
+                'total_equity_usd': float(total_equity),
+                'usdt_available': float(usdt_balance),
+                'message': 'Conexão com OKX bem-sucedida ✅'
+            }
+        else:
+            msg = data.get('msg', 'Erro desconhecido')
+            code = data.get('code', '?')
+            return {
+                'success': False,
+                'message': f'OKX rejeitou as credenciais — Código {code}: {msg}'
+            }
+    except httpx.TimeoutException:
+        return {'success': False, 'message': 'Timeout ao conectar com a OKX'}
+    except Exception as e:
+        logger.error(f"Erro no teste de credenciais OKX: {e}")
+        return {'success': False, 'message': f'Erro de conexão: {str(e)}'}
+
+
+def _get_client_ip(request: Request) -> str:
+    try:
+        return request.client.host
+    except Exception:
+        return "unknown"
+
+
+def _get_user_agent(request: Request) -> str:
+    try:
+        return request.headers.get("user-agent", "unknown")
+    except Exception:
+        return "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/okx-tokens/test-live")
+async def test_okx_credentials_live(
+    token_data: OKXTokenTestRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    [REAL] Testa credenciais OKX em tempo real ANTES de salvar.
+    Faz uma chamada real à OKX API (/api/v5/account/balance).
+    Não persiste nada no banco.
+    """
+    result = await _test_okx_credentials(
+        api_key=token_data.api_key,
+        secret_key=token_data.secret_key,
+        passphrase=token_data.passphrase
+    )
+    if result['success']:
+        return result
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result['message']
+        )
+
+
+@router.get("/okx-tokens/status")
+async def get_okx_tokens_status(
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Obtém tokens OKX do usuário
-    
-    Retorna lista de tokens com API keys mascaradas
+    Retorna status rápido das credenciais OKX do usuário.
+    Mostra API Key mascarada e se está ativa — sem expor dados sensíveis.
     """
     try:
-        # Buscar tokens do usuário
+        token = db.query(UserOKXTokens).filter(
+            UserOKXTokens.user_id == current_user['id'],
+            UserOKXTokens.is_active == True
+        ).order_by(UserOKXTokens.updated_at.desc()).first()
+
+        if not token:
+            return {
+                'configured': False,
+                'message': 'Nenhuma credencial OKX configurada',
+                'masked_api_key': None,
+                'updated_at': None
+            }
+
+        decrypted_key = encryption.decrypt_token(token.api_key_encrypted)
+        return {
+            'configured': True,
+            'message': 'Credencial OKX ativa',
+            'masked_api_key': data_masker.mask_api_key(decrypted_key),
+            'token_id': token.id,
+            'updated_at': token.updated_at.isoformat() if token.updated_at else None
+        }
+    except Exception as e:
+        logger.error(f"Erro ao verificar status OKX para user {current_user.get('id')}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao verificar status das credenciais"
+        )
+
+
+@router.get("/okx-tokens")
+async def get_okx_tokens(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtém tokens OKX do usuário com API keys mascaradas"""
+    try:
         tokens = db.query(UserOKXTokens).filter(
             UserOKXTokens.user_id == current_user['id'],
             UserOKXTokens.is_active == True
         ).all()
-        
-        # Mascara API keys
-        masked_tokens = []
+
+        result = []
         for token in tokens:
-            masked_token_data = token.to_dict()
-            masked_token_data['masked_api_key'] = data_masker.mask_api_key(
-                encryption.decrypt_token(token.api_key_encrypted)
-            )
-            masked_tokens.append(OKXTokenResponse(**masked_token_data))
-        
-        return OKXTokensListResponse(
-            tokens=masked_tokens,
-            total=len(masked_tokens)
-        )
-        
+            decrypted_key = encryption.decrypt_token(token.api_key_encrypted)
+            result.append({
+                'id': token.id,
+                'exchange_name': token.exchange_name,
+                'is_active': token.is_active,
+                'masked_api_key': data_masker.mask_api_key(decrypted_key),
+                'created_at': token.created_at.isoformat() if token.created_at else None,
+                'updated_at': token.updated_at.isoformat() if token.updated_at else None,
+            })
+
+        return {'tokens': result, 'total': len(result)}
     except Exception as e:
         logger.error(f"Erro ao buscar tokens OKX: {e}")
         raise HTTPException(
@@ -107,34 +284,47 @@ async def get_okx_tokens(
             detail="Erro ao buscar tokens OKX"
         )
 
-@router.post("/okx-tokens", response_model=OKXTokenResponse)
-@audit_log(action="create_token", resource="okx_tokens")
+
+@router.post("/okx-tokens")
 async def create_okx_token(
     request: Request,
     token_data: OKXTokenRequest,
-    master_password: str,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Cria novo token OKX
-    
-    Requer senha mestre para criptografar o token
+    Salva credenciais OKX criptografadas para o usuário.
+    Faz teste em tempo real antes de persistir.
+    Se o usuário já tiver credenciais ativas, desativa as antigas.
     """
     try:
-        # Validar senha mestre
-        if not master_password or len(master_password) < 8:
+        # 1. Testar credenciais em tempo real antes de salvar
+        test_result = await _test_okx_credentials(
+            api_key=token_data.api_key,
+            secret_key=token_data.secret_key,
+            passphrase=token_data.passphrase
+        )
+        if not test_result['success']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Senha mestre inválida"
+                detail=f"Credenciais inválidas: {test_result['message']}"
             )
-        
-        # Criptografar tokens
-        encrypted_api_key = encryption.encrypt_token(token_data.api_key)
-        encrypted_secret_key = encryption.encrypt_token(token_data.secret_key)
-        encrypted_passphrase = encryption.encrypt_token(token_data.passphrase) if token_data.passphrase else None
-        
-        # Criar novo token
+
+        # 2. Desativar tokens anteriores do usuário
+        db.query(UserOKXTokens).filter(
+            UserOKXTokens.user_id == current_user['id'],
+            UserOKXTokens.is_active == True
+        ).update({'is_active': False, 'updated_at': datetime.utcnow()})
+
+        # 3. Criptografar e persistir
+        encrypted_api_key = encryption.encrypt_token(token_data.api_key.strip())
+        encrypted_secret_key = encryption.encrypt_token(token_data.secret_key.strip())
+        encrypted_passphrase = (
+            encryption.encrypt_token(token_data.passphrase.strip())
+            if token_data.passphrase and token_data.passphrase.strip()
+            else None
+        )
+
         new_token = UserOKXTokens(
             user_id=current_user['id'],
             exchange_name='okx',
@@ -147,228 +337,120 @@ async def create_okx_token(
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
-        
+
         db.add(new_token)
         db.commit()
         db.refresh(new_token)
-        
-        # Mascara API key para response
-        masked_api_key = data_masker.mask_api_key(token_data.api_key)
-        
-        logger.info(f"Novo token OKX criado para usuário: {current_user['username']}")
-        
-        return OKXTokenResponse(
-            id=new_token.id,
-            exchange_name=new_token.exchange_name,
-            is_active=new_token.is_active,
-            created_at=new_token.created_at.isoformat(),
-            updated_at=new_token.updated_at.isoformat(),
-            masked_api_key=masked_api_key
-        )
-        
+
+        logger.info(f"Credenciais OKX salvas para usuário: {current_user.get('username')} | "
+                    f"Saldo: ${test_result.get('total_equity_usd', 0):.2f}")
+
+        return {
+            'success': True,
+            'message': 'Credenciais OKX salvas com sucesso',
+            'masked_api_key': data_masker.mask_api_key(token_data.api_key),
+            'token_id': new_token.id,
+            'total_equity_usd': test_result.get('total_equity_usd'),
+            'usdt_available': test_result.get('usdt_available'),
+        }
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Erro ao criar token OKX: {e}")
+        db.rollback()
+        logger.error(f"Erro ao salvar credenciais OKX: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao criar token OKX"
+            detail="Erro ao salvar credenciais OKX"
         )
 
-@router.get("/okx-tokens/{token_id}", response_model=OKXTokenResponse)
-@audit_log(action="get_token", resource="okx_tokens")
-async def get_okx_token(
-    token_id: int,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
-    db: Session = Depends(get_db)
-):
-    """
-    Obtém token OKX específico
-    
-    Retorna token com API key mascarada
-    """
-    try:
-        # Buscar token
-        token = db.query(UserOKXTokens).filter(
-            UserOKXTokens.id == token_id,
-            UserOKXTokens.user_id == current_user['id']
-        ).first()
-        
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Token não encontrado"
-            )
-        
-        # Mascara API key
-        masked_api_key = data_masker.mask_api_key(
-            encryption.decrypt_token(token.api_key_encrypted)
-        )
-        
-        token_data = token.to_dict()
-        token_data['masked_api_key'] = masked_api_key
-        
-        return OKXTokenResponse(**token_data)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Erro ao buscar token OKX: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao buscar token OKX"
-        )
 
-@router.put("/okx-tokens/{token_id}", response_model=OKXTokenResponse)
-@audit_log(action="update_token", resource="okx_tokens")
+@router.put("/okx-tokens/{token_id}")
 async def update_okx_token(
     token_id: int,
+    request: Request,
     token_data: OKXTokenRequest,
-    master_password: str,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Atualiza token OKX existente
-    
-    Requer senha mestre para descriptografar e recriptografar
-    """
+    """Atualiza credenciais OKX existentes (com teste em tempo real)"""
     try:
-        # Buscar token
         token = db.query(UserOKXTokens).filter(
             UserOKXTokens.id == token_id,
             UserOKXTokens.user_id == current_user['id']
         ).first()
-        
+
         if not token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Token não encontrado"
             )
-        
-        # Validar senha mestre
-        if not master_password or len(master_password) < 8:
+
+        # Testar antes de atualizar
+        test_result = await _test_okx_credentials(
+            api_key=token_data.api_key,
+            secret_key=token_data.secret_key,
+            passphrase=token_data.passphrase
+        )
+        if not test_result['success']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Senha mestre inválida"
+                detail=f"Credenciais inválidas: {test_result['message']}"
             )
-        
-        # Recriptografar tokens
-        encrypted_api_key = encryption.encrypt_token(token_data.api_key)
-        encrypted_secret_key = encryption.encrypt_token(token_data.secret_key)
-        encrypted_passphrase = encryption.encrypt_token(token_data.passphrase) if token_data.passphrase else None
-        
-        # Atualizar token
-        token.api_key_encrypted = encrypted_api_key
-        token.secret_key_encrypted = encrypted_secret_key
-        token.passphrase_encrypted = encrypted_passphrase
+
+        token.api_key_encrypted = encryption.encrypt_token(token_data.api_key.strip())
+        token.secret_key_encrypted = encryption.encrypt_token(token_data.secret_key.strip())
+        token.passphrase_encrypted = (
+            encryption.encrypt_token(token_data.passphrase.strip())
+            if token_data.passphrase and token_data.passphrase.strip()
+            else None
+        )
         token.updated_at = datetime.utcnow()
-        
+
         db.commit()
-        
-        # Mascara API key para response
-        masked_api_key = data_masker.mask_api_key(token_data.api_key)
-        
-        logger.info(f"Token OKX atualizado para usuário: {current_user['username']}")
-        
-        token_data = token.to_dict()
-        token_data['masked_api_key'] = masked_api_key
-        
-        return OKXTokenResponse(**token_data)
-        
+
+        return {
+            'success': True,
+            'message': 'Credenciais OKX atualizadas com sucesso',
+            'masked_api_key': data_masker.mask_api_key(token_data.api_key),
+        }
+
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Erro ao atualizar token OKX: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao atualizar token OKX"
         )
 
-@router.patch("/okx-tokens/{token_id}/activation")
-@audit_log(action="toggle_token", resource="okx_tokens")
-async def toggle_token_activation(
-    token_id: int,
-    activation_data: TokenActivationRequest,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
-    db: Session = Depends(get_db)
-):
-    """
-    Ativa/desativa token OKX
-    
-    Permite usuário ativar ou desativar seus tokens
-    """
-    try:
-        # Buscar token
-        token = db.query(UserOKXTokens).filter(
-            UserOKXTokens.id == token_id,
-            UserOKXTokens.user_id == current_user['id']
-        ).first()
-        
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Token não encontrado"
-            )
-        
-        # Atualizar status
-        old_status = token.is_active
-        token.is_active = activation_data.is_active
-        token.updated_at = datetime.utcnow()
-        
-        db.commit()
-        
-        action = "ativado" if activation_data.is_active else "desativado"
-        logger.info(f"Token OKX {action} para usuário: {current_user['username']}")
-        
-        return {"message": f"Token {action} com sucesso"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Erro ao alternar status do token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao alternar status do token"
-        )
 
 @router.delete("/okx-tokens/{token_id}")
-@audit_log(action="delete_token", resource="okx_tokens")
 async def delete_okx_token(
     token_id: int,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Deleta token OKX
-    
-    Remove token permanentemente do usuário
-    """
+    """Remove credenciais OKX do usuário"""
     try:
-        # Buscar token
         token = db.query(UserOKXTokens).filter(
             UserOKXTokens.id == token_id,
             UserOKXTokens.user_id == current_user['id']
         ).first()
-        
+
         if not token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Token não encontrado"
             )
-        
-        # Deletar token
-        masked_api_key = data_masker.mask_api_key(
-            encryption.decrypt_token(token.api_key_encrypted)
-        )
-        
+
         db.delete(token)
         db.commit()
-        
-        logger.info(f"Token OKX deletado para usuário: {current_user['username']}")
-        
-        return {"message": f"Token OKX deletado com sucesso (API Key: {masked_api_key})"}
-        
+
+        logger.info(f"Credenciais OKX removidas para usuário: {current_user.get('username')}")
+        return {'success': True, 'message': 'Credenciais OKX removidas com sucesso'}
+
     except HTTPException:
         raise
     except Exception as e:
@@ -377,86 +459,3 @@ async def delete_okx_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao deletar token OKX"
         )
-
-@router.get("/okx-tokens/{token_id}/test")
-@audit_log(action="test_token", resource="okx_tokens")
-async def test_okx_token(
-    token_id: int,
-    master_password: str,
-    current_user: Dict[str, Any] = Depends(require_permission("account")),
-    db: Session = Depends(get_db)
-):
-    """
-    Testa token OKX
-    
-    Verifica se o token é válido e pode se conectar à OKX
-    """
-    try:
-        # Buscar token
-        token = db.query(UserOKXTokens).filter(
-            UserOKXTokens.id == token_id,
-            UserOKXTokens.user_id == current_user['id']
-        ).first()
-        
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Token não encontrado"
-            )
-        
-        # Validar senha mestre
-        if not master_password or len(master_password) < 8:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Senha mestre inválida"
-            )
-        
-        # Descriptografar tokens
-        api_key = encryption.decrypt_token(token.api_key_encrypted)
-        secret_key = encryption.decrypt_token(token.secret_key_encrypted)
-        passphrase = encryption.decrypt_token(token.passphrase_encrypted) if token.passphrase_encrypted else None
-        
-        # Criar serviço OKX e testar conexão
-        okx_service = OKXUserService(current_user['id'], db)
-        okx_service.setup_user_session()
-        
-        try:
-            # Testar conexão chamando um endpoint simples
-            account_info = okx_service.get_account_balance()
-            
-            return {
-                "status": "success",
-                "message": "Token OKX válido e funcionando",
-                "account_info": account_info
-            }
-            
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Token OKX inválido: {str(e)}",
-                "error_details": str(e)
-            }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Erro ao testar token OKX: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao testar token OKX"
-        )
-
-# Funções utilitárias
-def _get_client_ip(request) -> str:
-    """Obtém IP do cliente"""
-    try:
-        return request.client.host
-    except Exception:
-        return "unknown"
-
-def _get_user_agent(request) -> str:
-    """Obtém user agent"""
-    try:
-        return request.headers.get("user-agent", "unknown")
-    except Exception:
-        return "unknown"

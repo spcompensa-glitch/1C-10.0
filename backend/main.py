@@ -698,7 +698,7 @@ if settings.SERVE_STATIC_FRONTEND:
 # =================================================================
 # ROUTES & MODULARIZATION (V110.25.0)
 # =================================================================
-from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel
+from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens
 
 # Include Modulated Routers
 app.include_router(auth.router, prefix="/api/auth")
@@ -711,6 +711,7 @@ app.include_router(chat.router)
 app.include_router(vault.router)
 app.include_router(backtest_routes.router)
 app.include_router(sentinel.router)
+app.include_router(tokens.router)  # [V2.0] OKX Credentials per User
 
 # =================================================================
 # WEBSOCKET ENDPOINT (V110.175)

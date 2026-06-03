@@ -154,10 +154,8 @@ async def get_system_state():
         
     try:
         # [V20.0] Safe Access to main variables to avoid circular imports during startup
-        from main import sig_gen as main_sig_gen
         okx_rest_service, okx_ws_public_service, firebase_service, signal_generator, captain_agent, oracle_agent = get_services()
-        
-        target_sig_gen = main_sig_gen if main_sig_gen is not None else signal_generator
+        target_sig_gen = signal_generator
         
         # Safe Fallback values
         btc_price = 0

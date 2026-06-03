@@ -12,14 +12,13 @@ const OFFLINE_URL = '/offline.html';
 
 // Assets that must be available offline
 const STATIC_ASSETS = [
-    '/',
-    '/cockpit.html',
-    '/offline.html',
-    '/manifest.json',
-    '/logo10D.png',
-    '/logo10DTrasp.png',
-    '/favicon.ico',
-    '/vendor/cockpit.bundle.js'
+    'cockpit.html',
+    'offline.html',
+    'manifest.json',
+    'logo10D.png',
+    'logo10DTrasp.png',
+    'favicon.ico',
+    'vendor/cockpit.bundle.js'
 ];
 
 // Instalação: Cacheia arquivos críticos

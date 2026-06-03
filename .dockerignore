@@ -23,3 +23,11 @@ frontend-livekit/.DS_Store
 # Ignore aios-core agent environment if present
 aios-core/
 .agent/
+
+# Temp and large files
+Smart_Money_Decoded.pdf
+*.db
+*.log
+*.pdf
+tmp/
+

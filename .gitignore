@@ -75,3 +75,11 @@ verify_v3.py
 
 1CRYPTEN_SPACE_V4.0/backend/serviceAccountKey.json
 1CRYPTEN_SPACE_V4.0/backend/.env
+
+# Large resources & database files
+Smart_Money_Decoded.pdf
+*.db
+*.log
+*.pdf
+tmp/
+

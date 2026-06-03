@@ -464,7 +464,7 @@ class OKXRest:
                             details = data["data"][0]
                             total_eq = float(details.get("totalEq", 100.0))
                             # Se for demo trading com muito saldo virtual, limitamos a $100
-                            if total_eq > 500.0:
+                            if settings.OKX_TESTNET and total_eq > 500.0:
                                 logger.info(f"💰 [OKX-REST] Saldo demo real: ${total_eq:.2f}. Limitando a banca virtual Sniper em $100 para simulação.")
                                 return 100.0
                             return total_eq

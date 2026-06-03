@@ -63,4 +63,4 @@ mypy==1.6.1
 # gRPC & Protobuf stubs resolution
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
-protobuf>=5.26.1
+protobuf>=4.25.3,<5.0.0dev

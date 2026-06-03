@@ -1854,6 +1854,19 @@
                     if (type === 'slot_update' || type === 'live_slots') {
                         sovereign_rtdb.trigger('live_slots', data);
                     }
+                    else if (type === 'moonbag_vault' || type === 'moonbags') {
+                        let val = {};
+                        if (Array.isArray(data)) {
+                            data.forEach(m => {
+                                if (m && (m.uuid || m.id)) {
+                                    val[m.uuid || m.id] = m;
+                                }
+                            });
+                        } else {
+                            val = data;
+                        }
+                        sovereign_rtdb.trigger('moonbag_vault', val);
+                    }
                     else if (type === 'radar_pulse') {
                         const fullData = (data && data.signals !== undefined) ? data : { signals: data || [], decisions: [], market_context: {}, updated_at: Date.now() / 1000 };
                         sovereign_rtdb.trigger('radar_pulse', fullData);
@@ -3330,8 +3343,8 @@
                         const resp = await fetch(API_BASE + '/api/moonbags');
                         if (resp.ok) {
                             const data = await resp.json();
-                            // Só atualiza via REST se não tivermos dados do sovereign_rtdb recentemente
-                            setMoonbags(prev => (prev.length === 0 ? data : prev));
+                            // Atualiza incondicionalmente para manter sincronismo do PnL e remoção de posições encerradas
+                            setMoonbags(data);
                         }
                     } catch (e) {
                         console.error("Moonbags API Error:", e);

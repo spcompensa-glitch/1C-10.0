@@ -317,6 +317,44 @@ class DatabaseService:
             moons = result.scalars().all()
             return [{c.name: getattr(m, c.name) for c in m.__table__.columns} for m in moons]
 
+    async def update_moonbag(self, moon_uuid: str, data: dict):
+        """[V110.999] Atualiza os dados de uma Moonbag no Postgres."""
+        async with self.AsyncSessionLocal() as session:
+            try:
+                moon = await session.get(Moonbag, moon_uuid)
+                if moon:
+                    if "current_stop" in data:
+                        moon.current_stop = float(data["current_stop"])
+                    if "pnl_percent" in data:
+                        moon.pnl_percent = float(data["pnl_percent"])
+                    if "qty" in data:
+                        moon.qty = float(data["qty"])
+                    moon.updated_at = datetime.utcnow()
+                    await session.commit()
+                    logger.info(f"🌔 Moonbag {moon_uuid} atualizada no Postgres.")
+                    return True
+                else:
+                    logger.warning(f"⚠️ Moonbag {moon_uuid} não encontrada para atualização no Postgres.")
+                    return False
+            except Exception as e:
+                logger.error(f"Erro ao atualizar Moonbag no Postgres: {e}")
+                return False
+
+    async def remove_moonbag(self, moon_uuid: str):
+        """[V110.999] Remove uma Moonbag do Postgres."""
+        async with self.AsyncSessionLocal() as session:
+            try:
+                moon = await session.get(Moonbag, moon_uuid)
+                if moon:
+                    await session.delete(moon)
+                    await session.commit()
+                    logger.info(f"🌔 Moonbag {moon_uuid} deletada do Postgres.")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"Erro ao deletar Moonbag do Postgres: {e}")
+                return False
+
     async def get_vault_cycle(self):
         return {}
 

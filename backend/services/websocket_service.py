@@ -12,6 +12,7 @@ class WebSocketService:
         # Gerencia as conexões ativas do Cockpit
         self.active_connections: Set[WebSocket] = set()
         self._last_slots_snapshot = []  # [V110.999] Cache do último estado de slots
+        self._last_moonbags_snapshot = []  # [V110.999] Cache do último estado de moonbags
         self._last_radar_snapshot = {}  # [V110.999] Cache do último radar pulse
 
     async def connect(self, websocket: WebSocket):
@@ -39,6 +40,10 @@ class WebSocketService:
             # 2. Envia último radar pulse
             if self._last_radar_snapshot:
                 msg = json.dumps({"type": "radar_pulse", "data": self._last_radar_snapshot}, default=json_serial)
+                await websocket.send_text(msg)
+            # 3. Envia moonbags ativas
+            if self._last_moonbags_snapshot:
+                msg = json.dumps({"type": "moonbag_vault", "data": self._last_moonbags_snapshot}, default=json_serial)
                 await websocket.send_text(msg)
             logger.info(f"📦 [WS-SNAPSHOT] Snapshot inicial enviado para novo cliente.")
         except Exception as e:
@@ -91,6 +96,14 @@ class WebSocketService:
         await self.broadcast({
             "type": "live_slots",
             "data": slots
+        })
+
+    async def emit_moonbags(self, moonbags: list):
+        """Envia a lista completa de Moonbags (V110.999)."""
+        self._last_moonbags_snapshot = moonbags  # [V110.999] Atualiza cache
+        await self.broadcast({
+            "type": "moonbag_vault",
+            "data": moonbags
         })
 
     async def emit_radar_pulse(self, signals: list):

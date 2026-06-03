@@ -751,7 +751,13 @@ class FirebaseService:
 
     async def update_moonbag(self, moon_uuid: str, data: dict):
         """[V110.0] Atualiza os dados de uma ordem no Vault (Ex: Trailling Stop)."""
-        if not self.is_active: return
+        if not self.is_active:
+            try:
+                from services.database_service import database_service
+                await database_service.update_moonbag(moon_uuid, data)
+            except Exception as e:
+                logger.error(f"Error updating Moonbag in Postgres fallback: {e}")
+            return
         try:
             data["timestamp_last_update"] = time.time()
             # Firestore
@@ -764,7 +770,13 @@ class FirebaseService:
 
     async def remove_moonbag(self, moon_uuid: str, reason: str = "Closed"):
         """[V110.0] Remove uma ordem do Vault após fechamento."""
-        if not self.is_active: return
+        if not self.is_active:
+            try:
+                from services.database_service import database_service
+                await database_service.remove_moonbag(moon_uuid)
+            except Exception as e:
+                logger.error(f"Error removing Moonbag from Postgres fallback: {e}")
+            return
         try:
             # Firestore
             await asyncio.to_thread(self.db.collection("moonbags").document(moon_uuid).delete)

@@ -506,10 +506,29 @@ async def lifespan(app: FastAPI):
                                     "rescue_resolved": s.get("rescue_resolved")
                                 })
                             
+                            # V110.999: Também recupera e publica as moonbags para a UI
+                            db_moons = await _ds.get_moonbags()
+                            moons = []
+                            for m in db_moons:
+                                if not isinstance(m, dict):
+                                    m = {c.name: getattr(m, c.name) for c in m.__table__.columns}
+                                moons.append({
+                                    "uuid": m.get("uuid"),
+                                    "symbol": m.get("symbol"),
+                                    "side": m.get("side"),
+                                    "qty": m.get("qty"),
+                                    "entry_price": m.get("entry_price"),
+                                    "current_stop": m.get("current_stop"),
+                                    "pnl_percent": m.get("pnl_percent"),
+                                    "promoted_at": m.get("promoted_at").isoformat() if m.get("promoted_at") and hasattr(m.get("promoted_at"), "isoformat") else (m.get("promoted_at") or 0),
+                                    "updated_at": m.get("updated_at").isoformat() if m.get("updated_at") and hasattr(m.get("updated_at"), "isoformat") else (m.get("updated_at") or 0)
+                                })
+                            
                             if _ws.active_connections:
                                 await _ws.emit_slots(slots)
+                                await _ws.emit_moonbags(moons)
                         except Exception as e:
-                            logger.warning(f"[SLOTS-BROADCAST] Erro: {e}")
+                            logger.warning(f"[SLOTS-MOONS-BROADCAST] Erro: {e}")
                         await asyncio.sleep(5)
                 asyncio.create_task(slots_broadcast_loop())
                 logger.info("📡 [V110.999] Live Slots Broadcast Loop ATIVO.")

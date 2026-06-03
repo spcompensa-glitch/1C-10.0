@@ -348,6 +348,23 @@
 - **Hermes Broker:** gRPC HTTP/2 async na porta `50051` (tenancy) + cliente MQTT HiveMQ (`broker.hivemq.com`) com QoS 2.
 - **Telegram Native:** comando `/banca` com blindagem GUARDIAN_PROMPT.md sob `HERMES_GUARDIAN=1`.
 
+*   **V110.704: LOCAL & PRODUCTION UNIFIED STABILITY [JUN 03]**
+    - **Service Worker & Static Assets Resolution**: Correção na rota `catch_all` do backend em [main.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/main.py) para remover query strings (ex: `?v=110.900`) e parâmetros das URLs antes de validar a existência de arquivos estáticos como `/sw.js` e `/manifest.json`, eliminando de vez os erros 404 e travamentos no PWA em produção e local.
+    - **Moonbags API Response Formatting**: Ajuste no endpoint `/api/moonbags` em [routes/trading.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/routes/trading.py) para envelopar a lista em um dicionário contendo a chave `moonbags` (`{"moonbags": [...]}`). Isso evitou quebras de carregamento no frontend (`TypeError: moonbags.map is not a function`) quando os dados do Postgres estão vazios ou sendo resgatados do fallback REST.
+    - **Port Binding Hot-Healing**: Script local configurado para identificar e matar instâncias órfãs que travavam o socket da porta 8085 no Windows.
+    - **Unified WebSocket & OKX Real Feeds**: Alinhamento de todos os componentes locais na mesma porta 8085 através do `local_dev.py`, conectando o painel de forma transparente aos feeds e oscilações do mercado real via OKX WebSocket.
+
+---
+
+## 🏗️ ARQUITETURA DE SISTEMA (V110.704)
+
+### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
+- **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
+- **Unified Port (8085):** O app principal monta o diretório de estáticos em `/static-frontend`, serve o Observatório em `/observatory` e expõe a Fortress Auth na mesma porta, unificando a experiência desktop e mobile sem proxies de CORS.
+
+### 2. Camada de Comunicação Reativa (WebSockets)
+- **ws_cockpit:** Ponte de transmissão duplex local/nuvem. Envia um snapshot de estado imediato no `onopen` para evitar telas pretas e sincroniza os 4 slots, cotação do BTC e pulso do radar instantaneamente.
+
 ### 3. Camada de Execução (Actor Model)
 - **4 × SlotOperatorAgent:** instâncias independentes, ciclo de vida próprio (Gênesis → Escadinha → Arquivamento), self-auditing nativo via `FleetAudit`.
 - **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`.
@@ -374,7 +391,7 @@
 
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.999)
+## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.704)
 
 O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
@@ -394,5 +411,5 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-06-02 (V110.701) Sincronizado*
+*Documento atualizado em: 2026-06-03 (V110.704) Sincronizado*
 *Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*

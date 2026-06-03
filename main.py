@@ -1027,45 +1027,38 @@ async def get_moonbags():
 @app.get("/api/history")
 async def get_history(limit: int = 50):
     """Histórico de trades"""
-    return {
-        "timestamp": time.time(),
-        "limit": limit,
-        "history": [
-            {
-                "id": "TX001",
-                "symbol": "BTCUSDT",
-                "type": "BUY",
-                "size": 0.1,
-                "entry_price": 43200.0,
-                "exit_price": 43850.0,
-                "pnl": "+65.00",
-                "pnl_percent": "+1.5%",
-                "duration": "2h 15m",
-                "strategy": "ABCD",
-                "status": "COMPLETED",
-                "entry_time": "2026-06-02 10:30:00",
-                "exit_time": "2026-06-02 12:45:00"
-            },
-            {
-                "id": "TX002", 
-                "symbol": "ETHUSDT",
-                "type": "SELL",
-                "size": 2.0,
-                "entry_price": 2380.0,
-                "exit_price": 2350.0,
-                "pnl": "-60.00",
-                "pnl_percent": "-1.26%",
-                "duration": "1h 45m",
-                "strategy": "MOLA",
-                "status": "COMPLETED",
-                "entry_time": "2026-06-02 09:15:00",
-                "exit_time": "2026-06-02 11:00:00"
-            }
-        ],
-        "total_trades": 2,
-        "win_rate": "50%",
-        "total_pnl": "+5.00"
-    }
+    return [
+        {
+            "id": "TX001",
+            "symbol": "BTCUSDT",
+            "type": "BUY",
+            "size": 0.1,
+            "entry_price": 43200.0,
+            "exit_price": 43850.0,
+            "pnl": "+65.00",
+            "pnl_percent": "+1.5%",
+            "duration": "2h 15m",
+            "strategy": "ABCD",
+            "status": "COMPLETED",
+            "entry_time": "2026-06-02 10:30:00",
+            "exit_time": "2026-06-02 12:45:00"
+        },
+        {
+            "id": "TX002", 
+            "symbol": "ETHUSDT",
+            "type": "SELL",
+            "size": 2.0,
+            "entry_price": 2380.0,
+            "exit_price": 2350.0,
+            "pnl": "-60.00",
+            "pnl_percent": "-1.26%",
+            "duration": "1h 45m",
+            "strategy": "MOLA",
+            "status": "COMPLETED",
+            "entry_time": "2026-06-02 09:15:00",
+            "exit_time": "2026-06-02 11:00:00"
+        }
+    ]
 
 @app.get("/api/history/stats")
 async def get_history_stats():

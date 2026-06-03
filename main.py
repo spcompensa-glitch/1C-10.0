@@ -1410,6 +1410,10 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("❌ WebSocket client disconnected")
 
 
+# Servir frontend estático (montado no escopo global para carregar tanto via uvicorn CLI quanto __main__)
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="static")
+
 if __name__ == "__main__":
     # Configurar servidor Railway
     port = int(os.getenv("PORT", 8085))
@@ -1418,9 +1422,6 @@ if __name__ == "__main__":
     logger.info(f"🚀 Iniciando servidor Hermes Guardian na porta {port}")
     logger.info(f"🌍 Host: {host}")
     logger.info(f"🚂 Ambiente Railway: {RAILWAY_ENV}")
-
-    # Servir frontend estático (último para não interceptar APIs)
-    app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
 
     uvicorn.run(
         "main:app",

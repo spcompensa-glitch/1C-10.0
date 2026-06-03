@@ -10,9 +10,15 @@ Author: Sistema 1Crypten
 Version: 1.0
 """
 
+import os
+import sys
 import logging
 from pathlib import Path
-import os
+
+# Adiciona o diretório atual do backend ao sys.path para importações absolutas
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
 
 # Configuração de logging
 def setup_logging():

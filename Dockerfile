@@ -1,5 +1,5 @@
 # Use official Python runtime as a parent image
-# Build trigger: 2026-06-03 (V110.706 Full Backend)
+# Build trigger: 2026-06-03 (V110.707 Full Backend System Path)
 FROM python:3.12-slim
 
 # Set environment variables

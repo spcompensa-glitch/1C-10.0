@@ -3207,6 +3207,7 @@ class SignalGenerator:
                                     btc_penalty = -40  # [V42.0] Increased from -20 to -40
                                     logger.warning(f"⚠️ [V42.0] {symbol} {side_label} CONTRA BTC ({btc_aligned}) mas SCORE FORTE ({projected_score}). Penalidade -40 aplicada.")
                                 else:
+                                    reason = f"Contra BTC ({btc_aligned}) e score projetado baixo ({projected_score})"
                                     logger.warning(f"🚫 [V42.0] {symbol} {side_label} CONTRA BTC ({btc_aligned}). {reason}. ABORTADO.")
                                     self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                                     # return None  # 💀 Score fraco + contra BTC = morte

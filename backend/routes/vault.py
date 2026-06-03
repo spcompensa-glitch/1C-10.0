@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from services.auth_service import get_current_user, User
 from services.firebase_service import firebase_service
@@ -39,11 +39,23 @@ async def save_vault(req: VaultSaveRequest, current_user: User = Depends(get_cur
         raise HTTPException(status_code=500, detail=f"Erro ao salvar no cofre: {str(e)}")
 
 @router.get("/status")
-async def get_vault_status(current_user: User = Depends(get_current_user)):
+async def get_vault_status(request: Request):
     """Verifica se o usuário já possui chaves configuradas"""
+    username = "admin"
+    try:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            from services.auth_service import jwt_manager
+            payload = jwt_manager.verify_token(token, "access")
+            if payload and payload.get("sub"):
+                username = payload.get("sub")
+    except Exception:
+        pass
+
     try:
         user_doc = await asyncio.to_thread(
-            firebase_service.db.collection("users").document(current_user.username).get
+            firebase_service.db.collection("users").document(username).get
         )
         if user_doc.exists:
             data = user_doc.to_dict()

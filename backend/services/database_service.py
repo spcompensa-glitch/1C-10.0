@@ -60,6 +60,7 @@ class Slot(Base):
     rescue_resolved = Column(Boolean, default=False)
     is_shadow_strike = Column(Boolean, default=False)
     score = Column(Float, default=0.0)
+    vision_url = Column(String, nullable=True)
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"
@@ -76,6 +77,7 @@ class TradeHistory(Base):
     close_reason = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
     data = Column(JSON) # Metadados completos (Librarian, Oracle, etc)
+    vision_url = Column(String, nullable=True)
 
 class Moonbag(Base):
     __tablename__ = "moonbags"

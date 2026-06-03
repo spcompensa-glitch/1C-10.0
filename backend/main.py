@@ -524,9 +524,12 @@ async def lifespan(app: FastAPI):
                                     "updated_at": m.get("updated_at").isoformat() if m.get("updated_at") and hasattr(m.get("updated_at"), "isoformat") else (m.get("updated_at") or 0)
                                 })
                             
+                            db_banca = await _ds.get_banca_status()
                             if _ws.active_connections:
                                 await _ws.emit_slots(slots)
                                 await _ws.emit_moonbags(moons)
+                                if db_banca:
+                                    await _ws.emit_banca_status(db_banca)
                         except Exception as e:
                             logger.warning(f"[SLOTS-MOONS-BROADCAST] Erro: {e}")
                         await asyncio.sleep(5)

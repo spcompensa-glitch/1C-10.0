@@ -156,9 +156,14 @@ class FirebaseService:
     async def get_banca_status(self, username: str = None):
         """[V120] Busca o status da banca isolado por usuário ou global."""
         if not self.is_active:
-            await self.initialize()
-            if not self.is_active:
-                return {"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "OFFLINE"}
+            try:
+                from services.database_service import database_service
+                db_status = await database_service.get_banca_status()
+                if db_status:
+                    return db_status
+            except Exception as e:
+                logger.error(f"Error getting banca status from Postgres fallback: {e}")
+            return {"saldo_total": 100.0, "risco_real_percent": 10.0, "slots_disponiveis": 4, "status": "OFFLINE"}
             
         try:
             if username:
@@ -211,7 +216,13 @@ class FirebaseService:
             logger.error(f"Error updating bankroll: {e}")
 
     async def update_banca_status(self, data: dict):
-        if not self.is_active: return data
+        if not self.is_active:
+            try:
+                from services.database_service import database_service
+                await database_service.update_banca_status(data)
+            except Exception as e:
+                logger.error(f"Error updating banca status in Postgres fallback: {e}")
+            return data
         try:
             # Sync to Firestore
             await asyncio.wait_for(asyncio.to_thread(self.db.collection("banca_status").document("status").set, data, merge=True), timeout=8.0)

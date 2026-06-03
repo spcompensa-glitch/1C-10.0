@@ -13,6 +13,7 @@ class WebSocketService:
         self.active_connections: Set[WebSocket] = set()
         self._last_slots_snapshot = []  # [V110.999] Cache do último estado de slots
         self._last_moonbags_snapshot = []  # [V110.999] Cache do último estado de moonbags
+        self._last_banca_snapshot = {}  # [V110.999] Cache do último estado da banca
         self._last_radar_snapshot = {}  # [V110.999] Cache do último radar pulse
 
     async def connect(self, websocket: WebSocket):
@@ -44,6 +45,10 @@ class WebSocketService:
             # 3. Envia moonbags ativas
             if self._last_moonbags_snapshot:
                 msg = json.dumps({"type": "moonbag_vault", "data": self._last_moonbags_snapshot}, default=json_serial)
+                await websocket.send_text(msg)
+            # 4. Envia status da banca
+            if self._last_banca_snapshot:
+                msg = json.dumps({"type": "banca_status", "data": self._last_banca_snapshot}, default=json_serial)
                 await websocket.send_text(msg)
             logger.info(f"📦 [WS-SNAPSHOT] Snapshot inicial enviado para novo cliente.")
         except Exception as e:
@@ -118,6 +123,7 @@ class WebSocketService:
 
     async def emit_banca_status(self, data: dict):
         """Envia status da banca."""
+        self._last_banca_snapshot = data  # [V110.999] Atualiza cache
         await self.broadcast({
             "type": "banca_status",
             "data": data

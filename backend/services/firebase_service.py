@@ -309,7 +309,11 @@ class FirebaseService:
         close_reason = trade_data.get("close_reason", "")
         _GHOST_TAGS = ["GHOST", "PURGE", "CLEANUP", "SYNC"]
         is_ghost = any(tag in close_reason.upper() for tag in _GHOST_TAGS)
-        if abs(pnl) < 0.0001 and (is_ghost or not close_reason):
+        
+        # Se for um encerramento via SYNC ou CLEANUP, mas a ordem tinha margem (> 0.1) ou qty (> 0), ela NÃO é um ghost fantasma!
+        had_real_position = float(trade_data.get("entry_margin", 0)) > 0.1 or float(trade_data.get("qty", 0)) > 0
+        
+        if abs(pnl) < 0.0001 and (is_ghost or not close_reason) and not had_real_position:
             logger.info(f"🛡️ [VAULT-FILTER] Blocked ghost/zero PnL for {symbol}. Reason: {close_reason or 'N/A'}")
             return
 
@@ -1322,8 +1326,9 @@ class FirebaseService:
         # [V110.114] VAULT PROTECTION: Block ghost cleanups but allow breakeven trades
         _GHOST_TAGS = ["GHOST", "PURGE", "CLEANUP", "SYNC"]
         is_ghost_cleanup = any(tag in reason.upper() for tag in _GHOST_TAGS)
-        # Log if PnL is meaningful OR if it's a real trade (non-ghost) at breakeven
-        if trade_data and (abs(pnl) >= 0.0001 or not is_ghost_cleanup):
+        had_real_position = float(trade_data.get("entry_margin", 0)) > 0.1 or float(trade_data.get("qty", 0)) > 0
+        # Log if PnL is meaningful OR if it's a real trade (non-ghost or had real position) at breakeven
+        if trade_data and (abs(pnl) >= 0.0001 or not is_ghost_cleanup or had_real_position):
             trade_data["close_reason"] = reason
             trade_data["pnl"] = pnl
             

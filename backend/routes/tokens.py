@@ -222,6 +222,12 @@ async def get_okx_tokens_status(
     Retorna status rápido das credenciais OKX do usuário.
     Mostra API Key mascarada e se está ativa — sem expor dados sensíveis.
     """
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autenticação necessária",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         token = db.query(UserOKXTokens).filter(
             UserOKXTokens.user_id == current_user['id'],

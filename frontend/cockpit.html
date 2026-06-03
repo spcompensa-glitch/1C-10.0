@@ -5027,9 +5027,18 @@
             const tSym = symbol + 'USDT';
             const livePrice = tickers && tickers[tSym] ? Number(tickers[tSym]) : 0;
             
-            const roi = livePrice > 0 ? 
+            // ROI calculado ao vivo. Floor pelo ROI do stop (moonbag NUNCA pode exibir negativo
+            // pois o stop fica sempre acima do entry após emancipação)
+            const rawRoi = livePrice > 0 ? 
                 ((side === 'LONG' ? (livePrice / entry - 1) : (1 - livePrice / entry)) * 100 * (moonbag.leverage || 50)) : 
                 Number(moonbag.pnl_percent || 0);
+            const stopFloor = (() => {
+                const sv = Number(moonbag.current_stop || moonbag.stop_loss || moonbag.stopLoss || 0);
+                if (sv <= 0 || entry <= 0) return 0;
+                return (side === 'LONG' ? (sv / entry - 1) : (1 - sv / entry)) * 100 * (Number(moonbag.leverage) || 50);
+            })();
+            // Moonbag nunca exibe ROI abaixo do floor do stop (que é >= 0 após emancipação)
+            const roi = Math.max(rawRoi, stopFloor);
 
             let stage = null;
             if (roi >= 150) stage = { icon: '💎', label: 'MEGA', color: 'text-gray-400' };
@@ -8013,7 +8022,8 @@
 
             const authHeader = () => ({
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+                // Tenta 'auth_token' primeiro (login novo), fallback 'sniper_token' (sistema legado)
+                'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('sniper_token') || ''}`
             });
 
             React.useEffect(() => {
@@ -8357,7 +8367,9 @@
                     });
                     const data = await resp.json();
                     if (resp.ok && data.access_token) {
+                        // Salva nas duas chaves: app legado usa 'sniper_token', novo auth usa 'auth_token'
                         localStorage.setItem('auth_token', data.access_token);
+                        localStorage.setItem('sniper_token', data.access_token);
                         localStorage.setItem('refresh_token', data.refresh_token);
                         localStorage.setItem('user', JSON.stringify(data.user));
                         onAuthSuccess();

@@ -5,7 +5,11 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
-*   **V110.704: LOCAL SERVER STABILITY & INDICATOR REFINEMENT [JUN 03]**
+*   **V110.704: LOCAL SERVER STABILITY, M-ADX & CAPITAL PRESERVATION [JUN 03]**
+    - **M-ADX Wilder Smoothing Fix**: Aumento do limite de klines requisitadas da OKX de 30 para `144` no cálculo do ADX do BTC, permitindo que a suavização de Wilder se estabilize e eliminando o travamento do indicador em 10.1.
+    - **Modo de Preservação de Capital**: Bloqueio preventivo de todas as estratégias de tendência/rompimento (como BLITZ) quando o M-ADX do BTC estiver abaixo de `22.0` (Mercado Morto), liberando passe livre exclusivamente para sinais de reversão estrutural da estratégia **DVAP**.
+    - **Postgres Schema Auto-Healing**: Adicionadas colunas necessárias como `vision_url` e tratamentos no `database_service.py` e `okx_rest.py` para auto-migração de bancos legados e fallback offline robusto.
+    - **Prevenção de Duplicidades em Moonbags**: Implementação de UUIDs determinísticos baseados em `{symbol}_{opened_at}` no método de emancipação para evitar clones no banco de dados.
     - **Service Worker Asset Alignment**: Purga de dependências ausentes na pasta local `/vendor/` da lista de cache em `sw.js` para sanar erros de instalação.
     - **Self-Healing URL Router**: Implementação de roteamento automático de subpastas do Observatório e redirecionamento de assets relativos erráticos de volta para a raiz `/vendor/` e `/manifest.json`.
     - **Ascending OKX Klines & SMA100 Padding**: Ordenação correta das velas e técnica de padding simulado de 200+ candles para permitir o cálculo e renderização da linha amarela da SMA 100.

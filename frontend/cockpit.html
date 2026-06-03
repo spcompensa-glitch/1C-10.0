@@ -5027,18 +5027,23 @@
             const tSym = symbol + 'USDT';
             const livePrice = tickers && tickers[tSym] ? Number(tickers[tSym]) : 0;
             
-            // ROI calculado ao vivo. Floor pelo ROI do stop (moonbag NUNCA pode exibir negativo
-            // pois o stop fica sempre acima do entry após emancipação)
-            const rawRoi = livePrice > 0 ? 
-                ((side === 'LONG' ? (livePrice / entry - 1) : (1 - livePrice / entry)) * 100 * (moonbag.leverage || 50)) : 
-                Number(moonbag.pnl_percent || 0);
             const stopFloor = (() => {
                 const sv = Number(moonbag.current_stop || moonbag.stop_loss || moonbag.stopLoss || 0);
                 if (sv <= 0 || entry <= 0) return 0;
                 return (side === 'LONG' ? (sv / entry - 1) : (1 - sv / entry)) * 100 * (Number(moonbag.leverage) || 50);
             })();
-            // Moonbag nunca exibe ROI abaixo do floor do stop (que é >= 0 após emancipação)
-            const roi = Math.max(rawRoi, stopFloor);
+
+            let roi;
+            if (livePrice > 0) {
+                // Temos preço ao vivo: calcula ROI e aplica floor do stop
+                // (se mercado caiu mas stop garantido acima do entry, mostra o garantido)
+                const liveRoi = (side === 'LONG' ? (livePrice / entry - 1) : (1 - livePrice / entry)) * 100 * (moonbag.leverage || 50);
+                roi = Math.max(liveRoi, stopFloor);
+            } else {
+                // Sem preço ao vivo: confia no pnl_percent do backend, mínimo 0
+                // (moonbag por definição já emancipou com ROI positivo)
+                roi = Math.max(Number(moonbag.pnl_percent || 0), 0);
+            }
 
             let stage = null;
             if (roi >= 150) stage = { icon: '💎', label: 'MEGA', color: 'text-gray-400' };

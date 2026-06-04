@@ -130,9 +130,22 @@ class PortfolioGuardian:
             for pos in positions:
                 try:
                     # upl = unrealized profit and loss
-                    upl = float(pos.get("upl", 0.0))
+                    upl_val = pos.get("upl")
+                    upl = float(upl_val) if upl_val and str(upl_val).strip() != "" else 0.0
+                    
                     # margin ou mgnVal = margem alocada
-                    margin = float(pos.get("margin", pos.get("mgnVal", 0.0)))
+                    margin_val = pos.get("margin", pos.get("mgnVal"))
+                    if margin_val and str(margin_val).strip() != "":
+                        margin = float(margin_val)
+                    else:
+                        margin = 0.0
+                        
+                    # Se margem for zero (comum em Portfolio Margin na OKX), calculamos a estimada via notionalUsd / lever
+                    if margin <= 0.0:
+                        notional_usd = abs(float(pos.get("notionalUsd") or 0.0))
+                        lever = float(pos.get("lever") or 50.0)
+                        if lever > 0:
+                            margin = notional_usd / lever
                     
                     pnl_sum += upl
                     margin_sum += margin

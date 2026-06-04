@@ -244,7 +244,7 @@ class PortfolioGuardian:
                 # Aguarda breve para OKX sincronizar o PnL realizado
                 await _asyncio.sleep(3)
 
-                all_slots = await firebase_service.get_slots()
+                all_slots = await firebase_service.get_active_slots()
 
                 for pos in positions:
                     try:

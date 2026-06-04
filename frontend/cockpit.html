@@ -2183,20 +2183,20 @@
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header de Triunfo */}
-                        <div className={`px-4 py-3 border-b border-white/5 flex items-center gap-3 ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'}`}>
-                            <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}>
-                                <span className={`material-icons-round text-lg text-white`}>
+                        <div className={`px-6 py-5 border-b border-white/5 flex items-center gap-4 ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'}`}>
+                            <div className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}>
+                                <span className={`material-icons-round text-xl text-white`}>
                                     {isAstronomical ? 'auto_awesome' : 'military_tech'}
                                 </span>
                             </div>
-                            <div className="flex flex-col min-w-0 flex-1">
-                                <h3 className={`text-[11px] font-black uppercase tracking-[0.12em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`}>
+                            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                                <h3 className={`text-sm font-black uppercase tracking-[0.15em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`}>
                                     Briefing: <span className="text-primary">{selectedHistoryLog.symbol}</span>
                                 </h3>
-                                <span className="text-[8px] text-gray-500 uppercase font-bold tracking-widest">Protocolo Gênese-Vitória</span>
+                                <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest leading-none">Protocolo Gênese-Vitória</span>
                             </div>
-                            <button onClick={onClose} className="w-8 h-8 shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group">
-                                <span className="material-icons-round text-sm text-gray-500 group-hover:text-white">close</span>
+                            <button onClick={onClose} className="w-9 h-9 shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group cursor-pointer">
+                                <span className="material-icons-round text-base text-gray-400 group-hover:text-white">close</span>
                             </button>
                         </div>
 

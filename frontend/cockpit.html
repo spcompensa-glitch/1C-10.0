@@ -2154,14 +2154,27 @@
             let finalRoi = Number(selectedHistoryLog.final_roi || selectedHistoryLog.pnl_percent || selectedHistoryLog.roi || 0);
             const entry = Number(selectedHistoryLog.entry_price || 0);
             const exit = Number(selectedHistoryLog.exit_price || 0);
-            if (finalRoi === 0 && entry > 0 && exit > 0) {
+            const leverage = Number(selectedHistoryLog.leverage || 1);
+            const margin = Number(selectedHistoryLog.margin || 0);
+            const pnlUsd = Number(selectedHistoryLog.pnl || 0);
+
+            // Fallback ROI: calcula sem multiplicar alavancagem (ROI já considera leverage via PnL)
+            if (finalRoi === 0 && entry > 0 && exit > 0 && margin > 0) {
                 const side = String(selectedHistoryLog.side || 'Buy').toUpperCase();
-                const change = (side === 'BUY' || side === 'LONG') ? (exit - entry) : (entry - exit);
-                finalRoi = (change / entry) * 100 * 50; 
+                const priceMove = (side === 'BUY' || side === 'LONG') ? (exit - entry) : (entry - exit);
+                // ROI da posição = (move/entry) * leverage * 100
+                finalRoi = (priceMove / entry) * leverage * 100;
+            } else if (finalRoi === 0 && pnlUsd !== 0 && margin > 0) {
+                // ROI simples sobre margem
+                finalRoi = (pnlUsd / margin) * 100;
             }
+
+            // ROI sobre entrada (banca risk): se tivermos margin e pnl
+            const roiOnMargin = margin > 0 ? (pnlUsd / margin) * 100 : finalRoi;
+
             const isHighSuccess = finalRoi >= 100;
             const isAstronomical = finalRoi >= 500;
-            const isProfit = (selectedHistoryLog.pnl || 0) >= 0;
+            const isProfit = pnlUsd >= 0;
 
             return (
                 <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6" onClick={onClose}>
@@ -2170,46 +2183,70 @@
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header de Triunfo */}
-                        <div className={`p-6 border-b border-white/5 flex items-center justify-between ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'}`}>
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}>
-                                    <span className={`material-icons-round ${isAstronomical ? 'text-white' : 'text-white'}`}>
-                                        {isAstronomical ? 'auto_awesome' : 'military_tech'}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <h3 className={`text-[13px] font-black uppercase tracking-[0.15em] ${isAstronomical ? 'text-astronomical' : 'text-white'}`}>
-                                        Briefing de Triunfo: {selectedHistoryLog.symbol}
-                                    </h3>
-                                    <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Protocolo Gênese-Vitória Ativo</span>
-                                </div>
+                        <div className={`px-4 py-3 border-b border-white/5 flex items-center gap-3 ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'}`}>
+                            <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}>
+                                <span className={`material-icons-round text-lg text-white`}>
+                                    {isAstronomical ? 'auto_awesome' : 'military_tech'}
+                                </span>
                             </div>
-                            <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group">
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <h3 className={`text-[11px] font-black uppercase tracking-[0.12em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`}>
+                                    Briefing: <span className="text-primary">{selectedHistoryLog.symbol}</span>
+                                </h3>
+                                <span className="text-[8px] text-gray-500 uppercase font-bold tracking-widest">Protocolo Gênese-Vitória</span>
+                            </div>
+                            <button onClick={onClose} className="w-8 h-8 shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group">
                                 <span className="material-icons-round text-sm text-gray-500 group-hover:text-white">close</span>
                             </button>
                         </div>
 
                         <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
                             {/* BANNER DE RESULTADO */}
-                            <div className="relative group p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center justify-center text-center overflow-hidden">
+                            <div className="relative group p-5 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center justify-center text-center overflow-hidden gap-2">
                                 <div className="absolute inset-0 bg-gradient-to-b from-green-500/[0.03] to-transparent"></div>
                                 
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-2">Conquista Financeira</span>
+                                <span className="text-[9px] font-black text-gray-500 uppercase tracking-[0.3em]">Resultado Financeiro</span>
+
+                                {/* PNL principal */}
                                 <div className="flex items-center gap-3">
                                     <p className={`text-4xl font-black font-mono tracking-tighter ${isAstronomical ? 'text-astronomical' : isProfit ? 'text-white' : 'text-red-400'}`}>
-                                        {isProfit ? '+' : ''}${Math.abs(selectedHistoryLog.pnl || 0).toFixed(2)}
+                                        {isProfit ? '+' : ''}${Math.abs(pnlUsd).toFixed(2)}
                                     </p>
                                     <div className={`px-2 py-1 rounded-lg border text-[11px] font-black font-mono ${isProfit ? 'bg-white/10 border-white/20 text-white' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                                        {finalRoi.toFixed(1)}% ROI
+                                        {roiOnMargin.toFixed(1)}% <span className="text-[8px] opacity-60">s/margem</span>
                                     </div>
                                 </div>
 
+                                {/* Métricas secundárias */}
+                                <div className="flex gap-4 mt-1">
+                                    {margin > 0 && (
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[8px] text-gray-600 uppercase tracking-widest">Margem</span>
+                                            <span className="text-[10px] font-mono font-bold text-gray-400">${margin.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {leverage > 1 && (
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[8px] text-gray-600 uppercase tracking-widest">Alavancagem</span>
+                                            <span className="text-[10px] font-mono font-bold text-amber-400">{leverage}x</span>
+                                        </div>
+                                    )}
+                                    {entry > 0 && exit > 0 && (
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[8px] text-gray-600 uppercase tracking-widest">Δ Preço</span>
+                                            <span className={`text-[10px] font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                                                {isProfit ? '+' : ''}{((String(selectedHistoryLog.side || '').toUpperCase() === 'BUY' || String(selectedHistoryLog.side || '').toUpperCase() === 'LONG') ? (exit - entry) : (entry - exit)).toFixed(4)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* ROI BADGES */}
-                                <div className="flex gap-2 mt-4">
-                                    {finalRoi >= 20 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🌊 WAVE</span>}
-                                    {finalRoi >= 50 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">⚡ VOLT</span>}
-                                    {finalRoi >= 100 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🚀 ROCKET</span>}
-                                    {finalRoi >= 300 && <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[8px] font-black text-amber-300 uppercase tracking-widest">👑 CROWN</span>}
+                                <div className="flex gap-2 mt-1 flex-wrap justify-center">
+                                    {roiOnMargin >= 20 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🌊 WAVE</span>}
+                                    {roiOnMargin >= 50 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">⚡ VOLT</span>}
+                                    {roiOnMargin >= 100 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🚀 ROCKET</span>}
+                                    {roiOnMargin >= 300 && <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[8px] font-black text-amber-300 uppercase tracking-widest">👑 CROWN</span>}
                                     {isAstronomical && <span className="px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[8px] font-black text-white uppercase tracking-widest animate-pulse">🌌 GOD MODE</span>}
                                 </div>
                             </div>

@@ -420,17 +420,21 @@ class DatabaseService:
                     )
                 )
                 
-                # 5. Resetar banca para $100.00
+                # 5. Resetar banca para a banca simulada configurada (default $20.00)
+                from config import settings
+                target_balance = getattr(settings, "OKX_SIMULATED_BALANCE", 20.0)
                 banca = await session.get(BancaStatus, 1)
                 if banca:
-                    banca.saldo_total = 100.0
+                    banca.saldo_total = target_balance
+                    banca.configured_balance = target_balance
                     banca.status = 'ZERO_RESET'
                     banca.risco_real_percent = 0.0
                     banca.updated_at = now
                 else:
                     session.add(BancaStatus(
                         id=1,
-                        saldo_total=100.0,
+                        saldo_total=target_balance,
+                        configured_balance=target_balance,
                         status='ZERO_RESET',
                         risco_real_percent=0.0,
                         slots_disponiveis=4

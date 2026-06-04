@@ -137,6 +137,9 @@
             align-items: center !important;
             gap: 16px !important;
             box-sizing: border-box !important;
+            background: #0a0a0f !important;
+            position: relative !important;
+            z-index: 50 !important;
         }
         .triumph-modal-icon-container {
             width: 44px !important;
@@ -2208,7 +2211,8 @@
             return (
                 <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6" onClick={onClose}>
                     <div 
-                        className={`premium-card w-full max-w-lg rounded-3xl border overflow-hidden flex flex-col max-h-[85vh] animate-triumph ${isAstronomical ? 'victory-glow-prismatic' : isProfit ? 'victory-glow-emerald' : 'border-white/10'}`} 
+                        className={`premium-card w-full max-w-lg rounded-3xl border overflow-hidden animate-triumph ${isAstronomical ? 'victory-glow-prismatic' : isProfit ? 'victory-glow-emerald' : 'border-white/10'}`} 
+                        style={{ display: 'flex', flexDirection: 'column', maxHeight: '85vh', boxSizing: 'border-box' }}
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header de Triunfo */}

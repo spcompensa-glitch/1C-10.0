@@ -58,10 +58,14 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
-    // 1. BYPASS para APIs, WebSockets, OKX e Observatory (Dynamic Paths)
+    // 1. BYPASS para APIs, WebSockets, OKX, Observatory e Login (Dynamic Paths)
     if (url.pathname.startsWith('/api/') ||
         url.pathname.startsWith('/observatory/') ||
         url.pathname === '/observatory' ||
+        url.pathname === '/login' ||
+        url.pathname === '/login.html' ||
+        url.pathname === '/auth' ||
+        url.pathname === '/auth.html' ||
         url.hostname.includes('firebaseio.com') ||
         url.hostname.includes('okx.com') ||
         url.hostname.includes('railway.app')) {

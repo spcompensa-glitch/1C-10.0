@@ -656,5 +656,44 @@ class OKXService:
             
         return 1.0
 
+    async def set_leverage(self, symbol: str, leverage: float, mgn_mode: str = "cross") -> Dict[str, Any]:
+        """
+        [V110.705] Configura a alavancagem e modo de margem na conta OKX.
+        POST /api/v5/account/set-leverage
+        """
+        if self.is_mock:
+            logger.info(f"🤖 [OKX-REST MOCK] set_leverage simulado para {symbol}: {leverage}x ({mgn_mode})")
+            return {"code": "0", "msg": "success"}
+
+        inst_id = self.to_okx_inst_id(symbol)
+        request_path = "/api/v5/account/set-leverage"
+        url = self.base_url + request_path
+        
+        body = {
+            "instId": inst_id,
+            "lever": str(int(leverage)),
+            "mgnMode": mgn_mode
+        }
+        body_str = json.dumps(body)
+        headers = self._get_headers("POST", request_path, body_str)
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, content=body_str)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0":
+                        logger.info(f"✅ [OKX REST] Alavancagem de {inst_id} configurada para {leverage}x ({mgn_mode})")
+                        return data
+                    else:
+                        logger.warning(f"⚠️ [OKX REST] Falha ao configurar alavancagem para {inst_id}: {data.get('msg')}")
+                        return data
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao setar alavancagem")
+                    return {"code": str(response.status_code), "msg": response.text}
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao setar alavancagem para {inst_id}: {e}")
+            return {"code": "-1", "msg": str(e)}
+
 # Instanciação Singleton
 okx_service = OKXService()

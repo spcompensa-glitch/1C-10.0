@@ -763,9 +763,17 @@ class OKXRest:
     async def set_leverage(self, symbol: str, leverage: int = 50):
         """
         🚀 V12.0: Ajusta a alavancagem para o símbolo antes de abrir a ordem.
-        Garante que a margem calculada corresponda à alavancagem real na Bybit.
+        Garante que a margem calculada corresponda à alavancagem real na OKX/Bybit.
         """
         api_symbol = self._strip_p(symbol)
+
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
+            from services.okx_service import okx_service
+            logger.info(f"🔌 [OKX] Configurando alavancagem na OKX real para {symbol} em {leverage}x...")
+            res = await okx_service.set_leverage(symbol, leverage, mgn_mode="cross")
+            if res and res.get("code") == "0":
+                return {"retCode": 0, "result": {}}
+            return {"retCode": -1, "retMsg": res.get("msg") if res else "Unknown OKX Error"}
         
         if self.execution_mode == "PAPER":
             logger.info(f"[PAPER] Setting leverage for {api_symbol} to {leverage}x")

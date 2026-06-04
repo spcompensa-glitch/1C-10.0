@@ -570,8 +570,8 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showSuccess('Conta criada! Faça login para acessar.');
-                    setTimeout(() => switchTab('login'), 2000);
+                    showSuccess(data.message || 'Conta criada com sucesso! Aguardando aprovação.');
+                    setTimeout(() => switchTab('login'), 3500);
                 } else {
                     showError(data.detail || 'Erro ao criar conta');
                 }

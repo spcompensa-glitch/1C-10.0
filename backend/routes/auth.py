@@ -232,7 +232,7 @@ async def register(
             email=register_data.email,
             password_hash=password_hash,
             role='user',  # Role padrão
-            is_active=True,
+            is_active=False,  # Inativo por padrão, aguardando aprovação
             created_at=datetime.utcnow()
         )
         
@@ -241,7 +241,7 @@ async def register(
         db.refresh(new_user)
         
         # Registrar criação de usuário
-        logger.info(f"Novo usuário criado: {register_data.username}")
+        logger.info(f"Novo usuário criado (pendente de aprovação): {register_data.username}")
         
         # Registrar log de auditoria
         _create_audit_log(
@@ -259,7 +259,7 @@ async def register(
         )
         
         return RegisterResponse(
-            message="Usuário criado com sucesso",
+            message="Usuário criado com sucesso. Aguardando liberação do administrador.",
             user=new_user.to_dict()
         )
         
@@ -540,6 +540,80 @@ async def delete_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao deletar usuário"
+        )
+
+@router.post("/users/{user_id}/approve")
+@audit_log(action="approve_user", resource="admin_users")
+async def approve_user(
+    user_id: int,
+    current_user: Dict[str, Any] = Depends(require_admin()),
+    db: Session = Depends(get_db)
+):
+    """
+    Aprova/Ativa usuário (admin)
+    """
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário não encontrado"
+            )
+        
+        user.is_active = True
+        user.updated_at = datetime.utcnow()
+        db.commit()
+        
+        logger.info(f"Usuário aprovado e liberado pelo admin {current_user['username']}: {user.username}")
+        return {"message": f"Usuário {user.username} liberado com sucesso", "is_active": True}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao aprovar usuário: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao aprovar usuário"
+        )
+
+@router.post("/users/{user_id}/block")
+@audit_log(action="block_user", resource="admin_users")
+async def block_user(
+    user_id: int,
+    current_user: Dict[str, Any] = Depends(require_admin()),
+    db: Session = Depends(get_db)
+):
+    """
+    Bloqueia/Desativa usuário (admin)
+    """
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário não encontrado"
+            )
+        
+        if user.id == current_user['id']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Não é possível bloquear seu próprio usuário"
+            )
+            
+        user.is_active = False
+        user.updated_at = datetime.utcnow()
+        db.commit()
+        
+        logger.info(f"Usuário bloqueado pelo admin {current_user['username']}: {user.username}")
+        return {"message": f"Usuário {user.username} bloqueado com sucesso", "is_active": False}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao bloquear usuário: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao bloquear usuário"
         )
 
 # Funções utilitárias

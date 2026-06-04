@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.801)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.900)
 
 ## Resumo Executivo
-* **Versão:** `V110.801: Correção de Stop Loss & Filtro de Contratendência`
+* **Versão:** `V110.900: Unificação de Servidores & Controle de Acesso Administrativo`
 * **Data:** 2026-06-04
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Robô de trading quantitativo com orquestração descentralizada de slots, integração com OKX. Implementada persistência de sentinel_first_hit_at para evitar loops infinitos no Stop Loss virtual e filtro universal de contratendência ativo e endurecido em ambos os modos (Paper e Real).
+* **Escopo:** Servidores de Autenticação e Trading unificados sob o mesmo processo FastAPI na porta principal. Novo fluxo de segurança onde novos registros de usuários entram como inativos por padrão (`is_active = False`) e necessitam de aprovação de um Administrador. Interface administrativa de Controle de Usuários adicionada ao Cockpit UI.
 
 ---
 

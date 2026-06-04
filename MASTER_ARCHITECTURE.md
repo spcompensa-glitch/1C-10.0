@@ -1,9 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.705 "Banca Pequena & Contratendência Adaptativa"
+# MASTER_ARCHITECTURE.md — V110.800 "Paridade de Portfólio em Simulação & Override de Banca"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.705)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.705)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.800)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.800)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.800: PARIDADE DE PORTFÓLIO EM SIMULAÇÃO & OVERRIDE DE BANCA [JUN 04]**
+    - **Paridade do Portfolio Guardian no modo PAPER**: Ajustada a lógica de monitoramento de risco e encerramento de posições pelo Facão para refletir a simulação (PAPER) de forma robusta e persistir os resultados no banco local.
+    - **Override de Banca Simulada em $20.00**: Garantido que o override do arquivo `.env` para `OKX_SIMULATED_BALANCE` force a banca base a respeitar este limite nas leituras e atualizações do banco local SQLite e RTDB.
+    - **Migração SQLite Auto-Healing**: Adicionada compatibilidade na migração auto-healing do `database_service.py` para injetar o suporte a `configured_balance` de forma transparente também em ambiente SQLite local.
 
 *   **V110.705: CALIBRAÇÃO DE MARGEM PARA BANCA PEQUENA & CONTRATENDÊNCIA ADAPTATIVA [JUN 03]**
     - **Margem Mínima para Bancas Pequenas**: Garantia de margem de no mínimo $3.00 USD por slot quando a banca estiver abaixo de $50.00 USD (em vez de usar 10% rígido que resultaria em valores nulos de contratos na OKX).
@@ -408,8 +413,8 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-06-03 (V110.705) Sincronizado*
-*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*   - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
+*Documento atualizado em: 2026-06-04 (V110.800) Sincronizado*
+*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL e SQLite.*   - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
 
 2.  **Firebase / RTDB (Espelho Visual / Fallback):**
     - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.

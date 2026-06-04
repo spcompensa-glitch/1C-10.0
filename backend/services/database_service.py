@@ -130,9 +130,9 @@ class DatabaseService:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 
-                # Executar migrações auto-healing apenas se for PostgreSQL
-                if "postgresql" in self.engine.url.drivername:
-                    logger.info("🔧 Rodando migrações auto-healing para PostgreSQL...")
+                # Executar migrações auto-healing
+                if "postgresql" in self.engine.url.drivername or "sqlite" in self.engine.url.drivername:
+                    logger.info("🔧 Rodando migrações auto-healing...")
                     from sqlalchemy import text
                     # Definir colunas necessárias com tipos Postgres correspondentes
                     migrations = [
@@ -175,8 +175,22 @@ class DatabaseService:
                     ]
                     for table, col, col_type in migrations:
                         try:
-                            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type};"))
-                            logger.info(f"✅ Coluna '{col}' verificada/adicionada na tabela '{table}'.")
+                            # SQLite doesn't support 'IF NOT EXISTS' in ALTER TABLE ADD COLUMN
+                            if "sqlite" in self.engine.url.drivername:
+                                # SQLite alternative: try to add directly, catch exception if it already exists
+                                try:
+                                    # Translate JSONB to TEXT for SQLite
+                                    sqlite_type = "TEXT" if col_type == "JSONB" else col_type
+                                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {sqlite_type};"))
+                                    logger.info(f"✅ Coluna '{col}' adicionada na tabela '{table}' (SQLite).")
+                                except Exception as sqlite_err:
+                                    if "duplicate column name" in str(sqlite_err).lower() or "already exists" in str(sqlite_err).lower():
+                                        pass
+                                    else:
+                                        raise sqlite_err
+                            else:
+                                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type};"))
+                                logger.info(f"✅ Coluna '{col}' verificada/adicionada na tabela '{table}'.")
                         except Exception as migration_error:
                             logger.warning(f"Erro ao adicionar coluna {col} na tabela {table}: {migration_error}")
             

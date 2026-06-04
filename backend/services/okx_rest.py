@@ -72,9 +72,9 @@ class OKXRest:
                 self.paper_moonbags = data.get("moonbags", [])
                 self.paper_moonbags = [p for p in self.paper_moonbags if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_balance = data.get("balance", settings.OKX_SIMULATED_BALANCE)
-                if self.paper_balance != 100.0:
-                    logger.info(f"💰 [V110.176 User Rule] Forçando recalibração da banca Paper de ${self.paper_balance:.2f} para $100.00.")
-                    self.paper_balance = 100.0
+                if self.paper_balance != settings.OKX_SIMULATED_BALANCE:
+                    logger.info(f"💰 [V110.176 User Rule] Forçando recalibração da banca Paper de ${self.paper_balance:.2f} para ${settings.OKX_SIMULATED_BALANCE:.2f}.")
+                    self.paper_balance = settings.OKX_SIMULATED_BALANCE
                     asyncio.create_task(self._save_paper_state())
                 self.paper_orders_history = data.get("history", [])
                 self._last_paper_load_time = time.time()
@@ -156,8 +156,8 @@ class OKXRest:
                 # 1. Carregar Banca Status
                 banca_db = await database_service.get_banca_status()
                 self.paper_balance = float(banca_db.get("saldo_total", settings.OKX_SIMULATED_BALANCE))
-                if self.paper_balance != 100.0:
-                    self.paper_balance = 100.0
+                if self.paper_balance != settings.OKX_SIMULATED_BALANCE:
+                    self.paper_balance = settings.OKX_SIMULATED_BALANCE
                 
                 # 2. Carregar Slots do Postgres para self.paper_positions
                 slots_db = await database_service.get_active_slots()

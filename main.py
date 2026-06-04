@@ -18,7 +18,7 @@ import time
 import json
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
@@ -186,7 +186,8 @@ async def serve_root():
     """Servir index.html diretamente no root"""
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     else:
         raise HTTPException(status_code=404, detail="Index page not found")
 
@@ -308,21 +309,23 @@ async def serve_neural_graph():
     else:
         raise HTTPException(status_code=404, detail="Neural graph page not found")
 
-@app.get("/cockpit", response_class=FileResponse)
+@app.get("/cockpit", response_class=HTMLResponse)
 async def serve_cockpit():
     """Servir página Cockpit"""
     cockpit_path = os.path.join(frontend_path, "cockpit.html")
     if os.path.exists(cockpit_path):
-        return FileResponse(cockpit_path)
+        with open(cockpit_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     else:
         raise HTTPException(status_code=404, detail="Cockpit page not found")
 
-@app.get("/login", response_class=FileResponse)
+@app.get("/login", response_class=HTMLResponse)
 async def serve_login():
     """Servir página de Login"""
     login_path = os.path.join(frontend_path, "login.html")
     if os.path.exists(login_path):
-        return FileResponse(login_path)
+        with open(login_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     else:
         raise HTTPException(status_code=404, detail="Login page not found")
 
@@ -336,21 +339,23 @@ async def serve_auth_html():
     """Redirecionar links legados de auth.html para /login"""
     return "/login"
 
-@app.get("/cockpit.html", response_class=FileResponse)
+@app.get("/cockpit.html", response_class=HTMLResponse)
 async def serve_cockpit_html():
     """Servir página do Cockpit"""
     cockpit_path = os.path.join(frontend_path, "cockpit.html")
     if os.path.exists(cockpit_path):
-        return FileResponse(cockpit_path)
+        with open(cockpit_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     else:
         raise HTTPException(status_code=404, detail="Cockpit page not found")
 
-@app.get("/index.html", response_class=FileResponse)
+@app.get("/index.html", response_class=HTMLResponse)
 async def serve_index():
     """Servir página principal"""
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
-        return index_path
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     else:
         raise HTTPException(status_code=404, detail="Index page not found")
 

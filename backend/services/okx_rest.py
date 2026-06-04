@@ -153,11 +153,10 @@ class OKXRest:
                 # Carregar o saldo, slots e moonbags diretamente do Postgres para evitar posições zumbis
                 from services.database_service import database_service
                 
-                # 1. Carregar Banca Status
+                # 1. Carregar Banca Status e forçar override de settings.OKX_SIMULATED_BALANCE
                 banca_db = await database_service.get_banca_status()
-                self.paper_balance = float(banca_db.get("saldo_total", settings.OKX_SIMULATED_BALANCE))
-                if self.paper_balance != settings.OKX_SIMULATED_BALANCE:
-                    self.paper_balance = settings.OKX_SIMULATED_BALANCE
+                self.paper_balance = settings.OKX_SIMULATED_BALANCE
+                logger.info(f"💰 [PAPER-OVERRIDE] Banca calibrada localmente para ${self.paper_balance:.2f} conforme settings.")
                 
                 # 2. Carregar Slots do Postgres para self.paper_positions
                 slots_db = await database_service.get_active_slots()

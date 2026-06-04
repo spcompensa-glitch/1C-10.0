@@ -112,3 +112,62 @@ async def toggle_lockdown(lockdown_data: Dict[str, bool], admin: User = Depends(
         return {"status": "success", "lockdown_active": active}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao alternar lockdown: {str(e)}")
+
+@router.post("/reset-system")
+async def admin_nuclear_reset(admin: User = Depends(check_admin_role)):
+    """Executa o reset completo do sistema (só para admins logados)"""
+    from services.firebase_service import firebase_service
+    from services.okx_rest import okx_rest_service
+    from services.bankroll import bankroll_manager
+    from services.database_service import database_service
+    from config import settings
+    
+    report = []
+    try:
+        # 1. Limpar memória RAM do OKX REST Service
+        old_pos_count = len(okx_rest_service.paper_positions)
+        old_moon_count = len(okx_rest_service.paper_moonbags)
+        okx_rest_service.paper_positions = []
+        okx_rest_service.paper_moonbags = []
+        okx_rest_service.paper_balance = 20.0  # Resetar para $20
+        report.append(f"RAM Limpa: {old_pos_count} posições e {old_moon_count} moonbags removidas da memória.")
+        
+        # 2. Limpar pending_slots do BankrollManager
+        old_pending = len(bankroll_manager.pending_slots)
+        bankroll_manager.pending_slots.clear()
+        report.append(f"Pending slots limpos: {old_pending} locks removidos.")
+        
+        # 3. Persistir estado zerado no Firestore (via firebase_service.update_paper_state)
+        try:
+            clean_state = {
+                "positions": [],
+                "moonbags": [],
+                "balance": 20.0,
+                "history": []
+            }
+            await firebase_service.update_paper_state(clean_state)
+            report.append("Firestore paper_engine zerado.")
+        except Exception as e:
+            report.append(f"Firestore não disponível: {e}")
+        
+        # 4. Limpar Postgres slots e moonbags e histórico, resetar banca para $20.00
+        try:
+            # Forçamos a banca para $20 no banco
+            await database_service.reset_system_data()
+            report.append("Postgres slots/moonbags/histórico zerado.")
+        except Exception as e:
+            report.append(f"Postgres reset parcial: {e}")
+        
+        # Sincronizar RTDB e status de sistema
+        try:
+            await firebase_service.update_system_state("IDLE", 0, "System Reset complete", "Sniper V15.1")
+        except Exception as e:
+            logger.warning(f"Erro ao atualizar status RTDB: {e}")
+            
+        return {
+            "status": "SUCCESS",
+            "message": "Sistema resetado com sucesso (Banca de $20.00).",
+            "report": report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no reset nuclear: {str(e)}")

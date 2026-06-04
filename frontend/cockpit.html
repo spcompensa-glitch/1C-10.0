@@ -8627,6 +8627,43 @@
                             </div>
                         )}
 
+                        {/* ════════ RESET DO SISTEMA (PAPER) — ADMINS ONLY ════════ */}
+                        {isAdmin && (
+                            <div className="glass-card p-5 rounded-2xl border border-red-500/15 flex flex-col gap-4 bg-red-950/5">
+                                <h2 className="text-xs font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="material-icons-round text-sm">restart_alt</span>
+                                    Resetar Motor Paper & Banca
+                                </h2>
+                                <p className="text-[10px] text-gray-400 leading-relaxed uppercase tracking-wider">
+                                    Esta ação limpa todos os slots ativos (LIVRE), remove ordens Moonbag, limpa o histórico de trades e reinicia o saldo Paper do Sniper para o valor inicial de $20.00.
+                                </p>
+                                <button
+                                    onClick={async () => {
+                                        if (!confirm("⚠️ ATENÇÃO: Deseja realmente resetar todas as ordens, slots e a banca para $20.00? Esta ação não pode ser desfeita!")) return;
+                                        try {
+                                            const res = await fetch(`${API_BASE}/api/admin/reset-system`, {
+                                                method: 'POST',
+                                                headers: authHeader()
+                                            });
+                                            const data = await res.json();
+                                            if (res.ok && data.status === 'SUCCESS') {
+                                                alert(`✅ Sucesso:\n${data.message}`);
+                                                window.location.reload();
+                                            } else {
+                                                alert(`❌ Erro: ${data.detail || data.message || 'Falha no reset'}`);
+                                            }
+                                        } catch (e) {
+                                            alert('❌ Erro de rede: ' + e.message);
+                                        }
+                                    }}
+                                    className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 hover:border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <span className="material-icons-round text-sm">settings_backup_restore</span>
+                                    Resetar Completo (Banca $20.00)
+                                </button>
+                            </div>
+                        )}
+
                         {/* Info do Sistema */}
                         <div className="glass-card p-5 rounded-2xl border border-white/5 flex flex-col gap-3">
                             <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">

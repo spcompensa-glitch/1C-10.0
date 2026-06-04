@@ -8703,7 +8703,7 @@
 
         const App = () => {
             const [isAuthenticated, setIsAuthenticated] = useState(() => {
-                return !!localStorage.getItem('auth_token');
+                return !!(localStorage.getItem('auth_token') || localStorage.getItem('sniper_token'));
             });
             const [theme, setTheme] = useState(() => {
                 const saved = localStorage.getItem('v5_theme');

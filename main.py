@@ -328,17 +328,13 @@ async def serve_login():
 
 @app.get("/auth", response_class=RedirectResponse)
 async def serve_auth():
-    """Redirecionar para auth.html"""
-    return "/auth.html"
+    """Redirecionar para /login"""
+    return "/login"
 
-@app.get("/auth.html", response_class=FileResponse)
+@app.get("/auth.html", response_class=RedirectResponse)
 async def serve_auth_html():
-    """Servir página de Autenticação"""
-    auth_path = os.path.join(frontend_path, "auth.html")
-    if os.path.exists(auth_path):
-        return auth_path
-    else:
-        raise HTTPException(status_code=404, detail="Authentication page not found")
+    """Redirecionar links legados de auth.html para /login"""
+    return "/login"
 
 @app.get("/cockpit.html", response_class=FileResponse)
 async def serve_cockpit_html():

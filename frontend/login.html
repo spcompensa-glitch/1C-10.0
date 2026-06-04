@@ -25,34 +25,28 @@
             position: relative;
         }
 
-        /* Estrelas sutis ao fundo */
+        /* Estrelas sutis ao fundo (opacidade baixa para não poluir) */
         .stars-bg {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background-image:
-                radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.15), transparent),
-                radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.1), transparent),
-                radial-gradient(2px 2px at 80% 20%, rgba(255,255,255,0.08), transparent),
-                radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,0.12), transparent);
+                radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.08), transparent),
+                radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.05), transparent),
+                radial-gradient(2px 2px at 80% 20%, rgba(255,255,255,0.04), transparent);
             background-size: 250px 250px;
             z-index: 0;
             pointer-events: none;
         }
 
         .glass-card {
-            background: rgba(10, 10, 11, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
-
-        /* Transição suave de opacidade entre estados do form */
-        .form-fade {
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            background: rgba(10, 10, 11, 0.4);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
         }
 
         .input-dark {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             color: #ffffff;
             font-family: 'JetBrains Mono', monospace;
             transition: all 0.3s ease;
@@ -60,14 +54,13 @@
 
         .input-dark:focus {
             outline: none;
-            border-color: rgba(255, 255, 255, 0.25);
-            background: rgba(255, 255, 255, 0.05);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .input-dark::placeholder {
-            color: #4b5563; /* text-gray-600/70 */
-            letter-spacing: 0.1em;
+            color: #374151; /* text-gray-700 */
+            letter-spacing: 0.15em;
         }
     </style>
 </head>
@@ -84,37 +77,37 @@
 
             <!-- Título -->
             <div class="text-center space-y-1">
-                <h1 class="text-xl font-black text-white uppercase tracking-[0.3em]" id="panel-title">System 10D</h1>
+                <h1 class="text-lg font-black text-white uppercase tracking-[0.3em]" id="panel-title">System 10D</h1>
             </div>
 
             <!-- Mensagens de Feedback -->
             <div id="message-container" class="w-full text-center hidden">
-                <p id="message-text" class="text-[10px] font-black uppercase tracking-widest py-2 px-3 rounded-xl"></p>
+                <p id="message-text" class="text-[9px] font-black uppercase tracking-tighter py-2 px-3 rounded-xl"></p>
             </div>
 
             <!-- Formulário de Login -->
-            <form id="login-form" class="w-full space-y-6 form-fade">
-                <div class="space-y-3">
+            <form id="login-form" class="w-full space-y-6">
+                <div class="space-y-4">
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">person</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">person</span>
                         <input 
                             type="text" 
                             id="login-username"
                             placeholder="USUÁRIO"
                             required
                             autocomplete="username"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono uppercase placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center uppercase"
                         />
                     </div>
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">vpn_key</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">vpn_key</span>
                         <input 
                             type="password" 
                             id="login-password"
                             placeholder="CHAVE DE ACESSO"
                             required
                             autocomplete="current-password"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center placeholder:text-gray-700"
                         />
                     </div>
                 </div>
@@ -127,61 +120,61 @@
                     ENTRAR
                 </button>
 
-                <div class="text-center mt-2">
+                <div class="text-center mt-4">
                     <button
                         type="button"
                         onclick="showRegisterState()"
-                        class="text-[10px] text-gray-400 hover:text-gray-300 font-bold tracking-wider transition-colors"
+                        class="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
                     >
-                        Criar uma Conta →
+                        Solicitar Acesso →
                     </button>
                 </div>
             </form>
 
             <!-- Formulário de Cadastro (Inicialmente oculto) -->
-            <form id="register-form" class="w-full space-y-6 form-fade hidden">
-                <div class="space-y-3">
+            <form id="register-form" class="w-full space-y-6 hidden">
+                <div class="space-y-4">
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">person</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">person</span>
                         <input 
                             type="text" 
                             id="register-username"
                             placeholder="NOVO USUÁRIO"
                             required
                             autocomplete="username"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono uppercase placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center uppercase"
                         />
                     </div>
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">email</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">email</span>
                         <input 
                             type="email" 
                             id="register-email"
                             placeholder="EMAIL (OPCIONAL)"
                             autocomplete="email"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono uppercase placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center uppercase"
                         />
                     </div>
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">vpn_key</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">vpn_key</span>
                         <input 
                             type="password" 
                             id="register-password"
                             placeholder="SENHA"
                             required
                             autocomplete="new-password"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center"
                         />
                     </div>
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg">lock</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">lock</span>
                         <input 
                             type="password" 
                             id="register-confirm-password"
                             placeholder="CONFIRMAR SENHA"
                             required
                             autocomplete="new-password"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs font-mono placeholder:text-gray-700 text-center"
+                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center"
                         />
                     </div>
                 </div>
@@ -194,11 +187,11 @@
                     SOLICITAR ACESSO
                 </button>
 
-                <div class="text-center mt-2">
+                <div class="text-center mt-4">
                     <button
                         type="button"
                         onclick="showLoginState()"
-                        class="text-[10px] text-gray-400 hover:text-gray-300 font-bold tracking-wider transition-colors"
+                        class="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
                     >
                         ← Voltar para o Login
                     </button>
@@ -206,9 +199,9 @@
             </form>
         </div>
 
-        <!-- Footer -->
+        <!-- Footer Secured by GuardianAgent -->
         <div class="mt-8 flex justify-center">
-            <div class="flex items-center gap-2 text-[8px] text-gray-600 font-black uppercase tracking-widest">
+            <div class="flex items-center gap-2 text-[8px] text-gray-600 font-black uppercase tracking-[0.15em]">
                 <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                 Interface Secured by GuardianAgent
             </div>
@@ -216,19 +209,6 @@
     </div>
 
     <script>
-        // Limpeza agressiva de Service Workers ativos na inicialização para quebrar loops e caches zumbis
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (let registration of registrations) {
-                    registration.unregister().then(success => {
-                        if (success) {
-                            console.log('[SW] Desregistrado com sucesso para quebrar loop.');
-                        }
-                    });
-                }
-            });
-        }
-
         const API_BASE = window.location.origin;
 
         const loginForm = document.getElementById('login-form');
@@ -242,9 +222,9 @@
             messageContainer.classList.remove('hidden');
             messageText.textContent = text;
             if (isError) {
-                messageText.className = "text-[10px] font-black uppercase tracking-widest py-2 px-3 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500";
+                messageText.className = "text-[9px] font-black uppercase text-center tracking-tighter text-red-500 bg-red-950/20 border border-red-500/10 py-2 px-3 rounded-xl";
             } else {
-                messageText.className = "text-[10px] font-black uppercase tracking-widest py-2 px-3 rounded-xl bg-green-950/30 border border-green-500/20 text-green-500";
+                messageText.className = "text-[9px] font-black uppercase text-center tracking-tighter text-green-500 bg-green-950/20 border border-green-500/10 py-2 px-3 rounded-xl";
             }
         }
 
@@ -257,6 +237,12 @@
             clearMessage();
             loginForm.classList.add('hidden');
             registerForm.classList.remove('hidden');
+        }
+
+        function showLoginState() {
+            clearMessage();
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
         }
 
         // Login Handler
@@ -280,6 +266,7 @@
 
                 if (response.ok && data.access_token) {
                     localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('sniper_token', data.access_token);
                     localStorage.setItem('refresh_token', data.refresh_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
 
@@ -355,7 +342,7 @@
             }
         });
 
-        // Auto-redirecionamento inteligente validando o token no backend
+        // Auto-redirecionamento inteligente
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('auth_token') || localStorage.getItem('sniper_token');
             if (token) {
@@ -367,14 +354,12 @@
                         }
                     });
                     if (response.ok) {
-                        // Token é válido! Redireciona para o cockpit
                         window.location.href = '/cockpit';
                         return;
                     }
                 } catch (err) {
                     console.error('Erro ao validar token:', err);
                 }
-                // Token inválido ou expirado: limpa storages para evitar loops de redirecionamento
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('sniper_token');
                 localStorage.removeItem('user');

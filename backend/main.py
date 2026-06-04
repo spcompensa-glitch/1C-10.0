@@ -839,6 +839,33 @@ if settings.SERVE_STATIC_FRONTEND:
 
     @app.get("/")
     async def serve_index():
+        path = os.path.join(FRONTEND_DIR, "index.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-index-{time.time()}"
+                }
+            )
+
+    @app.get("/login")
+    async def serve_login_page():
+        path = os.path.join(FRONTEND_DIR, "login.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-login-{time.time()}"
+                }
+            )
+
+    @app.get("/cockpit")
+    @app.get("/cockpit.html")
+    async def serve_cockpit_page():
         path = os.path.join(FRONTEND_DIR, "cockpit.html")
         with open(path, "r", encoding="utf-8") as f:
             html_content = f.read()
@@ -854,11 +881,6 @@ if settings.SERVE_STATIC_FRONTEND:
     @app.get("/n8n/")
     async def n8n_redirect():
         return RedirectResponse(url="https://n8n-production-8e2d4.up.railway.app")
-
-    @app.get("/cockpit")
-    @app.get("/cockpit.html")
-    async def cockpit_redirect():
-        return RedirectResponse(url="/")
 
     @app.get("/observatory.html")
     async def serve_observatory_legacy():

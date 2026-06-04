@@ -224,9 +224,6 @@ FRONTEND_PAGES = {
 }
 
 
-@app.get("/", response_class=RedirectResponse)
-async def root():
-    return "/login"
 
 
 for route, filename in FRONTEND_PAGES.items():

@@ -348,11 +348,29 @@
             }
         });
 
-        // Auto-redirecionamento se já estiver logado
-        document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('auth_token');
+        // Auto-redirecionamento inteligente validando o token no backend
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('sniper_token');
             if (token) {
-                window.location.href = '/cockpit';
+                try {
+                    const response = await fetch(`${API_BASE}/api/auth/me`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        // Token é válido! Redireciona para o cockpit
+                        window.location.href = '/cockpit';
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Erro ao validar token:', err);
+                }
+                // Token inválido ou expirado: limpa storages para evitar loops de redirecionamento
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('sniper_token');
+                localStorage.removeItem('user');
             }
         });
     </script>

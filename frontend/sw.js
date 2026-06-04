@@ -7,26 +7,32 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.705'; // [V110.705] Correção de dupla contagem de PnL no saldo
+const CACHE_NAME = '1crypten-sniper-v110.706'; // [V110.705] Correção de dupla contagem de PnL no saldo
 const OFFLINE_URL = '/offline.html';
 
-// Assets that must be available offline
+// Assets que devem estar disponíveis offline (caminhos absolutos baseados na raiz)
 const STATIC_ASSETS = [
-    'cockpit.html',
-    'offline.html',
-    'manifest.json',
-    'logo10D.png',
-    'logo10DTrasp.png',
-    'favicon.ico',
-    'vendor/cockpit.bundle.js'
+    '/cockpit.html',
+    '/offline.html',
+    '/manifest.json',
+    '/logo10D.png',
+    '/logo10DTrasp.png',
+    '/favicon.ico',
+    '/vendor/cockpit.bundle.js'
 ];
 
-// Instalação: Cacheia arquivos críticos
+// Instalação: Cacheia arquivos críticos de forma resiliente
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             console.log('[SW] Pre-caching critical assets');
-            return cache.addAll(STATIC_ASSETS);
+            // Tenta cachear um por um para evitar que a falha de um único arquivo quebre toda a instalação
+            const cachePromises = STATIC_ASSETS.map((asset) => {
+                return cache.add(asset).catch((err) => {
+                    console.warn(`[SW] Falha ao cachear o asset: ${asset}`, err);
+                });
+            });
+            return Promise.all(cachePromises);
         })
     );
     self.skipWaiting();

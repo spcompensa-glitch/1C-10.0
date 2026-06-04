@@ -993,25 +993,19 @@ class CaptainAgent(AIOSAgent):
             btc_variation_15m = deep_macro.get("var_15m", 0)
             is_violent_trend = abs(btc_variation_15m) >= 0.5
             
-            if is_counter_trend and okx_rest_service.execution_mode != "PAPER":
+            if is_counter_trend:
                 can_bypass = False
-                # [V110.128] CONTRATENDÊNCIA VIOLENTA: Bloqueio total se var_15m > 0.8%
-                # [V110.705] Flexibilização: Permite bypass se for descorrelacionado ou tiver Score Elite (>= 95)
-                if abs(btc_variation_15m) >= 0.8:
-                    if is_decorrelated or score >= 95:
-                        can_bypass = True
-                        logger.info(f"💎 [ELITE-VIOLENT-BYPASS] {symbol} ({side}) furando contra-tendência violenta (var_15m={btc_variation_15m:.2f}%) por ser descorrelacionado ou score elite ({score}).")
-                    else:
-                        can_bypass = False
-                        logger.warning(f"🛑 [VIOLENT-TREND-BLOCK] {symbol} {side} contra tendência violenta do BTC ({btc_variation_15m:.2f}% em 15m). Riscos de massacre ignorados.")
-                elif score >= 90 and ("NECTAR" in nectar_seal or "ELITE" in nectar_seal):
-                    # [V110.30.1] CONTRATENDÊNCIA: Sinais ELITE (Score >= 90) COM selo Néctar/Elite podem furar.
+                # [V110.128] CONTRATENDÊNCIA VIOLENTA: Bloqueio total se var_15m > 0.5% (Tornando mais conservador)
+                if abs(btc_variation_15m) >= 0.5:
+                    can_bypass = False
+                    logger.warning(f"🛑 [VIOLENT-TREND-BLOCK] {symbol} {side} contra tendência violenta do BTC ({btc_variation_15m:.2f}% em 15m). Riscos de massacre ignorados.")
+                elif score >= 98: # Apenas permitindo bypass em setups de extrema confiança
                     can_bypass = True
-                    logger.info(f"💎 [ELITE-BYPASS] {symbol} furando contra-tendência BTC {btc_dir} com Score {score} e selo {nectar_seal}.")
+                    logger.info(f"💎 [ELITE-BYPASS] {symbol} furando contra-tendência BTC {btc_dir} com Score extremo {score} e selo {nectar_seal}.")
                 else:
                     can_bypass = False
                     if score >= 90:
-                        logger.warning(f"🛑 [ABSOLUTE DIRECTION BLOCK] {symbol} {side} negado: Tem Score {score} mas faltando selo Néctar/Elite (Selo atual: {nectar_seal}).")
+                        logger.warning(f"🛑 [ABSOLUTE DIRECTION BLOCK] {symbol} {side} negado: Tem Score {score} mas abaixo do limite de bypass extremo (98).")
                     else:
                         logger.warning(f"🛑 [ABSOLUTE DIRECTION BLOCK] {symbol} {side} negado: Contra tendência BTC {btc_dir} (Score {score} < 90).")
                     
@@ -1023,7 +1017,7 @@ class CaptainAgent(AIOSAgent):
                     self.active_tocaias.discard(symbol)
                     return
                 else:
-                    logger.info(f"🎯 [V110.128 BYPASS] Permitindo {symbol} ({side}) contra-tendência por critérios de Elite (Score >= 90).")
+                    logger.info(f"🎯 [V110.128 BYPASS] Permitindo {symbol} ({side}) contra-tendência por critérios de Elite (Score >= 98).")
             else:
                 logger.info(f"✅ [V67.3 TREND] {symbol} {side} a favor da tendência BTC {btc_dir}.")
 

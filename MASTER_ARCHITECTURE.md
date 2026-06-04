@@ -1,9 +1,13 @@
-# MASTER_ARCHITECTURE.md — V110.800 "Paridade de Portfólio em Simulação & Override de Banca"
+# MASTER_ARCHITECTURE.md — V110.801 "Correção de Stop Loss & Filtro de Contratendência"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.800)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.800)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.801)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.801)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.801: CORREÇÃO DE CRITICAL STOP LOSS & FILTRO DE CONTRATENDÊNCIA [JUN 04]**
+    - **Persistência de Sentinel no SQLite/Postgres**: Adicionada a coluna `sentinel_first_hit_at` nas tabelas `slots` e `moonbags` para garantir que o respiro diplomático não resulte em loops infinitos sob fallback de banco de dados local.
+    - **Filtro de Contratendência Universal**: Ativado o filtro de contratendência no modo `PAPER` e endurecidas as travas gerais, bloqueando 100% de trades contra a tendência se a variação de 15m do BTC for >= 0.5%, com bypass restrito a scores de elite >= 98.
 
 *   **V110.800: PARIDADE DE PORTFÓLIO EM SIMULAÇÃO & OVERRIDE DE BANCA [JUN 04]**
     - **Paridade do Portfolio Guardian no modo PAPER**: Ajustada a lógica de monitoramento de risco e encerramento de posições pelo Facão para refletir a simulação (PAPER) de forma robusta e persistir os resultados no banco local.
@@ -338,7 +342,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.705)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.801)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
@@ -357,7 +361,7 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.705)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.801)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -393,7 +397,7 @@
 
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.705)
+## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.801)
 
 O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
@@ -413,7 +417,7 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 ---
 
-*Documento atualizado em: 2026-06-04 (V110.800) Sincronizado*
+*Documento atualizado em: 2026-06-04 (V110.801) Sincronizado*
 *Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL e SQLite.*   - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
 
 2.  **Firebase / RTDB (Espelho Visual / Fallback):**

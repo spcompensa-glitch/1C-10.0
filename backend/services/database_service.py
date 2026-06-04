@@ -62,6 +62,7 @@ class Slot(Base):
     is_shadow_strike = Column(Boolean, default=False)
     score = Column(Float, default=0.0)
     vision_url = Column(String, nullable=True)
+    sentinel_first_hit_at = Column(Float, default=0.0)
 
 class TradeHistory(Base):
     __tablename__ = "trade_history"
@@ -89,6 +90,7 @@ class Moonbag(Base):
     entry_price = Column(Float)
     current_stop = Column(Float)
     pnl_percent = Column(Float)
+    sentinel_first_hit_at = Column(Float, default=0.0)
     promoted_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -171,7 +173,9 @@ class DatabaseService:
                         ("moonbags", "leverage", "DOUBLE PRECISION"),
                         ("moonbags", "order_id", "TEXT"),
                         ("moonbags", "opened_at", "DOUBLE PRECISION"),
-                        ("banca_status", "configured_balance", "DOUBLE PRECISION")
+                        ("banca_status", "configured_balance", "DOUBLE PRECISION"),
+                        ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
+                        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
                     ]
                     for table, col, col_type in migrations:
                         try:
@@ -411,6 +415,7 @@ class DatabaseService:
                         pensamento='ZERO RESET',
                         score=0,
                         opened_at=None,
+                        sentinel_first_hit_at=0.0,
                         updated_at=now
                     )
                 )

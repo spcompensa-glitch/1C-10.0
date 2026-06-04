@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.800)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.801)
 
 ## Resumo Executivo
-* **Versão:** `V110.800: Paridade Paper-Real do Portfolio Guardian & Banca de $20.00`
+* **Versão:** `V110.801: Correção de Stop Loss & Filtro de Contratendência`
 * **Data:** 2026-06-04
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real. Ajustes especiais para paridade total de simulação em modo PAPER com banca configurada de $20.00 e migração auto-healing no banco de dados SQLite/Postgres.
+* **Escopo:** Robô de trading quantitativo com orquestração descentralizada de slots, integração com OKX. Implementada persistência de sentinel_first_hit_at para evitar loops infinitos no Stop Loss virtual e filtro universal de contratendência ativo e endurecido em ambos os modos (Paper e Real).
 
 ---
 

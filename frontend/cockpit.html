@@ -7205,10 +7205,10 @@
 
             const liveCycleProfit = (vault.cycle_profit || 0) + liveTotalPnL;
             const liveTotalProfit = (banca.lucro_total_acumulado || 0) + liveTotalPnL;
-            // [V28.2] PAPER MODE FIX: Prioriza saldo_total (calculado pelo backend com lógica PAPER)
-            // O saldo_real_okx vem da OKX diretamente e não reflete o modo simulado.
+            // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX
+            const isRealMode = banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0;
             const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 10));
-            const liveEquity = baseEquity + liveTotalPnL;
+            const liveEquity = isRealMode ? (banca.saldo_real_okx || banca.saldo_total) : (baseEquity + liveTotalPnL);
 
             // Map Best Signals
             const signalsArray = Array.isArray(radarSignals) ? radarSignals : [];

@@ -130,6 +130,35 @@
         };
     </script>
     <style>
+        .triumph-modal-header {
+            padding: 24px 24px !important;
+            min-height: 92px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 16px !important;
+            box-sizing: border-box !important;
+        }
+        .triumph-modal-icon-container {
+            width: 44px !important;
+            height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 12px !important;
+            box-sizing: border-box !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .triumph-modal-close-btn {
+            width: 36px !important;
+            height: 36px !important;
+            border: none !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+        }
         :root {
             --v5-bg-deep: #060608; 
             --v5-bg-card: rgba(13, 13, 20, 0.45); 
@@ -2184,12 +2213,10 @@
                     >
                         {/* Header de Triunfo */}
                         <div 
-                            className={`${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'} border-b border-white/5 shrink-0`}
-                            style={{ padding: '24px', minHeight: '92px', display: 'flex', alignItems: 'center', gap: '16px', boxSizing: 'border-box' }}
+                            className={`triumph-modal-header ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'} border-b border-white/5 shrink-0`}
                         >
                             <div 
-                                className={`shrink-0 border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}
-                                style={{ width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', boxSizing: 'border-box' }}
+                                className={`triumph-modal-icon-container shrink-0 border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}
                             >
                                 <span className={`material-icons-round text-white`} style={{ fontSize: '24px' }}>
                                     {isAstronomical ? 'auto_awesome' : 'military_tech'}
@@ -2203,8 +2230,7 @@
                             </div>
                             <button 
                                 onClick={onClose} 
-                                className="shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group cursor-pointer"
-                                style={{ width: '36px', height: '36px', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}
+                                className="triumph-modal-close-btn shrink-0 rounded-full bg-white/5 hover:bg-white/10 transition-all group cursor-pointer"
                             >
                                 <span className="material-icons-round text-gray-400 group-hover:text-white" style={{ fontSize: '18px' }}>close</span>
                             </button>

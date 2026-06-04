@@ -129,8 +129,40 @@ async def init_trading_database():
                 logger.info("✅ BancaStatus inicial criada ($100.00, 4 slots)")
             else:
                 logger.info(f"✅ BancaStatus já existe (saldo=${banca.saldo_total})")
+
+            # Seed dummy trade in history if empty to allow visual testing
+            from services.database_service import TradeHistory
+            existing_history = (await session.execute(select(TradeHistory))).scalars().all()
+            if not existing_history:
+                session.add(TradeHistory(
+                    order_id="dummy_1780596241984",
+                    genesis_id="PEPEUSDT_1780596241984",
+                    symbol="PEPEUSDT",
+                    side="SELL",
+                    pnl=-0.08,
+                    pnl_percent=-4.0,
+                    entry_price=0.00001550,
+                    exit_price=0.00001612,
+                    strategy="SNIPER",
+                    close_reason="STOP_LOSS",
+                    timestamp=datetime.utcnow(),
+                    data={
+                        "symbol": "PEPEUSDT",
+                        "side": "SELL",
+                        "pnl": -0.08,
+                        "pnl_percent": -4.0,
+                        "entry_price": 0.00001550,
+                        "exit_price": 0.00001612,
+                        "strategy": "SNIPER",
+                        "close_reason": "STOP_LOSS",
+                        "leverage": 50,
+                        "margin": 2.0
+                    }
+                ))
+                await session.commit()
+                logger.info("✅ Trade dummy de teste inserido no histórico local")
     except Exception as e:
-        logger.error(f"❌ Falha ao fazer seed de slots/banca: {e}")
+        logger.error(f"❌ Falha ao fazer seed de slots/banca/histórico: {e}")
 
 
 # Importa o app principal (cockpit data, websocket, hermes, etc.)

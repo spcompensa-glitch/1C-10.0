@@ -87,13 +87,24 @@
 
             <!-- Formulário de Login (Completamente fiel ao print) -->
             <form id="login-form" class="w-full space-y-6">
-                <div class="space-y-2">
+                <div class="space-y-4">
+                    <div class="relative">
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600">person</span>
+                        <input 
+                            type="text" 
+                            id="login-username"
+                            placeholder="USUÁRIO"
+                            required
+                            autocomplete="username"
+                            class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-mono placeholder:text-gray-700 focus:outline-none focus:border-white/30 transition-all text-center uppercase"
+                        />
+                    </div>
                     <div class="relative">
                         <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600">vpn_key</span>
                         <input 
                             type="password" 
                             id="login-password"
-                            placeholder="CHAVE DE ACESSO"
+                            placeholder="SENHA"
                             required
                             autocomplete="current-password"
                             class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-mono placeholder:text-gray-700 focus:outline-none focus:border-white/30 transition-all text-center"
@@ -115,7 +126,7 @@
                         onclick="showRegisterState()"
                         class="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
                     >
-                        Solicitar Acesso →
+                        Registro →
                     </button>
                 </div>
             </form>
@@ -173,7 +184,7 @@
                     id="btn-register-submit"
                     class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-gray-200 transition-all active:scale-[0.98]"
                 >
-                    SOLICITAR ACESSO
+                    CRIAR CONTA
                 </button>
 
                 <div class="text-center mt-4">
@@ -241,7 +252,7 @@
         // Login Handler
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = 'admin';
+            const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
 
             btnLoginSubmit.disabled = true;
@@ -316,22 +327,22 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showMessage('CONTA CRIADA! AGUARDANDO LIBERAÇÃO DO ADM');
+                    showMessage('CONTA CRIADA! AGUARDE A LIBERAÇÃO DO ADMIN PARA ACESSAR.');
                     setTimeout(() => {
                         showLoginState();
                         btnRegisterSubmit.disabled = false;
-                        btnRegisterSubmit.textContent = 'SOLICITAR ACESSO';
-                    }, 3500);
+                        btnRegisterSubmit.textContent = 'CRIAR CONTA';
+                    }, 3000);
                 } else {
-                    showMessage(data.detail || 'FALHA AO SOLICITAR ACESSO', true);
+                    showMessage(data.detail || 'FALHA AO CRIAR CONTA', true);
                     btnRegisterSubmit.disabled = false;
-                    btnRegisterSubmit.textContent = 'SOLICITAR ACESSO';
+                    btnRegisterSubmit.textContent = 'CRIAR CONTA';
                 }
             } catch (error) {
                 console.error('Register error:', error);
                 showMessage('ERRO DE CONEXÃO COM O SERVIDOR', true);
                 btnRegisterSubmit.disabled = false;
-                btnRegisterSubmit.textContent = 'SOLICITAR ACESSO';
+                btnRegisterSubmit.textContent = 'CRIAR CONTA';
             }
         });
 

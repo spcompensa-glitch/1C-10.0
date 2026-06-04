@@ -216,6 +216,19 @@
     </div>
 
     <script>
+        // Limpeza agressiva de Service Workers ativos na inicialização para quebrar loops e caches zumbis
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister().then(success => {
+                        if (success) {
+                            console.log('[SW] Desregistrado com sucesso para quebrar loop.');
+                        }
+                    });
+                }
+            });
+        }
+
         const API_BASE = window.location.origin;
 
         const loginForm = document.getElementById('login-form');

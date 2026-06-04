@@ -335,8 +335,22 @@
             }
         });
 
-        // Auto-redirecionamento inteligente
+        // Auto-redirecionamento inteligente + Limpeza de Cache no Login
         document.addEventListener('DOMContentLoaded', async () => {
+            // Limpa Service Worker e Caches para evitar loops persistentes no login
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                    }
+                }).catch(err => console.error(err));
+            }
+            if (window.caches) {
+                caches.keys().then(keys => {
+                    keys.forEach(key => caches.delete(key));
+                }).catch(err => console.error(err));
+            }
+
             const token = localStorage.getItem('auth_token') || localStorage.getItem('sniper_token');
             if (token) {
                 try {

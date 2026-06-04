@@ -95,7 +95,7 @@
         }
     </style>
     <script>
-        // Limpeza imediata de todos os Service Workers ativos
+        // Limpeza imediata de todos os Service Workers e Cache Storage
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(registrations => {
                 for (let registration of registrations) {
@@ -103,10 +103,15 @@
                 }
             }).catch(err => console.error('Erro ao limpar SW:', err));
         }
+        if (window.caches) {
+            caches.keys().then(keys => {
+                keys.forEach(key => caches.delete(key));
+            }).catch(err => console.error('Erro ao limpar Caches:', err));
+        }
 
-        // Aguarda 3 segundos exibindo a animação completa antes de ir para a caixa de login
+        // Aguarda 3 segundos exibindo a animação completa antes de ir para a caixa de login (com cache buster)
         setTimeout(() => {
-            window.location.replace('/login');
+            window.location.replace('/login?t=' + Date.now());
         }, 3000);
     </script>
 </head>

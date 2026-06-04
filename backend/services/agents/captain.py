@@ -996,9 +996,14 @@ class CaptainAgent(AIOSAgent):
             if is_counter_trend and okx_rest_service.execution_mode != "PAPER":
                 can_bypass = False
                 # [V110.128] CONTRATENDÊNCIA VIOLENTA: Bloqueio total se var_15m > 0.8%
+                # [V110.705] Flexibilização: Permite bypass se for descorrelacionado ou tiver Score Elite (>= 95)
                 if abs(btc_variation_15m) >= 0.8:
-                    can_bypass = False
-                    logger.warning(f"🛑 [VIOLENT-TREND-BLOCK] {symbol} {side} contra tendência violenta do BTC ({btc_variation_15m:.2f}% em 15m). Riscos de massacre ignorados.")
+                    if is_decorrelated or score >= 95:
+                        can_bypass = True
+                        logger.info(f"💎 [ELITE-VIOLENT-BYPASS] {symbol} ({side}) furando contra-tendência violenta (var_15m={btc_variation_15m:.2f}%) por ser descorrelacionado ou score elite ({score}).")
+                    else:
+                        can_bypass = False
+                        logger.warning(f"🛑 [VIOLENT-TREND-BLOCK] {symbol} {side} contra tendência violenta do BTC ({btc_variation_15m:.2f}% em 15m). Riscos de massacre ignorados.")
                 elif score >= 90 and ("NECTAR" in nectar_seal or "ELITE" in nectar_seal):
                     # [V110.30.1] CONTRATENDÊNCIA: Sinais ELITE (Score >= 90) COM selo Néctar/Elite podem furar.
                     can_bypass = True

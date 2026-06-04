@@ -1,9 +1,13 @@
-# MASTER_ARCHITECTURE.md — V110.704 "Ceifeiro 1200% & Escadinha Expandida"
+# MASTER_ARCHITECTURE.md — V110.705 "Banca Pequena & Contratendência Adaptativa"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.704)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.704)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.705)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.705)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.705: CALIBRAÇÃO DE MARGEM PARA BANCA PEQUENA & CONTRATENDÊNCIA ADAPTATIVA [JUN 03]**
+    - **Margem Mínima para Bancas Pequenas**: Garantia de margem de no mínimo $3.00 USD por slot quando a banca estiver abaixo de $50.00 USD (em vez de usar 10% rígido que resultaria em valores nulos de contratos na OKX).
+    - **Flexibilização de Contratendência**: Sinais qualificados em altcoins descorrelacionadas (`is_decorrelated`) ou com Score de Elite (>= 95) agora têm bypass ativo para operar em contratendência, mesmo em momentos de queda violenta do BTC (variação de 15m >= 0.8%).
 
 *   **V110.704: LOCAL SERVER STABILITY, M-ADX, CAPITAL PRESERVATION & MOONBAG SYNC [JUN 03]**
     - **Sincronização de Moonbags no Postgres & UI**: Correção do fluxo de atualização e remoção de Moonbags. Quando o Firebase está inativo, as alterações e encerramentos de Moonbags agora refletem corretamente no PostgreSQL (através de `update_moonbag` e `remove_moonbag` em `database_service.py`).
@@ -327,22 +331,9 @@
 
 *   **V110.174: SELECTIVE INTELLIGENCE UPGRADE — VANGUARD [APR 24]**
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
-    - **Spring Directionality**: Restrição do bypass de mola para seguir rigorosamente a tendência principal do ativo.
-    - **Macro Shield**: Elevação da régua de Macro Score para ativos propensos a armadilhas (Trap-Prone).
+    - **Spring Directionality**---
 
-*   **V110.173: ELITE FLEET EXPANSION — TOP 40 🌸 [APR 23]**
-    - **Elite-40 Fleet**: Expansão do monitoramento de ativos `Spring Elite` de 20 para 40 pares.
-    - **Spring Shield Bypass**: Consolidação do mecanismo de bypass para ativos `MOLA`.
-    - **UI Synchronization**: Inclusão do selo `🧬 GENESIS: ID` com fallback para `order_id`.
-
-*   **V110.172: GENESIS IRON LOCK — RACE CONDITION FIX 🔒 [APR 22]**
-    - **Atomic Genesis ID:** O `genesis_id` gerado APÓS a confirmação da Exchange.
-    - **Global In-Memory Lock:** Bloqueio de transição de slots para evitar ordens duplicadas.
-    - **Paper Desync Guard:** Sincronização entre memória local e banco de dados para evitar overwrite de slots.
-
----
-
-## 🏗️ ARQUITETURA DE SISTEMA (V110.704)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.705)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
@@ -355,15 +346,13 @@
 - **Hermes Broker:** gRPC HTTP/2 async na porta `50051` (tenancy) + cliente MQTT HiveMQ (`broker.hivemq.com`) com QoS 2.
 - **Telegram Native:** comando `/banca` com blindagem GUARDIAN_PROMPT.md sob `HERMES_GUARDIAN=1`.
 
-*   **V110.704: LOCAL & PRODUCTION UNIFIED STABILITY [JUN 03]**
-    - **Service Worker & Static Assets Resolution**: Correção na rota `catch_all` do backend em [main.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/main.py) para remover query strings (ex: `?v=110.900`) e parâmetros das URLs antes de validar a existência de arquivos estáticos como `/sw.js` e `/manifest.json`, eliminando de vez os erros 404 e travamentos no PWA em produção e local.
-    - **Moonbags API Response Formatting**: Ajuste no endpoint `/api/moonbags` em [routes/trading.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/routes/trading.py) para envelopar a lista em um dicionário contendo a chave `moonbags` (`{"moonbags": [...]}`). Isso evitou quebras de carregamento no frontend (`TypeError: moonbags.map is not a function`) quando os dados do Postgres estão vazios ou sendo resgatados do fallback REST.
-    - **Port Binding Hot-Healing**: Script local configurado para identificar e matar instâncias órfãs que travavam o socket da porta 8085 no Windows.
-    - **Unified WebSocket & OKX Real Feeds**: Alinhamento de todos os componentes locais na mesma porta 8085 através do `local_dev.py`, conectando o painel de forma transparente aos feeds e oscilações do mercado real via OKX WebSocket.
+*   **V110.705: CALIBRAÇÃO DE MARGEM PARA BANCA PEQUENA & CONTRATENDÊNCIA ADAPTATIVA [JUN 03]**
+    - **Margem Mínima para Bancas Pequenas**: Garantia de margem de no mínimo $3.00 USD por slot quando a banca estiver abaixo de $50.00 USD (em vez de usar 10% rígido que resultaria em valores nulos de contratos na OKX).
+    - **Flexibilização de Contratendência**: Sinais qualificados em altcoins descorrelacionadas (`is_decorrelated`) ou com Score de Elite (>= 95) agora têm bypass ativo para operar em contratendência, mesmo em momentos de queda violenta do BTC (variação de 15m >= 0.8%).
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.704)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.705)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -374,7 +363,7 @@
 
 ### 3. Camada de Execução (Actor Model)
 - **4 × SlotOperatorAgent:** instâncias independentes, ciclo de vida próprio (Gênesis → Escadinha → Arquivamento), self-auditing nativo via `FleetAudit`.
-- **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`.
+- **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`, com bypass dinâmico de contratendência violenta para ativos descorrelacionados ou de Score >= 95.
 - **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
@@ -390,6 +379,7 @@
   - **T4 Profit-Lock:** 110% ROI → Stop Loss movido para 70%
   - **T5 Emancipação / Moonbag:** 150% ROI → Stop Loss movido para 110%
 - **Ceifeiro (pós-emancipação):** 200% WAVE → 300% ROCKET → 400% STAR → 500% CROWN → 600% SUPERNOVA → 700% GOD_MODE → 800-1200% CHOKE_HOLD/APEX.
+- **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 
 ### 5. Auth & Failsafe
 - **Fortress Auth:** JWT + bypass admin `123` (papel "Sovereign").
@@ -398,7 +388,7 @@
 
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.704)
+## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.705)
 
 O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
@@ -406,6 +396,20 @@ O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
     - Hospedado no Railway.
     - Única fonte de verdade para: `slots`, `banca_status`, `paper_engine_state`, `trade_history` e `radar_pulse` (dados do pulso persistente).
     - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
+
+2.  **Firebase / RTDB (Espelho Visual / Fallback):**
+    - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.
+    - O robô escreve no RTDB a cada ciclo de 1s para atualizar o frontend.
+    - **FALLBACK DE QUEDA:** Caso o SDK esteja desativado (`self.is_active = False`), o backend aciona instantaneamente a leitura direta das tabelas Postgres (`database_service.get_radar_pulse()`), restaurando a saúde visual completa da UI.
+
+3.  **Fluxo de Reset:**
+    - Para remover ordens fantasmas: Limpar `slots` e `system_state` no Postgres.
+    - O robô detectará a ausência de ordens no Postgres e enviará um comando de limpeza para o RTDB automaticamente.
+
+---
+
+*Documento atualizado em: 2026-06-03 (V110.705) Sincronizado*
+*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*   - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
 
 2.  **Firebase / RTDB (Espelho Visual / Fallback):**
     - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.

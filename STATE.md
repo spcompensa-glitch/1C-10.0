@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.704)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.705)
 
 ## Resumo Executivo
-* **Versão:** `V110.704: Estabilização Local & Refinamento de Indicadores`
+* **Versão:** `V110.705: Calibração de Margem & Flexibilização de Contratendência`
 * **Data:** 2026-06-03
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real.
+* **Escopo:** Robô de trading quantitativo automatizado com orquestração descentralizada de slots, integração com OKX e monitoramento de portfólio em tempo real. Ajustes especiais para banca pequena e proteção dinâmica de volatilidade.
 
 ---
 

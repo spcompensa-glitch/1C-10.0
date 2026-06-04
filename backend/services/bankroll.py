@@ -1464,7 +1464,10 @@ class BankrollManager:
                 if settings.OKX_API_KEY_MASTER:
                     margin = round(balance * 0.10, 2)
                     current_leverage = 50.0
-                    logger.info(f"💰 [OKX BANCA VIRTUAL] Calibrado slot para exatamente 10% da banca (${margin:.2f}) com {current_leverage}x alavancagem.")
+                    # [V110.705] Ajuste para banca pequena: garante margem mínima de $3.00 se o saldo comportar
+                    if balance < 50.0 and balance >= 3.0:
+                        margin = max(margin, 3.0)
+                    logger.info(f"💰 [OKX BANCA VIRTUAL] Calibrado slot para exactly {margin:.2f} margem (Banca: ${balance:.2f}) com {current_leverage}x alavancagem.")
 
                 cycle_status = await vault_service.get_cycle_status()
                 cycle_bankroll = cycle_status.get("cycle_start_bankroll", 0)

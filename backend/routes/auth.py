@@ -113,12 +113,15 @@ async def login(
     Realiza login e retorna tokens JWT
     """
     try:
-        # Verificar rate limiting
         client_ip = _get_client_ip(request)
-        username = login_data.username
-        
-        # Buscar usuário no banco
+        # Normalizar para lowercase (case-insensitive)
+        username = login_data.username.strip().lower()
+
+        # Buscar usuário no banco por username OU email (case-insensitive)
         user = db.query(User).filter(User.username == username).first()
+        if not user and '@' in username:
+            # Tentativa por email
+            user = db.query(User).filter(User.email == username).first()
         
         if not user:
             logger.warning(f"Tentativa de login falha: usuário {username} não existe")
@@ -206,8 +209,12 @@ async def register(
                 detail=f"Senha fraca: {', '.join(password_validation['errors'])}"
             )
         
+        # Normalizar username e email para lowercase
+        clean_username = register_data.username.strip().lower()
+        clean_email = register_data.email.strip().lower() if register_data.email else None
+
         # Verificar se username já existe
-        existing_user = db.query(User).filter(User.username == register_data.username).first()
+        existing_user = db.query(User).filter(User.username == clean_username).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -215,8 +222,8 @@ async def register(
             )
         
         # Verificar se email já existe (se informado)
-        if register_data.email:
-            existing_email = db.query(User).filter(User.email == register_data.email).first()
+        if clean_email:
+            existing_email = db.query(User).filter(User.email == clean_email).first()
             if existing_email:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -228,8 +235,8 @@ async def register(
         
         # Criar novo usuário
         new_user = User(
-            username=register_data.username,
-            email=register_data.email,
+            username=clean_username,
+            email=clean_email,
             password_hash=password_hash,
             role='user',  # Role padrão
             is_active=False,  # Inativo por padrão, aguardando aprovação

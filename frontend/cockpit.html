@@ -4299,7 +4299,7 @@
                         } catch (e) { }
 
                         // Escadinha de Elite (Targets)
-                        const isSniper = slotId <= 5 || slotType === 'SNIPER' || slotType === 'BLITZ' || slotType === 'TREND';
+                        const isSniper = slotId <= 5 || slotType === 'SNIPER' || String(slotType).startsWith('BLITZ') || slotType === 'TREND' || slotType === 'MOONBAG';
                         if (isSniper && ne > 0) {
                             // Degraus da Escadinha @ 50x (ROI / 5000 = Price Move %)
                             const levels = [

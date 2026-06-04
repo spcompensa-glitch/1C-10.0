@@ -143,9 +143,18 @@ class FleetAudit(AIOSAgent):
                     slot_or_moon = db_entry["data"]
                     
                     # SL Recovery
+                    db_stop = float(slot_or_moon.get("current_stop", 0))
+                    is_sl_missing_or_deviant = False
+                    
                     if sl == 0:
                         logger.warning(f"🚨 [AUDIT] MISSING SL for {symbol}. Recovering...")
-                        recovery_sl = slot_or_moon.get("current_stop", 0)
+                        is_sl_missing_or_deviant = True
+                    elif db_stop > 0 and abs(sl - db_stop) / db_stop > 0.002: # Diferença > 0.2%
+                        logger.warning(f"🚨 [AUDIT] DEVIANT SL for {symbol}: OKX={sl} vs DB={db_stop}. Synchronizing...")
+                        is_sl_missing_or_deviant = True
+                        
+                    if is_sl_missing_or_deviant:
+                        recovery_sl = db_stop
                         if recovery_sl <= 0:
                             recovery_sl = entry * 0.99 if side == "Buy" else entry * 1.01
                         

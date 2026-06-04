@@ -181,10 +181,14 @@ RAILWAY_ENV = os.getenv("RAILWAY_ENV", "production")
 RAILWAY_URL = os.getenv("RAILWAY_URL", "https://1crypten-hermes-agent-production.up.railway.app")
 
 # Rotas frontend
-@app.get("/", response_class=RedirectResponse)
-async def redirect_root():
-    """Redirecionar root para a página de login"""
-    return "/login"
+@app.get("/")
+async def serve_root():
+    """Servir index.html diretamente no root"""
+    index_path = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    else:
+        raise HTTPException(status_code=404, detail="Index page not found")
 
 @app.get("/health")
 async def health_check():
@@ -426,10 +430,7 @@ async def serve_intel_wiki():
     else:
         raise HTTPException(status_code=404, detail="Intel wiki page not found")
 
-@app.get("/", response_class=RedirectResponse)
-async def redirect_root():
-    """Redirecionar root para a página de login"""
-    return "/login"
+
 
 @app.on_event("startup")
 async def startup_event():

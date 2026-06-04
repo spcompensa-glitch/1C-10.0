@@ -2,39 +2,593 @@
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1CRYPTEN — Carregando...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <title>1CRYPTEN — Autenticação</title>
+
+    <link rel="icon" type="image/png" href="logo10DTrasp.png?v=4">
+    <meta name="theme-color" content="#000000">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            background: #000;
-            color: #06b6d4;
-            font-family: 'Courier New', monospace;
+            background: #0a0a0b;
+            color: #ffffff;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            flex-direction: column;
-            gap: 20px;
+            overflow: hidden;
+            position: relative;
         }
-        .loader {
-            width: 40px;
-            height: 40px;
-            border: 2px solid rgba(6, 182, 212, 0.15);
-            border-top: 2px solid #06b6d4;
+
+        /* Animated background auras */
+        .aura {
+            position: fixed;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            filter: blur(100px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        p { font-size: 13px; opacity: 0.6; letter-spacing: 2px; }
+        .aura-gold {
+            width: 500px; height: 500px;
+            background: #FFD700;
+            top: -100px; right: -100px;
+            animation: float-gold 8s ease-in-out infinite;
+        }
+        .aura-cyan {
+            width: 400px; height: 400px;
+            background: #06b6d4;
+            bottom: -50px; left: -50px;
+            animation: float-cyan 10s ease-in-out infinite;
+        }
+        @keyframes float-gold {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-30px, 30px); }
+        }
+        @keyframes float-cyan {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -30px); }
+        }
+
+        /* Stars background */
+        .stars-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.3), transparent),
+                radial-gradient(1px 1px at 60% 70%, rgba(255,215,0,0.2), transparent),
+                radial-gradient(2px 2px at 80% 20%, rgba(255,255,255,0.15), transparent),
+                radial-gradient(1px 1px at 40% 80%, rgba(6,182,212,0.2), transparent);
+            background-size: 200px 200px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .auth-container {
+            position: relative;
+            z-index: 1;
+            background: rgba(15, 15, 17, 0.85);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 215, 0, 0.15);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 90%;
+            max-width: 440px;
+            box-shadow:
+                0 25px 60px -12px rgba(0, 0, 0, 0.8),
+                0 0 40px rgba(255, 215, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .logo-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo {
+            width: 72px;
+            height: 72px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 215, 0, 0.05) 100%);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.15);
+        }
+
+        .logo img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+        }
+
+        .logo-text {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo-text h1 {
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 0.05em;
+            background: linear-gradient(135deg, #FFD700 0%, #ffffff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-text p {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-top: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 4px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 0.625rem;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.8125rem;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.05em;
+        }
+
+        .auth-tab.active {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%);
+            color: #FFD700;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.875rem 1rem 0.875rem 2.75rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            color: white;
+            font-size: 0.9375rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: rgba(255, 215, 0, 0.4);
+            background: rgba(255, 255, 255, 0.06);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+        }
+
+        .input-group label {
+            position: absolute;
+            left: 2.75rem;
+            top: 0.875rem;
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 0.9375rem;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .input-group input:focus + label,
+        .input-group input:not(:placeholder-shown) + label {
+            top: -0.5rem;
+            left: 0.75rem;
+            font-size: 0.6875rem;
+            color: #FFD700;
+            background: #0a0a0b;
+            padding: 0 0.5rem;
+            border-radius: 4px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .input-group .material-icons-round {
+            position: absolute;
+            left: 0.875rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 1.25rem;
+            pointer-events: none;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, #FFD700 0%, #f59e0b 100%);
+            border: none;
+            border-radius: 10px;
+            color: #0a0a0b;
+            font-size: 0.9375rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 0.75rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 0.75rem;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.05em;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .btn-secondary:hover {
+            border-color: rgba(255, 215, 0, 0.3);
+            background: rgba(255, 215, 0, 0.05);
+            color: #FFD700;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 1.25rem 0;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0; right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .divider span {
+            background: #0f0f11;
+            padding: 0 0.75rem;
+            position: relative;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.75rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            padding: 0.625rem 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.8125rem;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .success-message {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            padding: 0.625rem 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.8125rem;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .demo-info {
+            background: rgba(255, 215, 0, 0.06);
+            border: 1px solid rgba(255, 215, 0, 0.15);
+            color: rgba(255, 215, 0, 0.8);
+            padding: 0.625rem 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1.25rem;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .demo-info strong { color: #FFD700; }
+
+        .loading { display: none; text-align: center; margin: 0.75rem 0; }
+        .loading.show { display: block; }
+
+        .spinner {
+            border: 2px solid rgba(255, 215, 0, 0.1);
+            border-top: 2px solid #FFD700;
+            border-radius: 50%;
+            width: 24px; height: 24px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.625rem;
+            color: rgba(255, 255, 255, 0.2);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+        }
     </style>
-    <script>
-        // Redireciona para a página de autenticação
-        window.location.replace('auth.html');
-    </script>
 </head>
 <body>
-    <div class="loader"></div>
-    <p>INICIANDO COCKPIT</p>
+    <div class="aura aura-gold"></div>
+    <div class="aura aura-cyan"></div>
+    <div class="stars-bg"></div>
+
+    <div class="auth-container">
+        <div class="logo-wrapper">
+            <div class="logo">
+                <img src="logo10DTrasp.png?v=4" alt="1CRYPTEN" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size:1.5rem;font-weight:900;color:#FFD700\'>1C</span>'">
+            </div>
+        </div>
+
+        <div class="logo-text">
+            <h1>1CRYPTEN</h1>
+            <p>Elite Command Center</p>
+        </div>
+
+        <div class="auth-tabs">
+            <div class="auth-tab active" data-tab="login">Login</div>
+            <div class="auth-tab" data-tab="register">Cadastro</div>
+        </div>
+
+        <div class="demo-info">
+            <strong>Credenciais Demo:</strong> admin / admin123
+        </div>
+
+        <div id="error-message" class="error-message" style="display: none;">
+            <span class="material-icons-round" style="font-size:1rem">error</span>
+            <span id="error-text"></span>
+        </div>
+
+        <div id="success-message" class="success-message" style="display: none;">
+            <span class="material-icons-round" style="font-size:1rem">check_circle</span>
+            <span id="success-text"></span>
+        </div>
+
+        <form id="login-form">
+            <div class="input-group">
+                <span class="material-icons-round">person</span>
+                <input type="text" id="login-username" placeholder=" " required autocomplete="username">
+                <label for="login-username">Usuário</label>
+            </div>
+
+            <div class="input-group">
+                <span class="material-icons-round">lock</span>
+                <input type="password" id="login-password" placeholder=" " required autocomplete="current-password">
+                <label for="login-password">Senha</label>
+            </div>
+
+            <button type="submit" class="btn-primary">Entrar</button>
+        </form>
+
+        <form id="register-form" style="display: none;">
+            <div class="input-group">
+                <span class="material-icons-round">person</span>
+                <input type="text" id="register-username" placeholder=" " required autocomplete="username">
+                <label for="register-username">Usuário</label>
+            </div>
+
+            <div class="input-group">
+                <span class="material-icons-round">email</span>
+                <input type="email" id="register-email" placeholder=" " autocomplete="email">
+                <label for="register-email">Email (opcional)</label>
+            </div>
+
+            <div class="input-group">
+                <span class="material-icons-round">lock</span>
+                <input type="password" id="register-password" placeholder=" " required autocomplete="new-password">
+                <label for="register-password">Senha</label>
+            </div>
+
+            <div class="input-group">
+                <span class="material-icons-round">lock_outline</span>
+                <input type="password" id="register-confirm-password" placeholder=" " required autocomplete="new-password">
+                <label for="register-confirm-password">Confirmar Senha</label>
+            </div>
+
+            <button type="submit" class="btn-primary">Criar Conta</button>
+        </form>
+
+        <div class="divider"><span>ou</span></div>
+
+        <button class="btn-secondary" onclick="window.location.href='/cockpit'">
+            Acesso Direto ao Cockpit
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <div class="footer-text">Protocol V110.186 &middot; Secure Connection</div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        let currentTab = 'login';
+
+        const authTabs = document.querySelectorAll('.auth-tab');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+
+        authTabs.forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        });
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            authTabs.forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (tabName === 'login') {
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            } else {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+            }
+            hideMessages();
+        }
+
+        function showLoading() { document.getElementById('loading').classList.add('show'); }
+        function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+        function showError(message) {
+            document.getElementById('error-text').textContent = message;
+            document.getElementById('error-message').style.display = 'flex';
+            document.getElementById('success-message').style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            document.getElementById('success-text').textContent = message;
+            document.getElementById('success-message').style.display = 'flex';
+            document.getElementById('error-message').style.display = 'none';
+        }
+
+        function hideMessages() {
+            document.getElementById('error-message').style.display = 'none';
+            document.getElementById('success-message').style.display = 'none';
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+
+            showLoading();
+            hideMessages();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.access_token) {
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('refresh_token', data.refresh_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+
+                    showSuccess('Login realizado! Redirecionando...');
+
+                    setTimeout(() => {
+                        window.location.href = '/cockpit';
+                    }, 1000);
+                } else {
+                    showError(data.detail || 'Usuário ou senha inválidos');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Erro ao conectar com o servidor');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+
+            if (password !== confirmPassword) { showError('As senhas não coincidem'); return; }
+            if (password.length < 8) { showError('A senha deve ter pelo menos 8 caracteres'); return; }
+
+            showLoading();
+            hideMessages();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password, confirm_password: confirmPassword })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(data.message || 'Conta criada com sucesso! Aguardando aprovação.');
+                    setTimeout(() => switchTab('login'), 3500);
+                } else {
+                    showError(data.detail || 'Erro ao criar conta');
+                }
+            } catch (error) {
+                console.error('Register error:', error);
+                showError('Erro ao conectar com o servidor');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                window.location.href = '/cockpit';
+            }
+        });
+    </script>
 </body>
 </html>

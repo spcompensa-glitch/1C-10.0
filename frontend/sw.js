@@ -7,7 +7,7 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.186.0'; // [V110.186] Pre-compiled JSX (no Babel runtime)
+const CACHE_NAME = '1crypten-sniper-v110.705'; // [V110.705] Correção de dupla contagem de PnL no saldo
 const OFFLINE_URL = '/offline.html';
 
 // Assets that must be available offline
@@ -41,7 +41,7 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
-    console.log('[SW] V110.186.0 Activated (pre-compiled JSX) ✅');
+    console.log('[SW] V110.705 Activated (Real Mode balance fix) ✅');
     return self.clients.claim();
 });
 

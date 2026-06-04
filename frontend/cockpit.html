@@ -2183,20 +2183,30 @@
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header de Triunfo */}
-                        <div className={`px-6 py-5 border-b border-white/5 flex items-center gap-4 shrink-0 ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'}`}>
-                            <div className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}>
-                                <span className={`material-icons-round text-xl text-white`}>
+                        <div 
+                            className={`${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'} border-b border-white/5 shrink-0`}
+                            style={{ padding: '24px', minHeight: '92px', display: 'flex', alignItems: 'center', gap: '16px', boxSizing: 'border-box' }}
+                        >
+                            <div 
+                                className={`shrink-0 border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}
+                                style={{ width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', boxSizing: 'border-box' }}
+                            >
+                                <span className={`material-icons-round text-white`} style={{ fontSize: '24px' }}>
                                     {isAstronomical ? 'auto_awesome' : 'military_tech'}
                                 </span>
                             </div>
-                            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-                                <h3 className={`text-sm font-black uppercase tracking-[0.15em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`}>
+                            <div className="min-w-0 flex-1" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <h3 className={`font-black uppercase tracking-[0.15em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`} style={{ fontSize: '14px', margin: 0, padding: 0 }}>
                                     Briefing: <span className="text-primary">{selectedHistoryLog.symbol}</span>
                                 </h3>
-                                <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest leading-none">Protocolo Gênese-Vitória</span>
+                                <span className="text-gray-400 uppercase font-bold tracking-widest leading-none" style={{ fontSize: '10px', margin: 0, padding: 0 }}>Protocolo Gênese-Vitória</span>
                             </div>
-                            <button onClick={onClose} className="w-9 h-9 shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group cursor-pointer">
-                                <span className="material-icons-round text-base text-gray-400 group-hover:text-white">close</span>
+                            <button 
+                                onClick={onClose} 
+                                className="shrink-0 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all group cursor-pointer"
+                                style={{ width: '36px', height: '36px', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}
+                            >
+                                <span className="material-icons-round text-gray-400 group-hover:text-white" style={{ fontSize: '18px' }}>close</span>
                             </button>
                         </div>
 

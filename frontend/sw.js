@@ -17,8 +17,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/logo10D.png',
     '/logo10DTrasp.png',
-    '/favicon.ico',
-    '/vendor/cockpit.bundle.js'
+    '/favicon.ico'
 ];
 
 // Instalação: Cacheia arquivos críticos de forma resiliente

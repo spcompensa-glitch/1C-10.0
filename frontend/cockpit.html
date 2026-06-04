@@ -8701,106 +8701,6 @@
             );
         };
 
-        const FortressLogin = ({ onAuthSuccess }) => {
-            const [password, setPassword] = React.useState('');
-            const [loading, setLoading] = React.useState(false);
-            const [error, setError] = React.useState('');
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError('');
-                try {
-                    const resp = await fetch(`${API_BASE}/api/auth/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: 'admin', password: password })
-                    });
-                    const data = await resp.json();
-                    if (resp.ok && data.access_token) {
-                        // Salva nas duas chaves: app legado usa 'sniper_token', novo auth usa 'auth_token'
-                        localStorage.setItem('auth_token', data.access_token);
-                        localStorage.setItem('sniper_token', data.access_token);
-                        localStorage.setItem('refresh_token', data.refresh_token);
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                        onAuthSuccess();
-                    } else {
-                        setError('Acesso negado. Senha incorreta.');
-                    }
-                } catch (err) {
-                    setError('Falha de conexão com o servidor.');
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-obsidian overflow-hidden">
-                    <div className="absolute inset-0 stars-bg opacity-30"></div>
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                    
-                    <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="w-full max-w-sm glass-card border border-white/10 p-8 rounded-[2rem] relative z-10 shadow-2xl"
-                    >
-                        <div className="flex flex-col items-center gap-6">
-                            <div className="relative">
-                                <div className="absolute -inset-4 bg-white/5 rounded-full blur-2xl animate-pulse"></div>
-                                <img src="logo10DTrasp.png?v=4" 
-                                     className="w-20 h-20 relative z-10" alt="10D" />
-                            </div>
-
-                            <div className="text-center space-y-1">
-                                <h1 className="text-xl font-black text-white uppercase tracking-[0.3em]">System 10D</h1>
-                            </div>
-
-                            <form onSubmit={handleSubmit} className="w-full space-y-6">
-                                <div className="space-y-2">
-                                    <div className="relative">
-                                        <span className="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600">vpn_key</span>
-                                        <input 
-                                            type="password" 
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="CHAVE DE ACESSO"
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-mono placeholder:text-gray-700 focus:outline-none focus:border-white/30 transition-all text-center"
-                                            autoFocus
-                                        />
-                                    </div>
-                                    {error && <p className="text-[9px] text-red-500 font-black uppercase text-center tracking-tighter">{error}</p>}
-                                </div>
-
-                                <button 
-                                    disabled={loading}
-                                    type="submit"
-                                    className="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-gray-200 transition-all disabled:opacity-50"
-                                >
-                                    {loading ? 'Sincronizando...' : 'ENTRAR'}
-                                </button>
-                            </form>
-                            
-                            <div className="mt-4 text-center">
-                                <button
-                                    onClick={() => window.location.href = '/login'}
-                                    className="text-[10px] text-gray-400 hover:text-gray-300 transition-colors"
-                                >
-                                    Login Completo →
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="mt-8 flex justify-center">
-                            <div className="flex items-center gap-2 text-[8px] text-gray-600 font-black uppercase tracking-widest">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                Interface Secured by GuardianAgent
-                            </div>
-                        </div>
-                    </motion.div>
-                </div>
-            );
-        };
-
         const App = () => {
             const [isAuthenticated, setIsAuthenticated] = useState(() => {
                 return !!localStorage.getItem('auth_token');
@@ -8906,7 +8806,8 @@
             };
 
             if (!isAuthenticated) {
-                return <FortressLogin onAuthSuccess={handleAuthSuccess} />;
+                window.location.replace('/');
+                return null;
             }
 
             return (

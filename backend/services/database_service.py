@@ -18,6 +18,7 @@ class BancaStatus(Base):
     saldo_total = Column(Float, default=0.0)
     risco_real_percent = Column(Float, default=0.0)
     slots_disponiveis = Column(Integer, default=4)
+    configured_balance = Column(Float, default=100.0)
     status = Column(String, default="IDLE")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -169,7 +170,8 @@ class DatabaseService:
                         ("trade_history", "vision_url", "TEXT"),
                         ("moonbags", "leverage", "DOUBLE PRECISION"),
                         ("moonbags", "order_id", "TEXT"),
-                        ("moonbags", "opened_at", "DOUBLE PRECISION")
+                        ("moonbags", "opened_at", "DOUBLE PRECISION"),
+                        ("banca_status", "configured_balance", "DOUBLE PRECISION")
                     ]
                     for table, col, col_type in migrations:
                         try:

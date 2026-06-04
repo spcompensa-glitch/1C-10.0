@@ -1228,6 +1228,9 @@ class BankrollManager:
                 
                 # [V8.1] Preserve configured_balance if set by user
                 config_bal = banca.get("configured_balance")
+                if okx_rest_service.execution_mode == "PAPER":
+                    config_bal = settings.OKX_SIMULATED_BALANCE
+                    banca["configured_balance"] = settings.OKX_SIMULATED_BALANCE
                 
                 # [V110.9] Calculations logic for PAPER and REAL parity
                 if okx_rest_service.execution_mode == "PAPER":
@@ -1265,6 +1268,7 @@ class BankrollManager:
                     "lucro_ciclo": cycle_profit,
                     "vault_total": vault_total,
                     "leverage": banca.get("leverage", settings.LEVERAGE),
+                    "configured_balance": config_bal,
                     "saldo_total": calculated_equity
                 }
                 await firebase_service.update_banca_status(update_data)

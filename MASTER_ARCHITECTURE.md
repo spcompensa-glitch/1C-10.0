@@ -395,41 +395,38 @@
 - **PAPER Mode automático:** detectado se chaves OKX ausentes — banca $100 injetada e modo de simulação ativado.
 - **GUARDIAN_PROMPT.md:** blindagem de persona do bot Telegram sob flag `HERMES_GUARDIAN=1`.
 
+### 6. Sistema de Autenticação, Cadastro e Painel ADM (V110.802)
+- **Centralização em `/login`:** Toda a autenticação é gerenciada de forma limpa no arquivo dedicado [login.html](file:///c:/Users/spcom/Desktop/1C-7.0/frontend/login.html), adotando 100% o design minimalista **FortressLogin** (campo único de `CHAVE DE ACESSO`, botão preto/branco e logo 1C circular).
+- **Cadastro Dinâmico ("Solicitar Acesso"):** Integrado sutilmente no mesmo card central. Quando clicado, alterna dinamicamente no frontend para coletar *Novo Usuário*, *Email* e *Senha*.
+- **Controle de Acesso (Painel ADM):** Acessível no menu lateral do Cockpit (rota `#/adm` mapeada para a tela `AdminUsersPage` no [cockpit.html](file:///c:/Users/spcom/Desktop/1C-7.0/frontend/cockpit.html)). Permite ao administrador aprovar (liberar), bloquear ou excluir usuários de forma granular com IDs persistentes.
+- **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
+- **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
+
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.801)
+## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.802)
 
 O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
 
 1.  **PostgreSQL (Mestre / SSOT):** 
     - Hospedado no Railway.
     - Única fonte de verdade para: `slots`, `banca_status`, `paper_engine_state`, `trade_history` e `radar_pulse` (dados do pulso persistente).
+    - Persiste também o cadastro de usuários e estados de aprovação em produção.
     - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
 
-2.  **Firebase / RTDB (Espelho Visual / Fallback):**
+2.  **SQLite Local (`auth.db`):**
+    - Armazena localmente em desenvolvimento o banco de dados de autenticação e sessões de usuários (`users`, `user_okx_tokens`, `audit_log`, `user_sessions`), com aprovação pendente (`is_active = False`) por padrão para novos registros até liberação no ADM.
+
+3.  **Firebase / RTDB (Espelho Visual / Fallback):**
     - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.
     - O robô escreve no RTDB a cada ciclo de 1s para atualizar o frontend.
     - **FALLBACK DE QUEDA:** Caso o SDK esteja desativado (`self.is_active = False`), o backend aciona instantaneamente a leitura direta das tabelas Postgres (`database_service.get_radar_pulse()`), restaurando a saúde visual completa da UI.
 
-3.  **Fluxo de Reset:**
+4.  **Fluxo de Reset:**
     - Para remover ordens fantasmas: Limpar `slots` e `system_state` no Postgres.
     - O robô detectará a ausência de ordens no Postgres e enviará um comando de limpeza para o RTDB automaticamente.
 
 ---
 
-*Documento atualizado em: 2026-06-04 (V110.801) Sincronizado*
-*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL e SQLite.*   - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
-
-2.  **Firebase / RTDB (Espelho Visual / Fallback):**
-    - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.
-    - O robô escreve no RTDB a cada ciclo de 1s para atualizar o frontend.
-    - **FALLBACK DE QUEDA:** Caso o SDK esteja desativado (`self.is_active = False`), o backend aciona instantaneamente a leitura direta das tabelas Postgres (`database_service.get_radar_pulse()`), restaurando a saúde visual completa da UI.
-
-3.  **Fluxo de Reset:**
-    - Para remover ordens fantasmas: Limpar `slots` e `system_state` no Postgres.
-    - O robô detectará a ausência de ordens no Postgres e enviará um comando de limpeza para o RTDB automaticamente.
-
----
-
-*Documento atualizado em: 2026-06-03 (V110.704) Sincronizado*
-*Este documento reflete a descentralização total da arquitetura via Agentes de Slot Independentes e resiliência total de dados via PostgreSQL.*
+*Documento atualizado em: 2026-06-04 (V110.802) Sincronizado*
+*Este documento reflete o controle de acesso de usuários com banco de dados dedicado e UI minimalista FortressLogin unificada.*

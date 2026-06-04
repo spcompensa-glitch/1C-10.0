@@ -85,29 +85,18 @@
                 <p id="message-text" class="text-[9px] font-black uppercase tracking-tighter py-2 px-3 rounded-xl"></p>
             </div>
 
-            <!-- Formulário de Login -->
+            <!-- Formulário de Login (Completamente fiel ao print) -->
             <form id="login-form" class="w-full space-y-6">
-                <div class="space-y-4">
+                <div class="space-y-2">
                     <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">person</span>
-                        <input 
-                            type="text" 
-                            id="login-username"
-                            placeholder="USUÁRIO"
-                            required
-                            autocomplete="username"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center uppercase"
-                        />
-                    </div>
-                    <div class="relative">
-                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-base">vpn_key</span>
+                        <span class="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-gray-600">vpn_key</span>
                         <input 
                             type="password" 
                             id="login-password"
                             placeholder="CHAVE DE ACESSO"
                             required
                             autocomplete="current-password"
-                            class="w-full input-dark rounded-2xl py-4 pl-12 pr-4 text-xs text-center placeholder:text-gray-700"
+                            class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-mono placeholder:text-gray-700 focus:outline-none focus:border-white/30 transition-all text-center"
                         />
                     </div>
                 </div>
@@ -245,10 +234,14 @@
             loginForm.classList.remove('hidden');
         }
 
+        // Garante a exposição global das funções para o onclick do HTML
+        window.showRegisterState = showRegisterState;
+        window.showLoginState = showLoginState;
+
         // Login Handler
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('login-username').value;
+            const username = 'admin';
             const password = document.getElementById('login-password').value;
 
             btnLoginSubmit.disabled = true;

@@ -8791,7 +8791,10 @@
             };
 
             const handleLogout = () => {
+                localStorage.removeItem('auth_token');
                 localStorage.removeItem('sniper_token');
+                localStorage.removeItem('refresh_token');
+                localStorage.removeItem('user');
                 setIsAuthenticated(false);
             };
 

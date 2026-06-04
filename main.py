@@ -313,7 +313,7 @@ async def serve_cockpit():
     """Servir página Cockpit"""
     cockpit_path = os.path.join(frontend_path, "cockpit.html")
     if os.path.exists(cockpit_path):
-        return cockpit_path
+        return FileResponse(cockpit_path)
     else:
         raise HTTPException(status_code=404, detail="Cockpit page not found")
 
@@ -322,7 +322,7 @@ async def serve_login():
     """Servir página de Login"""
     login_path = os.path.join(frontend_path, "login.html")
     if os.path.exists(login_path):
-        return login_path
+        return FileResponse(login_path)
     else:
         raise HTTPException(status_code=404, detail="Login page not found")
 
@@ -341,7 +341,7 @@ async def serve_cockpit_html():
     """Servir página do Cockpit"""
     cockpit_path = os.path.join(frontend_path, "cockpit.html")
     if os.path.exists(cockpit_path):
-        return cockpit_path
+        return FileResponse(cockpit_path)
     else:
         raise HTTPException(status_code=404, detail="Cockpit page not found")
 

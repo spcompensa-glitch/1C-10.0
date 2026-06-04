@@ -42,23 +42,39 @@ class PortfolioGuardian:
         logger.info("🛡️ [GUARDIAN] Loop REST-Fallback iniciado (polling a cada 30s como redundância).")
 
     async def _rest_fallback_loop(self):
-        """[V124] Loop de segurança: avalia posições via REST a cada 30s se o WS estiver silencioso."""
-        await asyncio.sleep(60)  # Grace period inicial — aguarda WS conectar
+        """[V124] Loop de segurança: avalia posições via REST a cada 30s se o WS estiver silencioso ou em PAPER mode."""
+        await asyncio.sleep(5)  # Grace period reduzido para testes
         while True:
             try:
                 from services.sentinel_auditor import sentinel_auditor
                 sentinel_auditor.record_heartbeat("portfolio_guardian")
 
-                # Só usa REST se o último update do WS foi há mais de 45s (WS silencioso)
-                ws_lag = time.time() - self.last_update_time
-                if ws_lag > 45:
-                    logger.warning(f"🛡️ [GUARDIAN-FALLBACK] WS silencioso por {ws_lag:.0f}s. Consultando REST OKX...")
-                    positions = await okx_service.get_positions()
-                    if positions:
-                        asyncio.create_task(self._process_evaluation(positions))
+                # Se estiver no modo PAPER, nós avaliamos a partir do okx_rest_service diretamente
+                if settings.OKX_EXECUTION_MODE == "PAPER":
+                    from services.okx_rest import okx_rest_service
+                    # Converte formato interno do paper para o formato simplificado que o evaluate espera
+                    positions = []
+                    for pos in okx_rest_service.paper_positions:
+                        # Adapta campos do paper (Bybit schema) para OKX V5 schema esperado
+                        positions.append({
+                            "instId": pos.get("symbol", ""),
+                            "upl": pos.get("unrealisedPnl", 0.0),
+                            "margin": pos.get("entry_margin", pos.get("positionValue", 0.0)),
+                            "mgnVal": pos.get("entry_margin", pos.get("positionValue", 0.0))
+                        })
+                    # Em paper mode, roda avaliação REST sem precisar de WS lag check
+                    await self._process_evaluation(positions)
+                else:
+                    # Só usa REST se o último update do WS foi há mais de 45s (WS silencioso)
+                    ws_lag = time.time() - self.last_update_time
+                    if ws_lag > 45:
+                        logger.warning(f"🛡️ [GUARDIAN-FALLBACK] WS silencioso por {ws_lag:.0f}s. Consultando REST OKX...")
+                        positions = await okx_service.get_positions()
+                        if positions:
+                            asyncio.create_task(self._process_evaluation(positions))
             except Exception as e:
                 logger.error(f"❌ [GUARDIAN-FALLBACK] Erro no loop REST: {e}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(10 if settings.OKX_EXECUTION_MODE == "PAPER" else 30)
 
     def get_status(self) -> Dict[str, Any]:
         """Retorna o status atual do Guardian para diagnóstico ou APIs externas."""
@@ -199,9 +215,22 @@ class PortfolioGuardian:
     async def _execute_knife_drop(self, positions: List[Dict[str, Any]]):
         """Executa o fechamento emergencial em lote da OKX e emite alerta de pânico."""
         try:
-            # 1. Dispara fechamento em lote na corretora
-            logger.critical("🔪 [GUARDIAN] Enviando ordem de fechamento imediato em Lote na OKX (Knife-Drop)...")
-            res = await okx_service.batch_close_positions(positions)
+            # 1. Dispara fechamento em lote na corretora ou simula no modo PAPER
+            if settings.OKX_EXECUTION_MODE == "PAPER":
+                logger.critical("🔪 [GUARDIAN] Executando fechamento emergencial em lote (Knife-Drop) no simulador PAPER...")
+                from services.okx_rest import okx_rest_service
+                # Close each position one by one asynchronously
+                for pos in positions:
+                    inst_id = pos.get("instId", "")
+                    # Obtém direção
+                    side = "Buy" if pos.get("posSide", "long") == "long" else "Sell"
+                    qty = float(pos.get("pos", 0))
+                    # Executa fechamento do paper simulado
+                    asyncio.create_task(okx_rest_service.close_position(inst_id, side, qty, reason="KNIFE_DROP_FACÃO"))
+                res = {"code": "0", "msg": "Paper positions batch-closed."}
+            else:
+                logger.critical("🔪 [GUARDIAN] Enviando ordem de fechamento imediato em Lote na OKX (Knife-Drop)...")
+                res = await okx_service.batch_close_positions(positions)
             logger.info(f"🛡️ [GUARDIAN] Resposta do Knife-Drop: {res}")
 
             # 2. [V122] Registrar histórico no Vault para cada posição fechada pelo Facão

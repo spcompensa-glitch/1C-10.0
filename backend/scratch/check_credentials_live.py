@@ -1,1 +1,1 @@
-# Cleaned up.
+# Limpo por segurança.

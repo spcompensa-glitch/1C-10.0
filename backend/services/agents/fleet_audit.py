@@ -100,7 +100,7 @@ class FleetAudit(AIOSAgent):
                         if execution_mode == "REAL":
                             await okx_rest_service.close_position(sym, side, qty)
                         else:
-                            await okx_rest_service.paper_close_position(sym)
+                            await okx_rest_service.close_position(sym, side, qty, reason="EARLY_ROI_PANIC")
                             
                         await firebase_service.hard_reset_slot(s["id"], "EARLY_ROI_PANIC", pnl)
                         await firebase_service.log_event("AUDIT", msg, "CRITICAL")

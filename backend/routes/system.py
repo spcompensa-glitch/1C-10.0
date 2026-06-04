@@ -114,6 +114,64 @@ async def trigger_re_sync():
         logger.error(f"Re-sync error: {e}")
         return {"status": "error", "message": str(e)}
 
+@router.post("/system/nuclear-reset", dependencies=[Depends(verify_api_key)])
+async def nuclear_reset():
+    """
+    [V110.RESET] Limpa IMEDIATAMENTE o estado Paper em memória (paper_positions, paper_moonbags)
+    e persiste o estado zerado no Firestore e Postgres.
+    Resolve posições fantasma (ZECUSDT, OPNUSDT etc.) que bloqueiam novos slots.
+    """
+    firebase_service, okx_rest_service, _, bankroll_manager, _ = get_services()
+    from services.database_service import database_service
+    
+    report = []
+    try:
+        # 1. Limpar memória RAM do OKX REST Service
+        old_pos_count = len(okx_rest_service.paper_positions)
+        old_moon_count = len(okx_rest_service.paper_moonbags)
+        okx_rest_service.paper_positions = []
+        okx_rest_service.paper_moonbags = []
+        okx_rest_service.paper_balance = settings.OKX_SIMULATED_BALANCE
+        report.append(f"✅ RAM Limpa: {old_pos_count} posições e {old_moon_count} moonbags removidas da memória.")
+        
+        # 2. Limpar pending_slots do BankrollManager
+        old_pending = len(bankroll_manager.pending_slots)
+        bankroll_manager.pending_slots.clear()
+        report.append(f"✅ Pending slots limpos: {old_pending} locks removidos.")
+        
+        # 3. Persistir estado zerado no Firestore (via firebase_service.update_paper_state)
+        try:
+            clean_state = {
+                "positions": [],
+                "moonbags": [],
+                "balance": settings.OKX_SIMULATED_BALANCE,
+                "history": []
+            }
+            await firebase_service.update_paper_state(clean_state)
+            report.append("✅ Firestore paper_engine zerado.")
+        except Exception as e:
+            report.append(f"⚠️ Firestore não disponível (SDK disabled): {e}")
+        
+        # 4. Limpar Postgres slots e moonbags
+        try:
+            await database_service.reset_system_data()
+            report.append("✅ Postgres slots/moonbags/histórico zerado.")
+        except Exception as e:
+            report.append(f"⚠️ Postgres reset parcial: {e}")
+        
+        logger.warning("🚨 [NUCLEAR-RESET] Estado paper zerado por admin. Todas as posições fantasma eliminadas.")
+        return {
+            "status": "SUCCESS",
+            "message": "Sistema zerado com sucesso. Pronto para novas ordens.",
+            "report": report,
+            "paper_balance": okx_rest_service.paper_balance,
+            "paper_positions": 0,
+            "paper_moonbags": 0
+        }
+    except Exception as e:
+        logger.error(f"❌ [NUCLEAR-RESET] Falha: {e}")
+        return {"status": "ERROR", "message": str(e), "report": report}
+
 @router.post("/system/sniper-toggle", dependencies=[Depends(verify_api_key)])
 async def toggle_sniper(payload: dict):
     _, _, vault_service, _, _ = get_services()

@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.900)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.902)
 
 ## Resumo Executivo
-* **Versão:** `V110.900: Unificação de Servidores & Controle de Acesso Administrativo`
+* **Versão:** `V110.902: Login Direto no Domínio Raiz`
 * **Data:** 2026-06-04
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Servidores de Autenticação e Trading unificados sob o mesmo processo FastAPI na porta principal. Novo fluxo de segurança onde novos registros de usuários entram como inativos por padrão (`is_active = False`) e necessitam de aprovação de um Administrador. Interface administrativa de Controle de Usuários adicionada ao Cockpit UI.
+* **Escopo:** Servidores de Autenticação e Trading unificados sob o mesmo processo FastAPI na porta principal. Novo fluxo de segurança onde novos registros de usuários entram como inativos por padrão (`is_active = False`) e necessitam de aprovação de um Administrador. A página de login e cadastro agora é servida diretamente no domínio raiz (`/`), eliminando o redirecionamento com tela de carregamento. Interface administrativa de Controle de Usuários adicionada ao Cockpit UI.
 
 ---
 

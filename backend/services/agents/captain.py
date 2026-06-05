@@ -261,6 +261,11 @@ class CaptainAgent(AIOSAgent):
             # [V110.27.0] ABSOLUTE CONVERGENCE SHIELD: Minimum Confidence
             # MONUSDT case was 39.2%. Cutoff 40.0% ensures more opportunities while maintaining quality.
             # 🎯 OTIMIZAÇÃO: Quando slots vazios > 2, reduz threshold para 35%
+            try:
+                slots = await database_service.get_user_slots()
+            except Exception as e:
+                logger.warning(f"⚠️ [CAPTAIN] Não foi possível obter slots: {e}")
+                slots = []
             occupied_count = sum(1 for s in slots if s.get("symbol"))
             free_slots = 4 - occupied_count
             required_confidence = 35.0 if free_slots >= 2 else 40.0

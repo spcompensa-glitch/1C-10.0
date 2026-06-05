@@ -1235,8 +1235,7 @@ class BankrollManager:
                 # [V110.9] Calculations logic for PAPER and REAL parity
                 if okx_rest_service.execution_mode == "PAPER":
                     # [V110.118 FIX-B] Inclui PnL não realizado das paper_positions + paper_moonbags
-                    # para que a banca reflita o patrimônio líquido real (aberto + fechado).
-                    # Nota: o frontend NÃO soma mais float separado pois agora já vem consolidado aqui.
+                    # e o saldo dinâmico simulado em tempo real (okx_rest_service.paper_balance).
                     float_pnl = 0.0
                     try:
                         for p in okx_rest_service.paper_positions:
@@ -1257,9 +1256,13 @@ class BankrollManager:
                                 float_pnl += pnl_usd
                     except Exception as e:
                         logger.error(f"Error summing paper float_pnl: {e}")
-                    calculated_equity = (config_bal or 100.0) + total_pnl + float_pnl
+                    
+                    # A banca simulada no paper_balance do okx_rest_service já acumula as parciais e lucros reais de trades fechados.
+                    # Portanto, o Equity dinâmico correto é o saldo atualizado (paper_balance) + o PnL flutuante (float_pnl).
+                    calculated_equity = okx_rest_service.paper_balance + float_pnl
                     reported_real_okx = 0.0
-                    logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | VaultPnl={total_pnl:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
+                    logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | CurrentSimBalance={okx_rest_service.paper_balance:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
+
 
 
                 else:

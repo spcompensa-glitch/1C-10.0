@@ -72,10 +72,6 @@ class OKXRest:
                 self.paper_moonbags = data.get("moonbags", [])
                 self.paper_moonbags = [p for p in self.paper_moonbags if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_balance = data.get("balance", settings.OKX_SIMULATED_BALANCE)
-                if self.paper_balance != settings.OKX_SIMULATED_BALANCE:
-                    logger.info(f"💰 [V110.176 User Rule] Forçando recalibração da banca Paper de ${self.paper_balance:.2f} para ${settings.OKX_SIMULATED_BALANCE:.2f}.")
-                    self.paper_balance = settings.OKX_SIMULATED_BALANCE
-                    asyncio.create_task(self._save_paper_state())
                 self.paper_orders_history = data.get("history", [])
                 self._last_paper_load_time = time.time()
                 # Apenas loga se houver algo ativo para reduzir ruído
@@ -2212,10 +2208,11 @@ class OKXRest:
                         continue
 
                 # UI PNL Pulse (Paper)
-                if self.paper_positions:
+                combined_for_pnl = self.paper_positions + self.paper_moonbags
+                if combined_for_pnl:
                     # [V110.12.12] Safe ROI Calculation for UI
                     pnl_summary = []
-                    for p in self.paper_positions:
+                    for p in combined_for_pnl:
                         p_sym = p.get("symbol")
                         p_price = price_map.get(p_sym, 0)
                         if p_price > 0:
@@ -2223,10 +2220,18 @@ class OKXRest:
                             if entry > 0:
                                 side = p.get("side", "Buy")
                                 qty = float(p.get("size", 0))
-                                # [V110.701 FIX] For PAPER mode, use fixed margin per slot (10% of $100 = $10)
-                                margin = float(p.get("entry_margin") or (10.0 if self.execution_mode == "PAPER" else (qty * entry / 50.0)))
-                                roi = execution_protocol.calculate_roi(entry, p_price, side)
-                                # [V110.128] Standardized PnL Calculation: (ROI/100) * Margin
+                                # Em PAPER, calcula a margem dinamicamente baseado em 10% da banca operacional do usuário
+                                target_pct = 0.10
+                                if p.get("status") == "EMANCIPATED":
+                                    # Moonbags mantêm a margem de entrada original
+                                    margin = float(p.get("entry_margin") or (self.paper_balance * target_pct))
+                                else:
+                                    margin = float(p.get("entry_margin") or (self.paper_balance * target_pct))
+                                
+                                # ROI = (diferença de preço / preço de entrada) * alavancagem * 100
+                                leverage = float(p.get("leverage", 50.0))
+                                roi = execution_protocol.calculate_roi(entry, p_price, side, leverage=leverage)
+                                # PnL USD = (ROI / 100) * Margem real da ordem
                                 p_usd = (roi / 100.0) * margin
                                 pnl_summary.append({
                                     "symbol": p_sym, 
@@ -2236,8 +2241,8 @@ class OKXRest:
                     if pnl_summary:
                         await self.redis.publish_update("ui_updates", {"type": "PNL_PULSE", "data": pnl_summary})
                         # [V110.118 FIX-B] Publicar também no RTDB para que o PWA receba PnL dinâmico
-                        # (o PWA assina RTDB, não Redis — sem isso o PnL fica estático)
                         if firebase_service.rtdb:
+
                             try:
                                 total_float_roi = sum(p["roi"] for p in pnl_summary)
                                 total_float_pnl = sum(p["pnl_usd"] for p in pnl_summary)

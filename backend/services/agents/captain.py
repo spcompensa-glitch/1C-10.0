@@ -24,6 +24,7 @@ from services.google_calendar_service import google_calendar_service
 from config import settings
 from services.agents.librarian import librarian_agent # [V2.0] Librarian DNA Profile Engine
 from services.agents.quartermaster import quartermaster_agent # [V110.135]
+from services.redis_service import redis_service
 try:
     from duckduckgo_search import DDGS
 except ImportError:
@@ -127,8 +128,7 @@ class CaptainAgent(AIOSAgent):
             
             # 2. Sentiment [V43.0 Rigorous]
             # Injects is_ranging context for the specialist
-            from services.signal_generator import signal_generator
-            regime_data = await signal_generator.detect_market_regime(symbol)
+                        regime_data = await signal_generator.detect_market_regime(symbol)
             is_ranging = regime_data.get("regime") == "RANGING"
             
             sentiment = await kernel.dispatch({
@@ -412,8 +412,7 @@ class CaptainAgent(AIOSAgent):
                 is_full = free_slots <= 0
                 busy_tocaias = len(self.active_tocaias) >= monitoring_limit
 
-                from services.signal_generator import signal_generator
-                if not hasattr(signal_generator, "signal_queue") or signal_generator.signal_queue is None:
+                                if not hasattr(signal_generator, "signal_queue") or signal_generator.signal_queue is None:
                     await asyncio.sleep(1)
                     continue
 
@@ -501,8 +500,7 @@ class CaptainAgent(AIOSAgent):
         - Só escaneia se o Slot 1 estiver disponível (trava "uma ordem por vez").
         """
         from services.agents.blitz_sniper import blitz_sniper_agent
-        from services.signal_generator import signal_generator
-        from services.okx_rest import okx_rest_service
+                from services.okx_rest import okx_rest_service
 
         BLITZ_SCAN_INTERVAL = 300  # 5 minutos entre ciclos de scan
 
@@ -844,8 +842,7 @@ class CaptainAgent(AIOSAgent):
             strategy = "SWING"
 
             
-            from services.signal_generator import signal_generator
-            try:
+                        try:
                 regime_data = await signal_generator.detect_market_regime(symbol)
                 market_regime = regime_data.get('regime', 'TRANSITION')
             except Exception:
@@ -1188,8 +1185,7 @@ class CaptainAgent(AIOSAgent):
 
             # [V110.141] Injetar no RTDB para visibilidade instantânea no Cockpit
             try:
-                from services.signal_generator import signal_generator
-                asyncio.create_task(signal_generator._sync_radar_rtdb())
+                                asyncio.create_task(signal_generator._sync_radar_rtdb())
             except Exception as e:
                 logger.warning(f"Failed to sync radar RTDB for TOCAIA: {e}")
 
@@ -1446,8 +1442,7 @@ class CaptainAgent(AIOSAgent):
         Exige pelo menos 80-100% ROI (1.6% a 2% de movimento de preço em 50x) para validar.
         """
         try:
-            from services.signal_generator import signal_generator
-            fib = await signal_generator.get_fibonacci_levels(symbol)
+                        fib = await signal_generator.get_fibonacci_levels(symbol)
             if not fib or 'levels' not in fib:
                 return {'valid': True, 'reason': 'no_fib_data'} # Be liberal if data is missing
             
@@ -1575,10 +1570,6 @@ class CaptainAgent(AIOSAgent):
         """
         logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO NEEDLE FLIP PARA {symbol}.")
         return True
-        from services.okx_ws_public import okx_ws_public_service
-from services.database_service import database_service
-        from services.redis_service import redis_service
-        from services.signal_generator import signal_generator
         
         start_time = time.time()
         side_norm = side.lower()
@@ -1705,8 +1696,7 @@ from services.database_service import database_service
         # [V42.0] RALLY MODE (Agressividade Adaptativa)
         # Se score é elite (>89) e estamos em tendência, reduzimos drasticamente as barreiras
         score_val = signal_data.get("score", 0) if signal_data else 0
-        from services.signal_generator import signal_generator
-        regime_info = await signal_generator.detect_market_regime(symbol)
+                regime_info = await signal_generator.detect_market_regime(symbol)
         is_trending_rally = regime_info.get("regime") == "TRENDING"
         
         rally_mode_active = (score_val >= 85) # [V93.0] Rally mode for any elite signal
@@ -1804,7 +1794,6 @@ from services.database_service import database_service
                     recovery = (current_price - pivot_price) / pivot_price
                     if recovery >= pullback_reversal:
                         # [V34.0] Confirmação de Fluxo (Needle Check Light)
-                        from services.redis_service import redis_service
                         current_cvd = await redis_service.get_cvd(symbol)
                         # Se o CVD está subindo/estável nos últimos segundos, confirma o bote
                         # [V110.132] Volatility-Aware SL Anchor (Increased resilience):
@@ -1826,7 +1815,6 @@ from services.database_service import database_service
                     recovery = (pivot_price - current_price) / pivot_price
                     if recovery >= pullback_reversal:
                         # [V34.0] Confirmação de Fluxo (Needle Check Light)
-                        from services.redis_service import redis_service
                         current_cvd = await redis_service.get_cvd(symbol)
                         # [V110.132] Volatility-Aware SL Anchor (Increased resilience):
                         sl_buffer_pct = max(0.008, min(0.015, vol_ratio * 0.3)) if atr > 0 else 0.010

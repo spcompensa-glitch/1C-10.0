@@ -25,6 +25,7 @@ from config import settings
 from services.agents.librarian import librarian_agent # [V2.0] Librarian DNA Profile Engine
 from services.agents.quartermaster import quartermaster_agent # [V110.135]
 from services.redis_service import redis_service
+from services.signal_generator import signal_generator
 try:
     from duckduckgo_search import DDGS
 except ImportError:

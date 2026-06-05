@@ -69,7 +69,10 @@ async def migrate():
         ("trade_history", "vision_url", "TEXT"),
         ("moonbags", "leverage", "DOUBLE PRECISION"),
         ("moonbags", "order_id", "TEXT"),
-        ("moonbags", "opened_at", "DOUBLE PRECISION")
+        ("moonbags", "opened_at", "DOUBLE PRECISION"),
+        ("banca_status", "configured_balance", "DOUBLE PRECISION"),
+        ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
+        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
     ]
 
     async with db.engine.begin() as conn:

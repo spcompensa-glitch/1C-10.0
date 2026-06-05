@@ -402,31 +402,44 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.802)
+
+O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
+
+### 1. PostgreSQL (Mestre / SSOT no Railway)
+Utilizado em produção como Fonte Única de Verdade (SSOT) para toda a lógica de negócios e status financeiro do robô.
+*   **`banca_status`**: Armazena o saldo atual, o risco real alocado, o número de slots ocupados e a banca simulada configurada.
+    *   *Colunas chave*: `saldo_total` (Float), `configured_balance` (Float), `risco_real_percent` (Float), `status` (String).
+*   **`slots`**: Gerencia o estado de alocação de cada uma das 4 instâncias de `SlotOperatorAgent`.
+    *   *Colunas chave*: `id` (Integer, 1-4), `symbol` (String), `side` (String), `qty` (Float), `entry_price` (Float), `entry_margin` (Float), `initial_stop` (Float), `current_stop` (Float), `target_price` (Float), `leverage` (Float), `status_risco` (String), `sentinel_first_hit_at` (Float), `vision_url` (String).
+*   **`trade_history`**: Ledger definitivo de auditoria e arquivamento de ordens concluídas.
+    *   *Colunas chave*: `order_id` (String), `genesis_id` (String), `symbol` (String), `side` (String), `pnl` (Float), `pnl_percent` (Float), `timestamp` (DateTime), `vision_url` (String), `data` (JSONB).
+*   **`moonbags`**: Posições emancipadas com trailing profit ativo controladas pelo Harvester.
+    *   *Colunas chave*: `uuid` (String, `{symbol}_{opened_at}`), `symbol` (String), `qty` (Float), `entry_price` (Float), `current_stop` (Float), `sentinel_first_hit_at` (Float).
+*   **`radar_pulse`**: Cache reativo de confluências e sinais do mercado técnico.
+
+### 2. SQLite Local (`auth.db`)
+Banco de dados autônomo local e isolado para controle de acesso, auditoria administrativa e armazenamento de credenciais criptografadas.
+*   **`users`**: Cadastro de operadores e administradores.
+    *   *Colunas*: `id` (Integer), `username` (String), `email` (String), `password_hash` (String), `role` (String, `admin` ou `user`), `is_active` (Boolean).
+*   **`user_okx_tokens`**: Tokens de API OKX criptografados simetricamente de forma atômica por usuário.
+*   **`audit_log`**: Histórico forense de acessos e ações tomadas no painel administrativo `/adm`.
+*   **`user_sessions`**: Controle de sessões ativas e hashes de Refresh Tokens para segurança JWT.
+
 ---
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA (V110.802)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.802)
 
-O sistema opera em uma arquitetura de "Espelhamento Reativo Híbrido":
-
-1.  **PostgreSQL (Mestre / SSOT):** 
-    - Hospedado no Railway.
-    - Única fonte de verdade para: `slots`, `banca_status`, `paper_engine_state`, `trade_history` e `radar_pulse` (dados do pulso persistente).
-    - Persiste também o cadastro de usuários e estados de aprovação em produção.
-    - Todas as decisões de abertura, fechamento, cálculo de PnL e resgate de radar/pulso ocorrem aqui quando o Firebase está desativado.
-
-2.  **SQLite Local (`auth.db`):**
-    - Armazena localmente em desenvolvimento o banco de dados de autenticação e sessões de usuários (`users`, `user_okx_tokens`, `audit_log`, `user_sessions`), com aprovação pendente (`is_active = False`) por padrão para novos registros até liberação no ADM.
-
-3.  **Firebase / RTDB (Espelho Visual / Fallback):**
-    - Utilizado de forma transparente para baixa latência no Dashboard (PWA/Cockpit) por WebSockets.
-    - O robô escreve no RTDB a cada ciclo de 1s para atualizar o frontend.
-    - **FALLBACK DE QUEDA:** Caso o SDK esteja desativado (`self.is_active = False`), o backend aciona instantaneamente a leitura direta das tabelas Postgres (`database_service.get_radar_pulse()`), restaurando a saúde visual completa da UI.
-
-4.  **Fluxo de Reset:**
-    - Para remover ordens fantasmas: Limpar `slots` e `system_state` no Postgres.
-    - O robô detectará a ausência de ordens no Postgres e enviará um comando de limpeza para o RTDB automaticamente.
+Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
+1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
+2.  **Diretório de Componentes (`frontend/components/`)**:
+    *   `TriumphModal.js`: Modal rico com telemetria forense, print e laudo de conformidade do Agente Visão.
+    *   `SettingsPage.js`: Ajustes de tema, reset do simulador e chaves OKX de usuários.
+    *   `AdminUsersPage.js`: Painel ADM exclusivo para controle de acesso e liberação de usuários ativos.
+    *   `TakeoffModal.js` & `DeepAnalysisModal.js`: checklist e auditoria dos ativos.
+3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
 
 ---
 
 *Documento atualizado em: 2026-06-04 (V110.802) Sincronizado*
-*Este documento reflete o controle de acesso de usuários com banco de dados dedicado e UI minimalista FortressLogin unificada.*
+*Este documento reflete a modelagem de banco de dados híbrida e o sistema de componentes modularizados do Cockpit.*

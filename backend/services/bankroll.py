@@ -1263,14 +1263,33 @@ class BankrollManager:
 
 
                 else:
-                    # REAL MODE: Bybit is the absolute source of truth for Equity
+                    # REAL MODE: Bybit/OKX is the source of truth for Equity.
+                    # Mas se a API retornar apenas o saldo estático ou precisarmos garantir que os lucros e prejuízos
+                    # flutuantes das 4 ordens e moonbags sejam somados à banca:
+                    float_pnl = 0.0
+                    try:
+                        # Pega o PnL não realizado real de todas as posições abertas na corretora
+                        real_positions = await okx_rest_service.get_active_positions()
+                        for p in real_positions:
+                            raw_float = p.get("unrealisedPnl", 0)
+                            if raw_float:
+                                float_pnl += float(raw_float)
+                    except Exception as e:
+                        logger.error(f"Error summing real float_pnl: {e}")
+                    
                     if total_equity > 0:
+                        # Se total_equity já é o Equity líquido total (totalEq) que inclui PnL flutuante na OKX, usamos ele.
+                        # Mas se for saldo estático de margem livre, somamos o float_pnl. 
+                        # Para garantir segurança e não duplicar, na OKX totalEq já inclui UPL.
+                        # No entanto, se o usuário relata números errados ou loucos na banca, 
+                        # garantimos que calculated_equity seja exatamente total_equity.
                         calculated_equity = total_equity
                         reported_real_okx = total_equity
                     else:
                         # Fallback if API fails
-                        calculated_equity = (config_bal or 100.0) + total_pnl
+                        calculated_equity = (config_bal or 100.0) + total_pnl + float_pnl
                         reported_real_okx = 0.0
+
 
                 update_data = {
                     "id": banca.get("id", "status"),

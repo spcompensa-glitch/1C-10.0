@@ -347,4 +347,24 @@
     };
 
     window.App = App;
+
+    const startApp = () => {
+        try {
+            const rootEl = document.getElementById('root');
+            if (!rootEl) {
+                setTimeout(startApp, 100);
+                return;
+            }
+            const root = window.createRoot(rootEl);
+            root.render(<App />);
+        } catch (err) {
+            console.error("MOUNT FAILURE:", err);
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startApp);
+    } else {
+        startApp();
+    }
 })();

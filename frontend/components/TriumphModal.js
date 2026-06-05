@@ -2,62 +2,25 @@
     const TriumphModal = ({ selectedHistoryLog, onClose }) => {
         if (!selectedHistoryLog) return null;
 
-        const [visionReport, setVisionReport] = React.useState(null);
-        const [loadingVision, setLoadingVision] = React.useState(true);
-        const [isVisionOpen, setIsVisionOpen] = React.useState(true); // Abre por padrão para exibir toda a gênese
-        const [expandedTriumphImage, setExpandedTriumphImage] = React.useState(null);
-
-        React.useEffect(() => {
-            const embeddedVision = selectedHistoryLog.vision_intel || selectedHistoryLog.data?.vision_intel;
-            if (embeddedVision) {
-                setVisionReport({ payload: embeddedVision });
-                setLoadingVision(false);
-                return;
-            }
-
-            const fetchVisionReport = async () => {
-                try {
-                    const res = await fetch(`${API_BASE}/api/vision/history`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        const match = data.find(ev => {
-                            const sym = ev.payload?.symbol || "";
-                            return sym.toUpperCase() === selectedHistoryLog.symbol.toUpperCase();
-                        });
-                        if (match) {
-                            setVisionReport(match);
-                        }
-                    }
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    setLoadingVision(false);
-                }
-            };
-            fetchVisionReport();
-        }, [selectedHistoryLog]);
+        const [isConsensusOpen, setIsConsensusOpen] = React.useState(true);
 
         let finalRoi = Number(selectedHistoryLog.final_roi || selectedHistoryLog.pnl_percent || selectedHistoryLog.roi || 0);
         const entry = Number(selectedHistoryLog.entry_price || 0);
         const exit = Number(selectedHistoryLog.exit_price || 0);
         const leverage = Number(selectedHistoryLog.leverage || 1);
-        const margin = Number(selectedHistoryLog.margin || 0);
+        const margin = Number(selectedHistoryLog.margin || selectedHistoryLog.entry_margin || 0);
         const pnlUsd = Number(selectedHistoryLog.pnl || 0);
 
         // Fallback ROI: calcula sem multiplicar alavancagem (ROI já considera leverage via PnL)
         if (finalRoi === 0 && entry > 0 && exit > 0 && margin > 0) {
             const side = String(selectedHistoryLog.side || 'Buy').toUpperCase();
             const priceMove = (side === 'BUY' || side === 'LONG') ? (exit - entry) : (entry - exit);
-            // ROI da posição = (move/entry) * leverage * 100
             finalRoi = (priceMove / entry) * leverage * 100;
         } else if (finalRoi === 0 && pnlUsd !== 0 && margin > 0) {
-            // ROI simples sobre margem
             finalRoi = (pnlUsd / margin) * 100;
         }
 
-        // ROI sobre entrada (banca risk): se tivermos margin e pnl
         const roiOnMargin = margin > 0 ? (pnlUsd / margin) * 100 : finalRoi;
-
         const isHighSuccess = finalRoi >= 100;
         const isAstronomical = finalRoi >= 500;
         const isProfit = pnlUsd >= 0;
@@ -65,89 +28,79 @@
         // Resolve global components
         const IntelIconComponent = window.IntelIcon || (() => null);
         const QualitySealComponent = window.QualitySeal || (() => null);
+        const intel = selectedHistoryLog.fleet_intel || selectedHistoryLog.data?.fleet_intel || {};
 
-        return (
-            <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6" onClick={onClose}>
+        return (            <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-6" onClick={onClose}>
                 <div 
                     className={`premium-card w-full max-w-lg rounded-3xl border overflow-hidden animate-triumph ${isAstronomical ? 'victory-glow-prismatic' : isProfit ? 'victory-glow-emerald' : 'border-white/10'}`} 
-                    style={{ display: 'flex', flexDirection: 'column', maxHeight: '85vh', boxSizing: 'border-box' }}
+                    style={{ maxHeight: '85vh', boxSizing: 'border-box', position: 'relative', display: 'flex', flexDirection: 'column' }}
                     onClick={e => e.stopPropagation()}
                 >
-                    {/* Header de Triunfo */}
+                    {/* Header de Triunfo Integrado */}
                     <div 
-                        className={`triumph-modal-header ${isAstronomical ? 'bg-green-900/20' : isProfit ? 'bg-green-900/10' : 'bg-white/5'} border-b border-white/5 shrink-0`}
+                        className={`border-b border-white/5 ${isAstronomical ? 'bg-green-950/20' : isProfit ? 'bg-green-950/10' : 'bg-red-950/10'}`}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px 24px', boxSizing: 'border-box', flexShrink: 0, zIndex: 100, backgroundColor: '#0a0a0f' }}
                     >
-                        <div 
-                            className={`triumph-modal-icon-container shrink-0 border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}
-                        >
-                            <span className={`material-icons-round text-white`} style={{ fontSize: '24px' }}>
-                                {isAstronomical ? 'auto_awesome' : 'military_tech'}
-                            </span>
-                        </div>
-                        <div className="min-w-0 flex-1" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <h3 className={`font-black uppercase tracking-[0.15em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`} style={{ fontSize: '14px', margin: 0, padding: 0 }}>
-                                Briefing: <span className="text-primary">{selectedHistoryLog.symbol}</span>
-                            </h3>
-                            <span className="text-gray-400 uppercase font-bold tracking-widest leading-none" style={{ fontSize: '10px', margin: 0, padding: 0 }}>Protocolo Gênese-Vitória</span>
-                        </div>
-                        <button 
-                            onClick={onClose} 
-                            className="triumph-modal-close-btn shrink-0 rounded-full bg-white/5 hover:bg-white/10 transition-all group cursor-pointer"
-                        >
-                            <span className="material-icons-round text-gray-400 group-hover:text-white" style={{ fontSize: '18px' }}>close</span>
-                        </button>
-                    </div>
-
-                    <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
-                        {/* BANNER DE RESULTADO */}
-                        <div className="relative group p-5 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center justify-center text-center overflow-hidden gap-2">
-                            <div className="absolute inset-0 bg-gradient-to-b from-green-500/[0.03] to-transparent"></div>
-                            
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-[0.3em]">Resultado Financeiro</span>
-
-                            {/* PNL principal */}
+                        {/* Linha 1: Título e Botão Fechar */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                             <div className="flex items-center gap-3">
-                                <p className={`text-4xl font-black font-mono tracking-tighter ${isAstronomical ? 'text-astronomical' : isProfit ? 'text-white' : 'text-red-400'}`}>
-                                    {isProfit ? '+' : ''}${Math.abs(pnlUsd).toFixed(2)}
-                                </p>
-                                <div className={`px-2 py-1 rounded-lg border text-[11px] font-black font-mono ${isProfit ? 'bg-white/10 border-white/20 text-white' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-                                    {roiOnMargin.toFixed(1)}% <span className="text-[8px] opacity-60">s/margem</span>
+                                <div 
+                                    className={`triumph-modal-icon-container shrink-0 border ${isAstronomical ? 'bg-white/20 border-white/30' : 'bg-white/10 border-green-500/30'}`}
+                                >
+                                    <span className={`material-icons-round text-white`} style={{ fontSize: '24px' }}>
+                                        {isAstronomical ? 'auto_awesome' : 'military_tech'}
+                                    </span>
+                                </div>
+                                <div className="min-w-0 flex-1" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <h3 className={`font-black uppercase tracking-[0.15em] leading-tight truncate ${isAstronomical ? 'text-astronomical' : 'text-white'}`} style={{ fontSize: '14px', margin: 0, padding: 0 }}>
+                                        Briefing: <span className="text-primary">{selectedHistoryLog.symbol}</span>
+                                    </h3>
+                                    <span className="text-gray-400 uppercase font-bold tracking-widest leading-none" style={{ fontSize: '10px', margin: 0, padding: 0 }}>Protocolo Gênese-Vitória</span>
                                 </div>
                             </div>
+                            <button 
+                                onClick={onClose} 
+                                className="triumph-modal-close-btn shrink-0 rounded-full bg-white/5 hover:bg-white/10 transition-all group cursor-pointer"
+                            >
+                                <span className="material-icons-round text-gray-400 group-hover:text-white" style={{ fontSize: '18px' }}>close</span>
+                            </button>
+                        </div>
 
-                            {/* Métricas secundárias */}
-                            <div className="flex gap-4 mt-1">
-                                {margin > 0 && (
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-[8px] text-gray-600 uppercase tracking-widest">Margem</span>
-                                        <span className="text-[10px] font-mono font-bold text-gray-400">${margin.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                {leverage > 1 && (
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-[8px] text-gray-600 uppercase tracking-widest">Alavancagem</span>
-                                        <span className="text-[10px] font-mono font-bold text-amber-400">{leverage}x</span>
-                                    </div>
-                                )}
-                                {entry > 0 && exit > 0 && (
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-[8px] text-gray-600 uppercase tracking-widest">Δ Preço</span>
-                                        <span className={`text-[10px] font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                                            {isProfit ? '+' : ''}{((String(selectedHistoryLog.side || '').toUpperCase() === 'BUY' || String(selectedHistoryLog.side || '').toUpperCase() === 'LONG') ? (exit - entry) : (entry - exit)).toFixed(4)}
-                                        </span>
-                                    </div>
-                                )}
+                        {/* Linha 2: Barra Financeira Fixa */}
+                        <div className="grid grid-cols-4 gap-2 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
+                            <div className="flex flex-col items-center justify-center border-r border-white/5">
+                                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-black">Resultado</span>
+                                <span className={`text-[11px] font-mono font-black ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                                    {isProfit ? '+' : ''}${Math.abs(pnlUsd).toFixed(2)} ({roiOnMargin.toFixed(1)}%)
+                                </span>
                             </div>
-
-                            {/* ROI BADGES */}
-                            <div className="flex gap-2 mt-1 flex-wrap justify-center">
-                                {roiOnMargin >= 20 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🌊 WAVE</span>}
-                                {roiOnMargin >= 50 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">⚡ VOLT</span>}
-                                {roiOnMargin >= 100 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🚀 ROCKET</span>}
-                                {roiOnMargin >= 300 && <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[8px] font-black text-amber-300 uppercase tracking-widest">👑 CROWN</span>}
-                                {isAstronomical && <span className="px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[8px] font-black text-white uppercase tracking-widest animate-pulse">🌌 GOD MODE</span>}
+                            <div className="flex flex-col items-center justify-center border-r border-white/5">
+                                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-black">Margem</span>
+                                <span className="text-[11px] font-mono font-bold text-gray-300">${margin.toFixed(2)}</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center border-r border-white/5">
+                                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-black">Alavancagem</span>
+                                <span className="text-[11px] font-mono font-bold text-amber-400">{leverage}x</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center">
+                                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-black">Δ Preço</span>
+                                <span className={`text-[11px] font-mono font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                                    {isProfit ? '+' : ''}{((String(selectedHistoryLog.side || '').toUpperCase() === 'BUY' || String(selectedHistoryLog.side || '').toUpperCase() === 'LONG') ? (exit - entry) : (entry - exit)).toFixed(4)}
+                                </span>
                             </div>
                         </div>
+
+                        {/* ROI Badges compactos no cabeçalho */}
+                        <div className="flex gap-2 flex-wrap justify-center mt-1">
+                            {roiOnMargin >= 20 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🌊 WAVE</span>}
+                            {roiOnMargin >= 50 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">⚡ VOLT</span>}
+                            {roiOnMargin >= 100 && <span className="px-2 py-0.5 rounded-full bg-white/10 border border-green-500/30 text-[8px] font-black text-white uppercase tracking-widest">🚀 ROCKET</span>}
+                            {roiOnMargin >= 300 && <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-[8px] font-black text-amber-300 uppercase tracking-widest">👑 CROWN</span>}
+                            {isAstronomical && <span className="px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[8px] font-black text-white uppercase tracking-widest animate-pulse">🌌 GOD MODE</span>}
+                        </div>
+                    </div>
+
+                    <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6" style={{ flex: 1, boxSizing: 'border-box' }}>
 
                         {/* DNA DA VITÓRIA (GENESYS) */}
                         <div className="space-y-3">
@@ -189,66 +142,89 @@
                             </div>
                         </div>
 
-                        {/* COMPLIANCE VISÃO - LAUDO E PRINT */}
+                        {/* CONSENSO DA FROTA - GÊNESE DO SINAL */}
                         <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-3">
                             <button 
-                                onClick={() => setIsVisionOpen(!isVisionOpen)}
+                                onClick={() => setIsConsensusOpen(!isConsensusOpen)}
                                 className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] transition-all group"
                             >
                                 <div className="flex items-center gap-2">
-                                    <span className="material-icons-round text-[16px] text-green-400">visibility</span>
-                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Compliance Visão</span>
+                                    <span className="material-icons-round text-[16px] text-green-400">analytics</span>
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Consenso da Frota (Gênese)</span>
                                 </div>
                                 <span className="material-icons-round text-sm text-gray-500 group-hover:text-white transition-all">
-                                    {isVisionOpen ? 'expand_less' : 'expand_more'}
+                                    {isConsensusOpen ? 'expand_less' : 'expand_more'}
                                 </span>
                             </button>
 
-                            {isVisionOpen && (
+                            {isConsensusOpen && (
                                 <div className="flex flex-col gap-4 animate-fade-in mt-2 border-t border-white/5 pt-3">
-                                    {loadingVision ? (
-                                        <div className="flex items-center justify-center p-4">
-                                            <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                                        </div>
-                                    ) : visionReport ? (
-                                        <div className="flex flex-col gap-3">
-                                            <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-[8px] font-black text-green-400 uppercase tracking-widest">Resultado do Visão</span>
-                                                    <span className="text-[9px] font-mono font-bold text-gray-400">{visionReport.payload?.decision}</span>
-                                                </div>
-                                                <p className="text-[10px] font-mono text-gray-300 leading-relaxed">
-                                                    {visionReport.payload?.thoughts || visionReport.payload?.analysis}
-                                                </p>
+                                    {/* Grid de Agentes */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {/* Bibliotecário */}
+                                        <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                            <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest">📚 Bibliotecário</span>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-[9px] text-gray-400 font-bold">Selo:</span>
+                                                <span className="text-[9px] font-black text-white bg-white/5 px-2 py-0.5 rounded uppercase tracking-wider">{intel.nectar_seal || '🛡️ VANGUARD'}</span>
                                             </div>
-
-                                            {(() => {
-                                                // Prioriza a URL direta salva no log do trade ou na carga da visão
-                                                const imgUrl = selectedHistoryLog.vision_url || visionReport.payload?.image_url || visionReport.payload?.screenshot_url;
-                                                if (!imgUrl) return null;
-                                                return (
-                                                    <div className="p-2 bg-black/40 rounded-xl border border-white/5 flex flex-col gap-2">
-                                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Print da Autorização</span>
-                                                        <div 
-                                                            className="rounded-lg overflow-hidden border border-white/10 relative cursor-pointer group"
-                                                            onClick={() => setExpandedTriumphImage(imgUrl.startsWith('http') ? imgUrl : `${API_BASE}${imgUrl}`)}
-                                                        >
-                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                <span className="material-icons-round text-white">zoom_in</span>
-                                                            </div>
-                                                            <img 
-                                                                src={imgUrl.startsWith('http') ? imgUrl : `${API_BASE}${imgUrl}`} 
-                                                                alt="Análise Visão" 
-                                                                className="w-full h-auto object-cover"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] text-gray-400 font-bold">Tendência H4:</span>
+                                                <span className={`text-[9px] font-mono font-bold ${intel.dna?.trend_4h === 'UP' ? 'text-green-400' : intel.dna?.trend_4h === 'DOWN' ? 'text-red-400' : 'text-gray-400'}`}>
+                                                    {intel.dna?.trend_4h || 'NEUTRAL'}
+                                                </span>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <div className="text-center p-4">
-                                            <span className="text-[9px] font-mono text-gray-500 uppercase">Nenhum laudo visual arquivado para {selectedHistoryLog.symbol}</span>
+
+                                        {/* Whale Tracker */}
+                                        <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                            <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">🐋 Whale Tracker</span>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-[9px] text-gray-400 font-bold">Fluxo:</span>
+                                                <span className={`text-[9px] font-black bg-white/5 px-2 py-0.5 rounded uppercase tracking-wider ${intel.bias === 'ACCUMULATION' ? 'text-green-400' : intel.bias === 'DISTRIBUTION' ? 'text-amber-400' : 'text-gray-400'}`}>
+                                                    {intel.bias || 'NEUTRAL'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] text-gray-400 font-bold">Presença:</span>
+                                                <span className="text-[9px] font-mono font-bold text-white uppercase">{intel.whale || 'NEUTRAL'}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Macro Analyst */}
+                                        <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                            <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">🌐 Macro Analyst</span>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-[9px] text-gray-400 font-bold">Confiança:</span>
+                                                <span className="text-[9px] font-mono font-bold text-white">{(intel.macro_score || intel.macro || 50)}%</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] text-gray-400 font-bold">Risco:</span>
+                                                <span className="text-[9px] font-mono font-bold text-white">{intel.dna?.trap_risk ? 'ALTO (TRAP)' : 'CONTROLADO'}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Sentiment Specialist */}
+                                        <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                            <span className="text-[8px] font-black text-cyan-400 uppercase tracking-widest">🧠 Sentimento Retail</span>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-[9px] text-gray-400 font-bold">OnChain:</span>
+                                                <span className="text-[9px] font-mono font-bold text-white">{(intel.onchain_score || intel.onchain || 50)}%</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] text-gray-400 font-bold">Score Geral:</span>
+                                                <span className="text-[9px] font-mono font-bold text-white">{(intel.sentiment_score || 50)}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Detalhes On-Chain / Ponto de Dor */}
+                                    {intel.onchain_summary && intel.onchain_summary !== 'N/A' && (
+                                        <div className="p-3 bg-black/40 rounded-xl border border-white/5">
+                                            <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Resumo do Sentimento Técnico</span>
+                                            <p className="text-[10px] font-mono text-gray-300 leading-relaxed">
+                                                {intel.onchain_summary}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -322,15 +298,6 @@
                         </div>
                     </div>
                 </div>
-                
-                {expandedTriumphImage && (
-                    <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setExpandedTriumphImage(null)}>
-                        <button className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
-                            <span className="material-icons-round">close</span>
-                        </button>
-                        <img src={expandedTriumphImage} className="max-w-full max-h-[90vh] object-contain rounded-xl border border-white/10" alt="Expanded Vision Print" onClick={e => e.stopPropagation()} />
-                    </div>
-                )}
             </div>
         );
     };

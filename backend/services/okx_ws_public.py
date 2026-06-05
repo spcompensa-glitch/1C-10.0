@@ -21,6 +21,10 @@ class OKXWSPublic:
         # CVD storage: {symbol: {timestamp: delta}}
         self.cvd_data = {} 
         self.prices = {} # {symbol: last_price}
+
+        # Rolling 30s extreme prices (for FlashAgent conservative stop checks)
+        self.low_prices = {}  # {symbol: {"low": price, "ts": timestamp}}
+        self.high_prices = {}  # {symbol: {"high": price, "ts": timestamp}}
         self.max_cvd_history = 5000 # V44.1: Increased to 5000 for 1h temporal windows
         self.active_symbols = []
         
@@ -95,7 +99,9 @@ class OKXWSPublic:
                 # UPDATE: Normalize CVD to USD Value for fair comparison
                 norm_sym = symbol.replace(".P", "").upper()
                 if price == 0: price = self.prices.get(norm_sym, 0)
-                else: self.prices[norm_sym] = price # Update last known price from trade event
+                else:
+                    self.prices[norm_sym] = price # Update last known price from trade event
+                    self._update_extreme_price(norm_sym, price)  # Track low/high for FlashAgent
 
                 delta = (size * price) if side == "Buy" else -(size * price)
                 self.cvd_data[symbol].append({
@@ -174,6 +180,7 @@ class OKXWSPublic:
                 norm_sym = symbol.replace(".P", "").upper()
                 price = float(okx_ticker.get("last", 0))
                 self.prices[norm_sym] = price
+                self._update_extreme_price(norm_sym, price)  # Track low/high for FlashAgent
                 vol_ccy_24h = okx_ticker.get("volCcy24h")
                 if vol_ccy_24h is not None:
                     self.turnover_24h_cache[norm_sym] = float(vol_ccy_24h)
@@ -222,6 +229,61 @@ class OKXWSPublic:
         # Filter by timestamp
         window_delta = sum(item["delta"] for item in data_snapshot if item["timestamp"] >= threshold_ms)
         return window_delta
+
+    def _update_extreme_price(self, symbol: str, price: float):
+        """
+        Updates rolling 30-second low and high prices.
+        Called on every trade and ticker event to track intra-cycle extremes.
+        """
+        now = time.time()
+
+        # Low
+        current_low = self.low_prices.get(symbol, {})
+        if not current_low or price < current_low["low"]:
+            self.low_prices[symbol] = {"low": price, "ts": now}
+
+        # High
+        current_high = self.high_prices.get(symbol, {})
+        if not current_high or price > current_high["high"]:
+            self.high_prices[symbol] = {"high": price, "ts": now}
+
+    def get_low_price(self, symbol: str, window_seconds: int = 30) -> float:
+        """Returns the lowest price seen in the last N seconds. 0 if not available."""
+        norm_sym = symbol.replace(".P", "").upper()
+        low_data = self.low_prices.get(norm_sym)
+        if low_data and (time.time() - low_data["ts"]) <= window_seconds:
+            return low_data["low"]
+        return 0.0
+
+    def get_high_price(self, symbol: str, window_seconds: int = 30) -> float:
+        """Returns the highest price seen in the last N seconds. 0 if not available."""
+        norm_sym = symbol.replace(".P", "").upper()
+        high_data = self.high_prices.get(norm_sym)
+        if high_data and (time.time() - high_data["ts"]) <= window_seconds:
+            return high_data["high"]
+        return 0.0
+
+    def get_conservative_price(self, symbol: str, side: str) -> float:
+        """
+        Returns a conservative price for stop violation checks.
+        For LONG (buy): returns the LOW of the last 30s (catches dips that current price might miss)
+        For SHORT (sell): returns the HIGH of the last 30s (catches pumps)
+        Falls back to current price if no extreme data available in window.
+        """
+        norm_sym = symbol.replace(".P", "").upper()
+        current = self.prices.get(norm_sym, 0.0)
+        now = time.time()
+
+        if side.lower() == "buy":
+            low_data = self.low_prices.get(norm_sym)
+            if low_data and (now - low_data["ts"]) <= 30:
+                return min(current, low_data["low"])
+        else:
+            high_data = self.high_prices.get(norm_sym)
+            if high_data and (now - high_data["ts"]) <= 30:
+                return max(current, high_data["high"])
+
+        return current
 
     def get_correlation(self, symbol_a: str, symbol_b: str) -> float:
         """

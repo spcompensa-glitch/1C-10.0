@@ -86,6 +86,9 @@ class FlashAgent:
         # Cache do Sentinel (evita gas checks redundantes enquanto cache de slots está stale)
         self._sentinel_cache = {}  # {slot_id: {"hit_at": float, "respir": float}}
 
+        # Último preço conhecido por símbolo (fallback quando WS falha)
+        self._last_price_cache = {}  # {symbol: price}
+
     async def start(self):
         if self.is_running:
             return
@@ -165,8 +168,7 @@ class FlashAgent:
         # Stops de LUCRO (stop além do entry) → fecha imediatamente
         # Stops de PERDA (stop aquém do entry) → verifica GÁS, se favorável dá respiro
         if current_stop > 0:
-            stop_hit = (side == "buy" and current_price <= current_stop) or \
-                       (side == "sell" and current_price >= current_stop)
+            stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
                 # Determina se é stop de lucro ou perda
                 is_profit_stop = (side == "buy" and current_stop >= entry_price) or \
@@ -272,9 +274,9 @@ class FlashAgent:
 
         # ⚡ 1. VIOLAÇÃO DE STOP → FECHAR MOONBAG IMEDIATAMENTE
         if current_stop > 0:
-            stop_hit = (side == "buy" and current_price <= current_stop) or \
-                       (side == "sell" and current_price >= current_stop)
+            stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
+                # Log com o current_price mesmo, mas foi detectado via conservative (low/high)
                 logger.warning(
                     f"🌙⚡ [FLASH-MOON-SL] {symbol} Moonbag SL violado! "
                     f"Price=${current_price:.4f} Stop=${current_stop:.4f} ROI={roi:.1f}%"
@@ -333,14 +335,51 @@ class FlashAgent:
     # ==================== HELPERS ====================
 
     async def _get_current_price(self, symbol: str) -> float:
-        """Preço via WS cache local (ultra-rápido, sem REST fallback)."""
+        """
+        Preço via WS cache local. Se WS falhar, usa último preço conhecido.
+        Isso garante que o FlashAgent nunca perca um stop por falha temporária do WS.
+        """
         try:
             price = okx_ws_public_service.get_current_price(symbol)
             if price and price > 0:
+                # Atualiza cache
+                self._last_price_cache[symbol] = price
                 return price
         except Exception:
             pass
+
+        # Fallback: último preço conhecido (até 60s de idade)
+        last_price = self._last_price_cache.get(symbol, 0.0)
+        if last_price > 0:
+            return last_price
+
         return 0.0
+
+    async def _check_stop_hit(self, side: str, stop_price: float, symbol: str) -> bool:
+        """
+        ⚡ Verifica se o stop foi violado usando PREÇO CONSERVATIVO.
+        Para LONG: usa o LOW dos últimos 30s (pega dips intra-ciclo que o polling perderia)
+        Para SHORT: usa o HIGH dos últimos 30s (pega pumps intra-ciclo)
+        Fallback para preço atual se conservative não estiver disponível.
+        """
+        if stop_price <= 0:
+            return False
+
+        try:
+            # Tenta conservative price primeiro (low para LONG, high para SHORT)
+            check_price = okx_ws_public_service.get_conservative_price(symbol, side)
+            if check_price > 0:
+                return (side == "buy" and check_price <= stop_price) or \
+                       (side == "sell" and check_price >= stop_price)
+        except Exception:
+            pass
+
+        # Fallback: preço atual
+        current_price = await self._get_current_price(symbol)
+        if current_price <= 0:
+            return False
+        return (side == "buy" and current_price <= stop_price) or \
+               (side == "sell" and current_price >= stop_price)
 
     def _calc_roi(self, entry: float, current: float, side: str, leverage: float) -> float:
         """ROI instantâneo."""

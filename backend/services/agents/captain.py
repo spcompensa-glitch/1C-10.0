@@ -259,11 +259,19 @@ class CaptainAgent(AIOSAgent):
                 logger.warning(f"🛡️ [V110.137] {symbol} SHORT BLOCKED by Whale {whale_bias}")
                 
             # [V110.27.0] ABSOLUTE CONVERGENCE SHIELD: Minimum Confidence
-            # MONUSDT case was 39.2%. Cutoff 50.0% ensures institutional support.
-            if unified_score < 50.0:
+            # MONUSDT case was 39.2%. Cutoff 40.0% ensures more opportunities while maintaining quality.
+            # 🎯 OTIMIZAÇÃO: Quando slots vazios > 2, reduz threshold para 35%
+            occupied_count = sum(1 for s in slots if s.get("symbol"))
+            free_slots = 4 - occupied_count
+            required_confidence = 35.0 if free_slots >= 2 else 40.0
+            
+            if unified_score < required_confidence:
                 approved = False
-                reasons.append(f"LOW_FLEET_CONFIDENCE: {unified_score:.1f}% < 50.0%")
-                logger.warning(f"🛡️ [V110.100] {symbol} {side} BLOCKED by Low Confidence ({unified_score:.1f}%)")
+                reasons.append(f"LOW_FLEET_CONFIDENCE: {unified_score:.1f}% < {required_confidence:.1f}% (Slots Livres: {free_slots})")
+                logger.warning(f"🛡️ [V110.100] {symbol} {side} BLOCKED by Low Confidence ({unified_score:.1f}%, Slots: {free_slots})")
+            else:
+                if free_slots >= 2:
+                    logger.info(f"💪 [CAPTAIN-BOOST] {symbol} aprovado com {unified_score:.1f}% (Slots vazios: {free_slots})")
                 
             from services.okx_rest import okx_rest_service
             if okx_rest_service.execution_mode == "PAPER":

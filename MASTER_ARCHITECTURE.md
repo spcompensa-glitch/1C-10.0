@@ -5,6 +5,12 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
+*   **V110.802: CORREÇÃO DE ERROS CRÍTICOS DE CÁLCULO & OTIMIZAÇÃO DE SLOTS [JUN 05]**
+    - **Correção da Fórmula de ROI**: Remoção do fator `* 100` extra na função `_calc_roi` do FlashAgent que estava causando perdas extremas (ex: -181% em vez de -1.81%). A fórmula correta agora é `price_diff * leverage` sem multiplicação por 100.
+    - **Correção da Fórmula de Stop Loss**: Simplificação do cálculo de stop loss para `stop_roi / 100` sem distorção de leverage, garantindo fechamentos precisos e evitando erros de precificação.
+    - **Otimização do Capitão**: Implementação de threshold dinâmico de confiança (35% quando slots vazios ≥ 2, 40% normal) para melhor preenchimento de slots e redução de ordens bloqueadas desnecessariamente.
+    - **Correção UI de Moonbags**: Atualização do display de "ETERNAL SURF" para "MOONBAG ACTIVE", eliminando confusão entre expectativa visual e comportamento real do sistema.
+
 *   **V110.801: CORREÇÃO DE CRITICAL STOP LOSS & FILTRO DE CONTRATENDÊNCIA [JUN 04]**
     - **Persistência de Sentinel no SQLite/Postgres**: Adicionada a coluna `sentinel_first_hit_at` nas tabelas `slots` e `moonbags` para garantir que o respiro diplomático não resulte em loops infinitos sob fallback de banco de dados local.
     - **Filtro de Contratendência Universal**: Ativado o filtro de contratendência no modo `PAPER` e endurecidas as travas gerais, bloqueando 100% de trades contra a tendência se a variação de 15m do BTC for >= 0.5%, com bypass restrito a scores de elite >= 98.

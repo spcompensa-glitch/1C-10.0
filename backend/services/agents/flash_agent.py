@@ -389,7 +389,7 @@ class FlashAgent:
             price_diff = (current - entry) / entry
         else:
             price_diff = (entry - current) / entry
-        return price_diff * leverage * 100
+        return price_diff * leverage
 
     def _update_pnl(self, slot_id: int, roi: float, slot: Dict[str, Any]):
         """Atualiza PnL no banco a cada 2s."""
@@ -406,11 +406,12 @@ class FlashAgent:
     async def _calc_stop_price(self, entry_price: float, stop_roi: float, side: str,
                                 leverage: float, symbol: str) -> float:
         """Calcula preço do stop a partir do ROI desejado."""
-        price_offset_pct = stop_roi / (leverage * 100)
+        # 🎯 CORRETO: Stop loss direto, sem distorção de leverage
+        # stop_roi é o ROI alvo para o stop (ex: 20 = 20% de ROI)
         if side == "buy":
-            new_stop = entry_price * (1 + price_offset_pct)
+            new_stop = entry_price * (1 - stop_roi / 100)  # Stop loss para LONG
         else:
-            new_stop = entry_price * (1 - price_offset_pct)
+            new_stop = entry_price * (1 + stop_roi / 100)  # Stop loss para SHORT
         try:
             from services.okx_rest import okx_rest_service
             new_stop = await okx_rest_service.round_price(symbol, new_stop)

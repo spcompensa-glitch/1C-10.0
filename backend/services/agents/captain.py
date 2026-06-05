@@ -128,7 +128,7 @@ class CaptainAgent(AIOSAgent):
             
             # 2. Sentiment [V43.0 Rigorous]
             # Injects is_ranging context for the specialist
-                        regime_data = await signal_generator.detect_market_regime(symbol)
+            regime_data = await signal_generator.detect_market_regime(symbol)
             is_ranging = regime_data.get("regime") == "RANGING"
             
             sentiment = await kernel.dispatch({

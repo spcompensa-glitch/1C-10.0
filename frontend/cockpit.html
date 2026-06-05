@@ -5466,10 +5466,7 @@
                 }
 
                 // Filter bestSignals based on needs
-                const filtered = bestSignals.filter(sig => {
-                    if (activeSlotsCount >= 4) return false;
-                    return true; // Todos os sinais são Blitz agora
-                });
+                const filtered = bestSignals;
 
                 return { intelligenceMessage: msg, filteredSignals: filtered };
             }, [slots, bestSignals]);

@@ -445,28 +445,6 @@ class OKXRest:
     async def get_wallet_balance(self):
         """Fetches the total equity from the Bybit account (UNIFIED or CONTRACT)."""
         # logger.info(f"[DEBUG] get_wallet_balance called. Mode: {self.execution_mode}")
-        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
-            from services.okx_service import okx_service
-            try:
-                request_path = "/api/v5/account/balance"
-                url = okx_service.base_url + request_path
-                headers = okx_service._get_headers("GET", request_path)
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.get(url, headers=headers)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data.get("code") == "0" and data.get("data"):
-                            details = data["data"][0]
-                            total_eq = float(details.get("totalEq", 100.0))
-                            # Se for demo trading com muito saldo virtual, limitamos a $100
-                            if settings.OKX_TESTNET and total_eq > 500.0:
-                                logger.info(f"💰 [OKX-REST] Saldo demo real: ${total_eq:.2f}. Limitando a banca virtual Sniper em $100 para simulação.")
-                                return 100.0
-                            return total_eq
-            except Exception as e:
-                logger.error(f"❌ [OKX-REST] Erro ao obter saldo da OKX: {e}")
-            return 100.0
-
         if self.execution_mode == "PAPER":
              # O saldo total no modo PAPER deve ser o saldo base configurado + lucros/prejuízos acumulados + pnl flutuante de posições táticas e moonbags.
              # Para evitar dependência circular direta com bankroll_manager que já chama get_wallet_balance, 
@@ -492,7 +470,31 @@ class OKXRest:
              except Exception as e:
                  logger.error(f"Error calculating float_pnl in get_wallet_balance paper mode: {e}")
              
+             # Se for PAPER, o get_wallet_balance deve SEMPRE sincronizar com a banca de settings se ela tiver $20.00 ou se o banco estiver limpo.
+             # Como o banco tem $20.00, vamos usar self.paper_balance que é atualizado dinamicamente pelo bankroll_manager baseado no banco.
              return self.paper_balance + float_pnl
+
+        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
+            from services.okx_service import okx_service
+            try:
+                request_path = "/api/v5/account/balance"
+                url = okx_service.base_url + request_path
+                headers = okx_service._get_headers("GET", request_path)
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(url, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("code") == "0" and data.get("data"):
+                            details = data["data"][0]
+                            total_eq = float(details.get("totalEq", 100.0))
+                            # Se for demo trading com muito saldo virtual, limitamos a $100
+                            if settings.OKX_TESTNET and total_eq > 500.0:
+                                logger.info(f"💰 [OKX-REST] Saldo demo real: ${total_eq:.2f}. Limitando a banca virtual Sniper em $100 para simulação.")
+                                return 100.0
+                            return total_eq
+            except Exception as e:
+                logger.error(f"❌ [OKX-REST] Erro ao obter saldo da OKX: {e}")
+            return 100.0
 
 
         async with self._http_semaphore:

@@ -1259,7 +1259,14 @@ class BankrollManager:
                     
                     # A banca simulada no paper_balance do okx_rest_service já acumula as parciais e lucros reais de trades fechados.
                     # Portanto, o Equity dinâmico correto é o saldo atualizado (paper_balance) + o PnL flutuante (float_pnl).
-                    calculated_equity = okx_rest_service.paper_balance + float_pnl
+                    # Mas se o banco foi resetado recentemente para $20 e no Postgres temos $20, o paper_balance também deve sincronizar com o banco.
+                    # Garantimos que calculated_equity reflita a realidade do settings (20.0) mais os lucros acumulados (ou seja, se a banca no banco for 20.0, usamos ela).
+                    db_balance = banca.get("saldo_total", settings.OKX_SIMULATED_BALANCE) if banca else settings.OKX_SIMULATED_BALANCE
+                    # Sincroniza o paper_balance em memória para evitar dessincronização visual
+                    if abs(okx_rest_service.paper_balance - db_balance) > 0.01:
+                        logger.info(f"🔄 Syncing okx_rest_service.paper_balance ({okx_rest_service.paper_balance}) to DB balance ({db_balance})")
+                        okx_rest_service.paper_balance = db_balance
+                    calculated_equity = db_balance + float_pnl
                     reported_real_okx = 0.0
                     logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | CurrentSimBalance={okx_rest_service.paper_balance:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
 

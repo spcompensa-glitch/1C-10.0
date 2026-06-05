@@ -144,7 +144,7 @@
         if (!symbol) return null;
 
         return (
-            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-300">
+            <div className="fixed inset-0 z-[10500] flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-300">
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={onClose}></div>
                 
                 <div className="bg-[#0a0c14] border border-white/10 w-full max-w-6xl h-full lg:max-h-[90vh] rounded-[2rem] overflow-hidden flex flex-col relative z-10 shadow-[0_0_100px_rgba(0,0,0,0.5)]">

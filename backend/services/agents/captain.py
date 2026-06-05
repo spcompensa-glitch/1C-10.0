@@ -412,7 +412,7 @@ class CaptainAgent(AIOSAgent):
                 is_full = free_slots <= 0
                 busy_tocaias = len(self.active_tocaias) >= monitoring_limit
 
-                                if not hasattr(signal_generator, "signal_queue") or signal_generator.signal_queue is None:
+                if not hasattr(signal_generator, "signal_queue") or signal_generator.signal_queue is None:
                     await asyncio.sleep(1)
                     continue
 
@@ -500,7 +500,7 @@ class CaptainAgent(AIOSAgent):
         - Só escaneia se o Slot 1 estiver disponível (trava "uma ordem por vez").
         """
         from services.agents.blitz_sniper import blitz_sniper_agent
-                from services.okx_rest import okx_rest_service
+        from services.okx_rest import okx_rest_service
 
         BLITZ_SCAN_INTERVAL = 300  # 5 minutos entre ciclos de scan
 
@@ -842,7 +842,7 @@ class CaptainAgent(AIOSAgent):
             strategy = "SWING"
 
             
-                        try:
+try:
                 regime_data = await signal_generator.detect_market_regime(symbol)
                 market_regime = regime_data.get('regime', 'TRANSITION')
             except Exception:
@@ -1185,7 +1185,7 @@ class CaptainAgent(AIOSAgent):
 
             # [V110.141] Injetar no RTDB para visibilidade instantânea no Cockpit
             try:
-                                asyncio.create_task(signal_generator._sync_radar_rtdb())
+                asyncio.create_task(signal_generator._sync_radar_rtdb())
             except Exception as e:
                 logger.warning(f"Failed to sync radar RTDB for TOCAIA: {e}")
 
@@ -1442,7 +1442,7 @@ class CaptainAgent(AIOSAgent):
         Exige pelo menos 80-100% ROI (1.6% a 2% de movimento de preço em 50x) para validar.
         """
         try:
-                        fib = await signal_generator.get_fibonacci_levels(symbol)
+                fib = await signal_generator.get_fibonacci_levels(symbol)
             if not fib or 'levels' not in fib:
                 return {'valid': True, 'reason': 'no_fib_data'} # Be liberal if data is missing
             
@@ -1696,7 +1696,7 @@ class CaptainAgent(AIOSAgent):
         # [V42.0] RALLY MODE (Agressividade Adaptativa)
         # Se score é elite (>89) e estamos em tendência, reduzimos drasticamente as barreiras
         score_val = signal_data.get("score", 0) if signal_data else 0
-                regime_info = await signal_generator.detect_market_regime(symbol)
+        regime_info = await signal_generator.detect_market_regime(symbol)
         is_trending_rally = regime_info.get("regime") == "TRENDING"
         
         rally_mode_active = (score_val >= 85) # [V93.0] Rally mode for any elite signal

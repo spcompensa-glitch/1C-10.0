@@ -1234,7 +1234,7 @@ class BankrollManager:
                 
                 # [V110.9] Calculations logic for PAPER and REAL parity
                 if okx_rest_service.execution_mode == "PAPER":
-                    # [V110.118 FIX-B] Inclui PnL não realizado das paper_positions
+                    # [V110.118 FIX-B] Inclui PnL não realizado das paper_positions + paper_moonbags
                     # para que a banca reflita o patrimônio líquido real (aberto + fechado).
                     # Nota: o frontend NÃO soma mais float separado pois agora já vem consolidado aqui.
                     float_pnl = 0.0
@@ -1243,11 +1243,24 @@ class BankrollManager:
                             raw_float = p.get("unrealisedPnl", 0)
                             if raw_float:
                                 float_pnl += float(raw_float)
-                    except Exception:
-                        float_pnl = 0.0
+                        for m in okx_rest_service.paper_moonbags:
+                            # Tenta calcular ou puxar unrealisedPnl para as moonbags no paper mode
+                            from services.okx_ws_public import okx_ws_public_service
+                            sym = m.get("symbol")
+                            entry = float(m.get("avgPrice", 0))
+                            qty = float(m.get("size", 0))
+                            side = m.get("side", "Buy")
+                            if entry > 0 and qty > 0:
+                                price = okx_ws_public_service.get_current_price(sym) or entry
+                                price_diff = (price - entry) / entry if side == "Buy" else (entry - price) / entry
+                                pnl_usd = price_diff * qty * entry
+                                float_pnl += pnl_usd
+                    except Exception as e:
+                        logger.error(f"Error summing paper float_pnl: {e}")
                     calculated_equity = (config_bal or 100.0) + total_pnl + float_pnl
                     reported_real_okx = 0.0
                     logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | VaultPnl={total_pnl:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
+
 
                 else:
                     # REAL MODE: Bybit is the absolute source of truth for Equity

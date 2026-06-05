@@ -472,13 +472,32 @@ class OKXRest:
             return 100.0
 
         if self.execution_mode == "PAPER":
-             # Calculate unrealized PNL from active paper positions to show dynamic equity
-             unrealized_pnl = 0.0
-             # Note: Accurate unrealized PNL requires fetching current prices. 
-             # For performance, we might just return static balance + realized, 
-             # OR realistically we should update it.
-             # Ideally bankroll manager handles this via slots PNL, but here we return raw wallet balance.
-             return self.paper_balance
+             # O saldo total no modo PAPER deve ser o saldo base configurado + lucros/prejuízos acumulados + pnl flutuante de posições táticas e moonbags.
+             # Para evitar dependência circular direta com bankroll_manager que já chama get_wallet_balance, 
+             # nós calculamos localmente.
+             float_pnl = 0.0
+             try:
+                 # Calcula o pnl flutuante das posições em aberto (táticas + moonbags)
+                 # Como já calculamos o preço de mercado delas, usamos o que temos ou estimamos
+                 from services.okx_ws_public import okx_ws_public_service
+                 for p in (self.paper_positions + self.paper_moonbags):
+                     sym = p.get("symbol")
+                     entry = float(p.get("avgPrice", 0))
+                     qty = float(p.get("size", 0))
+                     side = p.get("side", "Buy")
+                     if entry > 0 and qty > 0:
+                         price = okx_ws_public_service.get_current_price(sym) or entry
+                         price_diff = (price - entry) / entry if side == "Buy" else (entry - price) / entry
+                         # ROI = price_diff * leverage * 100
+                         # PnL = (ROI / 100) * margin
+                         # Simplificado: PnL = price_diff * qty * entry
+                         pnl_usd = price_diff * qty * entry
+                         float_pnl += pnl_usd
+             except Exception as e:
+                 logger.error(f"Error calculating float_pnl in get_wallet_balance paper mode: {e}")
+             
+             return self.paper_balance + float_pnl
+
 
         async with self._http_semaphore:
             try:

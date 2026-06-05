@@ -842,7 +842,7 @@ class CaptainAgent(AIOSAgent):
             strategy = "SWING"
 
             
-try:
+            try:
                 regime_data = await signal_generator.detect_market_regime(symbol)
                 market_regime = regime_data.get('regime', 'TRANSITION')
             except Exception:
@@ -1442,7 +1442,7 @@ try:
         Exige pelo menos 80-100% ROI (1.6% a 2% de movimento de preço em 50x) para validar.
         """
         try:
-                fib = await signal_generator.get_fibonacci_levels(symbol)
+            fib = await signal_generator.get_fibonacci_levels(symbol)
             if not fib or 'levels' not in fib:
                 return {'valid': True, 'reason': 'no_fib_data'} # Be liberal if data is missing
             

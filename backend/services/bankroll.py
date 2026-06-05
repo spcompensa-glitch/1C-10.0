@@ -1025,25 +1025,25 @@ class BankrollManager:
             for s in active_slots_data:
                 if not s.get("symbol"): continue
                 
-                # [V6.0] Garantia de Lucro: Só libera se SL travado em +80% ROI
+                # [V6.0] Garantia de Lucro: Só libera se SL travado em +60% ROI (reduzido de 80% para melhor preenchimento)
                 roi_at_sl = 0
                 leverage = float(s.get("leverage", 50))
                 entry = float(s.get("entry_price", 0))
                 stop = float(s.get("current_stop", 0))
                 side = s.get("side", "Buy")
-                
+
                 if entry > 0 and stop > 0:
                     if side.lower() == "buy":
                         roi_at_sl = ((stop - entry) / entry) * leverage * 100
                     else:
                         roi_at_sl = ((entry - stop) / entry) * leverage * 100
-                
-                # Regra Nova: Profit-Guaranteed (stop >= 80% ROI)
-                is_profit_guaranteed = roi_at_sl >= 80.0
-                
+
+                # Regra Nova: Profit-Guaranteed (stop >= 60% ROI) - Reduzido para melhor aproveitamento de slots
+                is_profit_guaranteed = roi_at_sl >= 60.0
+
                 if not is_profit_guaranteed:
                     at_risk_count += 1
-                    logger.info(f"🛡️ [V6.0] {s.get('symbol')} em andamento (ROI no SL: {roi_at_sl:.1f}%). Aguardando garantia de 80% para próxima Tocaia.")
+                    logger.info(f"🛡️ [V6.0] {s.get('symbol')} em andamento (ROI no SL: {roi_at_sl:.1f}%). Aguardando garantia de 60% para próxima Tocaia.")
                 else:
                     logger.info(f"✅ [V6.0] {s.get('symbol')} com lucro garantido ({roi_at_sl:.1f}%). Slot liberado para nova Tocaia.")
 

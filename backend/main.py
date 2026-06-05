@@ -823,9 +823,7 @@ if settings.SERVE_STATIC_FRONTEND:
 
     @app.get("/kanban", response_class=HTMLResponse)
     async def serve_kanban_page():
-        path = os.path.join(FRONTEND_DIR, "kanban-hermes-enhanced.html")
-        if not os.path.exists(path):
-            path = os.path.join(FRONTEND_DIR, "kanban-hermes.html")
+        path = os.path.join(FRONTEND_DIR, "kanban.html")
         
         with open(path, "r", encoding="utf-8") as f:
             html_content = f.read()

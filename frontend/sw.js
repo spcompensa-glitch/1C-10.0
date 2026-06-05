@@ -7,12 +7,19 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.706'; // [V110.705] Correção de dupla contagem de PnL no saldo
+const CACHE_NAME = '1crypten-sniper-v110.707'; // [V110.707] Adicionado suporte a componentes modularizados
 const OFFLINE_URL = '/offline.html';
 
 // Assets que devem estar disponíveis offline (caminhos absolutos baseados na raiz)
 const STATIC_ASSETS = [
     '/cockpit.html',
+    '/css/cockpit.css',
+    '/app.js',
+    '/components/TriumphModal.js',
+    '/components/SettingsPage.js',
+    '/components/AdminUsersPage.js',
+    '/components/TakeoffModal.js',
+    '/components/DeepAnalysisModal.js',
     '/offline.html',
     '/manifest.json',
     '/logo10D.png',

@@ -16,13 +16,10 @@ logger = logging.getLogger("BankrollManager")
 
 def get_slot_type(slot_id: int) -> str:
     """
-    [V110.137 DOUTRINA DAS 10] Dual Blitz + Dual Swing:
-    - Slots 1 e 2: BLITZ_30M (Extração rápida, Step-Lock 100%/200%/300%)
-    - Slots 3 e 4: SWING    (Caça estrutural Wyckoff + Moonbag/Ceifeiro)
+    [V110.802.6 ALL-BLITZ] Todos os 4 slots sao BLITZ_30M:
+    - Extração rápida em 30M, sem distinção SWING.
     """
-    if slot_id in [1, 2]:
-        return "BLITZ_30M"  # [V110.137] Dual Elite Extraction Slots
-    return "SWING"
+    return "BLITZ_30M"
 
 class BankrollManager:
     def __init__(self):
@@ -1060,13 +1057,13 @@ class BankrollManager:
             max_total_slots = 1 if self.strict_single_order_mode else 4
             max_at_risk_slots = 4  # [V53.0] Default
             
-            if balance < 15.0:
-                max_total_slots = 1  # [V6.5] Strict lock if balance is tiny
-                max_at_risk_slots = 1 
-                logger.info(f"🛡️ [V6.5] Critical Recovery Mode: Max Slots=1 | Max At-Risk=1 | Balance=${balance:.2f}")
-            elif balance < 30.0:
+            if balance < 10.0:
+                max_total_slots = 2  # [V110.802.6] Menos de $10, max 2 slots
                 max_at_risk_slots = 2
-                logger.info(f"🛡️ [V6.5] Safe Recovery Mode: Max At-Risk=2 | Balance=${balance:.2f}")
+                logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | Balance=${balance:.2f}")
+            else:
+                max_at_risk_slots = 4  # [V110.802.6] Todos os 4 slots liberados
+                logger.info(f"🛡️ [V110.802.6] Full Slots Mode: Max At-Risk=4 | Balance=${balance:.2f}")
 
             if at_risk_count >= max_at_risk_slots:
                 logger.warning(f"🚫 [V43.2] Dual-Slot BLOCK: At least {at_risk_count} position(s) unprotected. Waiting for Risk-Zero.")

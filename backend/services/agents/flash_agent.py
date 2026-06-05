@@ -83,6 +83,9 @@ class FlashAgent:
         self._last_moonbags_refresh = 0.0
         self._moonbags_cache_ttl = 3.0
 
+        # Cache do Sentinel (evita gas checks redundantes enquanto cache de slots está stale)
+        self._sentinel_cache = {}  # {slot_id: {"hit_at": float, "respir": float}}
+
     async def start(self):
         if self.is_running:
             return
@@ -158,14 +161,27 @@ class FlashAgent:
         # Atualiza PnL (a cada 2s)
         self._update_pnl(slot_id, roi, slot)
 
-        # ⚡ Violação de SL
+        # ⚡ Violação de SL — com Sentinel Inteligente
+        # Stops de LUCRO (stop além do entry) → fecha imediatamente
+        # Stops de PERDA (stop aquém do entry) → verifica GÁS, se favorável dá respiro
         if current_stop > 0:
             stop_hit = (side == "buy" and current_price <= current_stop) or \
                        (side == "sell" and current_price >= current_stop)
             if stop_hit:
-                logger.warning(f"⚡ [FLASH-SL] {symbol} SL violado! Price=${current_price:.4f} Stop=${current_stop:.4f}")
-                asyncio.create_task(self._close_position(slot_id, symbol, side, qty, f"FLASH_SL_{roi:.1f}%"))
-                return
+                # Determina se é stop de lucro ou perda
+                is_profit_stop = (side == "buy" and current_stop >= entry_price) or \
+                                 (side == "sell" and current_stop <= entry_price)
+
+                if is_profit_stop:
+                    # 🟢 STOP DE LUCRO: Fecha imediatamente (lucro já garantido)
+                    logger.warning(f"⚡ [FLASH-SL-PROFIT] {symbol} SL de lucro violado! Price=${current_price:.4f} Stop=${current_stop:.4f}")
+                    asyncio.create_task(self._close_position(slot_id, symbol, side, qty, f"FLASH_PROFIT_SL_{roi:.1f}%"))
+                    return
+                else:
+                    # 🔴 STOP DE PERDA: Ativa Sentinel — verifica Gás antes de fechar
+                    await self._process_sentinel_stop(slot_id, symbol, side, qty, entry_price,
+                                                       current_stop, current_price, roi, slot)
+                    return
 
         # 🚀 Emancipação (ROI >= 150%)
         if roi >= 150.0:
@@ -374,6 +390,126 @@ class FlashAgent:
         update_payload = {"current_stop": sl_price, "pnl_percent": roi}
         await database_service.update_moonbag(moon_uuid, update_payload)
         await self._sync_paper_stop(symbol, sl_price)
+
+    # ==================== SENTINEL (STOPS DE PERDA) ====================
+
+    async def _process_sentinel_stop(self, slot_id: int, symbol: str, side: str, qty: float,
+                                      entry_price: float, stop_price: float, current_price: float,
+                                      roi: float, slot: Dict[str, Any]):
+        """
+        🛡️ SENTINEL INTELIGENTE: Para stops de PERDA, verifica o GÁS antes de fechar.
+        Se o fluxo (CVD) ainda favorece a direção do trade, concede respiro.
+        """
+        now = time.time()
+        loss_pct = abs(roi)
+
+        # Determina o tempo de respiro baseado na perda
+        # Quanto maior a perda, MENOS respiro (não deixar sangrar muito)
+        if loss_pct > 100:
+            base_respir = 15   # Perda >100%: só 15s de respiro
+        elif loss_pct > 50:
+            base_respir = 30   # Perda >50%: 30s
+        else:
+            base_respir = 45   # Perda <=50%: 45s
+
+        # Usa cache em memória primeiro (mais rápido que esperar refresh do banco)
+        sentinel_cache = self._sentinel_cache.get(slot_id, {})
+        sentinel_hit = sentinel_cache.get("hit_at", 0) or slot.get("sentinel_first_hit_at", 0) or 0
+
+        if sentinel_hit == 0:
+            # 🔴 PRIMEIRA VEZ que toca o stop: verifica o GÁS
+            is_gas_favorable = await self._check_gas_favorable_simple(symbol, side)
+
+            if is_gas_favorable:
+                # Gás favorável: concede respiro diplomático
+                logger.info(
+                    f"🛡️⚡ [SENTINEL-HOLD] {symbol} SL de perda atingido mas GÁS favorável! "
+                    f"Concedendo {base_respir}s de respiro. ROI={roi:.1f}%"
+                )
+                # Salva no cache em memória + banco (fire-and-forget)
+                self._sentinel_cache[slot_id] = {"hit_at": now, "respir": base_respir}
+                asyncio.create_task(
+                    database_service.update_slot(slot_id, {
+                        "sentinel_first_hit_at": now,
+                        "pensamento": f"🛡️ SENTINEL: Gás favorável em {roi:.1f}% ROI. Respiro de {base_respir}s."
+                    })
+                )
+                return  # Não fecha, deixa o preço respirar
+            else:
+                # Gás desfavorável: fecha imediatamente
+                logger.warning(
+                    f"🛑⚡ [SENTINEL-DENIED] {symbol} GÁS desfavorável! "
+                    f"Fechando stop de perda. ROI={roi:.1f}%"
+                )
+                asyncio.create_task(
+                    self._close_position(slot_id, symbol, side, qty, f"SENTINEL_SL_{roi:.1f}%")
+                )
+                return
+
+        else:
+            # 🟡 JÁ ESTÁ SOB SENTINEL: verifica se o tempo já esgotou
+            elapsed = now - sentinel_hit
+
+            if elapsed > base_respir:
+                # ⏰ TEMPO ESGOTOU: O preço não voltou, fecha
+                logger.warning(
+                    f"⏰⚡ [SENTINEL-TIMEOUT] {symbol} Respiro de {base_respir}s esgotou "
+                    f"({elapsed:.0f}s). Fechando stop de perda. ROI={roi:.1f}%"
+                )
+                # Limpa cache
+                self._sentinel_cache.pop(slot_id, None)
+                asyncio.create_task(
+                    self._close_position(slot_id, symbol, side, qty, f"SENTINEL_TIMEOUT_{roi:.1f}%")
+                )
+                return
+            else:
+                # ⏳ Ainda no prazo: re-checa o gás rapidamente
+                is_still_favorable = await self._check_gas_favorable_simple(symbol, side)
+                if is_still_favorable:
+                    # Gás ainda segurando: mantém a paciência
+                    if int(elapsed) % 5 == 0:  # Log a cada 5s
+                        logger.info(
+                            f"🛡️⚡ [SENTINEL-WAIT] {symbol} Gás mantém favorável "
+                            f"({elapsed:.0f}s/{base_respir}s). ROI={roi:.1f}%"
+                        )
+                    return
+                else:
+                    # Gás virou contra: fecha imediatamente
+                    logger.warning(
+                        f"🛑⚡ [SENTINEL-GAS-FLIP] {symbol} Gás virou contra! "
+                        f"Fechando stop de perda. ROI={roi:.1f}%"
+                    )
+                    self._sentinel_cache.pop(slot_id, None)
+                    asyncio.create_task(
+                        self._close_position(slot_id, symbol, side, qty, f"SENTINEL_GAS_FLIP_{roi:.1f}%")
+                    )
+                    return
+
+    async def _check_gas_favorable_simple(self, symbol: str, side: str) -> bool:
+        """
+        ⛽ Verifica GÁS (CVD) de forma ultra-rápida usando apenas cache do WebSocket.
+        Sem chamadas REST para não atrasar o ciclo de 1s.
+        Retorna True se o fluxo monetário ainda favorece a direção do trade.
+        """
+        try:
+            # CVD de curto prazo (5 minutos) via WS cache
+            cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, window_seconds=300)
+
+            # Threshold adaptativo baseado no turnover do ativo
+            turnover = getattr(okx_ws_public_service, 'turnover_24h_cache', {}).get(symbol, 50_000_000)
+            threshold = max(5000, turnover * 0.00005)
+
+            side_norm = side.lower()
+            if side_norm == "buy":
+                # Para LONG: CVD positivo (dinheiro entrando) = gás favorável
+                return cvd_5m > threshold
+            else:
+                # Para SHORT: CVD negativo (dinheiro saindo) = gás favorável
+                return cvd_5m < -threshold
+
+        except Exception as e:
+            logger.warning(f"⚡ [FLASH] Erro no gas check (non-critical): {e}")
+            return False  # Conservador: se não consegue medir o gás, fecha
 
     async def _emancipate_slot(self, slot_id: int, symbol: str, sl_price: float):
         """🚀 Emancipação: protege lucro + promote no Postgres."""

@@ -382,14 +382,14 @@ class FlashAgent:
                (side == "sell" and current_price >= stop_price)
 
     def _calc_roi(self, entry: float, current: float, side: str, leverage: float) -> float:
-        """ROI instantâneo."""
+        """ROI instantâneo em percentual (ex: 2.1 para +2.1%)."""
         if entry <= 0:
             return 0.0
         if side == "buy":
             price_diff = (current - entry) / entry
         else:
             price_diff = (entry - current) / entry
-        return price_diff * leverage
+        return price_diff * leverage * 100
 
     def _update_pnl(self, slot_id: int, roi: float, slot: Dict[str, Any]):
         """Atualiza PnL no banco a cada 2s."""
@@ -405,13 +405,19 @@ class FlashAgent:
 
     async def _calc_stop_price(self, entry_price: float, stop_roi: float, side: str,
                                 leverage: float, symbol: str) -> float:
-        """Calcula preço do stop a partir do ROI desejado."""
-        # 🎯 CORRETO: Stop loss direto, sem distorção de leverage
-        # stop_roi é o ROI alvo para o stop (ex: 20 = 20% de ROI)
+        """Calcula preço do stop a partir do ROI desejado.
+
+        Fórmula: ROI = price_diff_pct * leverage * 100
+        Então: price_diff_pct = stop_roi / (leverage * 100)
+
+        Para LONG:  stop = entry * (1 + price_diff_pct)  — stop ACIMA do entry (lucro travado)
+        Para SHORT: stop = entry * (1 - price_diff_pct)  — stop ABAIXO do entry (lucro travado)
+        """
+        price_offset_pct = stop_roi / (leverage * 100)
         if side == "buy":
-            new_stop = entry_price * (1 - stop_roi / 100)  # Stop loss para LONG
+            new_stop = entry_price * (1 + price_offset_pct)  # Stop ACIMA do entry para LONG
         else:
-            new_stop = entry_price * (1 + stop_roi / 100)  # Stop loss para SHORT
+            new_stop = entry_price * (1 - price_offset_pct)  # Stop ABAIXO do entry para SHORT
         try:
             from services.okx_rest import okx_rest_service
             new_stop = await okx_rest_service.round_price(symbol, new_stop)

@@ -3,6 +3,8 @@
         if (!selectedHistoryLog) return null;
 
         const [isConsensusOpen, setIsConsensusOpen] = React.useState(true);
+        const [marketStudy, setMarketStudy] = React.useState(null);
+        const [isLoadingStudy, setIsLoadingStudy] = React.useState(false);
 
         let finalRoi = Number(selectedHistoryLog.final_roi || selectedHistoryLog.pnl_percent || selectedHistoryLog.roi || 0);
         const entry = Number(selectedHistoryLog.entry_price || 0);
@@ -24,6 +26,26 @@
         const isHighSuccess = finalRoi >= 100;
         const isAstronomical = finalRoi >= 500;
         const isProfit = pnlUsd >= 0;
+
+        // Fetch dinâmico do estudo de mercado (Opção A)
+        React.useEffect(() => {
+            if (selectedHistoryLog && selectedHistoryLog.is_signal && selectedHistoryLog.symbol) {
+                setIsLoadingStudy(true);
+                const cleanSymbol = selectedHistoryLog.symbol.replace(".P", "").replace(".p", "").toUpperCase();
+                fetch(`/api/market/study?symbol=${cleanSymbol}&interval=30`)
+                    .then(r => r.json())
+                    .then(data => {
+                        setMarketStudy(data);
+                        setIsLoadingStudy(false);
+                    })
+                    .catch(err => {
+                        console.error("Erro ao carregar estudo do radar:", err);
+                        setIsLoadingStudy(false);
+                    });
+            } else {
+                setMarketStudy(null);
+            }
+        }, [selectedHistoryLog]);
 
         // Resolve global components
         const IntelIconComponent = window.IntelIcon || (() => null);
@@ -128,6 +150,103 @@
                     </div>
 
                     <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6" style={{ flex: 1, boxSizing: 'border-box' }}>
+
+                        {/* TELEMETRIA DINÂMICA (Apenas se for sinal ativo) */}
+                        {selectedHistoryLog.is_signal && (
+                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="material-icons-round text-amber-400 text-sm">rocket_launch</span>
+                                    Telemetria Técnica
+                                </h4>
+
+                                {isLoadingStudy ? (
+                                    <div className="py-6 flex items-center justify-center gap-2">
+                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Sintonizando Satélite...</span>
+                                    </div>
+                                ) : marketStudy ? (
+                                    <div className="space-y-4">
+                                        {/* Velocidade / Gás */}
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[9px] font-mono font-bold">
+                                                <span className="text-gray-500 uppercase">GÁS DO ATIVO (VELOCIDADE)</span>
+                                                <span className="text-amber-400">🔥 {(marketStudy.patterns_mola && marketStudy.patterns_mola.length > 0) ? (marketStudy.patterns_mola[0].compression * 100).toFixed(0) : "45"} km/h</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-emerald-500 to-amber-500 transition-all duration-500"
+                                                    style={{ width: `${(marketStudy.patterns_mola && marketStudy.patterns_mola.length > 0) ? marketStudy.patterns_mola[0].compression * 100 : 45}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+
+                                        {/* RSI comparativo e Alinhamento SMA */}
+                                        <div className="grid grid-cols-2 gap-3 pt-1">
+                                            <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                                <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">RSI (30M)</span>
+                                                <div className="flex justify-between items-center mt-1">
+                                                    <span className="text-[9px] text-gray-400 font-bold">Ativo:</span>
+                                                    <span className="text-[10px] font-mono font-black text-white">{(marketStudy.rsi_2h || 50).toFixed(1)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] text-gray-400 font-bold">Status:</span>
+                                                    <span className={`text-[9px] font-bold uppercase ${marketStudy.rsi_2h > 70 ? 'text-red-400' : marketStudy.rsi_2h < 30 ? 'text-green-400' : 'text-gray-400'}`}>
+                                                        {marketStudy.rsi_2h > 70 ? 'Sobrequente' : marketStudy.rsi_2h < 30 ? 'Sobrefrio' : 'Estável'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                                <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">Confluência SMA</span>
+                                                <div className="flex justify-between items-center mt-1">
+                                                    <span className="text-[9px] text-gray-400 font-bold">Médias:</span>
+                                                    <span className="text-[10px] font-mono font-black text-white">8 vs 21</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] text-gray-400 font-bold">Tendência:</span>
+                                                    <span className={`text-[9px] font-bold uppercase ${marketStudy.swing_alignment === 'BULLISH_CROSS' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {marketStudy.swing_alignment === 'BULLISH_CROSS' ? 'Bullish (Cross)' : 'Bearish (Cross)'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Detecção de Padrões Geométricos e DVAP */}
+                                        <div className="flex flex-wrap gap-2">
+                                            {marketStudy.is_dvap_active && <span className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-[8px] font-black text-green-400 uppercase tracking-widest">🧬 DVAP ATIVO</span>}
+                                            {marketStudy.patterns_mola && marketStudy.patterns_mola.length > 0 && <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[8px] font-black text-amber-400 uppercase tracking-widest">🌀 MOLA COMPRIMIDA</span>}
+                                            {marketStudy.patterns_abcd && marketStudy.patterns_abcd.length > 0 && <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-[8px] font-black text-blue-400 uppercase tracking-widest">📐 ABCD DETECTADO</span>}
+                                        </div>
+
+                                        {/* Fib Targets se DVAP estiver ativo */}
+                                        {marketStudy.is_dvap_active && marketStudy.dvap_data && (
+                                            <div className="bg-black/60 p-3.5 rounded-xl border border-white/10 space-y-2">
+                                                <div className="flex justify-between items-center text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                                                    <span>Fibonacci estrutural (Alvos)</span>
+                                                    <span className="text-green-400 font-bold">{marketStudy.dvap_data.side}</span>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-2 font-mono text-[9px]">
+                                                    <div className="flex flex-col bg-white/[0.02] border border-white/5 rounded p-1.5">
+                                                        <span className="text-gray-500 text-[8px]">STOP LOSS</span>
+                                                        <span className="text-red-400 font-bold">${Number(marketStudy.dvap_data.sl).toFixed(5)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col bg-white/[0.02] border border-white/5 rounded p-1.5">
+                                                        <span className="text-gray-500 text-[8px]">ALVO TP1</span>
+                                                        <span className="text-green-400 font-bold">${Number(marketStudy.dvap_data.tp1).toFixed(5)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col bg-white/[0.02] border border-white/5 rounded p-1.5">
+                                                        <span className="text-gray-500 text-[8px]">ALVO TP2</span>
+                                                        <span className="text-green-400 font-bold">${Number(marketStudy.dvap_data.tp2).toFixed(5)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest block text-center py-2">Sem resposta dos sensores</span>
+                                )}
+                            </div>
+                        )}
 
                         {/* DNA DA VITÓRIA (GENESYS) */}
                         <div className="space-y-3">

@@ -182,6 +182,10 @@ class FlashAgent:
                     await self._process_sentinel_stop(slot_id, symbol, side, qty, entry_price,
                                                        current_stop, current_price, roi, slot)
                     return
+            else:
+                # 🟢 PREÇO RECUPEROU: Se estava sob Sentinel, limpa cache para próxima ativação ser nova
+                if slot_id in self._sentinel_cache:
+                    self._sentinel_cache.pop(slot_id, None)
 
         # 🚀 Emancipação (ROI >= 150%)
         if roi >= 150.0:

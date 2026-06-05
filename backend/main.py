@@ -300,6 +300,10 @@ async def lifespan(app: FastAPI):
                 asyncio.create_task(sig_gen.track_outcomes())
                 asyncio.create_task(sig_gen.radar_loop())
                 asyncio.create_task(captain_agent.monitor_signals())
+                # [V4.0] PAPER EXECUTION LOOP: Motor da Escadinha, trailing stop progressivo e emancipação para Moonbag
+                if okx_rest_service.execution_mode == "PAPER":
+                    asyncio.create_task(okx_rest_service.run_paper_execution_loop())
+                    logger.info("🚀 [PAPER-EXEC] run_paper_execution_loop() iniciado — Escadinha, SL progressivo e emancipação ativos.")
                 # asyncio.create_task(captain_agent.monitor_active_positions_loop()) # [V4.0] Desativado em favor dos SlotOperatorAgents
                 asyncio.create_task(librarian_agent.run_loop())
                 

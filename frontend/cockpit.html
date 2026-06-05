@@ -4574,7 +4574,10 @@
                         System Updated: {studyLabel}
                     </div>
                 </div>
-            )        const MarketRadarWidget = ({ signals, context, intelligenceMessage, setSelectedHistoryLog }) => {
+            );
+        };
+
+        const MarketRadarWidget = ({ signals, context, intelligenceMessage, setSelectedHistoryLog }) => {
             const safeSignals = Array.isArray(signals) ? signals.slice(0, 5) : [];
             
             return (

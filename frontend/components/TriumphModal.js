@@ -125,7 +125,7 @@
                                 {isAstronomical && <span className="px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[8px] font-black text-white uppercase tracking-widest animate-pulse">🌌 GOD MODE</span>}
                             </div>
                         )}
-                    </div>                </div>
+                    </div>
 
                     <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6" style={{ flex: 1, boxSizing: 'border-box' }}>
 

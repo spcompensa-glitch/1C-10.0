@@ -355,7 +355,9 @@
                 setTimeout(startApp, 100);
                 return;
             }
-            const root = window.createRoot(rootEl);
+            const createRootFn = (window.ReactDOM && window.ReactDOM.createRoot) || window.createRoot || (typeof ReactDOM !== 'undefined' && ReactDOM.createRoot);
+            if (!createRootFn) throw new Error("React DOM createRoot not found");
+            const root = createRootFn(rootEl);
             root.render(<App />);
         } catch (err) {
             console.error("MOUNT FAILURE:", err);

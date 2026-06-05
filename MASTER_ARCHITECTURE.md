@@ -371,6 +371,11 @@
 - **ws_cockpit:** Ponte de transmissão duplex local/nuvem. Envia um snapshot de estado imediato no `onopen` para evitar telas pretas e sincroniza os 4 slots, cotação do BTC e pulso do radar instantaneamente.
 
 ### 3. Camada de Execução (Actor Model)
+- **⚡ FlashAgent (V1.1):** Motor ultrarrápido de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo**. Sem throttles, gas checks ou sentinelas — apenas ação imediata:
+  - **Slots Táticos:** Escadinha (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→Moonbag) + BLITZ_30M (UNIT1=100%, UNIT2=200%, UNIT3=300%)
+  - **Emancipação:** Ao bater 150% ROI, promove para Moonbag e libera o slot **instantaneamente**
+  - **Moonbags (Ceifeiro Turbo):** Trailing Stop progressivo nos níveis do Ceifeiro (WAVE→GOD_MODE) + fechamento imediato se o preço bater no stop
+  - **Cache:** Slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
 - **4 × SlotOperatorAgent:** instâncias independentes, ciclo de vida próprio (Gênesis → Escadinha → Arquivamento), self-auditing nativo via `FleetAudit`.
 - **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`, com bypass dinâmico de contratendência violenta para ativos descorrelacionados ou de Score >= 95.
 - **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.

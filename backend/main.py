@@ -300,10 +300,14 @@ async def lifespan(app: FastAPI):
                 asyncio.create_task(sig_gen.track_outcomes())
                 asyncio.create_task(sig_gen.radar_loop())
                 asyncio.create_task(captain_agent.monitor_signals())
-                # [V4.0] PAPER EXECUTION LOOP: Motor da Escadinha, trailing stop progressivo e emancipação para Moonbag
-                if okx_rest_service.execution_mode == "PAPER":
-                    asyncio.create_task(okx_rest_service.run_paper_execution_loop())
-                    logger.info("🚀 [PAPER-EXEC] run_paper_execution_loop() iniciado — Escadinha, SL progressivo e emancipação ativos.")
+                # ⚡ [V1.0] FLASH AGENT: Motor ultrarrápido de Escadinha e Emancipação (a cada 1s)
+                try:
+                    from services.agents.flash_agent import flash_agent
+                    await kernel.register_agent(flash_agent)
+                    await flash_agent.start()
+                    logger.info("⚡ [FLASH] Agente Flash ONLINE — Escadinha e Emancipação ultrarrápidas ativas!")
+                except Exception as e:
+                    logger.warning(f"⚠️ [FLASH] Erro ao iniciar FlashAgent: {e}")
                 # asyncio.create_task(captain_agent.monitor_active_positions_loop()) # [V4.0] Desativado em favor dos SlotOperatorAgents
                 asyncio.create_task(librarian_agent.run_loop())
                 

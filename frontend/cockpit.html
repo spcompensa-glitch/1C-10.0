@@ -5460,9 +5460,10 @@
 
                 let msg = "";
                 if (activeSlotsCount >= 4) {
-                    msg = "STANDBY: AGUARDANDO SLOT";
+                    msg = "SLOTS PREENCHIDOS 4/4";
                 } else {
-                    msg = `IGNITION BUSCANDO ${freeSlotsCount} ALVOS`;
+                    const occupiedStr = `${activeSlotsCount}/4`;
+                    msg = `CAPITÃO BUSCANDO (${occupiedStr})`;
                 }
 
                 // Filter bestSignals based on needs

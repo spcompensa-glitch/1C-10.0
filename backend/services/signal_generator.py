@@ -2668,16 +2668,16 @@ class SignalGenerator:
 
 
                 if occupied_count >= 4:
-                    self.system_message = "FOCO TOTAL: 4/4 posições"
+                    self.system_message = "Slots preenchidos 4/4"
                     if self.system_state != "MONITORING" or (time.time() - self.last_state_update > 30):
                         self.system_state = "MONITORING"
                         self.last_state_update = time.time()
                         from services.agents.captain import captain_agent
                         lr = getattr(captain_agent, 'last_reconciliation_time', 0)
                         await firebase_service.update_system_state("MONITORING", occupied_count, self.system_message, protocol="Sniper V15.1", last_reconciliation=lr)
-                        logger.info(f"[STAGE-0] V15.1: MONITORING (4/4 slots ocupados). Scan PAUSADO.")
-                    await asyncio.sleep(2) 
-                    continue
+                        logger.info(f"[STAGE-0] V15.1: MONITORING (4/4 slots ocupados). Scan CONTINUO ativo para o Radar.")
+                
+
                 
                 # ═══════════════════════════════════════════════════════════════
                 # ████ ESTÁGIO 1 — TRIAGEM RÁPIDA (0 API calls / 1 Fallback) ████

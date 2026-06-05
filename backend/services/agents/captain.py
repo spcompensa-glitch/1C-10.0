@@ -18,6 +18,7 @@ from services.kernel.dispatcher import kernel
 from services.kernel.tools import kernel_tools
 from services.okx_rest import okx_rest_service as okx_rest_service
 from services.okx_ws_public import okx_ws_public_service
+from services.database_service import database_service
 from services.execution_protocol import execution_protocol
 from services.google_calendar_service import google_calendar_service
 from config import settings
@@ -1575,6 +1576,7 @@ class CaptainAgent(AIOSAgent):
         logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO NEEDLE FLIP PARA {symbol}.")
         return True
         from services.okx_ws_public import okx_ws_public_service
+from services.database_service import database_service
         from services.redis_service import redis_service
         from services.signal_generator import signal_generator
         

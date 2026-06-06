@@ -72,6 +72,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@remix-run/router@1.16.1/dist/router.umd.min.js?v=110.15.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-router@6.23.1/dist/umd/react-router.production.min.js?v=110.15.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-router-dom@6.23.1/dist/umd/react-router-dom.production.min.js?v=110.15.1"></script>
+    <!-- Babel MUST be loaded before any JSX scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.5/babel.min.js?v=110.15.1"></script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js?v=110.15.1"></script>
@@ -579,9 +580,9 @@
            const AICascadeStatus = ({ cascadeInfo }) => {
             if (!cascadeInfo) return null;
             const { last_model, requests, cascade } = cascadeInfo;
-            const [visionHistory, setVisionHistory] = React.useState([]);
-            const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
-            const [expandedVisionImage, setExpandedVisionImage] = React.useState(null);
+            const [visionHistory, setVisionHistory] = useState([]);
+            const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+            const [expandedVisionImage, setExpandedVisionImage] = useState(null);
 
             const fetchVisionHistory = async () => {
                 try {
@@ -1306,9 +1307,9 @@
 
         // --- Hook: Real-time Radar Pulse (V15.0) ---
         const useRadarPulseRT = () => {
-            const [data, setData] = React.useState({ signals: [], decisions: [], market_context: {}, updated_at: 0 });
+            const [data, setData] = useState({ signals: [], decisions: [], market_context: {}, updated_at: 0 });
 
-            React.useEffect(() => {
+            useEffect(() => {
                 const handlePacket = (e) => {
                     const message = e.detail;
                     if (message.type === 'radar_pulse' && message.data) {
@@ -1331,7 +1332,7 @@
             }, []);
 
             // V15.1.4: REST Fallback Polling (ensures signals are never stuck)
-            React.useEffect(() => {
+            useEffect(() => {
                 const fetchFallback = async () => {
                     // Only poll if data is empty or sovereign_rtdb is missing
                     try {
@@ -1559,14 +1560,14 @@
 
         // --- Hook: [V1.0] Intelligence Flow Engine ---
         const useIntelligenceFlowRT = () => {
-            const [events, setEvents] = React.useState(() => {
+            const [events, setEvents] = useState(() => {
                 try {
                     const cached = localStorage.getItem('intel_flow_cache');
                     return cached ? JSON.parse(cached) : [];
                 } catch(e) { return []; }
             });
 
-            React.useEffect(() => {
+            useEffect(() => {
                 const handlePacket = (e) => {
                     const message = e.detail;
                     if (message.type === 'SYSTEM_EVENT' && message.data) {
@@ -1587,7 +1588,7 @@
         // --- Component: [V1.0] Intelligence Flow Card ---
         const IntelligenceFlowCard = () => {
             const events = useIntelligenceFlowRT();
-            const containerRef = React.useRef(null);
+            const containerRef = useRef(null);
 
             const getAgentIcon = (agent) => {
                 switch(agent?.toLowerCase()) {
@@ -3199,7 +3200,7 @@
         };
 
         const Motion = window.Motion || {};
-        const { motion = (props) => <div {...props} />, AnimatePresence = ({ children }) => <React.Fragment>{children}</React.Fragment>, useAnimation = () => ({ start: () => { } }) } = Motion;
+        const { motion = (props) => <div {...props} />, AnimatePresence = ({ children }) => <>{children}</>, useAnimation = () => ({ start: () => { } }) } = Motion;
 
         const LandingPage = ({ onEnter }) => {
             return (
@@ -3695,41 +3696,41 @@
             symbol, slots, index, totalCharts,
             onSymbolChange, focusedAsset, pulseStatus, moonbags = [] 
         }) => {
-            const chartContainerRef = React.useRef(null);
-            const chartInstance = React.useRef(null);
-            const candlestickSeries = React.useRef(null);
-            const [localSymbol, setLocalSymbol] = React.useState(symbol || "BTCUSDT");
-            const [localTimeframe, setLocalTimeframe] = React.useState("15");
-            const [historicalData, setHistoricalData] = React.useState({ candles: [], volumes: [] });
-            const [eagleMode, setEagleMode] = React.useState(() => {
+            const chartContainerRef = useRef(null);
+            const chartInstance = useRef(null);
+            const candlestickSeries = useRef(null);
+            const [localSymbol, setLocalSymbol] = useState(symbol || "BTCUSDT");
+            const [localTimeframe, setLocalTimeframe] = useState("15");
+            const [historicalData, setHistoricalData] = useState({ candles: [], volumes: [] });
+            const [eagleMode, setEagleMode] = useState(() => {
                 try { return localStorage.getItem('eagle_vision_mode_grid') !== 'simple'; } catch(e) { return true; }
             });
-            const priceLinesRef = React.useRef({ entry: null, sl: null, tp: null });
-            const isFirstLoadRef = React.useRef(true);
-            const [tooltip, setTooltip] = React.useState(null);
-            const [telemetry, setTelemetry] = React.useState({ rsi: null, adx: null, volatility: null, cvd: null });
-            const [settings, setSettings] = React.useState(() => {
+            const priceLinesRef = useRef({ entry: null, sl: null, tp: null });
+            const isFirstLoadRef = useRef(true);
+            const [tooltip, setTooltip] = useState(null);
+            const [telemetry, setTelemetry] = useState({ rsi: null, adx: null, volatility: null, cvd: null });
+            const [settings, setSettings] = useState(() => {
                 try { 
                     const saved = localStorage.getItem('eagle_vision_settings');
                     return saved ? JSON.parse(saved) : { volume: true, sma: true, adx: true, cvd: true, sentinel: true };
                 } catch(e) { return { volume: true, sma: true, adx: true, cvd: true, sentinel: true }; }
             });
-            const [showSettings, setShowSettings] = React.useState(false);
+            const [showSettings, setShowSettings] = useState(false);
 
-            React.useEffect(() => {
+            useEffect(() => {
                 localStorage.setItem('eagle_vision_settings', JSON.stringify(settings));
             }, [settings]);
 
             // Indicator Series Refs
-            const sma21SeriesRef = React.useRef(null);
-            const sma100SeriesRef = React.useRef(null);
-            const gutterLabelsRef = React.useRef([]);
+            const sma21SeriesRef = useRef(null);
+            const sma100SeriesRef = useRef(null);
+            const gutterLabelsRef = useRef([]);
 
-            React.useEffect(() => {
+            useEffect(() => {
                 try { localStorage.setItem('eagle_vision_mode_grid', eagleMode ? 'analytic' : 'simple'); } catch(e) {}
             }, [eagleMode]);
 
-            React.useEffect(() => {
+            useEffect(() => {
                 if (focusedAsset && focusedAsset.symbol) {
                     setLocalSymbol(focusedAsset.symbol);
                 } else {
@@ -3737,7 +3738,7 @@
                 }
             }, [symbol, focusedAsset]);
 
-            React.useEffect(() => {
+            useEffect(() => {
                 isFirstLoadRef.current = true;
                 const fetchKlines = async () => {
                     if (!localSymbol || localSymbol.length < 3 || localSymbol === 'VVV' || localSymbol.includes('undefined')) return;
@@ -3790,7 +3791,7 @@
             }, [localSymbol, localTimeframe]);
 
             // Init Chart
-            React.useEffect(() => {
+            useEffect(() => {
                 if (!chartContainerRef.current) return;
                 const chart = LightweightCharts.createChart(chartContainerRef.current, {
                     layout: { 
@@ -4040,7 +4041,7 @@
             };
 
             // Update Data & Indicators
-            React.useEffect(() => {
+            useEffect(() => {
                 if (candlestickSeries.current && historicalData.candles.length > 0) {
                     const candles = historicalData.candles;
                     candlestickSeries.current.setData(candles);
@@ -4072,7 +4073,7 @@
             }, [historicalData, eagleMode, settings]);
 
             // [V110.380] Optimized Price Lines & Sentinel Marker
-            React.useEffect(() => {
+            useEffect(() => {
                 const updatePriceLines = () => {
                     if (!candlestickSeries.current) return;
 
@@ -4206,14 +4207,15 @@
                                 { roi: 500, color: 'rgba(239, 68, 68, 0.8)', title: 'GOD MODE (500%)' }
                             );
                                 // Extended price projections (subtle)
-                                escadinhaLevels.push(
-                                    { roi: 750, color: 'rgba(148, 163, 184, 0.25)', title: '7.5K (750%)', isOld: true },
-                                    { roi: 1000, color: 'rgba(148, 163, 184, 0.3)', title: '10K (1000%)', isOld: true },
-                                    { roi: 1200, color: 'rgba(148, 163, 184, 0.35)', title: 'HYPER (1200%)', isOld: true }
-                        }
-                    } catch(e) {
-                        console.warn("Chart Update Failed (disposed?):", e);
-                    }
+                                try {
+                                    escadinhaLevels.push(
+                                        { roi: 750, color: 'rgba(148, 163, 184, 0.25)', title: '7.5K (750%)', isOld: true },
+                                        { roi: 1000, color: 'rgba(148, 163, 184, 0.3)', title: '10K (1000%)', isOld: true },
+                                        { roi: 1200, color: 'rgba(148, 163, 184, 0.35)', title: 'HYPER (1200%)', isOld: true }
+                                    );
+                                } catch(e) {
+                                    console.warn("Chart Update Failed (disposed?):", e);
+                                }
                 };
 
                 updatePriceLines();
@@ -4221,7 +4223,7 @@
             }, [slots, localSymbol, focusedAsset, historicalData, pulseStatus, moonbags]);
 
             // [FIX] Chama syncGutter também quando slots ou focusedAsset mudam sem historicalData mudar
-            React.useEffect(() => {
+            useEffect(() => {
                 syncGutter();
             }, [slots, focusedAsset]);
 
@@ -4760,13 +4762,13 @@
             filteredSignals, intelligenceMessage,
             historyPage, setHistoryPage, historyLimit, loadingHistory, setSelectedHistoryLog
         }) => {
-            const [selectedSlotId, setSelectedSlotId] = React.useState(null);
-            const [gridMode, setGridMode] = React.useState('4'); // Default to 4 charts
-            const [gridSymbols, setGridSymbols] = React.useState(["BTCUSDT", "BTCUSDT", "BTCUSDT", "BTCUSDT"]);
-            const [focusedAsset, setFocusedAsset] = React.useState(null); // Refatoração Glassmorphism Sci-Fi
+            const [selectedSlotId, setSelectedSlotId] = useState(null);
+            const [gridMode, setGridMode] = useState('4'); // Default to 4 charts
+            const [gridSymbols, setGridSymbols] = useState(["BTCUSDT", "BTCUSDT", "BTCUSDT", "BTCUSDT"]);
+            const [focusedAsset, setFocusedAsset] = useState(null); // Refatoração Glassmorphism Sci-Fi
             
             // Sync charts with slots
-            React.useEffect(() => {
+            useEffect(() => {
                 const active = slots.filter(s => s && s.symbol);
                 setGridSymbols(prev => {
                     const next = ["BTCUSDT", "BTCUSDT", "BTCUSDT", "BTCUSDT"];
@@ -5093,9 +5095,9 @@
 // sendo renderizado na UI antes que o operador perceba visualmente.
 // =========================================================================
         const useUISanityAudit = (slots) => {
-            const [auditIssues, setAuditIssues] = React.useState([]);
-            const [backendIssues, setBackendIssues] = React.useState([]);
-            const [dismissed, setDismissed] = React.useState(false);
+            const [auditIssues, setAuditIssues] = useState([]);
+            const [backendIssues, setBackendIssues] = useState([]);
+            const [dismissed, setDismissed] = useState(false);
 
             const VALID_SIDES = ['Buy', 'Sell', 'LONG', 'SHORT', 'BUY', 'SELL', 'Long', 'Short'];
             const normalizeSide = (side) => {
@@ -5106,7 +5108,7 @@
             };
 
             // [CAMADA 1] Auditoria local — dispara a cada mudança de slot
-            React.useEffect(() => {
+            useEffect(() => {
                 const issues = [];
                 (slots || []).forEach(s => {
                     if (!s || !s.symbol) return;
@@ -5137,7 +5139,7 @@
             }, [slots]);
 
             // [CAMADA 2] Recepção do pacote ui_sanity_check do Flow Sentinel (backend)
-            React.useEffect(() => {
+            useEffect(() => {
                 const handlePacket = (e) => {
                     const msg = e.detail;
                     if (msg && msg.type === 'ui_sanity_check' && msg.data) {
@@ -5243,22 +5245,22 @@
                 return 'LATERAL';
             })();
 
-            const [historyLogs, setHistoryLogs] = React.useState([]);
-            const [loadingHistory, setLoadingHistory] = React.useState(true);
-            const [selectedHistoryLog, setSelectedHistoryLog] = React.useState(null);
+            const [historyLogs, setHistoryLogs] = useState([]);
+            const [loadingHistory, setLoadingHistory] = useState(true);
+            const [selectedHistoryLog, setSelectedHistoryLog] = useState(null);
             
             // [V15.0] Novos estados de Filtro e Paginação
-            const [searchSymbol, setSearchSymbol] = React.useState("");
-            const [startDate, setStartDate] = React.useState("");
-            const [endDate, setEndDate] = React.useState("");
-            const [historyPage, setHistoryPage] = React.useState(1);
-            const [historyTotal, setHistoryTotal] = React.useState({ total_count: 0, total_pnl: 0 });
-            const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+            const [searchSymbol, setSearchSymbol] = useState("");
+            const [startDate, setStartDate] = useState("");
+            const [endDate, setEndDate] = useState("");
+            const [historyPage, setHistoryPage] = useState(1);
+            const [historyTotal, setHistoryTotal] = useState({ total_count: 0, total_pnl: 0 });
+            const [isSearchOpen, setIsSearchOpen] = useState(false);
             const historyLimit = 10; // Reduzido para caber melhor na altura fixa
             
             // [V39.0] Active TOCAIA badge — polls every 5s to show which signals are being hunted
-            const [activeTocaias, setActiveTocaias] = React.useState([]);
-            React.useEffect(() => {
+            const [activeTocaias, setActiveTocaias] = useState([]);
+            useEffect(() => {
                 const fetchTocaias = async () => {
                     try {
                         const res = await fetch(`${API_BASE}/api/captain/tocaias`);
@@ -5638,8 +5640,8 @@
 
         // [NEW] Librarian Leaderboard Component
         const LibrarianLeaderboard = () => {
-            const [rankings, setRankings] = React.useState([]);
-            const [loading, setLoading] = React.useState(true);
+            const [rankings, setRankings] = useState([]);
+            const [loading, setLoading] = useState(true);
 
             const fetchRankings = async () => {
                 setLoading(true);
@@ -5657,7 +5659,7 @@
                 finally { setLoading(false); }
             };
 
-            React.useEffect(() => {
+            useEffect(() => {
                 fetchRankings();
                 const itv = setInterval(fetchRankings, 300000); // 5 min
                 return () => clearInterval(itv);
@@ -5710,10 +5712,10 @@
         window.Route = ReactRouterDOM.Route;
         window.useLocation = ReactRouterDOM.useLocation;
         window.useNavigate = ReactRouterDOM.useNavigate;
-        window.useState = React.useState;
-        window.useEffect = React.useEffect;
-        window.useRef = React.useRef;
-        window.useMemo = React.useMemo;
+        window.useState = useState;
+        window.useEffect = useEffect;
+        window.useRef = useRef;
+        window.useMemo = useMemo;
         window.QualitySeal = QualitySeal;
         window.IntelIcon = IntelIcon;
         window.calculateSMA = calculateSMA;

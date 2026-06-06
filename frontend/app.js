@@ -1,14 +1,14 @@
 (function() {
-    const { useState, useEffect, useRef, useMemo, Link, Route, useLocation } = window;
+    const { useState, useEffect, useRef, useMemo, Link, Route, useLocation } = window.React;
 
     // =========================================================================
     // NavBar — 3 botões principais: BANCA / CHAT / ADM (com submenu expansível)
     // =========================================================================
     const NavBar = ({ onLogout }) => {
         const location = useLocation();
-        const [admOpen, setAdmOpen] = React.useState(false);
+        const [admOpen, setAdmOpen] = useState(false);
 
-        const isAdmin = React.useMemo(() => {
+        const isAdmin = useMemo(() => {
             try {
                 const u = JSON.parse(localStorage.getItem('user') || '{}');
                 return u.role === 'admin';
@@ -16,7 +16,7 @@
         }, []);
 
         // Fecha o submenu ADM ao navegar
-        React.useEffect(() => { setAdmOpen(false); }, [location.pathname]);
+        useEffect(() => { setAdmOpen(false); }, [location.pathname]);
 
         const isAdmActive = ['/config', '/adm', '/kanban'].includes(location.pathname)
             || location.pathname.startsWith('/adm');

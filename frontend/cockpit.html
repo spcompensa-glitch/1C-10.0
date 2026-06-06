@@ -4198,14 +4198,14 @@
                                 // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (discretos e finos)
                                 escadinhaLevels.push(
                                     { roi: 110, color: 'rgba(16, 185, 129, 0.4)', title: 'EMANCIPADO (110%)', isOld: true },
-                                { roi: 130, color: 'rgba(6, 182, 212, 0.5)', title: 'TRAILING START (130%)' },
-                                { roi: 150, color: 'rgba(59, 130, 246, 0.55)', title: 'WAVE (150%)' },
-                                { roi: 220, color: 'rgba(139, 92, 246, 0.6)', title: 'ROCKET (220%)' },
-                                { roi: 280, color: 'rgba(236, 72, 153, 0.6)', title: 'STAR (280%)' },
-                                { roi: 350, color: 'rgba(245, 158, 11, 0.7)', title: 'CROWN (350%)' },
-                                { roi: 420, color: 'rgba(249, 115, 22, 0.7)', title: 'SUPERNOVA (420%)' },
-                                { roi: 500, color: 'rgba(239, 68, 68, 0.8)', title: 'GOD MODE (500%)' }
-                            );
+                                    { roi: 130, color: 'rgba(6, 182, 212, 0.5)', title: 'TRAILING START (130%)' },
+                                    { roi: 150, color: 'rgba(59, 130, 246, 0.55)', title: 'WAVE (150%)' },
+                                    { roi: 220, color: 'rgba(139, 92, 246, 0.6)', title: 'ROCKET (220%)' },
+                                    { roi: 280, color: 'rgba(236, 72, 153, 0.6)', title: 'STAR (280%)' },
+                                    { roi: 350, color: 'rgba(245, 158, 11, 0.7)', title: 'CROWN (350%)' },
+                                    { roi: 420, color: 'rgba(249, 115, 22, 0.7)', title: 'SUPERNOVA (420%)' },
+                                    { roi: 500, color: 'rgba(239, 68, 68, 0.8)', title: 'GOD MODE (500%)' }
+                                );
                                 // Extended price projections (subtle)
                                 try {
                                     escadinhaLevels.push(
@@ -4216,7 +4216,7 @@
                                 } catch(e) {
                                     console.warn("Chart Update Failed (disposed?):", e);
                                 }
-                };
+                            }
 
                 updatePriceLines();
                 syncGutter();

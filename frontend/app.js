@@ -1,5 +1,6 @@
 (function() {
-    const { useState, useEffect, useRef, useMemo, Link, Route, useLocation, useNavigate } = window.ReactRouterDOM;
+    const { useState, useEffect, useRef, useMemo } = window.React;
+    const { Link, Route, useLocation, useNavigate } = window.ReactRouterDOM;
 
     // =========================================================================
     // NavBar — 3 botões principais: BANCA / CHAT / ADM (com submenu expansível)

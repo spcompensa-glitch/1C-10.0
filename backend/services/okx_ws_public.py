@@ -22,7 +22,9 @@ class OKXWSPublic:
         self.cvd_data = {} 
         self.prices = {} # {symbol: last_price}
 
-        # Rolling 30s extreme prices (for FlashAgent conservative stop checks)
+        # Rolling 120s extreme prices (for FlashAgent conservative stop checks)
+        # V110.xxx: Aumentado de 30s para 120s para evitar que spikes rápidos
+        # entre ciclos de polling do FlashAgent (1s) percam stops por janela expirada.
         self.low_prices = {}  # {symbol: {"low": price, "ts": timestamp}}
         self.high_prices = {}  # {symbol: {"high": price, "ts": timestamp}}
         self.max_cvd_history = 5000 # V44.1: Increased to 5000 for 1h temporal windows
@@ -232,7 +234,7 @@ class OKXWSPublic:
 
     def _update_extreme_price(self, symbol: str, price: float):
         """
-        Updates rolling 30-second low and high prices.
+        Updates rolling 120-second low and high prices.
         Called on every trade and ticker event to track intra-cycle extremes.
         """
         now = time.time()
@@ -247,16 +249,18 @@ class OKXWSPublic:
         if not current_high or price > current_high["high"]:
             self.high_prices[symbol] = {"high": price, "ts": now}
 
-    def get_low_price(self, symbol: str, window_seconds: int = 30) -> float:
-        """Returns the lowest price seen in the last N seconds. 0 if not available."""
+    def get_low_price(self, symbol: str, window_seconds: int = 120) -> float:
+        """Returns the lowest price seen in the last N seconds. 0 if not available.
+        Janela de 120s para capturar dips que o FlashAgent pode perder entre ciclos de 1s."""
         norm_sym = symbol.replace(".P", "").upper()
         low_data = self.low_prices.get(norm_sym)
         if low_data and (time.time() - low_data["ts"]) <= window_seconds:
             return low_data["low"]
         return 0.0
 
-    def get_high_price(self, symbol: str, window_seconds: int = 30) -> float:
-        """Returns the highest price seen in the last N seconds. 0 if not available."""
+    def get_high_price(self, symbol: str, window_seconds: int = 120) -> float:
+        """Returns the highest price seen in the last N seconds. 0 if not available.
+        Janela de 120s para capturar pumps que o FlashAgent pode perder entre ciclos de 1s."""
         norm_sym = symbol.replace(".P", "").upper()
         high_data = self.high_prices.get(norm_sym)
         if high_data and (time.time() - high_data["ts"]) <= window_seconds:
@@ -266,21 +270,28 @@ class OKXWSPublic:
     def get_conservative_price(self, symbol: str, side: str) -> float:
         """
         Returns a conservative price for stop violation checks.
-        For LONG (buy): returns the LOW of the last 30s (catches dips that current price might miss)
-        For SHORT (sell): returns the HIGH of the last 30s (catches pumps)
+        For LONG (buy): returns the LOW of the last 120s (catches dips that current price might miss)
+        For SHORT (sell): returns the HIGH of the last 120s (catches pumps)
         Falls back to current price if no extreme data available in window.
+
+        [V110.xxx] Aumentado de 30s para 120s para cobrir gaps entre ciclos de
+        polling do FlashAgent (1s) + cache de moonbags (3s). Um spike rápido pode
+        acontecer e o preço voltar antes da próxima verificação; a janela de 120s
+        garante que o stop hit não seja perdido.
         """
         norm_sym = symbol.replace(".P", "").upper()
         current = self.prices.get(norm_sym, 0.0)
         now = time.time()
 
+        # Janela de 120 segundos (vs 30s original) para capturar spikes
+        # que acontecem entre ciclos de polling do FlashAgent
         if side.lower() == "buy":
             low_data = self.low_prices.get(norm_sym)
-            if low_data and (now - low_data["ts"]) <= 30:
+            if low_data and (now - low_data["ts"]) <= 120:
                 return min(current, low_data["low"])
         else:
             high_data = self.high_prices.get(norm_sym)
-            if high_data and (now - high_data["ts"]) <= 30:
+            if high_data and (now - high_data["ts"]) <= 120:
                 return max(current, high_data["high"])
 
         return current

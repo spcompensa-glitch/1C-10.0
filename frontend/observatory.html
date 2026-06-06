@@ -742,6 +742,7 @@ let cur = null;
 let study30 = null;
 let study4h = null;
 let ACTIVE_SLOTS = [];
+let ACTIVE_MOONBAGS = [];
 let VISION_STATS = { global_count: 0, pair_counts: {} };
 let _strategyMarkers30 = []; // [V5.8] Markers de estratégia para mesclagem
 let ignitionMarkers = {}; // [V6.0] Persistent Ignition Sniper Markers ⚡
@@ -2086,40 +2087,126 @@ function updateActiveOrdersMarkers() {
     window._orderLines30.degraus.forEach(l => series30.candle.removePriceLine(l));
     window._orderLines30.degraus = [];
 
+    // Procura por slot ativo OU moonbag ativa para o símbolo atual
     const currentSlot = ACTIVE_SLOTS.find(s => s.symbol === cur || s.symbol === cur + '.P');
-    if (currentSlot && currentSlot.opened_at) {
-        const parsedDate = new Date(currentSlot.opened_at);
-        const entryTime = isNaN(parsedDate.getTime()) ? Math.floor(currentSlot.opened_at) : Math.floor(parsedDate.getTime() / 1000);
-        const entryPrice = parseFloat(currentSlot.entry_price);
-        const slPrice = parseFloat(currentSlot.current_stop || currentSlot.stop_loss);
-        const leverage = parseFloat(currentSlot.leverage || 50);
-        const sideUpper = (currentSlot.side || "").toUpperCase().trim();
+    let activeEntry = currentSlot;
+    if (!activeEntry || !activeEntry.opened_at) {
+        // Pode ser uma moonbag - procura em ACTIVE_MOONBAGS (se disponível)
+        if (typeof ACTIVE_MOONBAGS !== 'undefined') {
+            const mb = ACTIVE_MOONBAGS.find(m => m.symbol === cur || m.symbol === cur + '.P');
+            if (mb && (mb.entry_price || mb.opened_at)) {
+                activeEntry = mb;
+            }
+        }
+    }
+
+    if (activeEntry && activeEntry.opened_at) {
+        const parsedDate = new Date(activeEntry.opened_at);
+        const entryTime = isNaN(parsedDate.getTime()) ? Math.floor(activeEntry.opened_at) : Math.floor(parsedDate.getTime() / 1000);
+        const entryPrice = parseFloat(activeEntry.entry_price);
+        const slPrice = parseFloat(activeEntry.current_stop || activeEntry.stop_loss);
+        const leverage = parseFloat(activeEntry.leverage || 50);
+        const sideUpper = (activeEntry.side || "").toUpperCase().trim();
         const isLong = ['BUY', 'LONG', 'L'].includes(sideUpper);
         const tpPrice = isLong ? entryPrice * 1.03 : entryPrice * 0.97;
 
 
         // Desenha Linhas
         window._orderLines30.entry = series30.candle.createPriceLine({ price: entryPrice, color: '#ffffff', lineWidth: 1, lineStyle: 2, title: 'ENTRY', axisLabelVisible: false });
-        if (slPrice > 0) {
-            window._orderLines30.sl = series30.candle.createPriceLine({ price: slPrice, color: '#ef4444', lineWidth: 2, lineStyle: 0, title: 'STOP LOSS', axisLabelVisible: false });
-        }
-        window._orderLines30.tp = series30.candle.createPriceLine({ price: tpPrice, color: '#10b981', lineWidth: 2, lineStyle: 0, title: 'TARGET 150%', axisLabelVisible: false });
 
-        // Escadinha Visual (Progresso de ROI alinhado com o motor de execução)
-        const degraus = [
-            { roi: 30, label: 'BE' }, { roi: 50, label: 'PB' }, { roi: 70, label: 'RZ' }, { roi: 110, label: 'PL' }, { roi: 150, label: 'T5' }
+        // ⚡ Escadinha BLITZ — Degraus alinhados com o Flash Agent
+        const ESCADINHA_DEGRAUS_BLITZ = [
+            { roi: 5,   label: 'BREAKEVEN',    icon: '🟢', color: '#6b7280', risco: 'SL_0' },
+            { roi: 50,  label: 'RISCO_ZERO',   icon: '🛡️', color: '#10b981', risco: 'RISCO_ZERO' },
+            { roi: 95,  label: 'UNIT1',        icon: '⚡', color: '#22d3ee', risco: 'MEGA_PULSE' },
+            { roi: 110, label: 'EMANCIPACAO',  icon: '🚀', color: '#10b981', risco: 'PROFIT_LOCK' },
         ];
-        degraus.forEach(d => {
-            // ROI% em alavancagem -> move% no preco = roi / (leverage * 100)
+
+        // 🌙 Níveis de Trailing Moonbag
+        const MOONBAG_TRAILING = [
+            { roi: 130, label: 'TRAILING_START', icon: '🌊', color: '#6ee7b7' },
+            { roi: 150, label: 'WAVE',           icon: '🌊', color: '#34d399' },
+            { roi: 220, label: 'ROCKET',         icon: '🚀', color: '#f59e0b' },
+            { roi: 280, label: 'STAR',           icon: '⭐', color: '#a855f7' },
+            { roi: 350, label: 'CROWN',          icon: '👑', color: '#facc15' },
+            { roi: 420, label: 'SUPERNOVA',      icon: '💫', color: '#ec4899' },
+            { roi: 500, label: 'GOD_MODE',       icon: '🔱', color: '#ef4444' },
+        ];
+
+        // Determina qual degrau está ativo baseado no status_risco ou no current_stop
+        const statusRisco = (activeEntry.status_risco || '').toUpperCase();
+        let activeDegrau = null;
+        let isMoonbag = false;
+
+        // Verifica se o símbolo atual tem uma moonbag ativa
+        // (moonbags são detectadas via WebSocket e armazenadas em ACTIVE_MOONBAGS global)
+        const currentMoonbag = typeof ACTIVE_MOONBAGS !== 'undefined' 
+            ? ACTIVE_MOONBAGS.find(m => m.symbol === cur || m.symbol === cur + '.P')
+            : null;
+
+        if (currentMoonbag) {
+            isMoonbag = true;
+            const moonRoi = parseFloat(currentMoonbag.pnl_percent || 0);
+            // Encontra o nível de trailing ativo
+            for (const lvl of MOONBAG_TRAILING) {
+                if (moonRoi >= lvl.roi) {
+                    activeDegrau = lvl;
+                    break;
+                }
+            }
+            if (!activeDegrau && moonRoi >= 160) {
+                activeDegrau = MOONBAG_TRAILING[0]; // TRAILING_START
+            }
+        } else {
+            // Encontra o degrau ativo pelo status_risco
+            if (statusRisco === 'SL_0') activeDegrau = ESCADINHA_DEGRAUS_BLITZ[0];
+            else if (statusRisco === 'RISCO_ZERO') activeDegrau = ESCADINHA_DEGRAUS_BLITZ[1];
+            else if (statusRisco === 'MEGA_PULSE') activeDegrau = ESCADINHA_DEGRAUS_BLITZ[2];
+            else if (statusRisco === 'PROFIT_LOCK') activeDegrau = ESCADINHA_DEGRAUS_BLITZ[3];
+            
+            // Fallback: calcula pelo ROI
+            if (!activeDegrau && slPrice > 0) {
+                const stopRoi = isLong 
+                    ? ((slPrice - entryPrice) / entryPrice) * leverage * 100
+                    : ((entryPrice - slPrice) / entryPrice) * leverage * 100;
+                for (const d of ESCADINHA_DEGRAUS_BLITZ) {
+                    if (stopRoi >= d.roi) {
+                        activeDegrau = d;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Desenha a linha de SL com BADGE do degrau ativo
+        if (slPrice > 0) {
+            const slTitle = activeDegrau 
+                ? `${activeDegrau.icon} ${activeDegrau.label}`
+                : 'STOP LOSS';
+            const slColor = activeDegrau ? activeDegrau.color : '#ef4444';
+            window._orderLines30.sl = series30.candle.createPriceLine({ 
+                price: slPrice, 
+                color: slColor, 
+                lineWidth: 2, 
+                lineStyle: 0, 
+                title: slTitle,
+                axisLabelVisible: true
+            });
+        }
+
+        // Desenha as linhas de referência da escadinha/moonbag
+        const degrausList = isMoonbag ? MOONBAG_TRAILING : ESCADINHA_DEGRAUS_BLITZ;
+        degrausList.forEach(d => {
             const move = d.roi / (leverage * 100);
             const dPrice = isLong ? entryPrice * (1 + move) : entryPrice * (1 - move);
+            const isActive = activeDegrau && activeDegrau.roi === d.roi;
             const line = series30.candle.createPriceLine({ 
                 price: dPrice, 
-                color: d.roi === 150 ? '#10b981' : 'rgba(16, 185, 129, 0.4)', 
-                lineWidth: d.roi === 150 ? 2 : 1, 
-                lineStyle: d.roi === 150 ? 0 : 3, 
-                title: `TP ${d.label}`,
-                axisLabelVisible: false
+                color: isActive ? d.color : d.color + '44', 
+                lineWidth: isActive ? 2 : 1, 
+                lineStyle: isActive ? 0 : 3, 
+                title: isActive ? `${d.icon} ${d.label}` : d.label,
+                axisLabelVisible: isActive
             });
             window._orderLines30.degraus.push(line);
         });

@@ -3392,6 +3392,24 @@ class SignalGenerator:
                     max_lev = float(inst_info.get("leverageFilter", {}).get("maxLeverage", 50.0))
                     
                     norm_symbol = normalize_symbol(symbol) # Ensure norm_symbol is defined
+
+                    # [V20.4 FIX] Obter informações detalhadas do contrato para PnL correto
+                    try:
+                        contract_info = await okx_rest_service.get_detailed_contract_info(symbol)
+                        ct_val = contract_info.get("contract_details", {}).get("ctVal", 1.0)
+                        lot_size = contract_info.get("contract_details", {}).get("lotSize", 1.0)
+                        min_qty = contract_info.get("contract_details", {}).get("minQty", 1.0)
+                        tick_size = contract_info.get("contract_details", {}).get("tickSize", 0.01)
+                        risk_impact = contract_info.get("risk_analysis", {}).get("price_impact_per_contract", 0)
+                        min_margin = contract_info.get("risk_analysis", {}).get("min_margin_required", 0)
+                    except Exception as contract_err:
+                        logger.warning(f"Failed to get contract info for {symbol}: {contract_err}")
+                        ct_val = 1.0
+                        lot_size = 1.0
+                        min_qty = 1.0
+                        tick_size = 0.01
+                        risk_impact = 0
+                        min_margin = 0
                     
                     signal_data = {
                         "id": f"sig_{int(time.time())}_{norm_symbol}",
@@ -3465,6 +3483,16 @@ class SignalGenerator:
                         },
                         # [V39.0] Swing Macro flag — TOCAIA uses this to extend patience to 60min
                         "is_swing_macro": True if is_dvap_play else candidate.get('is_swing_macro', False),
+                        # [V20.4 FIX] Informações detalhadas do contrato para cálculo correto de PnL
+                        "contract_info": {
+                            "ctVal": ct_val,
+                            "lotSize": lot_size,
+                            "minQty": min_qty,
+                            "tickSize": tick_size,
+                            "riskImpactPerContract": risk_impact,
+                            "minMarginRequired": min_margin,
+                            "symbol": symbol
+                        },
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                     await firebase_service.log_signal(signal_data)

@@ -725,6 +725,81 @@ class OKXRest:
             logger.error(f"Error fetching instrument info from OKX fallback for {symbol}: {e}")
             return {}
 
+    async def get_detailed_contract_info(self, symbol: str) -> Dict[str, Any]:
+        """
+        Captura informações detalhadas de contratos para relatórios e análise.
+        Retorna dados completos do contrato incluindo ctVal, lotSize, leverage, etc.
+        
+        Args:
+            symbol: Símbolo do ativo (ex: BTC-USDT-SWAP)
+            
+        Returns:
+            Dict com informações detalhadas do contrato
+        """
+        try:
+            # Obter informações básicas do instrumento
+            instrument_info = await self.get_instrument_info(symbol)
+            
+            # Obter ticker atual para preço de referência
+            api_symbol = self._strip_p(symbol)
+            ticker = await self.get_tickers(symbol=api_symbol)
+            ticker_data = ticker.get("result", {}).get("list", [])
+            current_price = float(ticker_data[0].get("lastPrice", 0)) if ticker_data else 0
+            
+            # Obter informações de leverage disponíveis
+            try:
+                leverage_info = await self.get_leverage_info(symbol)
+                max_leverage = leverage_info.get("maxLeverage", 50)
+                notional_usd = leverage_info.get("notionalUsd", 0)
+            except Exception as leverage_err:
+                logger.warning(f"Failed to get leverage info for {symbol}: {leverage_err}")
+                max_leverage = 50
+                notional_usd = 0
+            
+            # Construir relatório detalhado
+            contract_info = {
+                "symbol": symbol,
+                "timestamp": time.time(),
+                "current_price": current_price,
+                "contract_details": {
+                    "ctVal": float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0")),
+                    "lotSize": float(instrument_info.get("lotSizeFilter", {}).get("qtyStep", "1.0")),
+                    "minQty": float(instrument_info.get("lotSizeFilter", {}).get("minOrderQty", "1.0")),
+                    "tickSize": float(instrument_info.get("priceFilter", {}).get("tickSize", "0.01")),
+                    "maxLeverage": float(max_leverage),
+                    "notionalUsd": notional_usd
+                },
+                "risk_analysis": {
+                    "price_impact_per_contract": current_price * float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0")),
+                    "min_margin_required": (current_price * float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0"))) / max_leverage if max_leverage > 0 else 0,
+                    "max_position_size": notional_usd if notional_usd > 0 else (current_price * float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0"))) * max_leverage if max_leverage > 0 else 0
+                },
+                "okx_metadata": {
+                    "category": self.category,
+                    "instType": "SWAP",
+                    "currency": symbol.split("-")[1] if "-" in symbol else "USDT"
+                }
+            }
+            
+            logger.info(f"📋 [CONTRACT INFO] Capturadas informações detalhadas para {symbol}")
+            return contract_info
+            
+        except Exception as e:
+            logger.error(f"Error getting detailed contract info for {symbol}: {e}")
+            return {
+                "symbol": symbol,
+                "timestamp": time.time(),
+                "error": str(e),
+                "contract_details": {
+                    "ctVal": 1.0,
+                    "lotSize": 1.0,
+                    "minQty": 1.0,
+                    "tickSize": 0.01,
+                    "maxLeverage": 50,
+                    "notionalUsd": 0
+                }
+            }
+
     async def round_price(self, symbol: str, price: float) -> float:
         """
         Rounds the price to the nearest tickSize allowed by Bybit.
@@ -1051,8 +1126,16 @@ class OKXRest:
                                 logger.warning(f"[PAPER] Failed to fetch exit price: {price_err}. Fallback: {'Stop Price' if stop_price > 0 else 'Entry Price'}")
                                 exit_price = stop_price if stop_price > 0 else entry_price
 
-                        # Calcular PnL da quantidade fechada
-                        final_pnl = execution_protocol.calculate_pnl(entry_price, exit_price, close_qty, side_pos)
+                        # Obter ctVal do contrato para cálculo correto de PnL
+                        try:
+                            instrument_info = await self.get_instrument_info(symbol)
+                            ct_val = float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0"))
+                        except Exception as ct_err:
+                            logger.warning(f"[PAPER] Failed to get ctVal for {symbol}: {ct_err}. Using default 1.0")
+                            ct_val = 1.0
+                        
+                        # Calcular PnL da quantidade fechada com ctVal
+                        final_pnl = execution_protocol.calculate_pnl(entry_price, exit_price, close_qty, side_pos, ct_val)
                         harvest_roi = execution_protocol.calculate_roi(entry_price, exit_price, side_pos)
                         
                         self.paper_balance += final_pnl

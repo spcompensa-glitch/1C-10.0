@@ -889,23 +889,30 @@ class ExecutionProtocol:
         # 3. Executar lógica Sniper
         return await self.process_sniper_logic(slot_data, current_price, roi, atr=atr)
 
-    def calculate_pnl(self, entry_price: float, exit_price: float, qty: float, side: str) -> float:
+    def calculate_pnl(self, entry_price: float, exit_price: float, qty: float, side: str, ct_val: float = 1.0) -> float:
         """
-        Calcula o PnL realizado em USD considerando taxas de corretagem (taker).
+        Calcula o PnL realizado em USD considerando taxas de corretagem (taker) e ctVal do contrato.
+        
+        Args:
+            entry_price: Preço de entrada
+            exit_price: Preço de saída  
+            qty: Quantidade de contratos
+            side: 'buy' ou 'sell'
+            ct_val: Valor do contrato (ex: 0.01 para BTC, 1000 para DOGE)
         """
-        if entry_price <= 0 or qty <= 0:
+        if entry_price <= 0 or qty <= 0 or ct_val <= 0:
             return 0.0
             
         side_norm = (side or "").lower()
         if side_norm == "buy":
-            raw_pnl = qty * (exit_price - entry_price)
+            raw_pnl = qty * (exit_price - entry_price) * ct_val
         else: # Sell/Short
-            raw_pnl = qty * (entry_price - exit_price)
+            raw_pnl = qty * (entry_price - exit_price) * ct_val
             
-        # [V20.4 FIX] Correct round-trip fee: Bybit taker = 0.055% per side
-        # Entry fee on entry notional + Exit fee on exit notional
-        entry_fee = (qty * entry_price) * 0.00055
-        exit_fee = (qty * exit_price) * 0.00055
+        # [V20.4 FIX] Correct round-trip fee: OKX taker = 0.055% per side
+        # Entry fee on entry notional + Exit fee on exit notional, multiplicados por ct_val
+        entry_fee = (qty * entry_price * ct_val) * 0.00055
+        exit_fee = (qty * exit_price * ct_val) * 0.00055
         total_fee = entry_fee + exit_fee
         return raw_pnl - total_fee
 

@@ -23,6 +23,7 @@ from typing import Optional, Dict, Any
 
 from config import settings
 from services.database_service import database_service
+from services.order_projection_service import order_projection_service
 from services.okx_ws_public import okx_ws_public_service
 
 logger = logging.getLogger("FlashAgent")
@@ -159,7 +160,12 @@ class FlashAgent:
         if current_price <= 0:
             return
 
-        roi = self._calc_roi(entry_price, current_price, side, leverage)
+        projection = await order_projection_service.build_projection(
+            slot,
+            current_price=current_price,
+            phase_hint="SLOT",
+        )
+        roi = float(projection.get("roi_percent") or 0)
 
         # Atualiza PnL (a cada 2s)
         self._update_pnl(slot_id, roi, slot)
@@ -190,33 +196,25 @@ class FlashAgent:
                     self._sentinel_cache.pop(slot_id, None)
 
         # 🚀 Emancipação (ROI >= 150%)
-        if roi >= 150.0:
+        if projection.get("should_emancipate"):
             logger.warning(f"🚀⚡ [FLASH-EMANCIPAR] {symbol} ROI={roi:.1f}% >= 150%! EMANCIPANDO!")
-            sl_110 = await self._calc_stop_price(entry_price, 110.0, side, leverage, symbol)
+            sl_110 = float(projection.get("recommended_stop") or 0)
+            if sl_110 <= 0:
+                sl_110 = await self._calc_stop_price(entry_price, 110.0, side, leverage, symbol)
             asyncio.create_task(self._emancipate_slot(slot_id, symbol, sl_110))
             return
 
         # ⚡ Escadinha
-        slot_type = (slot.get("slot_type") or "SNIPER").upper()
-        degraus = ESCADINHA_BLITZ if slot_type == "BLITZ_30M" else ESCADINHA_DEGRAUS
-
-        new_stop_roi = None
-        status_risco = None
-        label = None
-
-        for min_roi, stop_roi, lbl, risco in degraus:
-            if roi >= min_roi:
-                if slot_type == "BLITZ_30M" and lbl == "BLITZ_EMANCIPACAO":
-                    continue
-                new_stop_roi = stop_roi
-                label = lbl
-                status_risco = risco
-                break
-
-        if new_stop_roi is None:
+        active_level = projection.get("active_level")
+        if not active_level or active_level.get("phase") not in ("ESCADINHA", "EMANCIPACAO"):
             return
 
-        new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
+        new_stop_roi = float(active_level.get("stop_roi") or 0)
+        status_risco = active_level.get("status_risco") or "MONITORANDO"
+        label = active_level.get("name") or "ESCADINHA"
+        new_stop_price = float(projection.get("recommended_stop") or 0)
+        if new_stop_price <= 0 and new_stop_roi > 0:
+            new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
         if new_stop_price <= 0:
             return
 
@@ -259,6 +257,7 @@ class FlashAgent:
         entry_price = float(moon.get("entry_price", 0))
         current_stop = float(moon.get("current_stop", 0))
         qty = float(moon.get("qty", 0))
+        leverage = float(moon.get("leverage") or self.leverage)
         # Moonbag side pode vir como "Buy"/"Sell" ou "LONG"/"SHORT"
         side_raw = (moon.get("side") or "BUY").upper()
         side = "buy" if side_raw in ("BUY", "LONG") else "sell"
@@ -270,7 +269,12 @@ class FlashAgent:
         if current_price <= 0:
             return
 
-        roi = self._calc_roi(entry_price, current_price, side, self.leverage)
+        projection = await order_projection_service.build_projection(
+            moon,
+            current_price=current_price,
+            phase_hint="MOONBAG",
+        )
+        roi = float(projection.get("roi_percent") or 0)
 
         # ⚡ 1. VIOLAÇÃO DE STOP → FECHAR MOONBAG IMEDIATAMENTE
         if current_stop > 0:
@@ -285,6 +289,32 @@ class FlashAgent:
                 return
 
         # ⚡ 2. TRAILING STOP — Só sobe se ROI for >= 160% (igual ao Ceifeiro)
+        projected_level = projection.get("active_level")
+        if not projected_level or projected_level.get("phase") != "MOONBAG":
+            return
+
+        sl_roi = float(projected_level.get("stop_roi") or 0)
+        label = projected_level.get("name") or "MOONBAG_TRAIL"
+        icon = ""
+        new_stop = float(projection.get("recommended_stop") or 0)
+        if new_stop <= 0 and sl_roi > 0:
+            new_stop = await self._calc_stop_price(entry_price, sl_roi, side, leverage, symbol)
+
+        if new_stop <= 0:
+            return
+
+        stop_improved = (side == "buy" and new_stop > current_stop) or \
+                        (side == "sell" and (current_stop == 0 or new_stop < current_stop))
+        if not stop_improved:
+            return
+
+        logger.info(
+            f"ðŸŒ™âš¡ [FLASH-MOON-TRAIL] {symbol} ROI={roi:.1f}% â†’ SL +{sl_roi:.0f}% "
+            f"(${new_stop:.4f}) [{icon} {label}]"
+        )
+        asyncio.create_task(self._update_moonbag_sl(moon_uuid, symbol, new_stop, roi, label, sl_roi))
+        return
+
         if roi < 160:
             return
 
@@ -435,9 +465,23 @@ class FlashAgent:
         await self._sync_paper_stop(symbol, sl_price)
         await self._sync_firebase_slot(slot_id, update_payload)
 
-    async def _update_moonbag_sl(self, moon_uuid: str, symbol: str, sl_price: float, roi: float):
+    async def _update_moonbag_sl(
+        self,
+        moon_uuid: str,
+        symbol: str,
+        sl_price: float,
+        roi: float,
+        flash_action: str = "MOONBAG_TRAIL",
+        stop_roi: float = None,
+    ):
         """Atualiza SL da Moonbag no Postgres + Paper Memory."""
-        update_payload = {"current_stop": sl_price, "pnl_percent": roi}
+        update_payload = {
+            "current_stop": sl_price,
+            "pnl_percent": roi,
+            "flash_last_action": flash_action,
+        }
+        if stop_roi is not None:
+            update_payload["flash_last_stop_roi"] = stop_roi
         await database_service.update_moonbag(moon_uuid, update_payload)
         await self._sync_paper_stop(symbol, sl_price)
 

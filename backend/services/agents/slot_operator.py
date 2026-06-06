@@ -132,6 +132,10 @@ class SlotOperatorAgent(AIOSAgent):
         if abs((slot.get("pnl_percent") or 0) - roi_percent) > 1.0:
              await database_service.update_slot(self.slot_id, {"pnl_percent": roi_percent})
 
+        # Flash is now the single writer for stop progression and emancipation.
+        # SlotOperator keeps slot observation/failsafe behavior only.
+        return
+
         # 4. Escadinha de Stop Loss (Smart SL)
         new_stop_roi = self._calculate_escadinha_stop(roi_percent)
 

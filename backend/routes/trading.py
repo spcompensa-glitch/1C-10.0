@@ -30,6 +30,7 @@ async def verify_api_key(x_api_key: str = Header(None)):
 async def get_slots():
     """[V110.999] Rota pública — lê slots globais do Postgres. Auth removida para evitar 401 com Fortress Auth."""
     from services.database_service import database_service as _ds
+    from services.order_projection_service import order_projection_service
     _, okx_rest_service, execution_protocol, _, _ = get_services()
     try:
         db_slots = await _ds.get_active_slots()
@@ -72,7 +73,8 @@ async def get_slots():
                 "is_reverse_sniper": s.get("is_reverse_sniper"),
                 "market_regime": s.get("market_regime"),
                 "rescue_activated": s.get("rescue_activated"),
-                "rescue_resolved": s.get("rescue_resolved")
+                "rescue_resolved": s.get("rescue_resolved"),
+                "projection": s.get("projection")
             })
             
         if slots:
@@ -108,9 +110,15 @@ async def get_slots():
                     live_price = price_map.get(sym_clean, 0)
                     
                     if live_price > 0 and entry > 0:
-                        roi = execution_protocol.calculate_roi(entry, live_price, side)
-                        roi = max(-500, min(5000, roi))
+                        projection = await order_projection_service.build_projection(
+                            slot,
+                            current_price=live_price,
+                            phase_hint="SLOT",
+                        )
+                        roi = max(-500, min(5000, float(projection.get("roi_percent") or 0)))
+                        projection["roi_percent"] = roi
                         slot["pnl_percent"] = round(roi, 1)
+                        slot["projection"] = projection
                     
                     roi = slot.get("pnl_percent", 0)
                     phase_info = execution_protocol.get_sl_phase_info(roi, slot_data=slot)
@@ -195,13 +203,14 @@ A diretriz segue inalterada: Disciplina sobre a emoção."""
 
 @router.get("/moonbags")
 async def get_moonbags(limit: int = 10):
-    firebase_service, _, _, _, _ = get_services()
     try:
-        moonbags_list = await firebase_service.get_moonbags(limit=limit)
+        from services.database_service import database_service as _ds
+
+        moonbags_list = await _ds.get_moonbags()
         # Se for None ou não for lista, garante lista vazia
         if not isinstance(moonbags_list, list):
             moonbags_list = []
-        return moonbags_list
+        return moonbags_list[:limit]
     except Exception as e:
         logger.error(f"Error fetching moonbags: {e}")
         return []

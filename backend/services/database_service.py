@@ -2,6 +2,7 @@
 import os
 import logging
 import asyncio
+import time
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -88,7 +89,20 @@ class Moonbag(Base):
     side = Column(String)
     qty = Column(Float)
     entry_price = Column(Float)
+    entry_margin = Column(Float, default=0.0)
     current_stop = Column(Float)
+    initial_stop = Column(Float, default=0.0)
+    target_price = Column(Float, default=0.0)
+    leverage = Column(Float, default=50.0)
+    order_id = Column(String, nullable=True)
+    genesis_id = Column(String, nullable=True)
+    slot_type = Column(String, nullable=True)
+    strategy = Column(String, nullable=True)
+    strategy_label = Column(String, nullable=True)
+    opened_at = Column(Float, nullable=True)
+    contract_meta = Column(JSON, nullable=True)
+    flash_last_action = Column(String, nullable=True)
+    flash_last_stop_roi = Column(Float, nullable=True)
     pnl_percent = Column(Float)
     sentinel_first_hit_at = Column(Float, default=0.0)
     promoted_at = Column(DateTime, default=datetime.utcnow)
@@ -172,7 +186,17 @@ class DatabaseService:
                         ("trade_history", "vision_url", "TEXT"),
                         ("moonbags", "leverage", "DOUBLE PRECISION"),
                         ("moonbags", "order_id", "TEXT"),
+                        ("moonbags", "genesis_id", "TEXT"),
+                        ("moonbags", "entry_margin", "DOUBLE PRECISION"),
+                        ("moonbags", "initial_stop", "DOUBLE PRECISION"),
+                        ("moonbags", "target_price", "DOUBLE PRECISION"),
+                        ("moonbags", "slot_type", "TEXT"),
+                        ("moonbags", "strategy", "TEXT"),
+                        ("moonbags", "strategy_label", "TEXT"),
                         ("moonbags", "opened_at", "DOUBLE PRECISION"),
+                        ("moonbags", "contract_meta", "JSONB"),
+                        ("moonbags", "flash_last_action", "TEXT"),
+                        ("moonbags", "flash_last_stop_roi", "DOUBLE PRECISION"),
                         ("banca_status", "configured_balance", "DOUBLE PRECISION"),
                         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
                         ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
@@ -273,7 +297,8 @@ class DatabaseService:
         async with self.AsyncSessionLocal() as session:
             result = await session.execute(select(Slot).order_by(Slot.id))
             slots = result.scalars().all()
-            return [{c.name: getattr(s, c.name) for c in s.__table__.columns} for s in slots]
+            rows = [{c.name: getattr(s, c.name) for c in s.__table__.columns} for s in slots]
+            return await self._attach_order_projections(rows, phase_hint="SLOT")
 
     async def get_slot(self, slot_id: int):
         async with self.AsyncSessionLocal() as session:
@@ -305,8 +330,20 @@ class DatabaseService:
                         side=slot.get("side", "BUY"),
                         qty=float(slot.get("qty", 0)),
                         entry_price=float(slot.get("entry_price", 0)),
+                        entry_margin=float(slot.get("entry_margin", 0)),
                         current_stop=float(slot.get("current_stop", 0)),
-                        pnl_percent=float(slot.get("pnl_percent", 0))
+                        initial_stop=float(slot.get("initial_stop", 0)),
+                        target_price=float(slot.get("target_price", 0)),
+                        leverage=float(slot.get("leverage") or 50.0),
+                        order_id=slot.get("order_id"),
+                        genesis_id=slot.get("genesis_id"),
+                        slot_type=slot.get("slot_type"),
+                        strategy=slot.get("strategy"),
+                        strategy_label=slot.get("strategy_label"),
+                        opened_at=slot.get("opened_at"),
+                        pnl_percent=float(slot.get("pnl_percent", 0)),
+                        flash_last_action="EMANCIPACAO",
+                        flash_last_stop_roi=110.0,
                     )
                     session.add(moon)
                     await session.commit()
@@ -341,7 +378,38 @@ class DatabaseService:
         async with self.AsyncSessionLocal() as session:
             result = await session.execute(select(Moonbag).order_by(desc(Moonbag.promoted_at)))
             moons = result.scalars().all()
-            return [{c.name: getattr(m, c.name) for c in m.__table__.columns} for m in moons]
+            rows = [{c.name: getattr(m, c.name) for c in m.__table__.columns} for m in moons]
+            return await self._attach_order_projections(rows, phase_hint="MOONBAG")
+
+    async def _attach_order_projections(self, orders: List[Dict[str, Any]], phase_hint: str):
+        """Attach backend-official ROI/stop projection for UI rendering."""
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            from services.order_projection_service import order_projection_service
+        except Exception:
+            return orders
+
+        enriched = []
+        for order in orders:
+            symbol = order.get("symbol")
+            entry_price = float(order.get("entry_price") or 0)
+            if not symbol or entry_price <= 0:
+                enriched.append(order)
+                continue
+
+            current_price = 0.0
+            try:
+                current_price = float(okx_ws_public_service.get_current_price(symbol) or 0)
+            except Exception:
+                current_price = 0.0
+
+            order["projection"] = await order_projection_service.build_projection(
+                order,
+                current_price=current_price,
+                phase_hint=phase_hint,
+            )
+            enriched.append(order)
+        return enriched
 
     async def update_moonbag(self, moon_uuid: str, data: dict):
         """[V110.999] Atualiza os dados de uma Moonbag no Postgres."""
@@ -349,12 +417,18 @@ class DatabaseService:
             try:
                 moon = await session.get(Moonbag, moon_uuid)
                 if moon:
-                    if "current_stop" in data:
-                        moon.current_stop = float(data["current_stop"])
-                    if "pnl_percent" in data:
-                        moon.pnl_percent = float(data["pnl_percent"])
-                    if "qty" in data:
-                        moon.qty = float(data["qty"])
+                    valid_keys = {c.name for c in Moonbag.__table__.columns}
+                    for key, value in data.items():
+                        if key not in valid_keys:
+                            continue
+                        if key in {
+                            "qty", "entry_price", "entry_margin", "current_stop",
+                            "initial_stop", "target_price", "leverage",
+                            "pnl_percent", "opened_at", "sentinel_first_hit_at",
+                            "flash_last_stop_roi",
+                        } and value is not None:
+                            value = float(value)
+                        setattr(moon, key, value)
                     moon.updated_at = datetime.utcnow()
                     await session.commit()
                     logger.info(f"🌔 Moonbag {moon_uuid} atualizada no Postgres.")

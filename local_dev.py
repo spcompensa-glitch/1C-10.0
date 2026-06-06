@@ -56,6 +56,7 @@ logger = logging.getLogger("local-dev")
 
 PORT = int(os.getenv("PORT", 8085))
 HOST = os.getenv("HOST", "0.0.0.0")
+FULL_TRADING_LOOPS = os.getenv("LOCAL_DEV_FULL_TRADING", "0").lower() in {"1", "true", "yes", "on"}
 
 
 def init_database():
@@ -218,9 +219,8 @@ app.add_middleware(
 # 1) API de autenticação em /api/auth
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
-# 2) Monta o app principal (cockpit data, banca, slots, websocket, etc.)
-#    Mount em "/" preserva todos os paths originais.
-if MAIN_APP is not None:
+# Mount antigo desativado; o app principal e montado depois das rotas locais.
+if False:
     try:
         app.mount("/", MAIN_APP)
         logger.info("✅ Backend completo (main.py) montado em /")
@@ -287,6 +287,16 @@ async def health():
     return {"status": "healthy", "service": "1Crypten Local Dev", "main_app_loaded": MAIN_APP is not None}
 
 
+# 4) Mount do app principal por ultimo. O main.py tem catch-all; se vier antes,
+# ele captura /health e paginas locais.
+if MAIN_APP is not None:
+    try:
+        app.mount("/", MAIN_APP)
+        logger.info("Backend completo (main.py) montado em /")
+    except Exception as e:
+        logger.warning(f"Falha ao montar main.py: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     logger.info("🚀 Inicializando banco de dados...")
@@ -300,6 +310,12 @@ async def startup():
         await init_trading_database()
     except Exception as e:
         logger.error(f"❌ Erro ao inicializar trading DB: {e}")
+
+    if not FULL_TRADING_LOOPS:
+        logger.info("LOCAL_DEV_FULL_TRADING=0 - OKX/Radar/Captain loops disabled for responsive local frontend/API testing")
+        logger.info(f"✅ Frontend: {FRONTEND}")
+        logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")
+        return
 
     # Inicializa o OKX WebSocket Public (alimenta btc_price, btc_adx, etc.)
     # Sem isso, o BTC fica com preço 0 no cockpit mesmo com captain/slots ativos.
@@ -342,7 +358,7 @@ async def startup():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "local_dev:app",
+        app,
         host=HOST,
         port=PORT,
         reload=False,

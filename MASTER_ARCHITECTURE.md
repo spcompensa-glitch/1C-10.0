@@ -1,9 +1,18 @@
-# MASTER_ARCHITECTURE.md — V110.801 "Correção de Stop Loss & Filtro de Contratendência"
+# MASTER_ARCHITECTURE.md — V110.803 "Backend SSOT de Stops, Projeção de Ordem & Flash Principal"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.801)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.801)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.803)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.803)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.803: BACKEND SSOT DE STOPS, PROJEÇÃO DE ORDEM & FLASH PRINCIPAL [JUN 06]**
+    - **Order Projection Service:** Criação de `backend/services/order_projection_service.py` como fonte única de verdade para ROI, preço de stop, fases da ordem, linhas de gráfico, `tickSize`, `qtyStep`, `ctVal`, margem e PnL estimado.
+    - **Fluxo Único da Ordem:** A ordem passa por `SLOT → ESCADINHA → EMANCIPAÇÃO → MOONBAG → CEIFEIRO` sem perder identidade (`genesis_id`, `order_id`, `leverage`, `entry_margin`, `slot_type` e metadados de contrato).
+    - **Flash como Autoridade Operacional:** `FlashAgent` passa a consumir a projeção oficial e vira o principal escritor de progressão de stops e emancipação. `SlotOperatorAgent` permanece como observador/failsafe, sem recalcular escadinha própria.
+    - **Moonbag Enriquecida:** A tabela `moonbags` passa a preservar `leverage`, `entry_margin`, `initial_stop`, `target_price`, `genesis_id`, `slot_type`, estratégia, `contract_meta`, `flash_last_action` e `flash_last_stop_roi`.
+    - **Frontend Render-Only:** `cockpit.html` passa a renderizar `projection.levels` vindos do backend no gráfico e no gutter, deixando os cálculos locais como fallback temporário. A ação do Flash também é exibida nos cards de Moonbag.
+    - **Rotas Oficiais:** `/api/slots` e `/api/moonbags` expõem a projeção backend-first, incluindo `phase`, `active_level`, `recommended_stop`, `levels`, `contract` e `flash`.
+    - **Validação:** Adicionado `tests/test_order_projection_service.py` cobrindo LONG, SHORT, tick size, emancipação em 150% e fase Moonbag.
 
 *   **V110.802: CORREÇÃO DE ERROS CRÍTICOS DE CÁLCULO & OTIMIZAÇÃO DE SLOTS [JUN 05]**
     - **Correção da Fórmula de ROI**: Remoção do fator `* 100` extra na função `_calc_roi` do FlashAgent que estava causando perdas extremas (ex: -181% em vez de -1.81%). A fórmula correta agora é `price_diff * leverage` sem multiplicação por 100.
@@ -348,7 +357,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.801)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.803)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
@@ -367,7 +376,7 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.801)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.803)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -377,12 +386,13 @@
 - **ws_cockpit:** Ponte de transmissão duplex local/nuvem. Envia um snapshot de estado imediato no `onopen` para evitar telas pretas e sincroniza os 4 slots, cotação do BTC e pulso do radar instantaneamente.
 
 ### 3. Camada de Execução (Actor Model)
-- **⚡ FlashAgent (V1.1):** Motor ultrarrápido de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo**. Sem throttles, gas checks ou sentinelas — apenas ação imediata:
-  - **Slots Táticos:** Escadinha (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→Moonbag) + BLITZ_30M (UNIT1=100%, UNIT2=200%, UNIT3=300%)
-  - **Emancipação:** Ao bater 150% ROI, promove para Moonbag e libera o slot **instantaneamente**
-  - **Moonbags (Ceifeiro Turbo):** Trailing Stop progressivo nos níveis do Ceifeiro (WAVE→GOD_MODE) + fechamento imediato se o preço bater no stop
-  - **Cache:** Slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
-- **4 × SlotOperatorAgent:** instâncias independentes, ciclo de vida próprio (Gênesis → Escadinha → Arquivamento), self-auditing nativo via `FleetAudit`.
+- **OrderProjectionService:** fonte única de verdade para ROI, stop price, fase operacional, linhas do gráfico, `tickSize`, `ctVal`, margem e PnL estimado. O frontend não recalcula alvos quando `projection.levels` existe.
+- **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir:
+  - **Slots Táticos:** Escadinha oficial (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + Moonbag)
+  - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
+  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
+  - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
+- **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
 - **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`, com bypass dinâmico de contratendência violenta para ativos descorrelacionados ou de Score >= 95.
 - **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
@@ -390,15 +400,13 @@
 - **Oracle:** SSOT de regime de mercado (ALTA/BAIXA/LATERAL com threshold ADX>30), validação e FleetAudit pós-trade.
 - **Anti-Slippage Engine:** Greedy Snake Sharding em 4 cohorts balanceados com Random Jitter 0-350ms para pulverizar ordens no book.
 
-### 4. Motor de Trading (Sniper + Escadinha)
-- **Ciclo:** 0.2s de alta frequência para captura de pavios rápidos.
-- **ROI Triggers (T1-T5):**
-  - **T1 Break-Even:** 30% ROI → Stop Loss movido para 0%
-  - **T2 Profit Bridge:** 50% ROI → Stop Loss movido para 20%
-  - **T3 Risk-Zero:** 70% ROI → Stop Loss movido para 5%
-  - **T4 Profit-Lock:** 110% ROI → Stop Loss movido para 70%
-  - **T5 Emancipação / Moonbag:** 150% ROI → Stop Loss movido para 110%
-- **Ceifeiro (pós-emancipação):** 200% WAVE → 300% ROCKET → 400% STAR → 500% CROWN → 600% SUPERNOVA → 700% GOD_MODE → 800-1200% CHOKE_HOLD/APEX.
+### 4. Motor de Trading (Sniper + Escadinha + Moonbag)
+- **Ciclo:** Flash monitora em alta frequência; Captain abre slots; SlotOperator observa; backend calcula e frontend renderiza.
+- **Fórmula oficial de ROI:** `((current - entry) / entry) * leverage * 100` para LONG e `((entry - current) / entry) * leverage * 100` para SHORT.
+- **Fórmula oficial de preço do stop:** `entry * (1 + stop_roi / (leverage * 100))` para LONG e `entry * (1 - stop_roi / (leverage * 100))` para SHORT, sempre arredondada por `tickSize` OKX.
+- **Escadinha oficial:** 30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + emancipação.
+- **Moonbag oficial:** 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200%→alvo máximo.
+- **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 
 ### 5. Auth & Failsafe
@@ -413,7 +421,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.802)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.803)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -425,8 +433,8 @@ Utilizado em produção como Fonte Única de Verdade (SSOT) para toda a lógica 
     *   *Colunas chave*: `id` (Integer, 1-4), `symbol` (String), `side` (String), `qty` (Float), `entry_price` (Float), `entry_margin` (Float), `initial_stop` (Float), `current_stop` (Float), `target_price` (Float), `leverage` (Float), `status_risco` (String), `sentinel_first_hit_at` (Float), `vision_url` (String).
 *   **`trade_history`**: Ledger definitivo de auditoria e arquivamento de ordens concluídas.
     *   *Colunas chave*: `order_id` (String), `genesis_id` (String), `symbol` (String), `side` (String), `pnl` (Float), `pnl_percent` (Float), `timestamp` (DateTime), `vision_url` (String), `data` (JSONB).
-*   **`moonbags`**: Posições emancipadas com trailing profit ativo controladas pelo Harvester.
-    *   *Colunas chave*: `uuid` (String, `{symbol}_{opened_at}`), `symbol` (String), `qty` (Float), `entry_price` (Float), `current_stop` (Float), `sentinel_first_hit_at` (Float).
+*   **`moonbags`**: Continuação da mesma ordem após emancipação em 150% ROI, com trailing profit controlado pelo Flash/Ceifeiro.
+    *   *Colunas chave*: `uuid` (String, `{symbol}_{opened_at}`), `symbol` (String), `side` (String), `qty` (Float), `entry_price` (Float), `entry_margin` (Float), `initial_stop` (Float), `current_stop` (Float), `target_price` (Float), `leverage` (Float), `order_id` (String), `genesis_id` (String), `slot_type` (String), `strategy` (String), `strategy_label` (String), `opened_at` (Float), `contract_meta` (JSONB), `flash_last_action` (String), `flash_last_stop_roi` (Float), `pnl_percent` (Float), `sentinel_first_hit_at` (Float).
 *   **`radar_pulse`**: Cache reativo de confluências e sinais do mercado técnico.
 
 ### 2. SQLite Local (`auth.db`)
@@ -439,7 +447,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.802)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.803)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -449,8 +457,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
     *   `AdminUsersPage.js`: Painel ADM exclusivo para controle de acesso e liberação de usuários ativos.
     *   `TakeoffModal.js` & `DeepAnalysisModal.js`: checklist e auditoria dos ativos.
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
+4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`.
 
 ---
 
-*Documento atualizado em: 2026-06-04 (V110.802) Sincronizado*
-*Este documento reflete a modelagem de banco de dados híbrida e o sistema de componentes modularizados do Cockpit.*
+*Documento atualizado em: 2026-06-06 (V110.803) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX e renderização do Cockpit.*

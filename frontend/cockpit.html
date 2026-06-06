@@ -395,6 +395,37 @@
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
+        const normalizeTradeSymbol = (symbol) => String(symbol || '')
+            .replace('.P', '')
+            .replace('.p', '')
+            .replace(/-USDT-SWAP$/i, 'USDT')
+            .toUpperCase();
+
+        const projectionLevelColor = (level) => {
+            const phase = String(level?.phase || '').toUpperCase();
+            const name = String(level?.name || '').toUpperCase();
+            if (name === 'MAX_TARGET') return 'rgba(239, 68, 68, 0.85)';
+            if (phase === 'MOONBAG') return 'rgba(34, 211, 238, 0.7)';
+            if (phase === 'EMANCIPACAO') return '#22c55e';
+            if (name.includes('PROFIT_LOCK')) return 'rgba(234, 179, 8, 0.85)';
+            if (name.includes('RISCO_ZERO')) return 'rgba(34, 197, 94, 0.8)';
+            return 'rgba(148, 163, 184, 0.45)';
+        };
+
+        const getProjectionPriceLevels = (projection) => {
+            const levels = Array.isArray(projection?.levels) ? projection.levels : [];
+            return levels
+                .map((level) => ({
+                    value: Number(level.price),
+                    label: `${level.name || level.phase || 'STOP'} (${Number(level.stop_roi || level.trigger_roi || 0).toFixed(0)}%)`,
+                    color: projectionLevelColor(level),
+                    active: Boolean(level.active),
+                    lineWidth: level.active ? 2 : 1,
+                    lineStyle: level.active ? 0 : 2,
+                }))
+                .filter((level) => Number.isFinite(level.value) && level.value > 0);
+        };
+
         // --- V56.0: Global Intelligence UI Helpers ---
         const getGaugeColor = (score) => {
             if (score >= 80) return '#ffffff'; // Lime (Elite)
@@ -3242,6 +3273,8 @@
             const symbol = moonbag.symbol.replace('.P', '').replace('.p', '').replace('USDT', '');
             const entry = Number(moonbag.entry_price) || 0;
             const side = moonbag.side === 'Buy' ? 'LONG' : 'SHORT';
+            const flashAction = moonbag.projection?.flash?.last_action || moonbag.flash_last_action || 'MONITORANDO';
+            const flashStopRoi = moonbag.projection?.flash?.stop_roi || moonbag.flash_last_stop_roi;
             
             const tSym = symbol + 'USDT';
             const livePrice = tickers && tickers[tSym] ? Number(tickers[tSym]) : 0;
@@ -3338,6 +3371,9 @@
                             <div className="flex flex-col">
                                 <span className="text-[11px] font-black text-white font-mono leading-none">{symbol}</span>
                                 <span className={`text-[7px] font-bold uppercase ${side === 'LONG' ? 'text-white/60' : 'text-orange-500/60'}`}>{side}</span>
+                                <span className="text-[7px] font-black text-cyan-300/80 uppercase block mt-0.5">
+                                    FLASH: {flashAction}{flashStopRoi ? ` +${Number(flashStopRoi).toFixed(0)}%` : ''}
+                                </span>
                                 {(moonbag.genesis_id || moonbag.order_id) && (
                                     <span className="text-[7px] font-mono text-white/40 uppercase block mt-0.5">
                                         🧬 {moonbag.genesis_id || moonbag.order_id}
@@ -3891,8 +3927,8 @@
                 }
 
                 // Price Lines
-                const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
-                const activeMoon = moonbags && moonbags.find(m => m && m.symbol && m.symbol.replace('.P','').replace('.p','').replace('USDT','').toUpperCase() === localSymbol.replace('USDT','').toUpperCase());
+                const activeSlot = slots.find(s => s && s.symbol && normalizeTradeSymbol(s.symbol) === normalizeTradeSymbol(localSymbol));
+                const activeMoon = moonbags && moonbags.find(m => m && m.symbol && normalizeTradeSymbol(m.symbol) === normalizeTradeSymbol(localSymbol));
                 let points = null;
                 
                 if (activeMoon) {
@@ -3913,7 +3949,8 @@
                         leverage: leverage, 
                         isLong,
                         target_price: null,
-                        isMoonbag: true
+                        isMoonbag: true,
+                        projection: activeMoon.projection
                     };
                 } else if (activeSlot) {
                     // SE existe um slot ativo para este símbolo, ele é a fonte da verdade suprema (DB)
@@ -3926,7 +3963,8 @@
                         leverage: activeSlot.leverage || 50, 
                         isLong,
                         target_price: activeSlot.target_price,
-                        t1: activeSlot.t1, t2: activeSlot.t2, t3: activeSlot.t3, t4: activeSlot.t4, t5: activeSlot.t5 
+                        t1: activeSlot.t1, t2: activeSlot.t2, t3: activeSlot.t3, t4: activeSlot.t4, t5: activeSlot.t5,
+                        projection: activeSlot.projection
                     };
                 } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase()) {
                     // Fallback para focusedAsset se não for um slot (ex: Moonbag sem slot ativo)
@@ -3977,6 +4015,12 @@
                     const mainTp = points.target_price || points.t5 || fallbackT5;
                     levels.push({ value: mainTp, label: points.isMoonbag ? 'T5 💎' : 'TARGET', color: '#10b981' });
 
+                    const backendLevels = getProjectionPriceLevels(points.projection);
+                    if (backendLevels.length > 0) {
+                        backendLevels.forEach(lvl => {
+                            levels.push({ value: lvl.value, label: lvl.label, color: lvl.color });
+                        });
+                    } else {
                     const escadinhaLevels = [];
                     if (points.isMoonbag) {
                         // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (cinza discreto)
@@ -4014,6 +4058,7 @@
                         }
                         levels.push({ value: p, label: lvl.title, color: lvl.color });
                     });
+                    }
                 }
 
                 container.innerHTML = '';
@@ -4091,8 +4136,8 @@
                         }
 
                         // 2. Identify Points
-                        const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','') === localSymbol);
-                        const activeMoon = moonbags && moonbags.find(m => m && m.symbol && m.symbol.replace('.P','').replace('.p','').replace('USDT','').toUpperCase() === localSymbol.replace('USDT','').toUpperCase());
+                        const activeSlot = slots.find(s => s && s.symbol && normalizeTradeSymbol(s.symbol) === normalizeTradeSymbol(localSymbol));
+                        const activeMoon = moonbags && moonbags.find(m => m && m.symbol && normalizeTradeSymbol(m.symbol) === normalizeTradeSymbol(localSymbol));
                         let points = null;
 
                         if (activeMoon) {
@@ -4110,12 +4155,13 @@
                                 sl: sl, 
                                 side: isLong ? 'LONG' : 'SHORT', 
                                 leverage: leverage,
-                                isMoonbag: true
+                                isMoonbag: true,
+                                projection: activeMoon.projection
                             };
                         } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {
                             points = { entry: parseFloat(focusedAsset.entry), sl: parseFloat(focusedAsset.sl), side: focusedAsset.side, leverage: focusedAsset.leverage || 50 };
                         } else if (activeSlot) {
-                            points = { entry: parseFloat(activeSlot.entry_price), sl: parseFloat(activeSlot.current_stop || activeSlot.stop_loss), side: activeSlot.side, leverage: activeSlot.leverage || 50 };
+                            points = { entry: parseFloat(activeSlot.entry_price), sl: parseFloat(activeSlot.current_stop || activeSlot.stop_loss), side: activeSlot.side, leverage: activeSlot.leverage || 50, projection: activeSlot.projection };
                         }
 
                         // 3. Render [V110.658] STOP LOSS DINÂMICO (Grid View)
@@ -4193,6 +4239,21 @@
                                 price: tp, color: '#10b981', lineWidth: 2, lineStyle: 0, title: points.isMoonbag ? '💎 MOONBAG EMANCIPATION' : 'TARGET', axisLabelVisible: true 
                             });
 
+                            const backendLevels = getProjectionPriceLevels(points.projection)
+                                .filter(lvl => Math.abs(lvl.value - points.entry) / points.entry > 0.00001)
+                                .filter(lvl => !points.sl || Math.abs(lvl.value - points.sl) / points.entry > 0.00001);
+                            if (backendLevels.length > 0) {
+                                priceLinesRef.current.targets = backendLevels.map(lvl => candlestickSeries.current.createPriceLine({
+                                    price: lvl.value,
+                                    color: lvl.color,
+                                    lineWidth: lvl.lineWidth,
+                                    lineStyle: lvl.lineStyle,
+                                    title: lvl.label,
+                                    axisLabelVisible: true
+                                }));
+                                return;
+                            }
+
                             const escadinhaLevels = [];
                             if (points.isMoonbag) {
                                 // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (discretos e finos)
@@ -4217,6 +4278,10 @@
                                     console.warn("Chart Update Failed (disposed?):", e);
                                 }
                             }
+                        }
+                        } catch (error) {
+                            console.warn("Price lines update error:", error);
+                        }
                 };
                 updatePriceLines();
                 syncGutter();
@@ -5265,17 +5330,9 @@
                     try {
                         const res = await fetch(`${API_BASE}/api/captain/tocaias`);
                         if (res.ok) { const d = await res.json(); setActiveTocaias(d.active || []); }
-                    
-                            } else {
-                                // Escadinha BLITZ - Stop levels do Flash Agent
-                                escadinhaLevels.push(
-                                    { roi: 5,  color: 'rgba(107, 114, 128, 0.5)', title: 'BREAKEVEN (5%)' },
-                                    { roi: 50, color: 'rgba(16, 185, 129, 0.6)', title: 'RISCO ZERO (50%)' },
-                                    { roi: 95, color: 'rgba(34, 211, 238, 0.7)', title: 'UNIT1 (95%)' },
-                                    { roi: 110, color: 'rgba(250, 204, 21, 0.8)', title: 'EMANCIPACAO (110%)' },
-                                    { roi: 150, color: '#22c55e', title: 'MOONBAG (150%)' }
-                                );
-                            } catch(e) {}
+                    } catch(e) {
+                        console.warn("Tocaias fetch error:", e);
+                    }
                 };
                 fetchTocaias();
                 const interval = setInterval(fetchTocaias, 30000); // [V110.138] Relaxed from 5s to 30s to save backend
@@ -5341,14 +5398,7 @@
                 const sPnL = slots.reduce((acc, s) => {
                     if (!s || !s.symbol) return acc;
                     const cleanSymbol = (s.symbol || '').replace('.P', '').replace('.p', '').trim();
-                    const price = tickers[cleanSymbol];,
-                            { roi: 130, color: 'rgba(6, 182, 212, 0.5)', title: 'TRAILING START (130%)', dash: true },
-                            { roi: 150, color: 'rgba(59, 130, 246, 0.6)', title: 'WAVE (150%)', dash: true },
-                            { roi: 220, color: 'rgba(139, 92, 246, 0.7)', title: 'ROCKET (220%)', dash: true },
-                            { roi: 280, color: 'rgba(236, 72, 153, 0.7)', title: 'STAR (280%)', dash: true },
-                            { roi: 350, color: 'rgba(245, 158, 11, 0.8)', title: 'CROWN (350%)', dash: true },
-                            { roi: 420, color: 'rgba(249, 115, 22, 0.8)', title: 'SUPERNOVA (420%)', dash: true },
-                            { roi: 500, color: 'rgba(239, 68, 68, 0.9)', title: 'GOD MODE (500%)', dash: true }
+                    const price = tickers[cleanSymbol];
                     const entry = Number(s.entry_price || 0);
                     const leverage = s.leverage || 50;
                     const margin = Number(s.entry_margin || s.margin || 10);

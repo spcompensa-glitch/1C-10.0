@@ -16,6 +16,8 @@ class WebSocketService:
         self._last_banca_snapshot = {}  # [V110.999] Cache do último estado da banca
         self._last_radar_snapshot = {}  # [V110.999] Cache do último radar pulse
 
+        self._last_system_state_snapshot = {}
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.add(websocket)
@@ -51,6 +53,13 @@ class WebSocketService:
                 msg = json.dumps({"type": "banca_status", "data": self._last_banca_snapshot}, default=json_serial)
                 await websocket.send_text(msg)
             logger.info(f"📦 [WS-SNAPSHOT] Snapshot inicial enviado para novo cliente.")
+            system_state = self._last_system_state_snapshot or {
+                "status": "ONLINE",
+                "source": "websocket_initial_snapshot",
+                "updated_at": asyncio.get_event_loop().time(),
+            }
+            msg = json.dumps({"type": "system_state", "data": system_state}, default=json_serial)
+            await websocket.send_text(msg)
         except Exception as e:
             logger.warning(f"⚠️ [WS-SNAPSHOT] Falha ao enviar snapshot inicial: {e}")
 
@@ -145,6 +154,7 @@ class WebSocketService:
 
     async def emit_system_state(self, state: dict):
         """Envia o estado global do sistema (V110.181)."""
+        self._last_system_state_snapshot = state
         await self.broadcast({
             "type": "system_state",
             "data": state

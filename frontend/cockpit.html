@@ -3650,7 +3650,22 @@
             const flashIntel = projection.flash || {};
             const flashAction = flashIntel.last_action || 'MONITORANDO';
             const activeLevel = projection.active_level || projectionLevels.find(l => l && l.active);
-            const nextLevel = projectionLevels
+            const fallbackLevels = [
+                { phase: 'ESCADINHA', name: 'BREAKEVEN', trigger_roi: 30, stop_roi: 6 },
+                { phase: 'ESCADINHA', name: 'PROFIT_BRIDGE', trigger_roi: 50, stop_roi: 25 },
+                { phase: 'ESCADINHA', name: 'RISCO_ZERO', trigger_roi: 70, stop_roi: 45 },
+                { phase: 'ESCADINHA', name: 'PROFIT_LOCK', trigger_roi: 110, stop_roi: 80 },
+                { phase: 'EMANCIPACAO', name: 'EMANCIPADA', trigger_roi: 150, stop_roi: 110 },
+                { phase: 'MOONBAG', name: 'WAVE', trigger_roi: 200, stop_roi: 150 },
+                { phase: 'MOONBAG', name: 'ROCKET', trigger_roi: 300, stop_roi: 220 },
+                { phase: 'MOONBAG', name: 'STAR', trigger_roi: 400, stop_roi: 280 },
+                { phase: 'MOONBAG', name: 'CROWN', trigger_roi: 500, stop_roi: 350 },
+                { phase: 'MOONBAG', name: 'SUPERNOVA', trigger_roi: 600, stop_roi: 420 },
+                { phase: 'MOONBAG', name: 'GOD_MODE', trigger_roi: 700, stop_roi: 500 },
+                { phase: 'MOONBAG', name: 'MAX_TARGET', trigger_roi: 1200, stop_roi: 900 },
+            ];
+            const tacticalLevels = projectionLevels.length > 0 ? projectionLevels : fallbackLevels;
+            const nextLevel = tacticalLevels
                 .filter(l => l && Number(l.trigger_roi) > projectionRoi)
                 .sort((a, b) => Number(a.trigger_roi || 0) - Number(b.trigger_roi || 0))[0] || null;
             const leverageNow = Number(s.leverage || 50);
@@ -3662,14 +3677,23 @@
                 : null;
             const recommendedStopNow = Number(projection.recommended_stop || 0);
             const recommendedStopLabel = recommendedStopNow > 0 ? `$${formatPrice(recommendedStopNow)}` : 'AGUARDANDO';
+            const stopImprovementEpsilon = entryNow > 0 ? Math.max(entryNow * 0.000001, 0.00000001) : 0.00000001;
+            const shouldShowRecommendedStop = recommendedStopNow > 0 && (
+                currentStopNow <= 0
+                || (isLongSlot && recommendedStopNow > currentStopNow + stopImprovementEpsilon)
+                || (!isLongSlot && recommendedStopNow < currentStopNow - stopImprovementEpsilon)
+            );
             const slotPrimaryTarget = isLongSlot
                 ? entryNow * (1 + 1.5/leverageNow)
                 : entryNow * (1 - 1.5/leverageNow);
-            const activeStopRoi = activeLevel ? Number(activeLevel.stop_roi || flashIntel.stop_roi || 0) : null;
-            const nextStopRoi = nextLevel ? Number(nextLevel.stop_roi || 0) : null;
-            const stopTargetLabel = activeStopRoi !== null
-                ? `+${activeStopRoi.toFixed(0)}%`
-                : (nextStopRoi !== null ? `+${nextStopRoi.toFixed(0)}%` : 'INICIAL');
+            const stopTargetLevel = nextLevel || activeLevel || null;
+            const stopTargetRoi = stopTargetLevel ? Number(stopTargetLevel.stop_roi || 0) : null;
+            const stopTargetLabel = stopTargetLevel
+                ? `${stopTargetLevel.name || 'STOP'} ${stopTargetRoi >= 0 ? '+' : ''}${stopTargetRoi.toFixed(0)}%`
+                : (stopRoiNow !== null ? `${stopRoiNow >= 0 ? '+' : ''}${stopRoiNow.toFixed(0)}%` : 'AGUARDANDO');
+            const nextJourneyLabel = nextLevel
+                ? `${nextLevel.name || 'ALVO'} ${Number(nextLevel.trigger_roi || 0).toFixed(0)}%`
+                : (projectionRoi >= 150 ? 'MOONBAG TRAIL' : 'EMANCIPACAO 150%');
             const tacticalStatus = (() => {
                 if (!isActive) return { label: 'LIVRE', color: 'bg-white/10 text-gray-400', icon: 'radio_button_unchecked' };
                 if (activeLevel?.phase === 'EMANCIPACAO' || flashAction === 'EMANCIPADA') {
@@ -3807,19 +3831,19 @@
                             </div>
                             <div className="flex flex-col gap-0.5 min-w-0 text-center">
                                 <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop Alvo</span>
-                                <span className={`text-[10px] font-black uppercase truncate ${activeStopRoi !== null ? 'text-success' : 'text-white'}`}>
+                                <span className={`text-[10px] font-black uppercase truncate ${stopTargetRoi !== null && stopTargetRoi >= 0 ? 'text-success' : 'text-white'}`}>
                                     {stopTargetLabel}
                                 </span>
                             </div>
                             <div className="flex flex-col gap-0.5 min-w-0 text-right">
                                 <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Próx</span>
                                 <span className="text-[10px] font-black text-white uppercase truncate">
-                                    {nextLevel ? `${nextLevel.name} ${Number(nextLevel.trigger_roi || 0).toFixed(0)}%` : 'MOONBAG'}
+                                    {nextJourneyLabel}
                                 </span>
                             </div>
-                            {recommendedStopNow > 0 && (
+                            {shouldShowRecommendedStop && (
                                 <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-1 mt-0.5">
-                                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Aplicando Stop Flash</span>
+                                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop Flash Sugerido</span>
                                     <span className="text-[10px] font-black text-success font-mono">{recommendedStopLabel}</span>
                                 </div>
                             )}

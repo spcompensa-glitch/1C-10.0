@@ -93,6 +93,23 @@ async def get_banca_history(limit: int = 50):
         logger.error(f"Error in banca history endpoint: {e}")
         return []
 
+@router.get("/bankroll/guardian-report")
+async def get_bankroll_guardian_report():
+    """Relatorio em PT-BR do Guardiao da Banca."""
+    try:
+        from services.agents.bankroll_guardian import bankroll_guardian
+        return await bankroll_guardian.evaluate_bank_health()
+    except Exception as e:
+        logger.error(f"Error in bankroll guardian report: {e}")
+        return {
+            "agent": "Guardiao da Banca",
+            "status": "ERRO",
+            "mode": "INDISPONIVEL",
+            "health_score": 0,
+            "message_ptbr": f"Guardiao da Banca indisponivel: {e}",
+            "reasons": [str(e)]
+        }
+
 @router.get("/stats")
 async def get_stats(current_user: User = Depends(get_current_user)):
     firebase_service, _, _, _, _ = get_services()
@@ -151,6 +168,14 @@ async def nuclear_reset():
         except Exception as e:
             report.append(f"⚠️ Capitão runtime reset parcial: {e}")
         
+        # 2.2. Limpar memoria do Guardiao da Banca
+        try:
+            from services.agents.bankroll_guardian import bankroll_guardian
+            guardian_snapshot = bankroll_guardian.reset_runtime_state()
+            report.append(f"Guardiao da Banca resetado: {guardian_snapshot}")
+        except Exception as e:
+            report.append(f"Guardiao da Banca reset parcial: {e}")
+
         # 3. Persistir estado zerado no Firestore (via firebase_service.update_paper_state)
         try:
             clean_state = {

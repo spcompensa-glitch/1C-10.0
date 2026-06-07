@@ -1473,6 +1473,34 @@ class CaptainAgent(AIOSAgent):
                     await firebase_service.update_signal_outcome(best_signal.get("id"), "CONCENTRATION_BLOCK")
                     return
                 
+            # [V110.810] GUARDIAO DA BANCA: gate preventivo acima do Capitao.
+            # Protege lucro acumulado, suspende pares perdedores e limita exposicao.
+            try:
+                from services.agents.bankroll_guardian import bankroll_guardian
+                guardian_decision = await bankroll_guardian.authorize_new_trade(best_signal)
+                best_signal["bankroll_guardian"] = {
+                    "approved": guardian_decision.get("approved"),
+                    "mode": guardian_decision.get("mode"),
+                    "health_score": guardian_decision.get("health_score"),
+                    "reasons": guardian_decision.get("reasons", []),
+                }
+                if not guardian_decision.get("approved", False):
+                    reason = " | ".join(guardian_decision.get("reasons", []))
+                    logger.warning(f"[GUARDIAO-BANCA] {symbol} bloqueado: {reason}")
+                    await firebase_service.log_event(
+                        "GUARDIAO_BANCA",
+                        f"Entrada bloqueada em {symbol}: {reason}",
+                        "WARNING"
+                    )
+                    await firebase_service.update_signal_outcome(
+                        best_signal.get("id"),
+                        f"BANKROLL_GUARDIAN_BLOCK: {reason}"
+                    )
+                    self.active_tocaias.discard(symbol)
+                    return
+            except Exception as e:
+                logger.error(f"[GUARDIAO-BANCA] Falha ao avaliar {symbol}; seguindo com protecoes existentes: {e}")
+
             # [V110.12.10] ATOMIC SLOT RE-VERIFICATION (Anti-Slot Overwrite)
             # Antes de enviar o sinal para o Bankroll, verificamos se o slot ainda está LIVRE no Firebase.
             # Isso evita que o sinal 'atropelado' substitua uma ordem que acabou de entrar.

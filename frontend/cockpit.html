@@ -3578,9 +3578,24 @@
             const slotPrimaryTarget = Number(emancipationLevel?.price || 0) > 0
                 ? Number(emancipationLevel.price)
                 : (isLongSlot ? entryNow * (1 + 1.5/leverageNow) : entryNow * (1 - 1.5/leverageNow));
-            const stopStateLabel = activeLevel?.name
-                ? `${activeLevel.name} +${Number(activeLevel.stop_roi || flashIntel.stop_roi || 0).toFixed(0)}%`
-                : 'STOP INICIAL';
+            const activeStopRoi = activeLevel ? Number(activeLevel.stop_roi || flashIntel.stop_roi || 0) : null;
+            const nextStopRoi = nextLevel ? Number(nextLevel.stop_roi || 0) : null;
+            const stopTargetLabel = activeStopRoi !== null
+                ? `+${activeStopRoi.toFixed(0)}%`
+                : (nextStopRoi !== null ? `+${nextStopRoi.toFixed(0)}%` : 'INICIAL');
+            const tacticalStatus = (() => {
+                if (!isActive) return { label: 'LIVRE', color: 'bg-white/10 text-gray-400', icon: 'radio_button_unchecked' };
+                if (activeLevel?.phase === 'EMANCIPACAO' || flashAction === 'EMANCIPADA') {
+                    return { label: 'EMANCIPADA', color: 'bg-amber-500 text-black', icon: 'rocket_launch' };
+                }
+                if (activeLevel?.phase === 'MOONBAG') {
+                    return { label: activeLevel.name || 'MOONBAG', color: 'bg-green-500 text-black', icon: 'auto_awesome' };
+                }
+                if (activeLevel?.name) {
+                    return { label: activeLevel.name, color: 'bg-cyan-600 text-white', icon: 'flash_on' };
+                }
+                return { label: 'STOP INICIAL', color: 'bg-blue-600/80 text-white', icon: 'security' };
+            })();
 
             return (
                 <div 
@@ -3647,56 +3662,12 @@
                             )}
                             
                             <div className="flex gap-1.5 items-center">
-                                {intel.is_legacy ? (
-                                    <>
-                                        <IntelIcon type="macro" score={rawIntel.macro || 50} icon="public" label="MAC" />
-                                        <IntelIcon type="micro" score={rawIntel.micro || 50} icon="waves" label="WHL" />
-                                        <IntelIcon type="smc" score={rawIntel.smc || 50} icon="bolt" label="SMC" />
-                                    </>
-                                ) : (
-                                    <>
-                                        <IntelIcon type="micro" score={intel.whale} icon="waves" label="WHL" />
-                                        <IntelIcon type="mola" score={intel.mola} icon="🌀" isEmoji={true} label="MOLA" />
-                                        <IntelIcon type="pivo" score={intel.pivo} icon="🔢" isEmoji={true} label="123" />
-                                        <IntelIcon type="abcd" score={intel.abcd} icon="📐" isEmoji={true} label="ABCD" />
-                                    </>
-                                )}
-                                
-                                {/* [V110.669] STATUS RISCO BADGE - Sincronização com Escadinha */}
+                                {/* [V110.808] Slot status now follows backend projection/Flash, not legacy icon stack */}
                                 {isActive && (
-                                    <div className="ml-1">
-                                        {(() => {
-                                            const status = s.status_risco || 'MONITORANDO';
-                                            let cfg = { label: 'STOP INICIAL', color: 'bg-blue-600/80', icon: 'security' }; 
-                                            
-                                            if (status.includes('RISCO_ZERO')) cfg = { label: 'RISCO ZERO', color: 'bg-green-500', icon: 'verified_user' };
-                                            else if (status.includes('PROFIT_LOCK')) cfg = { label: 'LUCRO TRAVADO', color: 'bg-amber-500', icon: 'lock_person' };
-                                            else if (status.includes('SL_0') || status.includes('SENTINEL')) cfg = { label: 'SENTINELA ATIVO', color: 'bg-cyan-600', icon: 'visibility' };
-                                            else if (status === 'MONITORANDO' || !status) cfg = { label: 'STOP INICIAL', color: 'bg-blue-600/80', icon: 'security' };
-                                            else if (status === 'EMANCIPADO' || status === 'EMANCIPATED') {
-                                                return (
-                                                    <div className="bg-gradient-to-r from-yellow-500 to-amber-400 text-black text-[7px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg border border-yellow-300/50 animate-pulse whitespace-nowrap">
-                                                        <span className="material-icons-round text-[9px]">rocket_launch</span>
-                                                        EMANCIPANDO
-                                                    </div>
-                                                );
-                                            }
-                                            else cfg = { label: status, color: 'bg-gray-600', icon: 'info' };
-
-                                            return (
-                                                <div className={`${cfg.color} text-white text-[7px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg border border-white/10 animate-triumph whitespace-nowrap`}>
-                                                    <span className="material-icons-round text-[9px]">{cfg.icon}</span>
-                                                    {cfg.label}
-                                                </div>
-                                            );
-                                        })()}
+                                    <div className={`${tacticalStatus.color} text-[8px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg border border-white/10 whitespace-nowrap`}>
+                                        <span className="material-icons-round text-[10px]">{tacticalStatus.icon}</span>
+                                        {tacticalStatus.label}
                                     </div>
-                                )}
-
-                                {isActive && nectarSeal && (
-                                    <span className="text-[9px] font-black text-white bg-white/10 border border-white/20 px-2 rounded">
-                                        {nectarSeal.includes('NECTAR') ? '🍯 NECTAR' : '🛡️ SHIELD'}
-                                    </span>
                                 )}
                             </div>
                         </div>
@@ -3720,7 +3691,7 @@
                             </span>
                         </div>
                         <div className="flex flex-col flex-1 items-center border-x border-white/5 px-2">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stop Loss</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stop Atual</span>
                             <span className="text-sm font-black text-secondary font-mono">
                                 ${formatPrice(s.current_stop || s.stop_loss)}
                             </span>
@@ -3734,7 +3705,7 @@
                     </div>
 
                     {isActive && (
-                        <div className="grid grid-cols-3 gap-2 bg-black/20 border border-white/5 rounded-2xl p-2">
+                        <div className="grid grid-cols-4 gap-2 bg-black/20 border border-white/5 rounded-2xl p-2">
                             <div className="flex flex-col gap-0.5 min-w-0">
                                 <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Flash</span>
                                 <span className="text-[10px] font-black text-cyan-300 uppercase truncate">
@@ -3742,21 +3713,29 @@
                                 </span>
                             </div>
                             <div className="flex flex-col gap-0.5 min-w-0 text-center">
-                                <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop</span>
+                                <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop Atual</span>
                                 <span className={`text-[10px] font-black uppercase truncate ${stopRoiNow !== null && stopRoiNow >= 0 ? 'text-success' : 'text-secondary'}`}>
-                                    {stopStateLabel}{stopRoiNow !== null ? ` (${stopRoiNow >= 0 ? '+' : ''}${stopRoiNow.toFixed(0)}%)` : ''}
+                                    {stopRoiNow !== null ? `${stopRoiNow >= 0 ? '+' : ''}${stopRoiNow.toFixed(0)}%` : 'INICIAL'}
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-0.5 min-w-0 text-center">
+                                <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Stop Alvo</span>
+                                <span className={`text-[10px] font-black uppercase truncate ${activeStopRoi !== null ? 'text-success' : 'text-white'}`}>
+                                    {stopTargetLabel}
                                 </span>
                             </div>
                             <div className="flex flex-col gap-0.5 min-w-0 text-right">
-                                <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">
-                                    {recommendedStopNow > 0 ? 'Stop Flash' : 'Próx'}
-                                </span>
+                                <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Próx</span>
                                 <span className="text-[10px] font-black text-white uppercase truncate">
-                                    {recommendedStopNow > 0
-                                        ? recommendedStopLabel
-                                        : (nextLevel ? `${nextLevel.name} ${Number(nextLevel.trigger_roi || 0).toFixed(0)}%` : 'MOONBAG')}
+                                    {nextLevel ? `${nextLevel.name} ${Number(nextLevel.trigger_roi || 0).toFixed(0)}%` : 'MOONBAG'}
                                 </span>
                             </div>
+                            {recommendedStopNow > 0 && (
+                                <div className="col-span-4 flex items-center justify-between border-t border-white/5 pt-1 mt-0.5">
+                                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Aplicando Stop Flash</span>
+                                    <span className="text-[10px] font-black text-success font-mono">{recommendedStopLabel}</span>
+                                </div>
+                            )}
                         </div>
                     )}
 

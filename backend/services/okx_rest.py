@@ -725,6 +725,30 @@ class OKXRest:
             logger.error(f"Error fetching instrument info from OKX fallback for {symbol}: {e}")
             return {}
 
+    async def get_leverage_info(self, symbol: str) -> Dict[str, Any]:
+        """
+        Compatibilidade para relatórios de contrato.
+        A OKX pública nem sempre expõe o limite dinâmico por conta/posição sem auth,
+        então usamos o metadado do instrumento e caímos para 50x de forma explícita.
+        """
+        try:
+            instrument_info = await self.get_instrument_info(symbol)
+            max_leverage = float(
+                instrument_info.get("leverageFilter", {}).get("maxLeverage")
+                or instrument_info.get("maxLvrg")
+                or 50
+            )
+            return {
+                "maxLeverage": max_leverage,
+                "notionalUsd": 0,
+            }
+        except Exception as e:
+            logger.warning(f"Failed to derive leverage info for {symbol}: {e}")
+            return {
+                "maxLeverage": 50,
+                "notionalUsd": 0,
+            }
+
     async def get_detailed_contract_info(self, symbol: str) -> Dict[str, Any]:
         """
         Captura informações detalhadas de contratos para relatórios e análise.

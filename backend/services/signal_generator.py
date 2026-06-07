@@ -551,6 +551,33 @@ class SignalGenerator:
                 
                 sig["indicators"]["cvd_5m"] = round(cvd_5m, 2)
                 sig["indicators"]["cvd"] = round(cvd_total, 2) # Total for the visual meter
+
+                # [V110.805] Radar Contract Intelligence: the signal report must carry
+                # the same OKX instrument metadata used later by Captain/Flash.
+                if not sig.get("contract_info"):
+                    try:
+                        from services.okx_rest import okx_rest_service
+                        contract_info = await asyncio.wait_for(
+                            okx_rest_service.get_detailed_contract_info(symbol),
+                            timeout=2.5
+                        )
+                        details = contract_info.get("contract_details", {})
+                        risk = contract_info.get("risk_analysis", {})
+                        sig["contract_info"] = {
+                            "ctVal": details.get("ctVal", 1.0),
+                            "lotSize": details.get("lotSize", details.get("qtyStep", 1.0)),
+                            "minQty": details.get("minQty", 1.0),
+                            "tickSize": details.get("tickSize", 0.01),
+                            "maxLeverage": details.get("maxLeverage", sig.get("leverage", 50)),
+                            "notionalUsd": details.get("notionalUsd", 0),
+                            "riskImpactPerContract": risk.get("price_impact_per_contract", 0),
+                            "minMarginRequired": risk.get("min_margin_required", 0),
+                            "symbol": contract_info.get("symbol", symbol),
+                            "currentPrice": contract_info.get("current_price", 0),
+                        }
+                        sig["leverage"] = sig.get("leverage") or sig["contract_info"].get("maxLeverage", 50)
+                    except Exception as contract_err:
+                        logger.warning(f"Radar contract enrichment fail for {symbol}: {contract_err}")
                 
                 # [V42.9] Enhanced Context Injection
                 trend_data = self.trend_cache.get(symbol, {})

@@ -95,6 +95,21 @@ class CaptainAgent(AIOSAgent):
         self.last_librarian_sync = 0
         self.last_lateral_at = 0 # [V110.30.2] Cooldown pós-Lateral
         self.prev_btc_adx = 0 # [V110.128] ADX Slope Tracking
+
+    def reset_runtime_state(self) -> Dict[str, Any]:
+        """Limpa travas em memória que não vivem no banco de dados."""
+        snapshot = {
+            "active_tocaias": len(self.active_tocaias),
+            "processing_lock": len(self.processing_lock),
+            "cooldown_registry": len(self.cooldown_registry),
+            "daily_symbol_trades": len(self.daily_symbol_trades),
+        }
+        self.active_tocaias.clear()
+        self.processing_lock.clear()
+        self.cooldown_registry.clear()
+        self.daily_symbol_trades.clear()
+        self.slot_vacancy_tracker = {1: time.time(), 2: time.time(), 3: time.time(), 4: time.time()}
+        return snapshot
         
     async def on_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """AIOS Message Handler for Captain."""
@@ -107,6 +122,111 @@ class CaptainAgent(AIOSAgent):
         return {"status": "error", "message": f"Unknown command: {msg_type}"}
         
         # V9.0 Cycle Diversification: Gerenciado pelo VaultService (não mais local)
+
+    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+        try:
+            if value is None or value == "":
+                return default
+            return float(value)
+        except Exception:
+            return default
+
+    async def _evaluate_contract_quality(self, signal: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+        """
+        Avalia se o contrato OKX é adequado para banca pequena e stops rápidos.
+        A saída alimenta o quality gate do Capitão e o relatório do Radar.
+        """
+        contract_info = signal.get("contract_info") or signal.get("contract") or {}
+
+        if not contract_info:
+            try:
+                contract_info = await asyncio.wait_for(
+                    okx_rest_service.get_detailed_contract_info(symbol),
+                    timeout=2.5
+                )
+                details = contract_info.get("contract_details", {})
+                risk = contract_info.get("risk_analysis", {})
+                contract_info = {
+                    "ctVal": details.get("ctVal", 1.0),
+                    "lotSize": details.get("lotSize", details.get("qtyStep", 1.0)),
+                    "minQty": details.get("minQty", 1.0),
+                    "tickSize": details.get("tickSize", 0.01),
+                    "maxLeverage": details.get("maxLeverage", signal.get("leverage", settings.LEVERAGE)),
+                    "notionalUsd": details.get("notionalUsd", 0),
+                    "riskImpactPerContract": risk.get("price_impact_per_contract", 0),
+                    "minMarginRequired": risk.get("min_margin_required", 0),
+                    "symbol": contract_info.get("symbol", symbol),
+                    "currentPrice": contract_info.get("current_price", signal.get("entry_price_signal", 0)),
+                }
+                signal["contract_info"] = contract_info
+            except Exception as e:
+                logger.warning(f"⚠️ [CONTRACT-GATE] Falha ao obter contrato OKX de {symbol}: {e}")
+                contract_info = {}
+
+        current_price = self._safe_float(
+            contract_info.get("currentPrice") or contract_info.get("current_price") or signal.get("entry_price_signal"),
+            0.0
+        )
+        ct_val = self._safe_float(contract_info.get("ctVal") or contract_info.get("ct_val"), 1.0)
+        lot_size = self._safe_float(contract_info.get("lotSize") or contract_info.get("qtyStep") or contract_info.get("qty_step"), 1.0)
+        min_qty = self._safe_float(contract_info.get("minQty") or contract_info.get("min_qty"), lot_size or 1.0)
+        tick_size = self._safe_float(contract_info.get("tickSize") or contract_info.get("tick_size"), 0.01)
+        max_leverage = self._safe_float(contract_info.get("maxLeverage") or contract_info.get("max_leverage"), settings.LEVERAGE)
+        target_leverage = self._safe_float(signal.get("leverage"), settings.LEVERAGE)
+
+        tick_roi = (tick_size / current_price) * target_leverage * 100 if current_price > 0 else 0.0
+        min_order_margin = (current_price * ct_val * max(min_qty, lot_size, 1e-12)) / max(max_leverage, 1.0) if current_price > 0 else 0.0
+        balance = self._safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
+        margin_ratio = (min_order_margin / balance) if balance > 0 else 0.0
+
+        penalty = 0.0
+        block = False
+        reasons = []
+
+        if max_leverage < target_leverage:
+            penalty += 20.0
+            reasons.append(f"maxLeverage {max_leverage:.0f}x < alvo {target_leverage:.0f}x")
+
+        if tick_roi >= 8.0:
+            block = True
+            penalty += 25.0
+            reasons.append(f"tick grosso ({tick_roi:.2f}% ROI por tick)")
+        elif tick_roi >= 3.0:
+            penalty += 8.0
+            reasons.append(f"tick sensível ({tick_roi:.2f}% ROI por tick)")
+
+        if min_order_margin >= balance * 0.30:
+            block = True
+            penalty += 25.0
+            reasons.append(f"margem mínima ${min_order_margin:.2f} pesa {margin_ratio*100:.1f}% da banca")
+        elif min_order_margin >= balance * 0.15:
+            penalty += 8.0
+            reasons.append(f"margem mínima ${min_order_margin:.2f} pesa {margin_ratio*100:.1f}% da banca")
+
+        score = max(0.0, 100.0 - penalty)
+        if not reasons:
+            reasons.append("Contrato OKX compatível com banca, tick e stops")
+
+        return {
+            "score": round(score, 1),
+            "penalty": round(penalty, 1),
+            "block": block,
+            "reasons": reasons,
+            "contract_info": contract_info,
+            "metrics": {
+                "current_price": current_price,
+                "ctVal": ct_val,
+                "lotSize": lot_size,
+                "minQty": min_qty,
+                "tickSize": tick_size,
+                "maxLeverage": max_leverage,
+                "targetLeverage": target_leverage,
+                "tickRoi": round(tick_roi, 4),
+                "minOrderMargin": round(min_order_margin, 6),
+                "balance": balance,
+                "marginRatio": round(margin_ratio, 4),
+            }
+        }
     
     async def _get_fleet_consensus(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -259,6 +379,19 @@ class CaptainAgent(AIOSAgent):
                 approved = False
                 reasons.append(f"🐳🚫 FLEET DIVERGENCE: Whale {whale_bias} against SHORT")
                 logger.warning(f"🛡️ [V110.137] {symbol} SHORT BLOCKED by Whale {whale_bias}")
+
+            contract_quality = await self._evaluate_contract_quality(signal, symbol)
+            contract_penalty = float(contract_quality.get("penalty") or 0.0)
+            if contract_quality.get("block"):
+                approved = False
+                reasons.append("📐🚫 CONTRACT_GATE: " + "; ".join(contract_quality.get("reasons", [])))
+                logger.warning(f"📐 [CONTRACT-GATE] {symbol} {side} bloqueado: {contract_quality.get('reasons')}")
+            elif contract_penalty > 0:
+                unified_score -= contract_penalty
+                logger.warning(
+                    f"📐 [CONTRACT-PENALTY] {symbol} {side} -{contract_penalty:.1f} pts | "
+                    + "; ".join(contract_quality.get("reasons", []))
+                )
                 
             # [V110.27.0] ABSOLUTE CONVERGENCE SHIELD: Minimum Confidence
             # Quality gate: keep PAPER and live signal selection aligned so weak radar
@@ -308,6 +441,8 @@ class CaptainAgent(AIOSAgent):
                             "suggested_side": whale_data.get("suggested_side"),
                             "nectar_seal": nectar_seal,
                             "dna": lib_dna,
+                            "contract_info": contract_quality.get("contract_info", {}),
+                            "contract_quality": contract_quality,
                             "pain_points": sentiment.get("data", {}).get("pain_points", {}) if sentiment else {}
                         }
                     }
@@ -337,6 +472,8 @@ class CaptainAgent(AIOSAgent):
                     "suggested_side": whale_data.get("suggested_side"),
                     "nectar_seal": nectar_seal, # [V2.0] Selo do Bibliotecário para a UI
                     "dna": lib_dna, # Objeto completo para o Front
+                    "contract_info": contract_quality.get("contract_info", {}),
+                    "contract_quality": contract_quality,
                     "pain_points": sentiment.get("data", {}).get("pain_points", {}) if sentiment else {}
                 }
             }
@@ -1329,7 +1466,7 @@ class CaptainAgent(AIOSAgent):
             if time.time() - sym_trades.get('first_trade_at', 0) > 86400:
                 sym_trades = {'count': 0, 'first_trade_at': time.time()}
             if sym_trades['count'] >= 3:
-                if getattr(settings, "PAPER_MODE", False):
+                if getattr(settings, "OKX_EXECUTION_MODE", "").upper() == "PAPER":
                     logger.info(f"💎 [PAPER-BYPASS] Ignorando ANTI-CONCENTRATION (3 trades/dia) para {symbol} em modo simulado.")
                 else:
                     logger.info(f"🚫 [ANTI-CONCENTRATION] {symbol} bloqueado (limite 3 trades/dia).")

@@ -136,8 +136,20 @@ async def nuclear_reset():
         
         # 2. Limpar pending_slots do BankrollManager
         old_pending = len(bankroll_manager.pending_slots)
+        old_recent = len(getattr(bankroll_manager, "recent_openings", {}))
         bankroll_manager.pending_slots.clear()
+        if hasattr(bankroll_manager, "recent_openings"):
+            bankroll_manager.recent_openings.clear()
         report.append(f"✅ Pending slots limpos: {old_pending} locks removidos.")
+        report.append(f"✅ Recent openings limpos: {old_recent} cooldowns removidos.")
+
+        # 2.1. Limpar travas voláteis do Capitão
+        try:
+            from services.agents.captain import captain_agent
+            captain_snapshot = captain_agent.reset_runtime_state()
+            report.append(f"✅ Capitão destravado: {captain_snapshot}")
+        except Exception as e:
+            report.append(f"⚠️ Capitão runtime reset parcial: {e}")
         
         # 3. Persistir estado zerado no Firestore (via firebase_service.update_paper_state)
         try:
@@ -178,6 +190,28 @@ async def toggle_sniper(payload: dict):
     enabled = payload.get("active", True)
     success = await vault_service.set_sniper_mode(enabled)
     return {"status": "success" if success else "error"}
+
+@router.get("/system/captain-runtime", dependencies=[Depends(verify_api_key)])
+async def captain_runtime_status():
+    """Diagnóstico rápido das travas em memória que podem deixar slots vazios."""
+    _, okx_rest_service, _, bankroll_manager, _ = get_services()
+    from services.agents.captain import captain_agent
+    return {
+        "is_running": captain_agent.is_running,
+        "active_tocaias_count": len(captain_agent.active_tocaias),
+        "active_tocaias": list(captain_agent.active_tocaias)[:20],
+        "processing_lock_count": len(captain_agent.processing_lock),
+        "processing_lock": list(captain_agent.processing_lock)[:20],
+        "cooldown_registry_count": len(captain_agent.cooldown_registry),
+        "daily_symbol_trades_count": len(captain_agent.daily_symbol_trades),
+        "daily_symbol_trades": captain_agent.daily_symbol_trades,
+        "pending_slots_count": len(bankroll_manager.pending_slots),
+        "recent_openings_count": len(getattr(bankroll_manager, "recent_openings", {})),
+        "paper_positions": len(okx_rest_service.paper_positions),
+        "paper_moonbags": len(okx_rest_service.paper_moonbags),
+        "execution_mode": okx_rest_service.execution_mode,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
 
 @router.get("/system/settings")
 async def get_system_settings():

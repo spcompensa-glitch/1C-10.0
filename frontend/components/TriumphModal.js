@@ -26,6 +26,21 @@
         const isHighSuccess = finalRoi >= 100;
         const isAstronomical = finalRoi >= 500;
         const isProfit = pnlUsd >= 0;
+        const contractQuality = selectedHistoryLog.contract_quality || selectedHistoryLog.fleet_intel?.contract_quality || selectedHistoryLog.data?.contract_quality || {};
+        const contractInfo = selectedHistoryLog.contract_info || selectedHistoryLog.contract || selectedHistoryLog.fleet_intel?.contract_info || contractQuality.contract_info || selectedHistoryLog.data?.contract_info || {};
+        const contractCtVal = Number(contractInfo.ctVal || contractInfo.ct_val || 0);
+        const contractTick = Number(contractInfo.tickSize || contractInfo.tick_size || 0);
+        const contractLot = Number(contractInfo.lotSize || contractInfo.qtyStep || contractInfo.qty_step || 0);
+        const contractMinQty = Number(contractInfo.minQty || contractInfo.min_qty || 0);
+        const contractMaxLev = Number(contractInfo.maxLeverage || contractInfo.max_leverage || selectedHistoryLog.leverage || 50);
+        const contractRiskImpact = Number(contractInfo.riskImpactPerContract || contractInfo.price_impact_per_contract || 0);
+        const contractMinMargin = Number(contractInfo.minMarginRequired || contractInfo.min_margin_required || 0);
+        const contractCurrentPrice = Number(contractInfo.currentPrice || contractInfo.current_price || selectedHistoryLog.entry_price_signal || 0);
+        const contractQualityScore = Number(contractQuality.score || 0);
+        const contractQualityReasons = Array.isArray(contractQuality.reasons) ? contractQuality.reasons : [];
+        const hasContractInfo = selectedHistoryLog.is_signal && (
+            contractCtVal > 0 || contractTick > 0 || contractLot > 0 || contractMinQty > 0
+        );
 
         // Fetch dinâmico do estudo de mercado (Opção A)
         React.useEffect(() => {
@@ -474,6 +489,77 @@
                                 )}
                             </div>
                         </div>
+
+                        {hasContractInfo && (
+                            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-3">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="material-icons-round text-cyan-400 text-sm">precision_manufacturing</span>
+                                    Contrato OKX & Matemática do Preço
+                                    {contractQualityScore > 0 && (
+                                        <span className={`ml-auto text-[8px] font-mono font-black ${contractQualityScore >= 80 ? 'text-green-400' : contractQualityScore >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                                            Q {contractQualityScore.toFixed(0)}
+                                        </span>
+                                    )}
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                        <span className="text-[8px] font-black text-cyan-400 uppercase tracking-widest">Tamanho do Contrato</span>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-[9px] text-gray-400 font-bold">ctVal:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{contractCtVal || '---'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[9px] text-gray-400 font-bold">Lote/Step:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{contractLot || '---'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                        <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Precisão</span>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-[9px] text-gray-400 font-bold">Tick:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{contractTick || '---'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[9px] text-gray-400 font-bold">Min Qty:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{contractMinQty || '---'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                        <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">Alavancagem</span>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-[9px] text-gray-400 font-bold">Máx OKX:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{contractMaxLev || 50}x</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[9px] text-gray-400 font-bold">Preço Ref:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">${contractCurrentPrice ? contractCurrentPrice.toFixed(6) : '---'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1">
+                                        <span className="text-[8px] font-black text-green-400 uppercase tracking-widest">Risco por Contrato</span>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-[9px] text-gray-400 font-bold">Impacto:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">${contractRiskImpact ? contractRiskImpact.toFixed(6) : '---'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[9px] text-gray-400 font-bold">Margem mín:</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">${contractMinMargin ? contractMinMargin.toFixed(6) : '---'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-black/60 rounded-xl border border-white/5">
+                                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Fórmula operacional</span>
+                                    <p className="text-[10px] font-mono text-gray-300 leading-relaxed">
+                                        ROI = variação do preço x alavancagem. Com {contractMaxLev || 50}x, 30% ROI exige cerca de {(30 / ((contractMaxLev || 50) * 100) * 100).toFixed(3)}% de movimento real no preço; 150% ROI exige cerca de {(150 / ((contractMaxLev || 50) * 100) * 100).toFixed(3)}%.
+                                    </p>
+                                    {contractQualityReasons.length > 0 && (
+                                        <p className="text-[9px] font-mono text-gray-500 leading-relaxed mt-2">
+                                            Capitão: {contractQualityReasons.join(' | ')}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-center">
                             <span className="text-[8px] font-bold text-gray-600 uppercase tracking-[0.2em]">{selectedHistoryLog.is_signal ? `Sinal Capturado às: ${selectedHistoryLog.timestamp ? new Date(selectedHistoryLog.timestamp).toLocaleString('pt-BR') : "Agora"}` : `Encerramento da Missão: ${selectedHistoryLog.close_time ? new Date(selectedHistoryLog.close_time).toLocaleString('pt-BR') : "LOG Sincronizado"}`}</span>

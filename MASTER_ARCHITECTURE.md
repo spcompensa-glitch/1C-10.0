@@ -1,9 +1,24 @@
-# MASTER_ARCHITECTURE.md — V110.804 "Captain Quality Gate & Cockpit Stop-Line Stability"
+# MASTER_ARCHITECTURE.md — V110.806 "Captain Runtime Reset & Anti-Concentration Paper Fix"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.804)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.804)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.806)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.806)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.806: CAPTAIN RUNTIME RESET & ANTI-CONCENTRATION PAPER FIX [JUN 07]**
+    - **Diagnóstico Railway:** Logs mostraram que o Capitão não estava parado; ele processava sinais, mas `LINKUSDT` foi bloqueado por `ANTI-CONCENTRATION` após reset porque `daily_symbol_trades` ficava na RAM.
+    - **Reset Nuclear Completo:** `/api/system/nuclear-reset` e o reset do Admin passam a limpar `captain_agent.active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`, `slot_vacancy_tracker`, `bankroll_manager.pending_slots` e `recent_openings`.
+    - **PAPER Anti-Concentration Fix:** a trava de 3 trades/dia agora reconhece corretamente `OKX_EXECUTION_MODE == "PAPER"` em vez de depender da flag inexistente `PAPER_MODE`.
+    - **Diagnóstico Runtime:** nova rota protegida `/api/system/captain-runtime` expõe contadores de tocaias, locks, cooldowns, histórico diário, posições paper e modo de execução.
+    - **OKX Leverage Info:** `OKXRest.get_leverage_info()` foi adicionado para remover warnings de contrato e manter fallback explícito de `50x`.
+    - **Validação:** `compileall` passou em Capitão, rotas system/admin, OKX REST e SignalGenerator; `tests/test_order_projection_service.py` passou com 3/3 testes.
+
+*   **V110.805: RADAR CONTRACT INTELLIGENCE & CAPTAIN CONTRACT GATE [JUN 07]**
+    - **Contrato OKX no Radar:** `_sync_radar_rtdb()` passa a enriquecer sinais ativos com `contract_info` quando o payload ainda não traz metadados de instrumento: `ctVal`, `lotSize/qtyStep`, `minQty`, `tickSize`, `maxLeverage`, preço de referência, margem mínima e impacto por contrato.
+    - **Relatório do Sinal com Matemática do Preço:** `TriumphModal.js` exibe o bloco `Contrato OKX & Matemática do Preço`, mostrando como o par converte variação real de preço em ROI alavancado e qual precisão o Flash/Capitão terão para stops e alvos.
+    - **Captain Contract Gate:** `CaptainAgent` avalia a qualidade do contrato antes do quality gate final, penalizando ou bloqueando sinais cujo contrato seja ruim para banca pequena, `50x`, tick size ou margem mínima. O resultado volta no `fleet_intel.contract_quality`.
+    - **Fonte Única do Fluxo:** o mesmo metadado de contrato passa a acompanhar `Radar → Capitão → Flash`, evitando decisões sem contexto de preço real do par.
+    - **Validação:** `compileall` passou em `captain.py` e `signal_generator.py`; validação frontend confirmou chaves balanceadas, com alerta heurístico legado do script.
 
 *   **V110.804: CAPTAIN QUALITY GATE & COCKPIT STOP-LINE STABILITY [JUN 07]**
     - **Capitão com leitura real de slots:** `CaptainAgent` deixa de consultar o método inexistente `get_user_slots()` e passa a usar `database_service.get_active_slots()`, contando como ocupado somente slot com `symbol`, `entry_price` e `qty` válidos.
@@ -365,7 +380,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.804)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.806)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
@@ -384,7 +399,7 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.804)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.806)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -401,7 +416,7 @@
   - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
   - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
-- **CaptainAgent:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação e não permite que o modo PAPER aprove sinais bloqueados artificialmente.
+- **CaptainAgent:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo.
 - **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
@@ -429,7 +444,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.804)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.806)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -455,7 +470,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.804)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.806)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -466,8 +481,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
     *   `TakeoffModal.js` & `DeepAnalysisModal.js`: checklist e auditoria dos ativos.
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
 4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
+5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.804) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão e renderização estável do Cockpit.*
+*Documento atualizado em: 2026-06-07 (V110.806) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Radar Contract Intelligence, reset de runtime do Capitão e renderização estável do Cockpit.*

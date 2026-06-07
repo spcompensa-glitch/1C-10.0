@@ -1,9 +1,24 @@
-# MASTER_ARCHITECTURE.md — V110.806 "Captain Runtime Reset & Anti-Concentration Paper Fix"
+# MASTER_ARCHITECTURE.md — V110.809 "Slot Card Flash Telemetry & Emancipation Target Math"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.806)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.806)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.809)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.809)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.809: SLOT EMANCIPATION TARGET MATH FIX [JUN 07]**
+    - **Card com alvo correto de 150% ROI:** `cockpit.html` deixa de usar o preço do nível de projeção como alvo visual de Emancipação quando esse nível representa stop protegido. O card calcula o gatilho visual de 150% diretamente por `entry * (1 + 1.5/leverage)` para LONG e `entry * (1 - 1.5/leverage)` para SHORT.
+    - **Confirmação matemática:** auditoria manual nos slots ativos confirmou que o ROI backend e o ROI recalculado com `50x` batem exatamente para LONG/SHORT. Contratos OKX (`tickSize`, `ctVal`, `lotSize`, `minQty`, `maxLeverage`) seguem sendo a fonte de precisão para execução, margem, quantidade e PnL.
+    - **Validação:** Babel standalone transformou os 7 scripts `text/babel` do Cockpit sem erro.
+
+*   **V110.808: SLOT CARD FLASH TELEMETRY CLEANUP [JUN 07]**
+    - **Card operacional e sem duplicidade:** removida a pilha de ícones legados (`public`, baleia, `bolt`, `info`) dos slots. O badge tático passa a seguir `projection.active_level` e `projection.flash`, não `status_risco` cru.
+    - **Separação de estado:** o card distingue `Stop Atual`, `Stop Alvo`, `Próx` e `Aplicando Stop Flash`, evitando misturar stop já aplicado com stop recomendado pelo Flash.
+    - **Leitura do Flash:** slots passam a exibir `Flash`, ROI do stop atual e próximo gatilho da Escadinha/Moonbag com base no payload oficial do backend.
+
+*   **V110.807: FLASH STATE ON SLOT CARDS [JUN 07]**
+    - **Telemetria do Flash no Cockpit:** cards de slots ativos passam a renderizar `projection.flash.last_action`, `projection.recommended_stop`, `projection.active_level` e próximo nível da escadinha.
+    - **Rótulo de alvo corrigido:** o antigo rótulo genérico `Target` vira `Emancipação 150%`, deixando claro que o slot ainda está na primeira jornada antes de virar Moonbag.
+    - **Backend como SSOT:** o frontend permanece render-only para estado operacional; cálculos locais são limitados a formatação visual e fallback seguro.
 
 *   **V110.806: CAPTAIN RUNTIME RESET & ANTI-CONCENTRATION PAPER FIX [JUN 07]**
     - **Diagnóstico Railway:** Logs mostraram que o Capitão não estava parado; ele processava sinais, mas `LINKUSDT` foi bloqueado por `ANTI-CONCENTRATION` após reset porque `daily_symbol_trades` ficava na RAM.
@@ -380,26 +395,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.806)
-
-### 1. Camada de Dados (Persistência)
-- **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
-- **In-Memory Cache:** `paper_positions` + `slots_cache` para latência ultra-baixa no path crítico de execução.
-- **Espelho Reativo (Opcional):** Firebase RTDB — broadcast 1Hz para o Cockpit; desativável sem downtime (fallback transparente para Postgres via `SovereignService`).
-
-### 2. Camada de Comunicação (Real-time)
-- **WebSocket Gateway:** FastAPI nativo em `/ws/cockpit` (porta `8085`) — broadcast de sinais, pulso de mercado e estado de slot.
-- **N8N DAG Orchestrator:** ciclo de 5min, 4 paths paralelos (1 por slot físico 1-4), Node Telegram para alertas HTTP REST.
-- **Hermes Broker:** gRPC HTTP/2 async na porta `50051` (tenancy) + cliente MQTT HiveMQ (`broker.hivemq.com`) com QoS 2.
-- **Telegram Native:** comando `/banca` com blindagem GUARDIAN_PROMPT.md sob `HERMES_GUARDIAN=1`.
-
-*   **V110.705: CALIBRAÇÃO DE MARGEM PARA BANCA PEQUENA & CONTRATENDÊNCIA ADAPTATIVA [JUN 03]**
-    - **Margem Mínima para Bancas Pequenas**: Garantia de margem de no mínimo $3.00 USD por slot quando a banca estiver abaixo de $50.00 USD (em vez de usar 10% rígido que resultaria em valores nulos de contratos na OKX).
-    - **Flexibilização de Contratendência**: Sinais qualificados em altcoins descorrelacionadas (`is_decorrelated`) ou com Score de Elite (>= 95) agora têm bypass ativo para operar em contratendência, mesmo em momentos de queda violenta do BTC (variação de 15m >= 0.8%).
-
----
-
-## 🏗️ ARQUITETURA DE SISTEMA (V110.806)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.809)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -444,7 +440,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.806)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.809)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -470,7 +466,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.806)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.809)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -482,8 +478,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
 4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
+6.  **Slot Cards Operacionais (V110.809):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo`, próximo gatilho e `Aplicando Stop Flash` quando `recommended_stop` existir. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level`/`projection.flash`.
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.806) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Radar Contract Intelligence, reset de runtime do Capitão e renderização estável do Cockpit.*
+*Documento atualizado em: 2026-06-07 (V110.809) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e renderização estável do Cockpit.*

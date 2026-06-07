@@ -865,8 +865,8 @@
                             <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Patrimônio Líquido</h2>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-black text-white font-mono">${liveEquity.toFixed(2)}</span>
-                                <span className={`text-xs font-bold ${liveTotalPnL >= 0 ? 'text-success' : 'text-orange-400'}`}>
-                                    {liveTotalPnL >= 0 ? '+' : ''}{liveTotalPnL.toFixed(2)}
+                                <span className={`text-xs font-bold ${liveTotalProfit >= 0 ? 'text-success' : 'text-orange-400'}`}>
+                                    {liveTotalProfit >= 0 ? '+' : ''}{liveTotalProfit.toFixed(2)}
                                 </span>
                             </div>
                         </div>
@@ -3354,6 +3354,15 @@
             const side = moonbag.side === 'Buy' ? 'LONG' : 'SHORT';
             const flashAction = moonbag.projection?.flash?.last_action || moonbag.flash_last_action || 'MONITORANDO';
             const flashStopRoi = moonbag.projection?.flash?.stop_roi || moonbag.flash_last_stop_roi;
+            const moonbagPnlUsd = (() => {
+                const projected = Number(moonbag.projection?.pnl_usd);
+                if (Number.isFinite(projected)) return projected;
+                const direct = Number(moonbag.pnl_usd ?? moonbag.pnl);
+                if (Number.isFinite(direct)) return direct;
+                const margin = Number(moonbag.projection?.entry_margin ?? moonbag.entry_margin ?? moonbag.margin ?? 0);
+                const fallbackRoi = Number(moonbag.projection?.roi_percent ?? moonbag.pnl_percent ?? 0);
+                return Number.isFinite(margin) && margin > 0 ? (fallbackRoi / 100) * margin : 0;
+            })();
             
             const tSym = symbol + 'USDT';
             const livePrice = tickers && tickers[tSym] ? Number(tickers[tSym]) : 0;
@@ -3472,7 +3481,7 @@
                                     {roi >= 0 ? '+' : ''}{roi.toFixed(1)}%
                                 </span>
                                 <div className={`text-[11px] font-black font-mono mt-0.5 ${roi >= 0 ? 'text-white/90' : 'text-orange-400'}`}>
-                                    {roi >= 0 ? '+' : '-'}${Math.abs((roi / 100) * (moonbag.entry_margin || moonbag.margin || 10)).toFixed(2)}
+                                    {moonbagPnlUsd >= 0 ? '+' : '-'}${Math.abs(moonbagPnlUsd).toFixed(2)}
                                 </div>
                             </div>
                         </div>
@@ -5568,58 +5577,65 @@
 
             // [V24.2] Live Equity Calculation (Tactical + Vault)
             const liveTotalPnL = useMemo(() => {
+                const resolveBackendPnlUsd = (position) => {
+                    const projected = Number(position?.projection?.pnl_usd);
+                    if (Number.isFinite(projected)) return projected;
+
+                    const direct = Number(position?.pnl_usd ?? position?.pnl);
+                    if (Number.isFinite(direct)) return direct;
+
+                    return null;
+                };
+
+                const fallbackPositionPnl = (position) => {
+                    const cleanSymbol = (position.symbol || '').replace('.P', '').replace('.p', '').trim();
+                    const price = tickers[cleanSymbol];
+                    const entry = Number(position.entry_price || 0);
+                    const leverage = Number(position.leverage || 50);
+                    const margin = Number(position.projection?.entry_margin ?? position.entry_margin ?? position.margin ?? 0);
+
+                    if (margin <= 0) return 0;
+
+                    if (price && price > 0 && entry > 0) {
+                        const isLong = position.side === 'Buy' || position.side === 'LONG';
+                        const pnlPct = isLong ? (price - entry) / entry : (entry - price) / entry;
+                        return pnlPct * leverage * margin;
+                    }
+
+                    const roi = Number(position.projection?.roi_percent ?? position.pnl_percent ?? position.roi_percent ?? 0);
+                    return (roi / 100) * margin;
+                };
+
                 // Tactical Slots PnL
                 const sPnL = slots.reduce((acc, s) => {
                     if (!s || !s.symbol) return acc;
-                    const cleanSymbol = (s.symbol || '').replace('.P', '').replace('.p', '').trim();
-                    const price = tickers[cleanSymbol];
-                    const entry = Number(s.entry_price || 0);
-                    const leverage = s.leverage || 50;
-                    const margin = Number(s.entry_margin || s.margin || 10);
-
-                    let pnlPct = 0;
-                    if (price && price > 0 && entry > 0) {
-                        pnlPct = s.side === 'Buy' || s.side === 'LONG'
-                            ? (price - entry) / entry
-                            : (entry - price) / entry;
-                    } else {
-                        // Fallback: s.pnl_percent já está alavancado em %. Dividimos por 100 e pela alavancagem para obter a variação nominal.
-                        pnlPct = (Number(s.pnl_percent || 0) / 100) / leverage;
-                    }
-
-                    return acc + (pnlPct * leverage * margin);
+                    const backendPnl = resolveBackendPnlUsd(s);
+                    return acc + (backendPnl !== null ? backendPnl : fallbackPositionPnl(s));
                 }, 0);
 
                 // Moonbag Vault PnL
                 const mPnL = moonbags.reduce((acc, mb) => {
                     if (!mb || !mb.symbol) return acc;
-                    const cleanSymbol = (mb.symbol || '').replace('.P', '').replace('.p', '').trim();
-                    const price = tickers[cleanSymbol];
-                    const entry = Number(mb.entry_price || 0);
-                    const leverage = mb.leverage || 50;
-                    const margin = Number(mb.entry_margin || mb.margin || 10);
-
-                    let pnlPct = 0;
-                    if (price && price > 0 && entry > 0) {
-                        pnlPct = mb.side === 'Buy' || mb.side === 'LONG'
-                            ? (price - entry) / entry
-                            : (entry - price) / entry;
-                    } else {
-                        pnlPct = (Number(mb.pnl_percent || 0) / 100) / leverage;
-                    }
-
-                    return acc + (pnlPct * leverage * margin);
+                    const backendPnl = resolveBackendPnlUsd(mb);
+                    return acc + (backendPnl !== null ? backendPnl : fallbackPositionPnl(mb));
                 }, 0);
 
                 return sPnL + mPnL;
             }, [slots, moonbags, tickers]);
 
             const liveCycleProfit = (vault.cycle_profit || 0) + liveTotalPnL;
-            const liveTotalProfit = (banca.lucro_total_acumulado || 0) + liveTotalPnL;
+            const guardianEquity = Number(guardianReport?.equity);
+            const guardianSessionProfit = Number(guardianReport?.session_profit);
+            const hasGuardianEquity = Number.isFinite(guardianEquity) && guardianEquity > 0;
+            const liveTotalProfit = Number.isFinite(guardianSessionProfit)
+                ? guardianSessionProfit
+                : (banca.lucro_total_acumulado || 0) + liveTotalPnL;
             // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX
             const isRealMode = banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0;
             const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 10));
-            const liveEquity = isRealMode ? (banca.saldo_real_okx || banca.saldo_total) : (baseEquity + liveTotalPnL);
+            const liveEquity = hasGuardianEquity
+                ? guardianEquity
+                : (isRealMode ? (banca.saldo_real_okx || banca.saldo_total) : (baseEquity + liveTotalPnL));
 
             // Map Best Signals
             const signalsArray = Array.isArray(radarSignals) ? radarSignals : [];

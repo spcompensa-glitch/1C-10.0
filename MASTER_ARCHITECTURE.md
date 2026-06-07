@@ -1,9 +1,17 @@
-# MASTER_ARCHITECTURE.md — V110.803 "Backend SSOT de Stops, Projeção de Ordem & Flash Principal"
+# MASTER_ARCHITECTURE.md — V110.804 "Captain Quality Gate & Cockpit Stop-Line Stability"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.803)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.803)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.804)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.804)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.804: CAPTAIN QUALITY GATE & COCKPIT STOP-LINE STABILITY [JUN 07]**
+    - **Capitão com leitura real de slots:** `CaptainAgent` deixa de consultar o método inexistente `get_user_slots()` e passa a usar `database_service.get_active_slots()`, contando como ocupado somente slot com `symbol`, `entry_price` e `qty` válidos.
+    - **Sem bypass artificial no PAPER:** o modo simulado não força mais `approved=True` nem infla a confiança para 88%. Sinais bloqueados pelo Fleet/quality gate permanecem bloqueados também em PAPER, preservando qualidade antes de ocupar slots.
+    - **Quality Gate mais seletivo:** threshold operacional do Capitão sobe para 45% com dois ou mais slots livres e 50% quando a ocupação aumenta, reduzindo entradas medianas vindas do Radar.
+    - **Slots vazios fiéis na UI:** `cockpit.html` deixa de marcar slots vazios como `BLITZ 30M` por ID fixo; cards sem ordem exibem `SLOT N` e o contador mostra a ocupação real (`N/4 ACTIVE`).
+    - **Linhas de stop estáveis no gráfico:** o Cockpit passa a assinar a combinação de símbolo, entrada, stop, alvo, lado e `projection.levels` antes de recriar price lines, evitando que atualizações de candles/pulso apaguem e redesenhem os stops continuamente.
+    - **Validação:** `compileall` passou em `captain.py`, `trading.py` e `order_projection_service.py`; `tests/test_order_projection_service.py` passou com 3/3 testes.
 
 *   **V110.803: BACKEND SSOT DE STOPS, PROJEÇÃO DE ORDEM & FLASH PRINCIPAL [JUN 06]**
     - **Order Projection Service:** Criação de `backend/services/order_projection_service.py` como fonte única de verdade para ROI, preço de stop, fases da ordem, linhas de gráfico, `tickSize`, `qtyStep`, `ctVal`, margem e PnL estimado.
@@ -357,7 +365,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.803)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.804)
 
 ### 1. Camada de Dados (Persistência)
 - **Primary DB (SSOT):** PostgreSQL no Railway — `slots`, `banca_status`, `paper_engine_state`, `trade_history`, `radar_pulse`, `system_state`.
@@ -376,7 +384,7 @@
 
 ---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.803)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.804)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -393,7 +401,7 @@
   - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
   - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
-- **CaptainAgent:** despachante puro de sinais, consenso 60% (regime ROARING / sinais Blitz), OKX Master Bypass via `OKX_API_KEY_MASTER`, com bypass dinâmico de contratendência violenta para ativos descorrelacionados ou de Score >= 95.
+- **CaptainAgent:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação e não permite que o modo PAPER aprove sinais bloqueados artificialmente.
 - **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
@@ -421,7 +429,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.803)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.804)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -447,7 +455,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.803)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.804)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -457,9 +465,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
     *   `AdminUsersPage.js`: Painel ADM exclusivo para controle de acesso e liberação de usuários ativos.
     *   `TakeoffModal.js` & `DeepAnalysisModal.js`: checklist e auditoria dos ativos.
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
-4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`.
+4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 
 ---
 
-*Documento atualizado em: 2026-06-06 (V110.803) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX e renderização do Cockpit.*
+*Documento atualizado em: 2026-06-07 (V110.804) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão e renderização estável do Cockpit.*

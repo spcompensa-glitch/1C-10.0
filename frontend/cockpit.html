@@ -3495,7 +3495,7 @@
             const cleanSymbol = isActive ? s.symbol.replace('.P', '').replace('.p', '').trim() : null;
             
             // [V110.137] Strategy Identification
-            const isBlitz = s.slot_type === 'BLITZ' || s.slot_type === 'BLITZ_30M' || s.id === 1 || s.id === 2;
+            const isBlitz = isActive && (s.slot_type === 'BLITZ' || s.slot_type === 'BLITZ_30M');
             const isSwing = false; // [V110.511] Legacy Swing Disabled
 
             // Intelligence Data
@@ -3567,7 +3567,7 @@
                     {/* [V110.669] Strategy Badge - Dynamic Injection */}
                     <div className="strategy-badge-elite !rounded-bl-3xl bg-white">
                         <span className="px-1 text-black font-black">
-                            {s.strategy_label || (s.is_spring_strike ? 'BLITZ | SPRING' : 'BLITZ 30M')}
+                            {isActive ? (s.strategy_label || (s.is_spring_strike ? 'BLITZ | SPRING' : 'BLITZ 30M')) : `SLOT ${s.id}`}
                         </span>
                     </div>
 
@@ -3742,6 +3742,7 @@
                 try { return localStorage.getItem('eagle_vision_mode_grid') !== 'simple'; } catch(e) { return true; }
             });
             const priceLinesRef = useRef({ entry: null, sl: null, tp: null });
+            const priceLinesSignatureRef = useRef('');
             const isFirstLoadRef = useRef(true);
             const [tooltip, setTooltip] = useState(null);
             const [telemetry, setTelemetry] = useState({ rsi: null, adx: null, volatility: null, cvd: null });
@@ -4123,6 +4124,23 @@
                     if (!candlestickSeries.current) return;
 
                     try {
+                        const preActiveSlot = slots.find(s => s && s.symbol && normalizeTradeSymbol(s.symbol) === normalizeTradeSymbol(localSymbol));
+                        const preActiveMoon = moonbags && moonbags.find(m => m && m.symbol && normalizeTradeSymbol(m.symbol) === normalizeTradeSymbol(localSymbol));
+                        const preOrder = preActiveMoon || preActiveSlot || focusedAsset || {};
+                        const preProjection = preOrder.projection || {};
+                        const priceLineSignature = JSON.stringify({
+                            symbol: normalizeTradeSymbol(localSymbol),
+                            entry: preOrder.entry_price || preOrder.entry || 0,
+                            stop: preOrder.current_stop || preOrder.stop_loss || preOrder.stopLoss || preOrder.sl || 0,
+                            target: preOrder.target_price || preOrder.t5 || 0,
+                            side: preOrder.side || '',
+                            phase: preProjection.phase || '',
+                            active: preProjection.active_level?.name || '',
+                            levels: (preProjection.levels || []).map(l => [l.name, l.price, l.active])
+                        });
+                        if (priceLinesSignatureRef.current === priceLineSignature) return;
+                        priceLinesSignatureRef.current = priceLineSignature;
+
                         // 1. Cleanup
                         if (priceLinesRef.current.entry) { try { candlestickSeries.current.removePriceLine(priceLinesRef.current.entry); } catch(e){} }
                         if (priceLinesRef.current.sl) { try { candlestickSeries.current.removePriceLine(priceLinesRef.current.sl); } catch(e){} }
@@ -4285,7 +4303,7 @@
                 };
                 updatePriceLines();
                 syncGutter();
-            }, [slots, localSymbol, focusedAsset, historicalData, pulseStatus, moonbags]);
+            }, [slots, localSymbol, focusedAsset, moonbags]);
 
             // [FIX] Chama syncGutter também quando slots ou focusedAsset mudam sem historicalData mudar
             useEffect(() => {
@@ -5091,7 +5109,9 @@
                                         <span className="material-icons-round text-sm">segment</span>
                                         Active Slots
                                     </h3>
-                                    <span className="text-[9px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-widest">4 Blitz</span>
+                                    <span className="text-[9px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-widest">
+                                        {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0 && Number(s.qty || 0) > 0).length}/4 ACTIVE
+                                    </span>
                                 </div>
                                 <div className="flex flex-col gap-2.5">
                                     {slots.filter(s => s && s.id <= 4).map(s => (

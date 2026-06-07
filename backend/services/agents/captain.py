@@ -261,16 +261,19 @@ class CaptainAgent(AIOSAgent):
                 logger.warning(f"🛡️ [V110.137] {symbol} SHORT BLOCKED by Whale {whale_bias}")
                 
             # [V110.27.0] ABSOLUTE CONVERGENCE SHIELD: Minimum Confidence
-            # MONUSDT case was 39.2%. Cutoff 40.0% ensures more opportunities while maintaining quality.
-            # 🎯 OTIMIZAÇÃO: Quando slots vazios > 2, reduz threshold para 35%
+            # Quality gate: keep PAPER and live signal selection aligned so weak radar
+            # candidates do not occupy slots just because the simulator is permissive.
             try:
-                slots = await database_service.get_user_slots()
+                slots = await database_service.get_active_slots()
             except Exception as e:
                 logger.warning(f"⚠️ [CAPTAIN] Não foi possível obter slots: {e}")
                 slots = []
-            occupied_count = sum(1 for s in slots if s.get("symbol"))
+            occupied_count = sum(
+                1 for s in slots
+                if s.get("symbol") and float(s.get("entry_price") or 0) > 0 and float(s.get("qty") or 0) > 0
+            )
             free_slots = 4 - occupied_count
-            required_confidence = 35.0 if free_slots >= 2 else 40.0
+            required_confidence = 45.0 if free_slots >= 2 else 50.0
             
             if unified_score < required_confidence:
                 approved = False
@@ -282,9 +285,34 @@ class CaptainAgent(AIOSAgent):
                 
             from services.okx_rest import okx_rest_service
             if okx_rest_service.execution_mode == "PAPER":
-                approved = True
-                unified_score = max(unified_score, 88.0)
-                logger.info(f"💎 [PAPER-BYPASS] Forçando aprovação e confiança para {symbol} em modo simulado.")
+                if not approved:
+                    return {
+                        "approved": False,
+                        "reason": ", ".join(reasons) if reasons else "Blocked by Fleet",
+                        "unified_confidence": round(unified_score, 1),
+                        "intel": {
+                            "macro_score": macro_score,
+                            "micro_score": micro_score,
+                            "smc_score": smc_score,
+                            "onchain_score": on_chain_score,
+                            "macro": macro_score,
+                            "micro": micro_score,
+                            "smc": smc_score,
+                            "onchain": on_chain_score,
+                            "onchain_summary": on_chain_summary,
+                            "sentiment_score": sent_score,
+                            "whale": whale_data.get("whale_presence", "Neutral"),
+                            "bias": whale_bias,
+                            "trap_risk": trap_risk,
+                            "trap_reason": trap_reason,
+                            "suggested_side": whale_data.get("suggested_side"),
+                            "nectar_seal": nectar_seal,
+                            "dna": lib_dna,
+                            "pain_points": sentiment.get("data", {}).get("pain_points", {}) if sentiment else {}
+                        }
+                    }
+                unified_score = max(unified_score, required_confidence)
+                logger.info(f"[PAPER-QUALITY] {symbol} aprovado em simulacao sem bypass de qualidade.")
                 
             return {
                 "approved": approved,

@@ -3565,7 +3565,6 @@
             const nextLevel = projectionLevels
                 .filter(l => l && Number(l.trigger_roi) > projectionRoi)
                 .sort((a, b) => Number(a.trigger_roi || 0) - Number(b.trigger_roi || 0))[0] || null;
-            const emancipationLevel = projectionLevels.find(l => l && l.phase === 'EMANCIPACAO');
             const leverageNow = Number(s.leverage || 50);
             const isLongSlot = s.side === 'Buy' || s.side === 'LONG';
             const entryNow = Number(s.entry_price || 0);
@@ -3575,9 +3574,9 @@
                 : null;
             const recommendedStopNow = Number(projection.recommended_stop || 0);
             const recommendedStopLabel = recommendedStopNow > 0 ? `$${formatPrice(recommendedStopNow)}` : 'AGUARDANDO';
-            const slotPrimaryTarget = Number(emancipationLevel?.price || 0) > 0
-                ? Number(emancipationLevel.price)
-                : (isLongSlot ? entryNow * (1 + 1.5/leverageNow) : entryNow * (1 - 1.5/leverageNow));
+            const slotPrimaryTarget = isLongSlot
+                ? entryNow * (1 + 1.5/leverageNow)
+                : entryNow * (1 - 1.5/leverageNow);
             const activeStopRoi = activeLevel ? Number(activeLevel.stop_roi || flashIntel.stop_roi || 0) : null;
             const nextStopRoi = nextLevel ? Number(nextLevel.stop_roi || 0) : null;
             const stopTargetLabel = activeStopRoi !== null

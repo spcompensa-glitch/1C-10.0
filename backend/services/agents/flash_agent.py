@@ -90,6 +90,18 @@ class FlashAgent:
         # Último preço conhecido por símbolo (fallback quando WS falha)
         self._last_price_cache = {}  # {symbol: price}
 
+    def _stop_improves(self, side: str, current_stop: float, candidate_stop: float) -> bool:
+        if candidate_stop <= 0:
+            return False
+        if current_stop <= 0:
+            return True
+        return (side == "buy" and candidate_stop > current_stop) or (
+            side == "sell" and candidate_stop < current_stop
+        )
+
+    def _moonbag_hard_lock_roi(self, moon: Dict[str, Any]) -> float:
+        return max(110.0, float(moon.get("flash_last_stop_roi") or 0))
+
     async def start(self):
         if self.is_running:
             return
@@ -218,8 +230,7 @@ class FlashAgent:
         if new_stop_price <= 0:
             return
 
-        stop_improved = (side == "buy" and new_stop_price > current_stop) or \
-                        (side == "sell" and (current_stop == 0 or new_stop_price < current_stop))
+        stop_improved = self._stop_improves(side, current_stop, new_stop_price)
         if not stop_improved:
             return
 
@@ -275,16 +286,9 @@ class FlashAgent:
             phase_hint="MOONBAG",
         )
         roi = float(projection.get("roi_percent") or 0)
-        persisted_stop_roi = float(moon.get("flash_last_stop_roi") or 0)
-        hard_lock_roi = max(110.0, persisted_stop_roi)
+        hard_lock_roi = self._moonbag_hard_lock_roi(moon)
         hard_lock_stop = await self._calc_stop_price(entry_price, hard_lock_roi, side, leverage, symbol)
-        hard_lock_improves = (
-            hard_lock_stop > 0 and (
-                current_stop <= 0
-                or (side == "buy" and hard_lock_stop > current_stop)
-                or (side == "sell" and hard_lock_stop < current_stop)
-            )
-        )
+        hard_lock_improves = self._stop_improves(side, current_stop, hard_lock_stop)
         effective_stop = hard_lock_stop if hard_lock_improves else current_stop
 
         # ⚡ 1. VIOLAÇÃO DE STOP → FECHAR MOONBAG IMEDIATAMENTE
@@ -323,8 +327,7 @@ class FlashAgent:
         if new_stop <= 0:
             return
 
-        stop_improved = (side == "buy" and new_stop > current_stop) or \
-                        (side == "sell" and (current_stop == 0 or new_stop < current_stop))
+        stop_improved = self._stop_improves(side, current_stop, new_stop)
         if not stop_improved:
             return
 
@@ -371,8 +374,7 @@ class FlashAgent:
             return
 
         # Só atualiza se melhorou
-        stop_improved = (side == "buy" and new_stop > current_stop) or \
-                        (side == "sell" and (current_stop == 0 or new_stop < current_stop))
+        stop_improved = self._stop_improves(side, current_stop, new_stop)
         if not stop_improved:
             return
 

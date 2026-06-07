@@ -1,9 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.815 "Moonbag Hard-Lock Guard"
+# MASTER_ARCHITECTURE.md — V110.816 "Flash Stop Invariants"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.815)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.815)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.816)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.816)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.816: FLASH STOP INVARIANTS [JUN 07]**
+    - **Invariante única de stop:** `FlashAgent` centraliza a regra de melhoria de stop em `_stop_improves()`, garantindo a mesma direção lógica para LONG e SHORT em slots, emancipação e moonbags.
+    - **Teste do caso XPL:** novo `tests/test_flash_stop_invariants.py` cobre a moonbag SHORT com stop persistido pior que o hard-lock. O teste confirma que o Flash usa o stop de `+110%` e fecha quando o preço já violou esse piso.
+    - **Garantia de não-regressão:** testes passam a cobrir direção de stop LONG/SHORT, hard-lock mínimo de moonbag e projeção oficial escadinha/emancipação/moonbag.
 
 *   **V110.815: MOONBAG HARD-LOCK GUARD [JUN 07]**
     - **Piso obrigatório de emancipação:** `FlashAgent` passa a impor em toda moonbag um hard-lock mínimo de `+110%` ROI, usando o maior valor entre `flash_last_stop_roi` e `110%`.
@@ -430,7 +435,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.815)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.816)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -441,7 +446,7 @@
 
 ### 3. Camada de Execução (Actor Model)
 - **OrderProjectionService:** fonte única de verdade para ROI, stop price, fase operacional, linhas do gráfico, `tickSize`, `ctVal`, margem e PnL estimado. O frontend não recalcula alvos quando `projection.levels` existe.
-- **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir:
+- **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir. A regra de melhoria/violação de stop é única para LONG/SHORT e coberta por testes de invariantes:
   - **Slots Táticos:** Escadinha oficial (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + Moonbag)
   - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
   - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
@@ -478,7 +483,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.815)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.816)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -504,7 +509,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.815)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.816)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -521,5 +526,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.815) Sincronizado*
+*Documento atualizado em: 2026-06-07 (V110.816) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

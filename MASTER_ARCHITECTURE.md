@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.816 "Flash Stop Invariants"
+# MASTER_ARCHITECTURE.md — V110.817 "Flash Stop Map"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.816)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.816)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.817)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.817)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.817: FLASH STOP MAP [JUN 07]**
+    - **Mapa completo de stops no gráfico:** o Cockpit passa a desenhar todos os `projection.levels` do backend desde a escadinha até a moonbag, sem remover o nível que coincide com o stop atual.
+    - **Design discreto e operacional:** níveis futuros usam linhas finas/pontilhadas e baixa opacidade; níveis já conquistados usam linhas finas sólidas; o nível ativo do Flash recebe cor/espessura de destaque.
+    - **Labels modernos e curtos:** níveis aparecem como `BE`, `PB`, `RZ`, `PL`, `EM`, `WAVE`, `RKT`, `STAR`, `CRN`, `SN`, `GOD` e `MAX`, com o ROI do stop. A linha de stop aplicado fica como `STOP ATUAL`.
+    - **Sem target legado quando há projeção oficial:** ao existir `projection.levels`, o gráfico remove a linha genérica de `TARGET` e mostra apenas o mapa oficial de stops do backend.
 
 *   **V110.816: FLASH STOP INVARIANTS [JUN 07]**
     - **Invariante única de stop:** `FlashAgent` centraliza a regra de melhoria de stop em `_stop_improves()`, garantindo a mesma direção lógica para LONG e SHORT em slots, emancipação e moonbags.
@@ -435,7 +441,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.816)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.817)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -483,7 +489,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.816)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.817)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -509,7 +515,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.816)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.817)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -519,12 +525,12 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
     *   `AdminUsersPage.js`: Painel ADM exclusivo para controle de acesso e liberação de usuários ativos.
     *   `TakeoffModal.js` & `DeepAnalysisModal.js`: checklist e auditoria dos ativos.
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
-4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
+4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar o Mapa Flash completo no gráfico, da escadinha até a moonbag. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
 6.  **Slot Cards Operacionais (V110.814):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo` com nome/ROI do próximo nível, próximo gatilho real da escadinha/moonbag e `Stop Flash Sugerido` apenas quando `recommended_stop` melhora o stop atual. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level`/`projection.flash`.
 7.  **Banca com Guardião (V110.815):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity. O patrimônio líquido usa `guardianReport.equity` quando disponível; cards e totais de slots/moonbags usam `projection.pnl_usd` como fonte oficial de PnL em dólar. O hook de moonbags preserva `projection` REST quando o RTDB chega sem enriquecimento. O relatório também expõe `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl` e `protected_floor` para auditoria.
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.816) Sincronizado*
+*Documento atualizado em: 2026-06-07 (V110.817) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

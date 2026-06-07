@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.814 "Slot Card Tactical Labels"
+# MASTER_ARCHITECTURE.md — V110.815 "Moonbag Hard-Lock Guard"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.814)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.814)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.815)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.815)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.815: MOONBAG HARD-LOCK GUARD [JUN 07]**
+    - **Piso obrigatório de emancipação:** `FlashAgent` passa a impor em toda moonbag um hard-lock mínimo de `+110%` ROI, usando o maior valor entre `flash_last_stop_roi` e `110%`.
+    - **Correção de moonbag antiga:** se uma moonbag existente estiver com stop pior que o piso, o Flash corrige o stop; se o preço já violou o hard-lock, sincroniza o stop no paper e fecha a moonbag por SL.
+    - **Promoção sem perda de trava:** `database_service.promote_to_moonbag()` aceita `emancipation_stop` e grava a moonbag já com o stop de emancipação, em vez de copiar um stop antigo do slot.
+    - **UI protegida contra RTDB antigo:** `useMoonbagsRT` mescla payload RTDB sem `projection` com o último payload REST enriquecido e reduz o polling REST para 15s, evitando `FLASH: MONITORANDO`/`$0.00` quando a API já tem projeção oficial.
 
 *   **V110.814: SLOT CARD TACTICAL LABELS [JUN 07]**
     - **Próximo degrau correto:** cards de slot passam a calcular `Próx` pelo próximo `projection.levels.trigger_roi`, com fallback local apenas se uma ordem legada chegar sem níveis.
@@ -424,7 +430,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.814)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.815)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -454,7 +460,7 @@
 - **Fórmula oficial de ROI:** `((current - entry) / entry) * leverage * 100` para LONG e `((entry - current) / entry) * leverage * 100` para SHORT.
 - **Fórmula oficial de preço do stop:** `entry * (1 + stop_roi / (leverage * 100))` para LONG e `entry * (1 - stop_roi / (leverage * 100))` para SHORT, sempre arredondada por `tickSize` OKX.
 - **Escadinha oficial:** 30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + emancipação.
-- **Moonbag oficial:** 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200%→alvo máximo.
+- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200%→alvo máximo.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 - **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`. Em lucro forte, protege o pico da banca, aumenta o score mínimo e reduz novos slots; em preservação total, pausa novas entradas.
@@ -472,7 +478,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.814)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.815)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -498,7 +504,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.814)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.815)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -511,9 +517,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
 6.  **Slot Cards Operacionais (V110.814):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo` com nome/ROI do próximo nível, próximo gatilho real da escadinha/moonbag e `Stop Flash Sugerido` apenas quando `recommended_stop` melhora o stop atual. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level`/`projection.flash`.
-7.  **Banca com Guardião (V110.813):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity. O patrimônio líquido usa `guardianReport.equity` quando disponível; cards e totais de slots/moonbags usam `projection.pnl_usd` como fonte oficial de PnL em dólar. O relatório também expõe `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl` e `protected_floor` para auditoria.
+7.  **Banca com Guardião (V110.815):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity. O patrimônio líquido usa `guardianReport.equity` quando disponível; cards e totais de slots/moonbags usam `projection.pnl_usd` como fonte oficial de PnL em dólar. O hook de moonbags preserva `projection` REST quando o RTDB chega sem enriquecimento. O relatório também expõe `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl` e `protected_floor` para auditoria.
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.814) Sincronizado*
+*Documento atualizado em: 2026-06-07 (V110.815) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

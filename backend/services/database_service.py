@@ -307,7 +307,7 @@ class DatabaseService:
                 return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
             return None
 
-    async def promote_to_moonbag(self, slot_id: int):
+    async def promote_to_moonbag(self, slot_id: int, emancipation_stop: float = None):
         """[V110.175] EMANCIPAÇÃO: Move slot ativo para tabela Moonbag."""
         slot = await self.get_slot(slot_id)
         if not slot or not slot.get("symbol"):
@@ -324,6 +324,10 @@ class DatabaseService:
                 if existing:
                     logger.warning(f"🛡️ [V110.704] Moonbag {slot['symbol']} com UUID {moon_uuid} já existe no Postgres. Pulando inserção.")
                 else:
+                    current_stop = float(slot.get("current_stop", 0))
+                    if emancipation_stop and float(emancipation_stop) > 0:
+                        current_stop = float(emancipation_stop)
+
                     moon = Moonbag(
                         uuid=moon_uuid,
                         symbol=slot["symbol"],
@@ -331,7 +335,7 @@ class DatabaseService:
                         qty=float(slot.get("qty", 0)),
                         entry_price=float(slot.get("entry_price", 0)),
                         entry_margin=float(slot.get("entry_margin", 0)),
-                        current_stop=float(slot.get("current_stop", 0)),
+                        current_stop=current_stop,
                         initial_stop=float(slot.get("initial_stop", 0)),
                         target_price=float(slot.get("target_price", 0)),
                         leverage=float(slot.get("leverage") or 50.0),

@@ -1614,7 +1614,20 @@
                                     ...data,
                                     id: uuid
                                 }));
-                                setMoonbags(list);
+                                setMoonbags(prev => {
+                                    const previousByKey = new Map((prev || []).map(m => [m.id || m.uuid || m.symbol, m]));
+                                    return list.map(m => {
+                                        const old = previousByKey.get(m.id || m.uuid || m.symbol) || previousByKey.get(m.symbol) || {};
+                                        return {
+                                            ...old,
+                                            ...m,
+                                            projection: m.projection || old.projection,
+                                            entry_margin: Number(m.entry_margin || 0) > 0 ? m.entry_margin : old.entry_margin,
+                                            flash_last_action: m.flash_last_action || old.flash_last_action,
+                                            flash_last_stop_roi: m.flash_last_stop_roi || old.flash_last_stop_roi,
+                                        };
+                                    });
+                                });
                             } else {
                                 setMoonbags([]);
                             }
@@ -1639,7 +1652,7 @@
                 };
 
                 fetchMoonbags();
-                const interval = setInterval(fetchMoonbags, 45000); // [V110.138] Relaxed to 45s
+                const interval = setInterval(fetchMoonbags, 15000);
                 return () => {
                     if (unsubscribe && sovereign_rtdb) sovereign_rtdb.ref('moonbag_vault').off('value', unsubscribe);
                     clearInterval(interval);

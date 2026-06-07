@@ -275,18 +275,38 @@ class FlashAgent:
             phase_hint="MOONBAG",
         )
         roi = float(projection.get("roi_percent") or 0)
+        persisted_stop_roi = float(moon.get("flash_last_stop_roi") or 0)
+        hard_lock_roi = max(110.0, persisted_stop_roi)
+        hard_lock_stop = await self._calc_stop_price(entry_price, hard_lock_roi, side, leverage, symbol)
+        hard_lock_improves = (
+            hard_lock_stop > 0 and (
+                current_stop <= 0
+                or (side == "buy" and hard_lock_stop > current_stop)
+                or (side == "sell" and hard_lock_stop < current_stop)
+            )
+        )
+        effective_stop = hard_lock_stop if hard_lock_improves else current_stop
 
         # ⚡ 1. VIOLAÇÃO DE STOP → FECHAR MOONBAG IMEDIATAMENTE
-        if current_stop > 0:
-            stop_hit = await self._check_stop_hit(side, current_stop, symbol)
+        if effective_stop > 0:
+            stop_hit = await self._check_stop_hit(side, effective_stop, symbol)
             if stop_hit:
+                if hard_lock_improves:
+                    await self._update_moonbag_sl(moon_uuid, symbol, hard_lock_stop, roi, "EMANCIPADA", hard_lock_roi)
                 # Log com o current_price mesmo, mas foi detectado via conservative (low/high)
                 logger.warning(
                     f"🌙⚡ [FLASH-MOON-SL] {symbol} Moonbag SL violado! "
-                    f"Price=${current_price:.4f} Stop=${current_stop:.4f} ROI={roi:.1f}%"
+                    f"Price=${current_price:.4f} Stop=${effective_stop:.4f} ROI={roi:.1f}%"
                 )
                 asyncio.create_task(self._close_moonbag(moon_uuid, symbol, side, qty, f"MOONBAG_SL_{roi:.1f}%"))
                 return
+            if hard_lock_improves:
+                logger.warning(
+                    f"[FLASH-MOON-HARDLOCK] {symbol} corrigindo piso Moonbag "
+                    f"SL +{hard_lock_roi:.0f}% (${hard_lock_stop:.4f})"
+                )
+                await self._update_moonbag_sl(moon_uuid, symbol, hard_lock_stop, roi, "EMANCIPADA", hard_lock_roi)
+                current_stop = hard_lock_stop
 
         # ⚡ 2. TRAILING STOP — Só sobe se ROI for >= 160% (igual ao Ceifeiro)
         projected_level = projection.get("active_level")
@@ -609,7 +629,7 @@ class FlashAgent:
         """🚀 Emancipação: protege lucro + promote no Postgres."""
         try:
             await self._sync_paper_stop(symbol, sl_price)
-            await database_service.promote_to_moonbag(slot_id)
+            await database_service.promote_to_moonbag(slot_id, emancipation_stop=sl_price)
             logger.info(f"🚀⚡ [FLASH] {symbol} EMANCIPADO! Slot {slot_id} LIVRE. Moonbag criada.")
         except Exception as e:
             logger.error(f"⚡ [FLASH] Erro na emancipação de {symbol}: {e}")

@@ -209,7 +209,78 @@ class BankrollGuardian:
 
         return suspensions
 
-    def _health_mode(self, equity: float, base_balance: float, active_slots: int) -> Dict[str, Any]:
+    def _position_pnl_usd(self, position: Dict[str, Any]) -> float:
+        projection = position.get("projection")
+        if isinstance(projection, dict):
+            projected_pnl = projection.get("pnl_usd")
+            if projected_pnl is not None:
+                return _safe_float(projected_pnl, 0.0)
+
+        direct_pnl = position.get("pnl_usd")
+        if direct_pnl is not None:
+            return _safe_float(direct_pnl, 0.0)
+
+        pnl = position.get("pnl")
+        if pnl is not None:
+            return _safe_float(pnl, 0.0)
+
+        roi = _safe_float(
+            position.get("pnl_percent")
+            or position.get("roi_percent")
+            or position.get("roi"),
+            0.0,
+        )
+        margin = _safe_float(position.get("entry_margin"), 0.0)
+
+        if margin <= 0 and isinstance(projection, dict):
+            margin = _safe_float(projection.get("entry_margin"), 0.0)
+
+        if margin <= 0:
+            entry = _safe_float(position.get("entry_price"), 0.0)
+            qty = _safe_float(position.get("qty"), 0.0)
+            leverage = _safe_float(position.get("leverage"), 50.0)
+            contract = projection.get("contract") if isinstance(projection, dict) else position.get("contract_meta")
+            ct_val = _safe_float(contract.get("ct_val") if isinstance(contract, dict) else None, 1.0)
+            if entry > 0 and qty > 0 and leverage > 0:
+                margin = (entry * qty * ct_val) / leverage
+
+        return (roi / 100.0) * margin if margin > 0 else 0.0
+
+    def _realized_pnl_usd(self, history: List[Dict[str, Any]]) -> float:
+        return sum(_safe_float(trade.get("pnl"), 0.0) for trade in history)
+
+    def _live_bankroll_snapshot(
+        self,
+        banca: Dict[str, Any],
+        base_balance: float,
+        active_slots: List[Dict[str, Any]],
+        active_moonbags: List[Dict[str, Any]],
+        history: List[Dict[str, Any]],
+    ) -> Dict[str, float]:
+        stored_equity = _safe_float(banca.get("saldo_total"), 0.0)
+        realized_pnl = self._realized_pnl_usd(history)
+        open_slots_pnl = sum(self._position_pnl_usd(slot) for slot in active_slots)
+        open_moonbags_pnl = sum(self._position_pnl_usd(moonbag) for moonbag in active_moonbags)
+        calculated_equity = base_balance + realized_pnl + open_slots_pnl + open_moonbags_pnl
+
+        has_live_or_realized_pnl = any(abs(value) > 0.000001 for value in (realized_pnl, open_slots_pnl, open_moonbags_pnl))
+        if has_live_or_realized_pnl:
+            equity = calculated_equity
+        elif stored_equity > 0:
+            equity = stored_equity
+        else:
+            equity = base_balance
+
+        return {
+            "equity": equity,
+            "stored_equity": stored_equity,
+            "calculated_equity": calculated_equity,
+            "realized_pnl": realized_pnl,
+            "open_slots_pnl": open_slots_pnl,
+            "open_moonbags_pnl": open_moonbags_pnl,
+        }
+
+    def _health_mode(self, equity: float, base_balance: float, active_slots: int, active_moonbags: int = 0) -> Dict[str, Any]:
         if base_balance <= 0:
             base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
 
@@ -219,9 +290,22 @@ class BankrollGuardian:
             self.peak_equity = max(self.peak_equity, equity)
 
         session_profit = equity - base_balance
+        peak_profit = max(0.0, self.peak_equity - base_balance)
         session_roi = (session_profit / base_balance) * 100 if base_balance > 0 else 0.0
         drawdown_from_peak = self.peak_equity - equity
         drawdown_from_peak_pct = (drawdown_from_peak / self.peak_equity) * 100 if self.peak_equity > 0 else 0.0
+        profit_multiple = (peak_profit / base_balance) if base_balance > 0 else 0.0
+        lock_ratio = 0.0
+        if peak_profit > 0:
+            if profit_multiple >= 4.0:
+                lock_ratio = 0.85
+            elif profit_multiple >= 1.0:
+                lock_ratio = 0.80
+            else:
+                lock_ratio = 0.70
+        locked_profit = max(0.0, peak_profit * lock_ratio)
+        allowed_giveback = max(0.0, peak_profit - locked_profit)
+        protected_floor = base_balance + locked_profit
 
         mode = "ACUMULACAO"
         state_label = "Acumulando"
@@ -230,7 +314,14 @@ class BankrollGuardian:
         health = 88
         reasons = ["Banca em condicao operacional."]
 
-        if session_roi <= -8.0 or drawdown_from_peak_pct >= 10.0:
+        if peak_profit > 0 and equity <= protected_floor:
+            mode = "PRESERVACAO_TOTAL"
+            state_label = "Preservacao total"
+            min_score = 999.0
+            max_slots = 0
+            health = 20
+            reasons = [f"Piso protegido atingido (${protected_floor:.2f}). Novas entradas pausadas para nao devolver lucro."]
+        elif session_roi <= -8.0 or drawdown_from_peak_pct >= 10.0:
             mode = "PRESERVACAO_TOTAL"
             state_label = "Preservacao total"
             min_score = 999.0
@@ -251,11 +342,25 @@ class BankrollGuardian:
             max_slots = 2
             health = 65
             reasons = ["Banca cautelosa. Reduzindo exposicao."]
-        elif session_profit > 0:
-            locked_profit = max(0.0, session_profit * 0.70)
-            allowed_giveback = max(1.0, session_profit - locked_profit)
-            health = 92 if active_slots <= 4 else 80
-            reasons = [f"Lucro em acumulacao. Protegendo aproximadamente ${locked_profit:.2f}."]
+        elif peak_profit > 0:
+            if profit_multiple >= 4.0:
+                mode = "ACUMULACAO_PROTEGIDA"
+                state_label = "Acumulacao protegida"
+                min_score = 88.0
+                max_slots = 2 if active_moonbags >= 2 else 3
+                health = 96
+            elif profit_multiple >= 1.0:
+                mode = "ACUMULACAO_PROTEGIDA"
+                state_label = "Acumulacao protegida"
+                min_score = 80.0
+                max_slots = 3
+                health = 94
+            else:
+                health = 92 if active_slots <= 4 else 80
+            reasons = [
+                f"Lucro vivo detectado. Protegendo ${locked_profit:.2f} de um pico de ${peak_profit:.2f}.",
+                f"Devolucao maxima planejada: ${allowed_giveback:.2f}.",
+            ]
             return {
                 "mode": mode,
                 "state_label": state_label,
@@ -269,6 +374,7 @@ class BankrollGuardian:
                 "drawdown_from_peak_pct": round(drawdown_from_peak_pct, 2),
                 "locked_profit": round(locked_profit, 4),
                 "allowed_giveback": round(allowed_giveback, 4),
+                "protected_floor": round(protected_floor, 4),
                 "reasons": reasons,
             }
 
@@ -283,8 +389,9 @@ class BankrollGuardian:
             "peak_equity": round(self.peak_equity, 4),
             "drawdown_from_peak": round(drawdown_from_peak, 4),
             "drawdown_from_peak_pct": round(drawdown_from_peak_pct, 2),
-            "locked_profit": 0.0,
-            "allowed_giveback": 0.0,
+            "locked_profit": round(locked_profit, 4),
+            "allowed_giveback": round(allowed_giveback, 4),
+            "protected_floor": round(protected_floor, 4),
             "reasons": reasons,
         }
 
@@ -294,7 +401,6 @@ class BankrollGuardian:
         moonbags = await self._get_moonbags()
         history = await self._get_history()
 
-        equity = _safe_float(banca.get("saldo_total"), 0.0)
         configured = _safe_float(banca.get("configured_balance"), 0.0)
         base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
 
@@ -306,7 +412,9 @@ class BankrollGuardian:
 
         memory = self._build_symbol_memory(history)
         suspensions = self._symbol_suspensions(memory)
-        health = self._health_mode(equity, base_balance, len(active_slots))
+        live_bankroll = self._live_bankroll_snapshot(banca, base_balance, active_slots, active_moonbags, history)
+        equity = live_bankroll["equity"]
+        health = self._health_mode(equity, base_balance, len(active_slots), len(active_moonbags))
 
         report = {
             "agent": self.name,
@@ -322,6 +430,12 @@ class BankrollGuardian:
             "drawdown_from_peak_pct": health["drawdown_from_peak_pct"],
             "locked_profit": health["locked_profit"],
             "allowed_giveback": health["allowed_giveback"],
+            "protected_floor": health.get("protected_floor", 0.0),
+            "stored_equity": round(live_bankroll["stored_equity"], 4),
+            "calculated_equity": round(live_bankroll["calculated_equity"], 4),
+            "realized_pnl": round(live_bankroll["realized_pnl"], 4),
+            "open_slots_pnl": round(live_bankroll["open_slots_pnl"], 4),
+            "open_moonbags_pnl": round(live_bankroll["open_moonbags_pnl"], 4),
             "active_slots": len(active_slots),
             "active_moonbags": len(active_moonbags),
             "max_slots_allowed": health["max_slots"],

@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.811 "Guardião da Banca na UI"
+# MASTER_ARCHITECTURE.md — V110.812 "Guardião com Equity Viva"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.811)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.811)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.812)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.812)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.812: GUARDIÃO COM EQUITY VIVA [JUN 07]**
+    - **Equity operacional real:** `BankrollGuardian` deixa de depender apenas de `banca.saldo_total` e passa a calcular a banca viva com `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`.
+    - **Proteção de lucro por pico:** o Guardião usa `peak_equity` para travar lucro acumulado. Acima de 1x da banca base, entra em `ACUMULACAO_PROTEGIDA`, eleva score mínimo e reduz novos slots liberados.
+    - **Auditoria transparente:** `/api/bankroll/guardian-report` passa a expor `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl` e `protected_floor`.
+    - **Alinhamento com o Cockpit:** a inteligência da banca passa a enxergar o mesmo lucro vivo mostrado na UI, incluindo moonbags em andamento e slots negativos antes do stop.
 
 *   **V110.811: GUARDIÃO DA BANCA NA UI [JUN 07]**
     - **Banca unificada desktop/mobile:** `cockpit.html` passa a consumir `/api/bankroll/guardian-report` via `useBankrollGuardianRT`, com cache local e atualização leve a cada 30s.
@@ -407,7 +413,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.811)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.812)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -440,7 +446,7 @@
 - **Moonbag oficial:** 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200%→alvo máximo.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
-- **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. Em defesa, reduz slots permitidos e aumenta o score mínimo. Em preservação total, pausa novas entradas.
+- **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`. Em lucro forte, protege o pico da banca, aumenta o score mínimo e reduz novos slots; em preservação total, pausa novas entradas.
 - **Suspensão por Par:** perdas recentes em `trade_history` geram quarentena temporária do símbolo. Duas perdas consecutivas elevam a suspensão para até 24h.
 
 ### 5. Auth & Failsafe
@@ -455,7 +461,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.811)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.812)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -481,7 +487,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.811)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.812)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -494,9 +500,9 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar as linhas do gráfico e badges do gutter. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
 6.  **Slot Cards Operacionais (V110.809):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo`, próximo gatilho e `Aplicando Stop Flash` quando `recommended_stop` existir. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level`/`projection.flash`.
-7.  **Banca com Guardião (V110.811):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity.
+7.  **Banca com Guardião (V110.812):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity. O relatório também expõe `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl` e `protected_floor` para auditoria.
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.811) Sincronizado*
+*Documento atualizado em: 2026-06-07 (V110.812) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

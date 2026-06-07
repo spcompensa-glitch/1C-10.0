@@ -845,8 +845,19 @@
 
         const BancaWealthSection = ({ 
             liveEquity, liveTotalProfit, liveTotalPnL, startBankroll, 
-            hullIntegrityPct, isDrawdown, fleetRank, rankColor 
+            hullIntegrityPct, isDrawdown, fleetRank, rankColor, guardianReport
         }) => {
+            const guardianMode = guardianReport?.mode || 'CARREGANDO';
+            const guardianStatus = guardianReport?.status || 'Sincronizando';
+            const guardianHealth = Number(guardianReport?.health_score ?? hullIntegrityPct ?? 0);
+            const guardianMinScore = Number(guardianReport?.min_score_required ?? 0);
+            const guardianMaxSlots = Number(guardianReport?.max_slots_allowed ?? 4);
+            const lockedProfit = Number(guardianReport?.locked_profit ?? 0);
+            const allowedGiveback = Number(guardianReport?.allowed_giveback ?? 0);
+            const suspendedSymbols = Array.isArray(guardianReport?.suspended_symbols) ? guardianReport.suspended_symbols : [];
+            const guardianColor = guardianMode === 'PRESERVACAO_TOTAL' ? 'text-red-400' :
+                guardianMode === 'DEFESA' ? 'text-orange-400' :
+                guardianMode === 'CAUTELOSO' ? 'text-amber-300' : 'text-success';
             return (
                 <section className="premium-card p-6 space-y-6">
                     <div className="flex justify-between items-start">
@@ -893,6 +904,43 @@
                                 style={{ width: `${hullIntegrityPct}%` }}
                             ></div>
                         </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="material-icons-round text-sm text-cyan-300">shield</span>
+                                <span className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em]">Guardião da Banca</span>
+                            </div>
+                            <span className={`text-[10px] font-black uppercase ${guardianColor}`}>{guardianStatus}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Saúde</span>
+                                <span className={`text-sm font-black font-mono ${guardianColor}`}>{guardianHealth.toFixed(0)}/100</span>
+                            </div>
+                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-right">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Modo</span>
+                                <span className={`text-[10px] font-black uppercase ${guardianColor}`}>{guardianMode}</span>
+                            </div>
+                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Lucro Protegido</span>
+                                <span className="text-sm font-black font-mono text-white">${lockedProfit.toFixed(2)}</span>
+                            </div>
+                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-right">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Devolução</span>
+                                <span className="text-sm font-black font-mono text-white">${allowedGiveback.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-gray-500">
+                            <span>Score mín. {guardianMinScore.toFixed(0)}</span>
+                            <span>Slots liberados {guardianMaxSlots}/4</span>
+                        </div>
+                        {suspendedSymbols.length > 0 && (
+                            <div className="text-[9px] font-black uppercase tracking-widest text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-xl px-2 py-1">
+                                Pares suspensos: {suspendedSymbols.map(s => s.symbol).join(', ')}
+                            </div>
+                        )}
                     </div>
                 </section>
             );
@@ -1249,6 +1297,37 @@
             }, []);
 
             return banca;
+        };
+
+        // --- Hook: Guardião da Banca (V110.811) ---
+        const useBankrollGuardianRT = () => {
+            const [report, setReport] = useState(safeJsonParse(localStorage.getItem('bankroll_guardian_cache'), null));
+
+            useEffect(() => {
+                const fetchReport = async () => {
+                    try {
+                        const res = await fetch(API_BASE + '/api/bankroll/guardian-report');
+                        if (res.ok) {
+                            const val = await res.json();
+                            if (val && val.agent) {
+                                setReport(val);
+                                localStorage.setItem('bankroll_guardian_cache', JSON.stringify(val));
+                            }
+                        }
+                    } catch (e) { }
+                };
+
+                fetchReport();
+                const itv = setInterval(fetchReport, 30000);
+                const onVisibilityChange = () => { if (document.visibilityState === 'visible') fetchReport(); };
+                document.addEventListener('visibilitychange', onVisibilityChange);
+                return () => {
+                    clearInterval(itv);
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                };
+            }, []);
+
+            return report;
         };
 
         // --- Hook: AI Cascade Status (V4.2.1) ---
@@ -4869,7 +4948,7 @@
             vault, banca, missionCycle, totalWins, slots, pulseData, radarSignals, marketRadar,
             latency, pulseStatus, btcCommandStatus, moonbags, activeTocaias, liveTotalPnL,
             liveTotalProfit, liveEquity, isDrawdown, hullIntegrityPct, shieldPowerPct,
-            fleetRank, rankColor, historyLogs, tickers,
+            fleetRank, rankColor, guardianReport, historyLogs, tickers,
             systemState, protocolLabel, oracleStatus, oracleMessage, stabilizationProgress, btcAdx, realAdx, realDecorrelation, dominance,
             unifiedRegime, librarianIntel, ai_cascade,
             filteredSignals, intelligenceMessage,
@@ -5129,6 +5208,50 @@
                                     <div className="mt-6 w-full bg-black/50 h-2 rounded-full overflow-hidden border border-white/5">
                                         <div className={`h-full bg-gradient-to-r from-accent to-white shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-1000`} style={{ width: `${hullIntegrityPct}%` }}></div>
                                     </div>
+                                    <div className="mt-4 pt-4 border-t border-white/5 relative z-10 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="material-icons-round text-sm text-cyan-300">shield</span>
+                                                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-500">Guardião</span>
+                                            </div>
+                                            <span className={`text-[10px] font-black uppercase ${
+                                                guardianReport?.mode === 'PRESERVACAO_TOTAL' ? 'text-red-400' :
+                                                guardianReport?.mode === 'DEFESA' ? 'text-orange-400' :
+                                                guardianReport?.mode === 'CAUTELOSO' ? 'text-amber-300' : 'text-success'
+                                            }`}>
+                                                {guardianReport?.status || 'Sincronizando'}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2">
+                                                <span className="block text-[8px] font-black uppercase tracking-widest text-gray-500">Saúde</span>
+                                                <span className="text-sm font-black font-mono text-white">{Number(guardianReport?.health_score ?? hullIntegrityPct ?? 0).toFixed(0)}/100</span>
+                                            </div>
+                                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-center">
+                                                <span className="block text-[8px] font-black uppercase tracking-widest text-gray-500">Modo</span>
+                                                <span className="text-[9px] font-black uppercase text-white">{guardianReport?.mode || 'CARREGANDO'}</span>
+                                            </div>
+                                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-right">
+                                                <span className="block text-[8px] font-black uppercase tracking-widest text-gray-500">Score</span>
+                                                <span className="text-sm font-black font-mono text-white">{Number(guardianReport?.min_score_required ?? 0).toFixed(0)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="flex items-center justify-between bg-black/20 border border-white/5 rounded-xl px-2 py-1">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">Protegido</span>
+                                                <span className="text-[10px] font-black font-mono text-success">${Number(guardianReport?.locked_profit ?? 0).toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between bg-black/20 border border-white/5 rounded-xl px-2 py-1">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">Devolução</span>
+                                                <span className="text-[10px] font-black font-mono text-white">${Number(guardianReport?.allowed_giveback ?? 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                        {Array.isArray(guardianReport?.suspended_symbols) && guardianReport.suspended_symbols.length > 0 && (
+                                            <div className="text-[8px] font-black uppercase tracking-widest text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-xl px-2 py-1">
+                                                Suspensos: {guardianReport.suspended_symbols.map(s => s.symbol).join(', ')}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </section>
 
@@ -5322,6 +5445,7 @@
         const Page10D = () => {
             const vault = useVaultRT(safeJsonParse(localStorage.getItem('vault_status_cache'), { cycle_number: 1, mega_cycle_wins: 0, used_symbols_in_cycle: [], cycle_start_bankroll: 0, cycle_profit: 0 }));
             const banca = useBancaRT(safeJsonParse(localStorage.getItem('banca_cache'), { saldo_total: 100, configured_balance: 100, lucro_total_acumulado: 0, lucro_ciclo: 0 }));
+            const guardianReport = useBankrollGuardianRT();
 
             // V20.6: Mission Cycle Calculation
             const missionCycle = Math.floor((vault.mega_cycle_wins || 0) / 10) + 1;
@@ -5601,6 +5725,7 @@
                             liveTotalPnL={liveTotalPnL} liveTotalProfit={liveTotalProfit} liveEquity={liveEquity} 
                             isDrawdown={isDrawdown} hullIntegrityPct={hullIntegrityPct} shieldPowerPct={shieldPowerPct} 
                             fleetRank={fleetRank} rankColor={rankColor}
+                            guardianReport={guardianReport}
                             historyLogs={historyLogs} tickers={tickers}
                             
                             systemState={systemState}
@@ -5651,6 +5776,7 @@
                                 isDrawdown={isDrawdown}
                                 fleetRank={fleetRank}
                                 rankColor={rankColor}
+                                guardianReport={guardianReport}
                             />
 
                             {/* SEÇÃO 3: OPERAÇÕES TÁTICAS (Slots) */}

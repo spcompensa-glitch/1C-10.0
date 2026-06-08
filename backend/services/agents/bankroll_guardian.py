@@ -347,13 +347,13 @@ class BankrollGuardian:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 88.0
-                max_slots = 2 if active_moonbags >= 2 else 3
+                max_slots = 4
                 health = 96
             elif profit_multiple >= 1.0:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 80.0
-                max_slots = 3
+                max_slots = 4
                 health = 94
             else:
                 health = 92 if active_slots <= 4 else 80

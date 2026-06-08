@@ -96,7 +96,7 @@ class OrderProjectionService:
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None) -> str:
         hint = str(phase_hint or "").upper()
-        if hint == "MOONBAG" or roi_percent >= 200.0:
+        if hint == "MOONBAG":
             return "MOONBAG"
         if roi_percent >= 150.0:
             return "EMANCIPACAO"

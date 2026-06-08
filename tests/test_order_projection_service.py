@@ -61,6 +61,31 @@ async def test_short_emancipation_stop_moves_below_entry():
 
 
 @pytest.mark.asyncio
+async def test_slot_projection_above_200_roi_still_requires_emancipation_first():
+    order = {
+        "symbol": "ZECUSDT",
+        "side": "BUY",
+        "entry_price": 100.0,
+        "current_stop": 0.0,
+        "leverage": 50.0,
+        "qty": 10.0,
+        "contract_meta": {"tick_size": 0.01, "ct_val": 0.1, "qty_step": 1.0, "min_qty": 1.0},
+    }
+
+    projection = await order_projection_service.build_projection(
+        order,
+        current_price=104.5,
+        phase_hint="SLOT",
+        fetch_contract=False,
+    )
+
+    assert projection["roi_percent"] == pytest.approx(225.0)
+    assert projection["phase"] == "EMANCIPACAO"
+    assert projection["active_level"]["name"] == "WAVE"
+    assert projection["should_emancipate"] is True
+
+
+@pytest.mark.asyncio
 async def test_moonbag_level_uses_same_order_projection():
     order = {
         "symbol": "PEPEUSDT",

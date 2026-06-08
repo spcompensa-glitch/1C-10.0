@@ -89,6 +89,7 @@ class FlashAgent:
 
         # Último preço conhecido por símbolo (fallback quando WS falha)
         self._last_price_cache = {}  # {symbol: price}
+        self._peak_roi_cache = {}  # {slot_key: peak_roi}
 
     def _stop_improves(self, side: str, current_stop: float, candidate_stop: float) -> bool:
         if candidate_stop <= 0:
@@ -178,6 +179,27 @@ class FlashAgent:
             phase_hint="SLOT",
         )
         roi = float(projection.get("roi_percent") or 0)
+        peak_price = self._get_peak_price(symbol, side, current_price)
+        peak_roi = self._calc_roi(entry_price, peak_price, side, leverage) if peak_price > 0 else roi
+        slot_key = slot.get("genesis_id") or f"slot:{slot_id}"
+        cached_peak = float(self._peak_roi_cache.get(slot_key, 0.0) or 0.0)
+        stored_peak = float(slot.get("pnl_percent") or 0.0)
+        effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
+        self._peak_roi_cache[slot_key] = effective_roi
+
+        decision_projection = projection
+        if effective_roi > roi + 0.1:
+            decision_price = order_projection_service.raw_price_from_roi(
+                entry_price,
+                effective_roi,
+                side,
+                leverage,
+            )
+            decision_projection = await order_projection_service.build_projection(
+                slot,
+                current_price=decision_price,
+                phase_hint="SLOT",
+            )
 
         # Atualiza PnL (a cada 2s)
         self._update_pnl(slot_id, roi, slot)
@@ -208,23 +230,39 @@ class FlashAgent:
                     self._sentinel_cache.pop(slot_id, None)
 
         # 🚀 Emancipação (ROI >= 150%)
-        if projection.get("should_emancipate"):
-            logger.warning(f"🚀⚡ [FLASH-EMANCIPAR] {symbol} ROI={roi:.1f}% >= 150%! EMANCIPANDO!")
-            sl_110 = float(projection.get("recommended_stop") or 0)
+        if decision_projection.get("should_emancipate"):
+            logger.warning(
+                f"🚀⚡ [FLASH-EMANCIPAR] {symbol} peakROI={effective_roi:.1f}% "
+                f"(atual {roi:.1f}%) >= 150%! EMANCIPANDO!"
+            )
+            sl_110 = float(decision_projection.get("recommended_stop") or 0)
             if sl_110 <= 0:
                 sl_110 = await self._calc_stop_price(entry_price, 110.0, side, leverage, symbol)
-            asyncio.create_task(self._emancipate_slot(slot_id, symbol, sl_110))
+            if self._stop_improves(side, current_stop, sl_110):
+                await self._update_slot_sl(slot_id, symbol, sl_110, "PROFIT_LOCK", side, qty)
+                current_stop = sl_110
+            stop_hit = await self._check_stop_hit(side, current_stop, symbol)
+            if stop_hit:
+                logger.warning(
+                    f"⚡ [FLASH-EMANCIPATION-LOCK-SL] {symbol} voltou no stop de emancipação "
+                    f"${current_stop:.4f}. Fechando com lucro protegido."
+                )
+                await self._close_position(slot_id, symbol, side, qty, f"FLASH_EMANCIPATION_LOCK_SL_{roi:.1f}%")
+                self._peak_roi_cache.pop(slot_key, None)
+                return
+            await self._emancipate_slot(slot_id, symbol, sl_110)
+            self._peak_roi_cache.pop(slot_key, None)
             return
 
         # ⚡ Escadinha
-        active_level = projection.get("active_level")
+        active_level = decision_projection.get("active_level")
         if not active_level or active_level.get("phase") not in ("ESCADINHA", "EMANCIPACAO"):
             return
 
         new_stop_roi = float(active_level.get("stop_roi") or 0)
         status_risco = active_level.get("status_risco") or "MONITORANDO"
         label = active_level.get("name") or "ESCADINHA"
-        new_stop_price = float(projection.get("recommended_stop") or 0)
+        new_stop_price = float(decision_projection.get("recommended_stop") or 0)
         if new_stop_price <= 0 and new_stop_roi > 0:
             new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
         if new_stop_price <= 0:
@@ -234,8 +272,11 @@ class FlashAgent:
         if not stop_improved:
             return
 
-        logger.info(f"⚡ [FLASH-ESCADINHA] {symbol} ROI={roi:.1f}% → SL +{new_stop_roi:.0f}% (${new_stop_price:.4f}) | {label}")
-        asyncio.create_task(self._update_slot_sl(slot_id, symbol, new_stop_price, status_risco, side, qty))
+        logger.info(
+            f"⚡ [FLASH-ESCADINHA] {symbol} peakROI={effective_roi:.1f}% "
+            f"(atual {roi:.1f}%) → SL +{new_stop_roi:.0f}% (${new_stop_price:.4f}) | {label}"
+        )
+        await self._update_slot_sl(slot_id, symbol, new_stop_price, status_risco, side, qty)
 
     # ==================== MOONBAGS ====================
 
@@ -406,6 +447,23 @@ class FlashAgent:
             return last_price
 
         return 0.0
+
+    def _get_peak_price(self, symbol: str, side: str, current_price: float) -> float:
+        """
+        Melhor preco recente a favor da ordem.
+        LONG usa high recente; SHORT usa low recente. Isso evita perder um alvo
+        rapido entre ciclos do Flash.
+        """
+        try:
+            if side == "buy":
+                high_price = okx_ws_public_service.get_high_price(symbol)
+                return max(current_price, high_price or 0.0)
+            low_price = okx_ws_public_service.get_low_price(symbol)
+            if low_price and low_price > 0:
+                return min(current_price, low_price)
+        except Exception:
+            pass
+        return current_price
 
     async def _check_stop_hit(self, side: str, stop_price: float, symbol: str) -> bool:
         """

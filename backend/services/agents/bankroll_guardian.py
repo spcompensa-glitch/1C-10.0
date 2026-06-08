@@ -473,7 +473,9 @@ class BankrollGuardian:
     async def authorize_new_trade(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         report = await self.evaluate_bank_health()
         symbol = _normalize_symbol(signal.get("symbol"))
-        score = _safe_float(signal.get("unified_confidence") or signal.get("score"), 0.0)
+        radar_score = _safe_float(signal.get("score") or signal.get("score_radar"), 0.0)
+        unified_confidence = _safe_float(signal.get("unified_confidence"), 0.0)
+        score = radar_score or unified_confidence
 
         approved = True
         reasons: List[str] = []
@@ -506,6 +508,8 @@ class BankrollGuardian:
             "approved": approved,
             "symbol": symbol,
             "score": round(score, 1),
+            "radar_score": round(radar_score, 1),
+            "unified_confidence": round(unified_confidence, 1),
             "mode": report["mode"],
             "health_score": report["health_score"],
             "reasons": reasons or ["Banca liberou a entrada."],

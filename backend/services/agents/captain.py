@@ -1482,6 +1482,9 @@ class CaptainAgent(AIOSAgent):
                     "approved": guardian_decision.get("approved"),
                     "mode": guardian_decision.get("mode"),
                     "health_score": guardian_decision.get("health_score"),
+                    "score": guardian_decision.get("score"),
+                    "radar_score": guardian_decision.get("radar_score"),
+                    "unified_confidence": guardian_decision.get("unified_confidence"),
                     "reasons": guardian_decision.get("reasons", []),
                 }
                 if not guardian_decision.get("approved", False):

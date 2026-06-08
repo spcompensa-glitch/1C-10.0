@@ -35,7 +35,10 @@ ORDER_STOP_LADDER: List[StopLevel] = [
     StopLevel("MOONBAG", "CROWN", 500.0, 350.0, "MOONBAG_TRAIL"),
     StopLevel("MOONBAG", "SUPERNOVA", 600.0, 420.0, "MOONBAG_TRAIL"),
     StopLevel("MOONBAG", "GOD_MODE", 700.0, 500.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "MAX_TARGET", 1200.0, 900.0, "MOONBAG_TARGET"),
+    StopLevel("MOONBAG", "CHOKE_PREP", 750.0, 600.0, "MOONBAG_TRAIL"),
+    StopLevel("MOONBAG", "CHOKE", 800.0, 650.0, "MOONBAG_TRAIL"),
+    StopLevel("MOONBAG", "HYPER", 1000.0, 800.0, "MOONBAG_TRAIL"),
+    StopLevel("MOONBAG", "APEX", 1200.0, 1000.0, "MOONBAG_TRAIL"),
 ]
 
 
@@ -84,15 +87,42 @@ class OrderProjectionService:
         except Exception:
             return raw_price
 
-    def get_active_level(self, roi_percent: float) -> Optional[StopLevel]:
+    def get_stop_ladder(self, roi_percent: float = 0.0) -> List[StopLevel]:
+        ladder = list(ORDER_STOP_LADDER)
+        highest_trigger = max(level.trigger_roi for level in ladder)
+        target_ceiling = max(highest_trigger, roi_percent + 400.0)
+        trigger_roi = highest_trigger + 400.0
+
+        while trigger_roi <= target_ceiling + 1e-9:
+            ladder.append(
+                StopLevel(
+                    "MOONBAG",
+                    f"ULTRA_{int(trigger_roi)}",
+                    trigger_roi,
+                    max(trigger_roi - 250.0, 0.0),
+                    "MOONBAG_TRAIL",
+                )
+            )
+            trigger_roi += 400.0
+
+        return ladder
+
+    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None) -> Optional[StopLevel]:
         active = None
         epsilon = 1e-9
-        for level in ORDER_STOP_LADDER:
+        for level in ladder or self.get_stop_ladder(roi_percent):
             if roi_percent + epsilon >= level.trigger_roi:
                 active = level
             else:
                 break
         return active
+
+    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None) -> Optional[StopLevel]:
+        epsilon = 1e-9
+        for level in ladder or self.get_stop_ladder(roi_percent):
+            if roi_percent + epsilon < level.trigger_roi:
+                return level
+        return None
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None) -> str:
         hint = str(phase_hint or "").upper()
@@ -143,7 +173,9 @@ class OrderProjectionService:
 
         roi = self.calculate_roi(entry_price, current_price, side, leverage)
         phase = self.get_phase(roi, phase_hint)
-        active_level = self.get_active_level(roi)
+        stop_ladder = self.get_stop_ladder(roi)
+        active_level = self.get_active_level(roi, stop_ladder)
+        next_level = self.get_next_level(roi, stop_ladder)
         existing_contract = order.get("contract") or order.get("contract_meta") or {}
         if existing_contract:
             contract = {
@@ -163,15 +195,18 @@ class OrderProjectionService:
             }
 
         levels = []
-        for level in ORDER_STOP_LADDER:
+        for level in stop_ladder:
             raw_price = self.raw_price_from_roi(entry_price, level.stop_roi, side, leverage)
             price = self.round_to_tick(raw_price, contract["tick_size"])
+            raw_target_price = self.raw_price_from_roi(entry_price, level.trigger_roi, side, leverage)
+            target_price = self.round_to_tick(raw_target_price, contract["tick_size"])
             levels.append({
                 "phase": level.phase,
                 "name": level.name,
                 "trigger_roi": level.trigger_roi,
                 "stop_roi": level.stop_roi,
                 "price": price,
+                "target_price": target_price,
                 "active": roi >= level.trigger_roi,
                 "status_risco": level.status_risco,
             })
@@ -206,6 +241,21 @@ class OrderProjectionService:
                 "stop_roi": active_level.stop_roi,
                 "status_risco": active_level.status_risco,
             } if active_level else None,
+            "next_level": {
+                "phase": next_level.phase,
+                "name": next_level.name,
+                "trigger_roi": next_level.trigger_roi,
+                "stop_roi": next_level.stop_roi,
+                "price": self.round_to_tick(
+                    self.raw_price_from_roi(entry_price, next_level.stop_roi, side, leverage),
+                    contract["tick_size"],
+                ),
+                "target_price": self.round_to_tick(
+                    self.raw_price_from_roi(entry_price, next_level.trigger_roi, side, leverage),
+                    contract["tick_size"],
+                ),
+                "status_risco": next_level.status_risco,
+            } if next_level else None,
             "should_emancipate": phase == "EMANCIPACAO" and str(phase_hint or "").upper() != "MOONBAG",
             "levels": levels,
             "contract": contract,

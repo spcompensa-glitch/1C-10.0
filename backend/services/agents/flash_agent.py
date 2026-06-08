@@ -52,6 +52,10 @@ ESCADINHA_BLITZ = [
 # 🌙 Níveis de Trailing Stop para Moonbags (Ceifeiro Turbo)
 # Após emancipação (150% ROI), o SL sobe progressivamente:
 MOONBAG_TRAILING_LEVELS = [
+    {"roi_threshold": 1200, "sl_roi": 1000, "icon": "APX", "label": "APEX"},
+    {"roi_threshold": 1000, "sl_roi": 800, "icon": "HYP", "label": "HYPER"},
+    {"roi_threshold": 800, "sl_roi": 650, "icon": "CHK", "label": "CHOKE"},
+    {"roi_threshold": 750, "sl_roi": 600, "icon": "CP", "label": "CHOKE_PREP"},
     {"roi_threshold": 700, "sl_roi": 500, "icon": "🔱", "label": "GOD_MODE"},
     {"roi_threshold": 600, "sl_roi": 420, "icon": "💫", "label": "SUPERNOVA"},
     {"roi_threshold": 500, "sl_roi": 350, "icon": "👑", "label": "CROWN"},

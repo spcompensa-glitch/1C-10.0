@@ -1,9 +1,17 @@
-# MASTER_ARCHITECTURE.md — V110.820 "Guardian Radar Score Gate"
+# MASTER_ARCHITECTURE.md — V110.821 "Infinite Moonbag Trail"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.820)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.820)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.821)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.821)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.821: INFINITE MOONBAG TRAIL [JUN 08]**
+    - **Moonbag sem teto em 1200%:** `OrderProjectionService` remove o limite lógico `MAX_TARGET`; 1200% vira `APEX` e a projeção continua com níveis `ULTRA_1600`, `ULTRA_2000`, `ULTRA_2400` etc.
+    - **Stops mais próximos no pós-1200:** níveis `ULTRA_*` usam stop 250% ROI abaixo do alvo rompido, evitando devolver uma pernada extrema quando o preço reverte.
+    - **Gap fechado antes de 1200:** escada oficial ganha `CHOKE_PREP 750% -> stop 600%`, `CHOKE 800% -> stop 650%` e `HYPER 1000% -> stop 800%`, além de `APEX 1200% -> stop 1000%`.
+    - **Próximo alvo oficial:** a projeção passa a expor `next_level` com preço do stop e preço do alvo, permitindo que slots e moonbags mostrem a continuidade correta.
+    - **Gráfico alvo + stop:** `cockpit.html` desenha linhas discretas de alvo rompido/futuro (`target_price`) e stop correspondente (`price`), destacando apenas o stop ativo do Flash.
+    - **Regressão OPN:** teste cobre moonbag SHORT em ~784% ROI com stop ativo `CHOKE_PREP 600%`, próximo `CHOKE 800%` e continuação após 1200% com `ULTRA_1600/2000`.
 
 *   **V110.820: GUARDIAN RADAR SCORE GATE [JUN 08]**
     - **Score correto no Guardião:** `BankrollGuardian.authorize_new_trade()` passa a usar `signal.score`/`score_radar` como métrica principal do score mínimo da banca, mantendo `unified_confidence` como telemetria auxiliar.
@@ -459,7 +467,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.820)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.821)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -473,13 +481,13 @@
 - **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir. A regra de melhoria/violação de stop é única para LONG/SHORT e coberta por testes de invariantes:
   - **Slots Táticos:** Escadinha oficial (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + Moonbag)
   - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
-  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
+  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%, depois `ULTRA_*` a cada 400% com stop 250% ROI abaixo do alvo)
   - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
   - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
 - **CaptainAgent:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo.
 - **Guardião da Banca:** autoridade preventiva acima do Capitão. Avalia saúde da banca, drawdown, lucro protegido, exposição por slots/moonbags, histórico por símbolo e suspensões de pares antes de liberar uma nova ordem. O score mínimo da banca usa o Radar Score (`score`/`score_radar`) como métrica principal; `unified_confidence` fica como contexto de auditoria. Em `ACUMULACAO_PROTEGIDA`, ele eleva o score mínimo e mantém 4/4 slots disponíveis; limita slots apenas em `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. Expõe relatório em PT-BR por `/api/bankroll/guardian-report`.
-- **Harvester (Ceifeiro 1200%):** 7 níveis (WAVE→APEX) + 4 colheitas parciais (PRIMEIRA 65%@250%, GOLDEN 85%@600%, Safety 80%@700%, Parabolic 90%@1000%) + cooldown 30min.
+- **Harvester (Ceifeiro Infinito):** níveis WAVE→APEX e continuação `ULTRA_*` pós-1200%, mantendo colheitas parciais e trailing sem teto fixo.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
 - **Oracle:** SSOT de regime de mercado (ALTA/BAIXA/LATERAL com threshold ADX>30), validação e FleetAudit pós-trade.
@@ -490,7 +498,7 @@
 - **Fórmula oficial de ROI:** `((current - entry) / entry) * leverage * 100` para LONG e `((entry - current) / entry) * leverage * 100` para SHORT.
 - **Fórmula oficial de preço do stop:** `entry * (1 + stop_roi / (leverage * 100))` para LONG e `entry * (1 - stop_roi / (leverage * 100))` para SHORT, sempre arredondada por `tickSize` OKX.
 - **Escadinha oficial:** 30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + emancipação.
-- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200%→alvo máximo.
+- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 400% ROI com stop 250% abaixo do alvo rompido.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 - **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`. Em lucro forte, protege o pico da banca e aumenta o score mínimo mantendo 4 slots; em cautela/defesa/preservação, reduz ou pausa novas entradas.
@@ -508,7 +516,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.820)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.821)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -534,7 +542,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.820)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.821)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -551,5 +559,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-08 (V110.820) Sincronizado*
+*Documento atualizado em: 2026-06-08 (V110.821) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

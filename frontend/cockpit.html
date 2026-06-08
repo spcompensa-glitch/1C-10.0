@@ -405,7 +405,7 @@
             const phase = String(level?.phase || '').toUpperCase();
             const name = String(level?.name || '').toUpperCase();
             const alpha = state === 'active' ? 0.95 : state === 'earned' ? 0.42 : 0.24;
-            if (name === 'MAX_TARGET') return `rgba(239, 68, 68, ${state === 'active' ? 0.9 : 0.32})`;
+            if (name === 'MAX_TARGET' || name === 'APEX' || name.startsWith('ULTRA_')) return `rgba(239, 68, 68, ${state === 'active' ? 0.9 : 0.32})`;
             if (phase === 'MOONBAG') return `rgba(34, 211, 238, ${alpha})`;
             if (phase === 'EMANCIPACAO') return `rgba(34, 197, 94, ${alpha})`;
             if (name.includes('PROFIT_LOCK')) return `rgba(234, 179, 8, ${alpha})`;
@@ -427,8 +427,13 @@
                 CROWN: 'CRN',
                 SUPERNOVA: 'SN',
                 GOD_MODE: 'GOD',
+                CHOKE_PREP: 'CP',
+                CHOKE: 'CHK',
+                HYPER: 'HYP',
+                APEX: 'APX',
                 MAX_TARGET: 'MAX',
             };
+            if (name.startsWith('ULTRA_')) return `U${name.replace('ULTRA_', '')}`;
             return map[name] || name.slice(0, 6);
         };
 
@@ -437,18 +442,30 @@
             const activeName = String(projection?.active_level?.name || '').toUpperCase();
             const activeTrigger = Number(projection?.active_level?.trigger_roi || 0);
             return levels
-                .map((level) => {
+                .flatMap((level) => {
                     const trigger = Number(level.trigger_roi || 0);
                     const stopRoi = Number(level.stop_roi || 0);
+                    const targetPrice = Number(level.target_price || 0);
+                    const stopPrice = Number(level.price || 0);
                     const isCurrent = activeName
                         ? String(level.name || '').toUpperCase() === activeName
                         : activeTrigger > 0 && trigger === activeTrigger;
                     const isEarned = Boolean(level.active);
                     const state = isCurrent ? 'active' : isEarned ? 'earned' : 'future';
                     const shortName = projectionLevelShortName(level);
-                    return {
-                        value: Number(level.price),
-                        label: `${isCurrent ? 'FLASH ' : isEarned ? 'OK ' : ''}${shortName} +${stopRoi.toFixed(0)}%`,
+                    const targetLine = {
+                        value: targetPrice,
+                        label: `${isEarned ? 'OK ' : ''}ALVO ${shortName} ${trigger.toFixed(0)}%`,
+                        color: projectionLevelColor(level, isEarned ? 'earned' : 'future'),
+                        active: false,
+                        earned: isEarned,
+                        lineWidth: 1,
+                        lineStyle: 2,
+                        axisLabelVisible: true,
+                    };
+                    const stopLine = {
+                        value: stopPrice,
+                        label: `${isCurrent ? 'FLASH ' : isEarned ? 'STOP ' : 'PROX STOP '}${shortName} +${stopRoi.toFixed(0)}%`,
                         color: projectionLevelColor(level, state),
                         active: isCurrent,
                         earned: isEarned,
@@ -456,6 +473,7 @@
                         lineStyle: isCurrent ? 0 : isEarned ? 1 : 2,
                         axisLabelVisible: true,
                     };
+                    return [targetLine, stopLine];
                 })
                 .filter((level) => Number.isFinite(level.value) && level.value > 0);
         };
@@ -3399,15 +3417,17 @@
             const symbol = moonbag.symbol.replace('.P', '').replace('.p', '').replace('USDT', '');
             const entry = Number(moonbag.entry_price) || 0;
             const side = moonbag.side === 'Buy' ? 'LONG' : 'SHORT';
-            const flashAction = moonbag.projection?.flash?.last_action || moonbag.flash_last_action || 'MONITORANDO';
-            const flashStopRoi = moonbag.projection?.flash?.stop_roi || moonbag.flash_last_stop_roi;
+            const projection = moonbag.projection || {};
+            const nextProjectionLevel = projection.next_level || null;
+            const flashAction = projection.flash?.last_action || moonbag.flash_last_action || 'MONITORANDO';
+            const flashStopRoi = projection.flash?.stop_roi || moonbag.flash_last_stop_roi;
             const moonbagPnlUsd = (() => {
-                const projected = Number(moonbag.projection?.pnl_usd);
+                const projected = Number(projection.pnl_usd);
                 if (Number.isFinite(projected)) return projected;
                 const direct = Number(moonbag.pnl_usd ?? moonbag.pnl);
                 if (Number.isFinite(direct)) return direct;
-                const margin = Number(moonbag.projection?.entry_margin ?? moonbag.entry_margin ?? moonbag.margin ?? 0);
-                const fallbackRoi = Number(moonbag.projection?.roi_percent ?? moonbag.pnl_percent ?? 0);
+                const margin = Number(projection.entry_margin ?? moonbag.entry_margin ?? moonbag.margin ?? 0);
+                const fallbackRoi = Number(projection.roi_percent ?? moonbag.pnl_percent ?? 0);
                 return Number.isFinite(margin) && margin > 0 ? (fallbackRoi / 100) * margin : 0;
             })();
             
@@ -3439,16 +3459,25 @@
             else stage = { icon: '⚖️', label: 'BE+', color: 'text-amber-400' };
 
             // 🌾 Calcula o próximo alvo do Ceifeiro dinamicamente para exibição no card
-            let nextCeifaRoi = 250;
-            if (roi >= 1200) nextCeifaRoi = 1200;
-            else if (roi >= 800) nextCeifaRoi = 1200;
-            else if (roi >= 600) nextCeifaRoi = 800;
-            else if (roi >= 450) nextCeifaRoi = 600;
-            else if (roi >= 350) nextCeifaRoi = 450;
-            else if (roi >= 250) nextCeifaRoi = 350;
-            
+            const nextCeifaFallback = (() => {
+                if (roi < 200) return 200;
+                if (roi < 300) return 300;
+                if (roi < 400) return 400;
+                if (roi < 500) return 500;
+                if (roi < 600) return 600;
+                if (roi < 700) return 700;
+                if (roi < 750) return 750;
+                if (roi < 800) return 800;
+                if (roi < 1000) return 1000;
+                if (roi < 1200) return 1200;
+                return Math.ceil((roi + 1) / 400) * 400;
+            })();
+            const nextCeifaRoi = Number(nextProjectionLevel?.trigger_roi || nextCeifaFallback);
+            const targetPriceFromBackend = Number(nextProjectionLevel?.target_price || 0);
             const move = nextCeifaRoi / ((Number(moonbag.leverage) || 50) * 100);
-            const targetPrice = side === 'LONG' ? entry * (1 + move) : entry * (1 - move);
+            const targetPrice = targetPriceFromBackend > 0
+                ? targetPriceFromBackend
+                : (side === 'LONG' ? entry * (1 + move) : entry * (1 - move));
 
             // 🎖️ Badge dinâmico do próximo alvo do Ceifeiro
             const ceifeiroBadges = [
@@ -3461,6 +3490,7 @@
                 { minRoi: 1200, nextRoi: 1200, label: 'APEX 🔱',  color: 'bg-red-800/90',         icon: '🔱' },
             ];
             const ceifBadge = ceifeiroBadges.find(b => roi >= b.minRoi && roi < b.nextRoi) || ceifeiroBadges[ceifeiroBadges.length - 1];
+            const nextBadgeLabel = String(nextProjectionLevel?.name || ceifBadge.label || 'ALVO').replace(/^ULTRA_/, 'ULTRA ');
 
             // 💎 Badge de Profit-Lock baseado no stop atual — espelha escadinha do Ceifeiro até 1200%
             const stopVal = Number(moonbag.current_stop || moonbag.stop_loss || moonbag.stopLoss || 0);
@@ -3521,7 +3551,7 @@
                             {/* 🌾 Badge do próximo alvo do Ceifeiro */}
                             <div className={`${ceifBadge.color} text-white text-[7px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10 whitespace-nowrap`}>
                                 <span>{ceifBadge.icon}</span>
-                                <span>PRÓX: {ceifBadge.label} {ceifBadge.nextRoi}%</span>
+                                <span>PRÓX: {nextBadgeLabel} {nextCeifaRoi}%</span>
                             </div>
                             <div className="text-right">
                                 <span className={`text-[12px] font-black font-mono leading-none ${roi >= 0 ? 'text-white' : 'text-red-400'}`}>
@@ -3709,12 +3739,17 @@
                 { phase: 'MOONBAG', name: 'CROWN', trigger_roi: 500, stop_roi: 350 },
                 { phase: 'MOONBAG', name: 'SUPERNOVA', trigger_roi: 600, stop_roi: 420 },
                 { phase: 'MOONBAG', name: 'GOD_MODE', trigger_roi: 700, stop_roi: 500 },
-                { phase: 'MOONBAG', name: 'MAX_TARGET', trigger_roi: 1200, stop_roi: 900 },
+                { phase: 'MOONBAG', name: 'CHOKE_PREP', trigger_roi: 750, stop_roi: 600 },
+                { phase: 'MOONBAG', name: 'CHOKE', trigger_roi: 800, stop_roi: 650 },
+                { phase: 'MOONBAG', name: 'HYPER', trigger_roi: 1000, stop_roi: 800 },
+                { phase: 'MOONBAG', name: 'APEX', trigger_roi: 1200, stop_roi: 1000 },
             ];
             const tacticalLevels = projectionLevels.length > 0 ? projectionLevels : fallbackLevels;
-            const nextLevel = tacticalLevels
+            const backendNextLevel = projection.next_level || null;
+            const fallbackNextLevel = tacticalLevels
                 .filter(l => l && Number(l.trigger_roi) > projectionRoi)
                 .sort((a, b) => Number(a.trigger_roi || 0) - Number(b.trigger_roi || 0))[0] || null;
+            const nextLevel = backendNextLevel || fallbackNextLevel;
             const leverageNow = Number(s.leverage || 50);
             const isLongSlot = s.side === 'Buy' || s.side === 'LONG';
             const entryNow = Number(s.entry_price || 0);

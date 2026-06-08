@@ -217,7 +217,7 @@ class FlashAgent:
                 if is_profit_stop:
                     # 🟢 STOP DE LUCRO: Fecha imediatamente (lucro já garantido)
                     logger.warning(f"⚡ [FLASH-SL-PROFIT] {symbol} SL de lucro violado! Price=${current_price:.4f} Stop=${current_stop:.4f}")
-                    asyncio.create_task(self._close_position(slot_id, symbol, side, qty, f"FLASH_PROFIT_SL_{roi:.1f}%"))
+                    await self._close_position(slot_id, symbol, side, qty, f"FLASH_PROFIT_SL_{roi:.1f}%")
                     return
                 else:
                     # 🔴 STOP DE PERDA: Ativa Sentinel — verifica Gás antes de fechar
@@ -441,11 +441,28 @@ class FlashAgent:
         except Exception:
             pass
 
+        rest_price = await self._get_rest_price(symbol)
+        if rest_price > 0:
+            self._last_price_cache[symbol] = rest_price
+            return rest_price
+
         # Fallback: último preço conhecido (até 60s de idade)
         last_price = self._last_price_cache.get(symbol, 0.0)
         if last_price > 0:
             return last_price
 
+        return 0.0
+
+    async def _get_rest_price(self, symbol: str) -> float:
+        """Preço REST fresco para confirmar stops quando o WS/cache estiver atrasado."""
+        try:
+            from services.okx_rest import okx_rest_service
+
+            ticker = await okx_rest_service.get_tickers(symbol=symbol)
+            if isinstance(ticker, list) and ticker:
+                return float(ticker[0].get("lastPrice") or 0)
+        except Exception:
+            pass
         return 0.0
 
     def _get_peak_price(self, symbol: str, side: str, current_price: float) -> float:
@@ -479,12 +496,14 @@ class FlashAgent:
             # Tenta conservative price primeiro (low para LONG, high para SHORT)
             check_price = okx_ws_public_service.get_conservative_price(symbol, side)
             if check_price > 0:
-                return (side == "buy" and check_price <= stop_price) or \
-                       (side == "sell" and check_price >= stop_price)
+                stop_hit = (side == "buy" and check_price <= stop_price) or \
+                           (side == "sell" and check_price >= stop_price)
+                if stop_hit:
+                    return True
         except Exception:
             pass
 
-        # Fallback: preço atual
+        # Confirmação REST/atual: cobre WS/cache atrasado em stop de lucro.
         current_price = await self._get_current_price(symbol)
         if current_price <= 0:
             return False

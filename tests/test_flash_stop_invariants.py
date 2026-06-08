@@ -133,3 +133,55 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
     assert checked_stops == [pytest.approx(426.24), pytest.approx(431.73)]
     assert updated == [(3, "ZECUSDT", pytest.approx(431.73), "PROFIT_LOCK", "buy", 35.0)]
     assert emancipated == [(3, "ZECUSDT", pytest.approx(431.73))]
+
+
+@pytest.mark.asyncio
+async def test_slot_profit_stop_closes_with_rest_confirmation_when_ws_is_stale(monkeypatch):
+    flash = FlashAgent()
+    closed = []
+
+    slot = {
+        "id": 3,
+        "symbol": "ZECUSDT",
+        "side": "Buy",
+        "qty": 35.0,
+        "entry_price": 422.44,
+        "current_stop": 426.24,
+        "leverage": 50.0,
+        "pnl_percent": 27.0,
+        "genesis_id": "SWG-1780848505-ZECU-40A404",
+        "contract_meta": {"tick_size": 0.01, "ct_val": 0.01, "qty_step": 1.0, "min_qty": 1.0},
+    }
+
+    async def fake_get_current_price(symbol):
+        assert symbol == "ZECUSDT"
+        return 424.75
+
+    async def fake_close_position(slot_id, symbol, side, qty, reason):
+        closed.append((slot_id, symbol, side, qty, reason))
+
+    monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+    monkeypatch.setattr(flash, "_close_position", fake_close_position)
+    monkeypatch.setattr(flash, "_update_pnl", lambda *args, **kwargs: None)
+
+    await flash._process_slot(slot)
+
+    assert closed == [(3, "ZECUSDT", "buy", 35.0, "FLASH_PROFIT_SL_27.3%")]
+
+
+@pytest.mark.asyncio
+async def test_check_stop_hit_uses_rest_when_conservative_ws_misses(monkeypatch):
+    flash = FlashAgent()
+
+    monkeypatch.setattr(
+        "services.agents.flash_agent.okx_ws_public_service.get_conservative_price",
+        lambda symbol, side: 430.0,
+    )
+
+    async def fake_get_current_price(symbol):
+        assert symbol == "ZECUSDT"
+        return 424.75
+
+    monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+
+    assert await flash._check_stop_hit("buy", 426.24, "ZECUSDT") is True

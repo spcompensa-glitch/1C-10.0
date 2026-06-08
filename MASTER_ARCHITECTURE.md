@@ -1,9 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.818 "Flash Peak Lock & Full Slots"
+# MASTER_ARCHITECTURE.md — V110.819 "Flash Profit Stop Confirmation"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.818)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.818)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.819)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.819)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.819: FLASH PROFIT STOP CONFIRMATION [JUN 08]**
+    - **Stop de lucro com confirmação REST:** quando o preço conservador do WebSocket/cache não acusa violação, o Flash confirma o stop com preço REST fresco da OKX antes de manter a ordem aberta.
+    - **Fechamento síncrono de lucro:** `FLASH_PROFIT_SL` passa a aguardar `_close_position()`, reduzindo a chance de slot continuar aberto após stop de lucro já tocado.
+    - **Teste do caso ZEC:** `tests/test_flash_stop_invariants.py` cobre LONG com `current_stop` acima da entrada e preço atual abaixo do stop, garantindo fechamento por Flash.
 
 *   **V110.818: FLASH PEAK LOCK & FULL SLOTS [JUN 07]**
     - **Flash com memória de pico:** slots passam a usar o maior ROI recente observado (`peakROI`) para decidir escadinha/emancipação, usando máxima recente no LONG e mínima recente no SHORT. Se a ordem toca 150% e volta rápido, o Flash ainda aplica a trava correta.
@@ -464,6 +469,7 @@
   - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
   - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 1200% alvo máximo)
   - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
+  - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
 - **CaptainAgent:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo.
 - **Guardião da Banca:** autoridade preventiva acima do Capitão. Avalia saúde da banca, drawdown, lucro protegido, exposição por slots/moonbags, histórico por símbolo e suspensões de pares antes de liberar uma nova ordem. Em `ACUMULACAO_PROTEGIDA`, ele eleva o score mínimo e mantém 4/4 slots disponíveis; limita slots apenas em `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. Expõe relatório em PT-BR por `/api/bankroll/guardian-report`.
@@ -539,5 +545,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-07 (V110.818) Sincronizado*
+*Documento atualizado em: 2026-06-08 (V110.819) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

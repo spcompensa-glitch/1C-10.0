@@ -52,7 +52,7 @@ async def get_slots():
                 "order_id": s.get("order_id"),
                 "target_price": s.get("target_price"),
                 "leverage": s.get("leverage"),
-                "slot_type": s.get("slot_type") or "BLITZ",
+                "slot_type": s.get("slot_type") or s.get("strategy") or "SWING",
                 "status_risco": s.get("status_risco"),
                 "pnl_percent": s.get("pnl_percent"),
                 "strategy": s.get("strategy"),
@@ -103,7 +103,7 @@ async def get_slots():
 
                 if slot.get("symbol") and slot.get("entry_price", 0) > 0:
                     slot_id = int(slot.get("id", 0))
-                    slot["slot_type"] = slot.get("slot_type") or "BLITZ"
+                    slot["slot_type"] = slot.get("slot_type") or slot.get("strategy") or "SWING"
                     entry = float(slot.get("entry_price", 0))
                     side = slot.get("side", "Buy")
                     sym_clean = okx_rest_service._strip_p(slot["symbol"])

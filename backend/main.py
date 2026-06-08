@@ -490,7 +490,7 @@ async def lifespan(app: FastAPI):
                                     "order_id": s.get("order_id"),
                                     "target_price": s.get("target_price"),
                                     "leverage": s.get("leverage"),
-                                    "slot_type": s.get("slot_type") or "BLITZ",
+                                    "slot_type": s.get("slot_type") or s.get("strategy") or "SWING",
                                     "status_risco": s.get("status_risco"),
                                     "pnl_percent": s.get("pnl_percent"),
                                     "strategy": s.get("strategy"),

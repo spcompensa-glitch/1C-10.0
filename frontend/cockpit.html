@@ -1530,6 +1530,31 @@
             const [slots, setSlots] = useState(initialData);
 
             useEffect(() => {
+                const mergeSlotProjection = (incoming, previous) => {
+                    if (!incoming) return previous;
+                    if (!previous) return incoming;
+                    const merged = { ...previous, ...incoming };
+                    if (!incoming.projection && previous.projection) {
+                        merged.projection = previous.projection;
+                    }
+                    return merged;
+                };
+
+                const hydrateFullSlots = (rawSlots, previousSlots = []) => {
+                    const fullSlots = [];
+                    for (let i = 1; i <= 4; i++) {
+                        const incoming = rawSlots.find(s => s && s.id === i);
+                        const previous = previousSlots.find(s => s && s.id === i);
+                        fullSlots.push(
+                            mergeSlotProjection(
+                                incoming || { id: i, symbol: null, entry_price: 0, current_stop: 0, status_risco: 'LIVRE', pnl_percent: 0 },
+                                previous
+                            )
+                        );
+                    }
+                    return fullSlots;
+                };
+
                 const handlePacket = (e) => {
                     const message = e.detail;
                     if (message.type && message.data) {
@@ -1543,19 +1568,17 @@
                                 rawSlots = Object.values(val).filter(v => v !== null && v !== undefined);
                             }
                             rawSlots = rawSlots.map((s, idx) => ({ ...s, id: s.id || (idx + 1) }));
-                            const fullSlots = [];
-                            for (let i = 1; i <= 4; i++) {
-                                const existing = rawSlots.find(s => s && s.id === i);
-                                fullSlots.push(existing || { id: i, symbol: null, entry_price: 0, current_stop: 0, status_risco: 'LIVRE', pnl_percent: 0 });
-                            }
-                            setSlots(fullSlots);
-                            localStorage.setItem('slots_cache', JSON.stringify(fullSlots));
+                            setSlots(prev => {
+                                const fullSlots = hydrateFullSlots(rawSlots, prev);
+                                localStorage.setItem('slots_cache', JSON.stringify(fullSlots));
+                                return fullSlots;
+                            });
                         } else if (msgType === 'slot_update') {
                             const updatedSlot = message.data;
                             const slotId = updatedSlot.id || updatedSlot.slot_id;
                             if (slotId) {
                                 setSlots(prev => {
-                                    const newSlots = prev.map(s => (s.id === slotId ? { ...s, ...updatedSlot } : s));
+                                    const newSlots = prev.map(s => (s.id === slotId ? mergeSlotProjection(updatedSlot, s) : s));
                                     localStorage.setItem('slots_cache', JSON.stringify(newSlots));
                                     return newSlots;
                                 });
@@ -1578,13 +1601,11 @@
                         if (res.ok) {
                             const data = await res.json();
                             const rawSlots = Array.isArray(data) ? data : [];
-                            const fullSlots = [];
-                            for (let i = 1; i <= 4; i++) {
-                                const existing = rawSlots.find(s => s && s.id === i);
-                                fullSlots.push(existing || { id: i, symbol: null, entry_price: 0, current_stop: 0, status_risco: 'LIVRE', pnl_percent: 0 });
-                            }
-                            setSlots(fullSlots);
-                            localStorage.setItem('slots_cache', JSON.stringify(fullSlots));
+                            setSlots(prev => {
+                                const fullSlots = hydrateFullSlots(rawSlots, prev);
+                                localStorage.setItem('slots_cache', JSON.stringify(fullSlots));
+                                return fullSlots;
+                            });
                         } else if (res.status === 401) {
                             console.warn('[SLOTS] Auth 401 — token ausente ou expirado. Tentando sem auth...');
                         }
@@ -3666,8 +3687,18 @@
             const cleanSymbol = isActive ? s.symbol.replace('.P', '').replace('.p', '').trim() : null;
             
             // [V110.137] Strategy Identification
-            const isBlitz = isActive && (s.slot_type === 'BLITZ' || s.slot_type === 'BLITZ_30M');
+            const rawSlotType = String(s.slot_type || s.strategy || '').toUpperCase();
+            const isBlitz = isActive && (rawSlotType === 'BLITZ' || rawSlotType === 'BLITZ_30M');
             const isSwing = false; // [V110.511] Legacy Swing Disabled
+            const strategyBadge = (() => {
+                if (!isActive) return `SLOT ${s.id}`;
+                if (s.strategy_label) return s.strategy_label;
+                if (s.is_spring_strike) return 'BLITZ | SPRING';
+                if (rawSlotType === 'BLITZ_30M') return 'BLITZ 30M';
+                if (rawSlotType === 'BLITZ') return 'BLITZ';
+                if (rawSlotType) return rawSlotType.replace(/_/g, ' ');
+                return 'SLOT TATICO';
+            })();
 
             // Intelligence Data
             const confidence = s.unified_confidence || s.confidence_score || (s.score ? s.score : 50);
@@ -3731,8 +3762,9 @@
             const projectionLevels = Array.isArray(projection.levels) ? projection.levels : [];
             const projectionRoi = Number.isFinite(Number(projection.roi_percent)) ? Number(projection.roi_percent) : displayPnl;
             const flashIntel = projection.flash || {};
-            const flashAction = flashIntel.last_action || 'MONITORANDO';
-            const activeLevel = projection.active_level || projectionLevels.find(l => l && l.active);
+            const lastActiveLevel = projectionLevels.filter(l => l && l.active).slice(-1)[0] || null;
+            const activeLevel = projection.active_level || lastActiveLevel;
+            const flashAction = activeLevel?.name || flashIntel.last_action || s.flash_last_action || 'MONITORANDO';
             const fallbackLevels = [
                 { phase: 'ESCADINHA', name: 'BREAKEVEN', trigger_roi: 30, stop_roi: 6 },
                 { phase: 'ESCADINHA', name: 'PROFIT_BRIDGE', trigger_roi: 50, stop_roi: 25 },
@@ -3793,6 +3825,9 @@
                 if (activeLevel?.name) {
                     return { label: activeLevel.name, color: 'bg-cyan-600 text-white', icon: 'flash_on' };
                 }
+                if (stopRoiNow !== null && stopRoiNow < 0) {
+                    return { label: 'RISCO ABERTO', color: 'bg-amber-500/90 text-black', icon: 'shield' };
+                }
                 return { label: 'STOP INICIAL', color: 'bg-blue-600/80 text-white', icon: 'security' };
             })();
 
@@ -3806,7 +3841,7 @@
                     {/* [V110.669] Strategy Badge - Dynamic Injection */}
                     <div className="strategy-badge-elite !rounded-bl-3xl bg-white">
                         <span className="px-1 text-black font-black">
-                            {isActive ? (s.strategy_label || (s.is_spring_strike ? 'BLITZ | SPRING' : 'BLITZ 30M')) : `SLOT ${s.id}`}
+                            {strategyBadge}
                         </span>
                     </div>
 

@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.825 "Flash Stop Telemetry Logs"
+# MASTER_ARCHITECTURE.md — V110.826 "Flash-First Slot Cards"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.825)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.825)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.826)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.826)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.826: FLASH-FIRST SLOT CARDS [JUN 08]**
+    - **Cards alinhados ao Flash:** o badge principal do slot passa a usar `projection.active_level` ou o último nível ativo de `projection.levels`, evitando mostrar `STOP INICIAL` quando o Flash já está em `RISCO_ZERO`/`PROFIT_LOCK`.
+    - **Sem BLITZ falso:** `/api/slots`, broadcasts e card deixam de cair em `BLITZ 30M` quando `slot_type` está ausente; o fallback operacional vira `SWING`/`SLOT TATICO`.
+    - **Projeção preservada no realtime:** atualizações `live_slots`/`slot_update` sem `projection` não apagam a projeção REST enriquecida que alimenta stop atual, stop alvo, próximo nível e estado do Flash.
+    - **Risco aberto explícito:** slots ativos sem degrau protegido e com stop ainda negativo aparecem como `RISCO ABERTO`, deixando claro quais posições ainda dependem da primeira quebra de escadinha.
 
 *   **V110.825: FLASH STOP TELEMETRY LOGS [JUN 08]**
     - **Log vivo por ordem:** `FlashAgent` passa a emitir `[FLASH-TRACK][SLOT]` e `[FLASH-TRACK][MOONBAG]` para cada ordem processada, mostrando preço, entry, ROI, pico, fase, nível ativo, próximo nível, stop persistido, ROI travado pelo stop, stop alvo e ação esperada.
@@ -491,7 +497,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.825)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.826)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -541,7 +547,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.825)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.826)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -567,7 +573,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.825)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.826)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -579,10 +585,10 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 3.  **Estilo Unificado (`frontend/css/cockpit.css`)**: Centraliza todas as regras visuais, auras Gemini neon e animações.
 4.  **Renderização de Stops Backend-First:** `cockpit.html` consome `projection.levels` de `/api/slots` e `/api/moonbags` para desenhar o Mapa Flash completo no gráfico, da escadinha até a moonbag. Cálculos locais de escadinha/moonbag permanecem apenas como fallback se uma ordem legada chegar sem `projection`. As price lines usam assinatura de ordem/projeção para evitar flicker durante refresh de candles, pulso ou WebSocket.
 5.  **Contrato OKX no Relatório do Radar:** `TriumphModal.js` mostra `ctVal`, `tickSize`, `lotSize/qtyStep`, `minQty`, `maxLeverage`, preço de referência, margem mínima e a fórmula de ROI alavancado para cada sinal ativo.
-6.  **Slot Cards Operacionais (V110.814):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo` com nome/ROI do próximo nível, próximo gatilho real da escadinha/moonbag e `Stop Flash Sugerido` apenas quando `recommended_stop` melhora o stop atual. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level`/`projection.flash`.
+6.  **Slot Cards Operacionais (V110.826):** cards de ordem ativa exibem `Entry`, `Stop Atual`, `Emancipação 150%`, `Flash`, `Stop Atual` em ROI, `Stop Alvo` com nome/ROI do próximo nível, próximo gatilho real da escadinha/moonbag e `Stop Flash Sugerido` apenas quando `recommended_stop` melhora o stop atual. Ícones legados soltos foram removidos; o badge tático segue `projection.active_level` ou o último nível ativo de `projection.levels`. Atualizações realtime sem `projection` preservam a projeção REST enriquecida, e slots sem stop protegido aparecem como `RISCO ABERTO`.
 7.  **Banca com Guardião (V110.824):** Desktop e Mobile consomem `BankrollGuardian` por `/api/bankroll/guardian-report` e exibem saúde, modo, score mínimo, lucro protegido, devolução permitida e pares suspensos junto do patrimônio/equity. O patrimônio líquido usa `guardianReport.equity` quando disponível; cards e totais de slots/moonbags usam `projection.pnl_usd` como fonte oficial de PnL em dólar. O hook de moonbags preserva `projection` REST quando o RTDB chega sem enriquecimento. O relatório também expõe `stored_equity`, `calculated_equity`, `realized_pnl`, `open_slots_pnl`, `open_moonbags_pnl`, `protected_floor`, `protected_slots` e `unprotected_slots` para auditoria.
 
 ---
 
-*Documento atualizado em: 2026-06-08 (V110.825) Sincronizado*
+*Documento atualizado em: 2026-06-08 (V110.826) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

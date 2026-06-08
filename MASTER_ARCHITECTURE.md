@@ -1,9 +1,16 @@
-# MASTER_ARCHITECTURE.md — V110.821 "Infinite Moonbag Trail"
+# MASTER_ARCHITECTURE.md — V110.822 "Flash-First Cockpit Language"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.821)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.821)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.822)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.822)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.822: FLASH-FIRST COCKPIT LANGUAGE [JUN 08]**
+    - **Flash como protagonista visual:** textos operacionais do gráfico e HUD passam a priorizar `FLASH MONITORANDO`, `FLASH STOP`, `FLASH RISCO ZERO`, `FLASH LUCRO TRAVADO` e `FLASH EMANCIPANDO`.
+    - **Menos mitologia interna na UI:** `Tocaia` e `Ceifeiro` continuam existindo no backend/fluxo, mas deixam de ser protagonistas na tela operacional; o foco visível vira estado do stop, próximo alvo e risco vivo.
+    - **Gráfico mais limpo:** linhas antigas/rompidas continuam desenhadas, porém só `FLASH STOP` ativo e próximo degrau exibem label no eixo/gutter, reduzindo a concatenação visual.
+    - **Painel renomeado:** `Target Visualization / Multi-Grid Matrix Controller` vira `Flash Map / Stops, alvos e risco vivo`; `System Engine` vira `Flash Engine`.
+    - **Moonbag focada no Flash:** hover de moonbag troca `Ceifeiro: Surf Eterno` por comunicação operacional `FLASH EM CONTROLE`, alinhada com stops contínuos pós-1200%.
 
 *   **V110.821: INFINITE MOONBAG TRAIL [JUN 08]**
     - **Moonbag sem teto em 1200%:** `OrderProjectionService` remove o limite lógico `MAX_TARGET`; 1200% vira `APEX` e a projeção continua com níveis `ULTRA_1600`, `ULTRA_2000`, `ULTRA_2400` etc.
@@ -467,7 +474,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.821)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.822)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -516,7 +523,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.821)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.822)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -542,7 +549,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.821)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.822)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -559,5 +566,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-08 (V110.821) Sincronizado*
+*Documento atualizado em: 2026-06-08 (V110.822) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards, inteligência da banca e renderização estável do Cockpit.*

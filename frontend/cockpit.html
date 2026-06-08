@@ -441,6 +441,8 @@
             const levels = Array.isArray(projection?.levels) ? projection.levels : [];
             const activeName = String(projection?.active_level?.name || '').toUpperCase();
             const activeTrigger = Number(projection?.active_level?.trigger_roi || 0);
+            const nextName = String(projection?.next_level?.name || '').toUpperCase();
+            const nextTrigger = Number(projection?.next_level?.trigger_roi || 0);
             return levels
                 .flatMap((level) => {
                     const trigger = Number(level.trigger_roi || 0);
@@ -450,28 +452,31 @@
                     const isCurrent = activeName
                         ? String(level.name || '').toUpperCase() === activeName
                         : activeTrigger > 0 && trigger === activeTrigger;
+                    const isNext = nextName
+                        ? String(level.name || '').toUpperCase() === nextName
+                        : nextTrigger > 0 && trigger === nextTrigger;
                     const isEarned = Boolean(level.active);
                     const state = isCurrent ? 'active' : isEarned ? 'earned' : 'future';
                     const shortName = projectionLevelShortName(level);
                     const targetLine = {
                         value: targetPrice,
-                        label: `${isEarned ? 'OK ' : ''}ALVO ${shortName} ${trigger.toFixed(0)}%`,
+                        label: `${isEarned ? 'OK ' : ''}ALVO ${trigger.toFixed(0)}%`,
                         color: projectionLevelColor(level, isEarned ? 'earned' : 'future'),
                         active: false,
                         earned: isEarned,
                         lineWidth: 1,
                         lineStyle: 2,
-                        axisLabelVisible: true,
+                        axisLabelVisible: isNext,
                     };
                     const stopLine = {
                         value: stopPrice,
-                        label: `${isCurrent ? 'FLASH ' : isEarned ? 'STOP ' : 'PROX STOP '}${shortName} +${stopRoi.toFixed(0)}%`,
+                        label: `${isCurrent ? 'FLASH STOP ' : isEarned ? 'STOP ' : 'PROX STOP '}${stopRoi.toFixed(0)}%`,
                         color: projectionLevelColor(level, state),
                         active: isCurrent,
                         earned: isEarned,
                         lineWidth: isCurrent ? 2 : 1,
                         lineStyle: isCurrent ? 0 : isEarned ? 1 : 2,
-                        axisLabelVisible: true,
+                        axisLabelVisible: isCurrent || isNext,
                     };
                     return [targetLine, stopLine];
                 })
@@ -4215,14 +4220,14 @@
                         if (points.isMoonbag) {
                             const slRoi = Math.abs((points.sl - points.entry) / points.entry) * (points.leverage || 50) * 100;
                             slBadgeColor = '#10b981';
-                            slBadgeLabel = `LUCRO ${slRoi.toFixed(0)}% 💎`;
+                            slBadgeLabel = `FLASH STOP ${slRoi.toFixed(0)}%`;
                         } else {
                             const isRiskFree = points.isLong ? (points.sl >= points.entry - (points.entry * 0.0005)) : (points.sl <= points.entry + (points.entry * 0.0005));
                             const isProfitLocked = points.isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
                             
                             if (isProfitLocked) {
                                 slBadgeColor = '#10b981';
-                                slBadgeLabel = 'LUCRO 💎';
+                                slBadgeLabel = 'FLASH STOP';
                             } else if (isRiskFree) {
                                 slBadgeColor = '#3b82f6';
                                 slBadgeLabel = 'ZERO 🛡️';
@@ -4234,16 +4239,18 @@
                     
                     const isLong = points.isLong;
                     const leverage = parseFloat(points.leverage || 50);
+                    const backendLevels = getProjectionPriceLevels(points.projection);
                     
                     // Alvo Principal (Structural Target ou T5 fallback)
                     const fallbackT5 = isLong ? points.entry * (1 + 1.5/leverage) : points.entry * (1 - 1.5/leverage);
                     const mainTp = points.target_price || points.t5 || fallbackT5;
-                    levels.push({ value: mainTp, label: points.isMoonbag ? 'T5 💎' : 'TARGET', color: '#10b981' });
+                    if (backendLevels.length === 0) {
+                        levels.push({ value: mainTp, label: points.isMoonbag ? 'MOONBAG' : 'TARGET', color: '#10b981' });
+                    }
 
-                    const backendLevels = getProjectionPriceLevels(points.projection);
                     if (backendLevels.length > 0) {
                         backendLevels.forEach(lvl => {
-                            levels.push({ value: lvl.value, label: lvl.label, color: lvl.color });
+                            levels.push({ value: lvl.value, label: lvl.label, color: lvl.color, gutterVisible: lvl.axisLabelVisible });
                         });
                     } else {
                     const escadinhaLevels = [];
@@ -4292,6 +4299,7 @@
                 
                 let lastY = -100;
                 levels.forEach(lvl => {
+                    if (lvl.gutterVisible === false) return;
                     const y = candlestickSeries.current.priceToCoordinate(lvl.value);
                     if (y === null || y < 0 || y > container.clientHeight) return;
                     
@@ -4556,13 +4564,13 @@
                                 const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
                                 if (activeSlot) {
                                     const status = activeSlot.status_risco || 'MONITORANDO';
-                                    let cfg = { label: 'STOP INICIAL', color: 'bg-blue-600/80', icon: 'security' };
+                                    let cfg = { label: 'FLASH MONITORANDO', color: 'bg-blue-600/80', icon: 'security' };
                                     
-                                    if (status.includes('RISCO_ZERO')) cfg = { label: 'RISCO ZERO', color: 'bg-green-500', icon: 'verified_user' };
-                                    else if (status.includes('PROFIT_LOCK')) cfg = { label: 'LUCRO TRAVADO', color: 'bg-amber-500', icon: 'lock_person' };
-                                    else if (status.includes('SL_0') || status.includes('SENTINEL')) cfg = { label: 'SENTINELA ATIVO', color: 'bg-cyan-600', icon: 'visibility' };
-                                    else if (status === 'EMANCIPADO' || status === 'EMANCIPATED') cfg = { label: '🚀 EMANCIPANDO', color: 'bg-gradient-to-r from-yellow-500 to-amber-400 text-black animate-pulse', icon: 'rocket_launch' };
-                                    else if (status === 'MONITORANDO' || !status) cfg = { label: 'STOP INICIAL', color: 'bg-blue-600/80', icon: 'security' };
+                                    if (status.includes('RISCO_ZERO')) cfg = { label: 'FLASH RISCO ZERO', color: 'bg-green-500', icon: 'verified_user' };
+                                    else if (status.includes('PROFIT_LOCK')) cfg = { label: 'FLASH LUCRO TRAVADO', color: 'bg-amber-500', icon: 'lock_person' };
+                                    else if (status.includes('SL_0') || status.includes('SENTINEL')) cfg = { label: 'FLASH SENTINELA', color: 'bg-cyan-600', icon: 'visibility' };
+                                    else if (status === 'EMANCIPADO' || status === 'EMANCIPATED') cfg = { label: 'FLASH EMANCIPANDO', color: 'bg-gradient-to-r from-yellow-500 to-amber-400 text-black animate-pulse', icon: 'rocket_launch' };
+                                    else if (status === 'MONITORANDO' || !status) cfg = { label: 'FLASH MONITORANDO', color: 'bg-blue-600/80', icon: 'security' };
 
                                     const rawIntel = activeSlot.fleet_intel || {};
                                     const ign = rawIntel.ignition || { breakdown: {} };
@@ -4603,7 +4611,7 @@
                             })()}
                             {focusedAsset && focusedAsset.symbol.replace('.P','') === localSymbol && (
                                 <div className="px-2 py-1 rounded bg-primary/20 border border-primary/40 text-[8px] font-black text-primary uppercase tracking-widest animate-pulse">
-                                    TOCAIA ATIVA
+                                    SINAL DO RADAR
                                 </div>
                             )}
                         </div>
@@ -5240,8 +5248,8 @@
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-6">
                                     <div className="flex flex-col">
-                                        <h2 className="text-[14px] font-black text-white uppercase tracking-[0.2em] font-display">Target Visualization</h2>
-                                        <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">Multi-Grid Matrix Controller</span>
+                                        <h2 className="text-[14px] font-black text-white uppercase tracking-[0.2em] font-display">Flash Map</h2>
+                                        <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">Stops, alvos e risco vivo</span>
                                     </div>
                                     <div className="flex bg-white/[0.03] p-1.5 rounded-2xl border border-white/5 gap-2 relative z-50 pointer-events-auto backdrop-blur-xl">
                                         {[
@@ -5265,8 +5273,8 @@
                                 </div>
                                 <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5 backdrop-blur-xl">
                                     <div className="flex flex-col items-end">
-                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">System Engine</span>
-                                        <span className="text-[10px] font-black text-white uppercase tracking-tighter">Live & Responsive</span>
+                                        <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Flash Engine</span>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-tighter">Backend live</span>
                                     </div>
                                     <div className="w-2 h-2 rounded-full bg-lime-500 animate-pulse shadow-[0_0_10px_rgba(132,204,22,0.5)]"></div>
                                 </div>
@@ -5429,7 +5437,7 @@
                                                sl: sl,
                                                side: side,
                                                leverage: leverage,
-                                               pensamento: `🌾 Ceifeiro: Moonbag em Surf Eterno — Alvos até 1200% ROI.`,
+                                               pensamento: `FLASH EM CONTROLE: moonbag ativa com stop vivo e próximo alvo contínuo.`,
                                            });
                                            setGridMode('1');
                                        }

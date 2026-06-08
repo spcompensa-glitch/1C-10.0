@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.827 "Moonbag Peak Stop Sync"
+# MASTER_ARCHITECTURE.md — V110.828 "Moonbag 200 ROI Breathing Room"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.827)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.827)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.828)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.828)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.828: MOONBAG 200 ROI BREATHING ROOM [JUN 08]**
+    - **Respiro pos-APEX reduzido para 200% ROI:** acima de `APEX 1200%`, os niveis `ULTRA_*` passam a nascer a cada `200% ROI` com stop `200% ROI` atras do alvo rompido.
+    - **Trava antes do 1600:** moonbag que rompe `ULTRA_1400` ja protege `+1200%`, evitando ficar presa no stop `+1000%` enquanto espera o alvo `+1600%`.
+    - **OPN ajustada:** com OPN SHORT em ~`+1469%`, a projecao oficial vira `ULTRA_1400 -> stop +1200%`, com proximo `ULTRA_1600 -> stop +1400%`.
+    - **Tese operacional:** o sistema preserva espaco de respiracao, mas se o preco voltar forte, a banca captura o lucro grande ja conquistado em vez de devolver uma faixa excessiva.
 
 *   **V110.827: MOONBAG PEAK STOP SYNC [JUN 08]**
     - **Moonbag tambem usa peakROI:** `FlashAgent` passa a decidir trailing de moonbag pelo maior ROI entre preco atual, extremo recente do WebSocket, cache de pico e PnL persistido.
@@ -504,7 +510,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.827)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.828)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -518,7 +524,7 @@
 - **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir. A regra de melhoria/violação de stop é única para LONG/SHORT e coberta por testes de invariantes:
   - **Slots Táticos:** Escadinha oficial (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + Moonbag)
   - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
-  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%, depois `ULTRA_*` a cada 400% com stop 250% ROI abaixo do alvo)
+  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%, depois `ULTRA_*` a cada 200% com stop 200% ROI abaixo do alvo)
   - **Moonbag peak trail:** moonbags tambem usam maior ROI recente (`peakROI`) para promover stops de alvos rompidos; se o preco volta apos tocar um alvo, o Flash atualiza o stop conquistado e confirma violacao imediatamente.
   - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
   - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
@@ -537,7 +543,7 @@
 - **Fórmula oficial de ROI:** `((current - entry) / entry) * leverage * 100` para LONG e `((entry - current) / entry) * leverage * 100` para SHORT.
 - **Fórmula oficial de preço do stop:** `entry * (1 + stop_roi / (leverage * 100))` para LONG e `entry * (1 - stop_roi / (leverage * 100))` para SHORT, sempre arredondada por `tickSize` OKX.
 - **Escadinha oficial:** 30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + emancipação.
-- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 400% ROI com stop 250% abaixo do alvo rompido. A decisao do Flash usa `peakROI` recente para nao perder rompimentos rapidos; exemplo: pico `ULTRA_1600` aplica stop `+1350%`.
+- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 200% ROI com stop 200% abaixo do alvo rompido. A decisao do Flash usa `peakROI` recente para nao perder rompimentos rapidos; exemplo: pico `ULTRA_1400` aplica stop `+1200%`, e pico `ULTRA_1600` aplica stop `+1400%`.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 - **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`. Em lucro forte, moonbag lucrativa ou escadinha já protegida, protege o pico da banca e aumenta o score mínimo mantendo 4 slots; em cautela/defesa/preservação sem lucro protegido, reduz ou pausa novas entradas.
@@ -555,7 +561,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.827)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.828)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -581,7 +587,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.827)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.828)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -598,5 +604,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-08 (V110.827) Sincronizado*
+*Documento atualizado em: 2026-06-08 (V110.828) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

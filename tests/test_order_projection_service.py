@@ -163,7 +163,34 @@ async def test_moonbag_projection_continues_after_1200_roi():
 
     assert projection["roi_percent"] == pytest.approx(1700.0)
     assert projection["active_level"]["name"] == "ULTRA_1600"
-    assert projection["active_level"]["stop_roi"] == 1350.0
-    assert projection["recommended_stop"] == pytest.approx(0.09636)
-    assert projection["next_level"]["name"] == "ULTRA_2000"
-    assert projection["next_level"]["trigger_roi"] == 2000.0
+    assert projection["active_level"]["stop_roi"] == 1400.0
+    assert projection["recommended_stop"] == pytest.approx(0.09504)
+    assert projection["next_level"]["name"] == "ULTRA_1800"
+    assert projection["next_level"]["trigger_roi"] == 1800.0
+
+
+@pytest.mark.asyncio
+async def test_moonbag_post_apex_locks_1200_after_1400_break():
+    order = {
+        "symbol": "OPNUSDT",
+        "side": "SELL",
+        "entry_price": 0.132,
+        "current_stop": 0.1056,
+        "leverage": 50.0,
+        "qty": 113.0,
+        "contract_meta": {"tick_size": 0.0001, "ct_val": 10.0, "qty_step": 1.0, "min_qty": 1.0},
+    }
+
+    projection = await order_projection_service.build_projection(
+        order,
+        current_price=0.0932,
+        phase_hint="MOONBAG",
+        fetch_contract=False,
+    )
+
+    assert projection["roi_percent"] == pytest.approx(1469.6969, abs=0.001)
+    assert projection["active_level"]["name"] == "ULTRA_1400"
+    assert projection["active_level"]["stop_roi"] == 1200.0
+    assert projection["recommended_stop"] == pytest.approx(0.1003)
+    assert projection["next_level"]["name"] == "ULTRA_1600"
+    assert projection["next_level"]["stop_roi"] == 1400.0

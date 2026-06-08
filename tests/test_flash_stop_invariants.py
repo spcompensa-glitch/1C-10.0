@@ -85,9 +85,9 @@ def test_flash_moonbag_tracking_log_exposes_hard_lock_context(caplog):
             "stop_roi": 1000.0,
         },
         "next_level": {
-            "name": "ULTRA_1600",
-            "trigger_roi": 1600.0,
-            "stop_roi": 1350.0,
+            "name": "ULTRA_1400",
+            "trigger_roi": 1400.0,
+            "stop_roi": 1200.0,
         },
     }
 
@@ -112,7 +112,7 @@ def test_flash_moonbag_tracking_log_exposes_hard_lock_context(caplog):
     assert "symbol=OPNUSDT" in line
     assert "peak_roi=+1291.7%" in line
     assert "active=APEX/trigger=1200%/stop=1000%" in line
-    assert "next=ULTRA_1600/trigger=1600%/stop=1350%" in line
+    assert "next=ULTRA_1400/trigger=1400%/stop=1200%" in line
     assert "stop_db=" in line
     assert "stop_db_roi=+1000.0%" in line
     assert "hard_lock=" in line
@@ -216,8 +216,8 @@ async def test_moonbag_uses_recent_peak_to_apply_broken_post_apex_stop(monkeypat
 
     await flash._process_moonbag(moon)
 
-    assert checked_stops == [pytest.approx(0.1056), pytest.approx(0.0964)]
-    assert updated == [("OPNUSDT_1780848528", "OPNUSDT", pytest.approx(0.0964), "ULTRA_1600", 1350.0)]
+    assert checked_stops == [pytest.approx(0.1056), pytest.approx(0.095)]
+    assert updated == [("OPNUSDT_1780848528", "OPNUSDT", pytest.approx(0.095), "ULTRA_1600", 1400.0)]
 
 
 @pytest.mark.asyncio

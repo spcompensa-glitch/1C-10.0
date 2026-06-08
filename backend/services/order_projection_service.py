@@ -41,6 +41,9 @@ ORDER_STOP_LADDER: List[StopLevel] = [
     StopLevel("MOONBAG", "APEX", 1200.0, 1000.0, "MOONBAG_TRAIL"),
 ]
 
+POST_APEX_STEP_ROI = 200.0
+POST_APEX_STOP_OFFSET_ROI = 200.0
+
 
 class OrderProjectionService:
     def normalize_side(self, side: Any) -> str:
@@ -91,7 +94,7 @@ class OrderProjectionService:
         ladder = list(ORDER_STOP_LADDER)
         highest_trigger = max(level.trigger_roi for level in ladder)
         target_ceiling = max(highest_trigger, roi_percent + 400.0)
-        trigger_roi = highest_trigger + 400.0
+        trigger_roi = highest_trigger + POST_APEX_STEP_ROI
 
         while trigger_roi <= target_ceiling + 1e-9:
             ladder.append(
@@ -99,11 +102,11 @@ class OrderProjectionService:
                     "MOONBAG",
                     f"ULTRA_{int(trigger_roi)}",
                     trigger_roi,
-                    max(trigger_roi - 250.0, 0.0),
+                    max(trigger_roi - POST_APEX_STOP_OFFSET_ROI, 0.0),
                     "MOONBAG_TRAIL",
                 )
             )
-            trigger_roi += 400.0
+            trigger_roi += POST_APEX_STEP_ROI
 
         return ladder
 

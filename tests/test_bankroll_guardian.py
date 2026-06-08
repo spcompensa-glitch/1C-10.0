@@ -20,6 +20,80 @@ def _guardian_report(min_score=80.0, active_slots=1, max_slots=4):
     }
 
 
+def test_profitable_moonbag_keeps_accumulation_protected_when_below_profit_floor():
+    guardian = BankrollGuardian()
+    guardian.peak_equity = 45.7288
+
+    health = guardian._health_mode(
+        equity=36.6753,
+        base_balance=20.0,
+        active_slots=2,
+        active_moonbags=1,
+        open_moonbags_pnl=29.606,
+    )
+
+    assert health["mode"] == "ACUMULACAO_PROTEGIDA"
+    assert health["max_slots"] == 4
+    assert health["min_score"] < 999.0
+    assert "Moonbag lucrativa ativa" in health["reasons"][0]
+
+
+def test_profit_floor_still_blocks_without_profitable_moonbag():
+    guardian = BankrollGuardian()
+    guardian.peak_equity = 45.7288
+
+    health = guardian._health_mode(
+        equity=36.6753,
+        base_balance=20.0,
+        active_slots=2,
+        active_moonbags=0,
+        open_moonbags_pnl=0.0,
+    )
+
+    assert health["mode"] == "PRESERVACAO_TOTAL"
+    assert health["max_slots"] == 0
+    assert health["min_score"] == 999.0
+
+
+def test_protected_slot_keeps_accumulation_protected_when_below_profit_floor():
+    guardian = BankrollGuardian()
+    guardian.peak_equity = 45.7288
+
+    health = guardian._health_mode(
+        equity=36.6753,
+        base_balance=20.0,
+        active_slots=2,
+        active_moonbags=0,
+        open_moonbags_pnl=0.0,
+        protected_slots=1,
+    )
+
+    assert health["mode"] == "ACUMULACAO_PROTEGIDA"
+    assert health["max_slots"] == 4
+    assert health["min_score"] < 999.0
+    assert "stop em break-even/lucro" in health["reasons"][0]
+
+
+def test_position_stop_roi_detects_long_and_short_profit_lock():
+    guardian = BankrollGuardian()
+
+    long_stop_roi = guardian._position_stop_roi({
+        "side": "buy",
+        "entry_price": 1.0,
+        "current_stop": 1.01,
+        "leverage": 50,
+    })
+    short_stop_roi = guardian._position_stop_roi({
+        "side": "sell",
+        "entry_price": 1.0,
+        "current_stop": 0.99,
+        "leverage": 50,
+    })
+
+    assert long_stop_roi == pytest.approx(50.0)
+    assert short_stop_roi == pytest.approx(50.0)
+
+
 @pytest.mark.asyncio
 async def test_guardian_uses_radar_score_not_unified_confidence_for_minimum(monkeypatch):
     guardian = BankrollGuardian()

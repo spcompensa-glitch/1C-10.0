@@ -193,6 +193,7 @@ class FlashAgent:
         current_stop: float,
         leverage: float,
         roi: float,
+        effective_roi: float,
         projection: Dict[str, Any],
         hard_lock_stop: float,
         hard_lock_roi: float,
@@ -212,7 +213,8 @@ class FlashAgent:
         logger.info(
             f"[FLASH-TRACK][MOONBAG] uuid={moon_uuid} symbol={symbol} side={side.upper()} "
             f"price={self._fmt_price(current_price)} entry={self._fmt_price(entry_price)} "
-            f"roi={self._fmt_roi(roi)} phase={phase} active={self._level_label(active_level)} "
+            f"roi={self._fmt_roi(roi)} peak_roi={self._fmt_roi(effective_roi)} phase={phase} "
+            f"active={self._level_label(active_level)} "
             f"next={self._level_label(next_level)} stop_db={self._fmt_price(current_stop)} "
             f"stop_db_roi={self._fmt_roi(current_stop_roi)} hard_lock={self._fmt_price(hard_lock_stop)} "
             f"hard_lock_roi={self._fmt_roi(hard_lock_roi)} hard_lock_improves={hard_lock_improves} "
@@ -474,6 +476,28 @@ class FlashAgent:
             phase_hint="MOONBAG",
         )
         roi = float(projection.get("roi_percent") or 0)
+        peak_price = self._get_peak_price(symbol, side, current_price)
+        peak_roi = self._calc_roi(entry_price, peak_price, side, leverage) if peak_price > 0 else roi
+        moon_key = moon.get("genesis_id") or moon_uuid or f"moon:{symbol}"
+        cached_peak = float(self._peak_roi_cache.get(moon_key, 0.0) or 0.0)
+        stored_peak = float(moon.get("pnl_percent") or 0.0)
+        effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
+        self._peak_roi_cache[moon_key] = effective_roi
+
+        decision_projection = projection
+        if effective_roi > roi + 0.1:
+            decision_price = order_projection_service.raw_price_from_roi(
+                entry_price,
+                effective_roi,
+                side,
+                leverage,
+            )
+            decision_projection = await order_projection_service.build_projection(
+                moon,
+                current_price=decision_price,
+                phase_hint="MOONBAG",
+            )
+
         hard_lock_roi = self._moonbag_hard_lock_roi(moon)
         hard_lock_stop = await self._calc_stop_price(entry_price, hard_lock_roi, side, leverage, symbol)
         hard_lock_improves = self._stop_improves(side, current_stop, hard_lock_stop)
@@ -488,7 +512,8 @@ class FlashAgent:
             current_stop,
             leverage,
             roi,
-            projection,
+            effective_roi,
+            decision_projection,
             hard_lock_stop,
             hard_lock_roi,
             hard_lock_improves,
@@ -516,14 +541,14 @@ class FlashAgent:
                 current_stop = hard_lock_stop
 
         # ⚡ 2. TRAILING STOP — Só sobe se ROI for >= 160% (igual ao Ceifeiro)
-        projected_level = projection.get("active_level")
+        projected_level = decision_projection.get("active_level")
         if not projected_level or projected_level.get("phase") != "MOONBAG":
             return
 
         sl_roi = float(projected_level.get("stop_roi") or 0)
         label = projected_level.get("name") or "MOONBAG_TRAIL"
         icon = ""
-        new_stop = float(projection.get("recommended_stop") or 0)
+        new_stop = float(decision_projection.get("recommended_stop") or 0)
         if new_stop <= 0 and sl_roi > 0:
             new_stop = await self._calc_stop_price(entry_price, sl_roi, side, leverage, symbol)
 
@@ -538,7 +563,15 @@ class FlashAgent:
             f"ðŸŒ™âš¡ [FLASH-MOON-TRAIL] {symbol} ROI={roi:.1f}% â†’ SL +{sl_roi:.0f}% "
             f"(${new_stop:.4f}) [{icon} {label}]"
         )
-        asyncio.create_task(self._update_moonbag_sl(moon_uuid, symbol, new_stop, roi, label, sl_roi))
+        await self._update_moonbag_sl(moon_uuid, symbol, new_stop, roi, label, sl_roi)
+        stop_hit = await self._check_stop_hit(side, new_stop, symbol)
+        if stop_hit:
+            logger.warning(
+                f"[FLASH-MOON-TRAIL-SL] {symbol} voltou no stop conquistado "
+                f"${new_stop:.4f}. Fechando com lucro protegido."
+            )
+            asyncio.create_task(self._close_moonbag(moon_uuid, symbol, side, qty, f"MOONBAG_TRAIL_SL_{roi:.1f}%"))
+            self._peak_roi_cache.pop(moon_key, None)
         return
 
         if roi < 160:

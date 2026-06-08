@@ -100,6 +100,7 @@ def test_flash_moonbag_tracking_log_exposes_hard_lock_context(caplog):
         current_stop=0.1056,
         leverage=50.0,
         roi=1291.7,
+        effective_roi=1291.7,
         projection=projection,
         hard_lock_stop=0.1291,
         hard_lock_roi=110.0,
@@ -109,6 +110,7 @@ def test_flash_moonbag_tracking_log_exposes_hard_lock_context(caplog):
     line = caplog.records[-1].message
     assert "[FLASH-TRACK][MOONBAG]" in line
     assert "symbol=OPNUSDT" in line
+    assert "peak_roi=+1291.7%" in line
     assert "active=APEX/trigger=1200%/stop=1000%" in line
     assert "next=ULTRA_1600/trigger=1600%/stop=1350%" in line
     assert "stop_db=" in line
@@ -171,6 +173,51 @@ async def test_moonbag_short_uses_hard_lock_stop_when_persisted_stop_regressed(m
     assert closed[0][1] == "XPLUSDT"
     assert closed[0][2] == "sell"
     assert closed[0][4].startswith("MOONBAG_SL_")
+
+
+@pytest.mark.asyncio
+async def test_moonbag_uses_recent_peak_to_apply_broken_post_apex_stop(monkeypatch):
+    flash = FlashAgent()
+    updated = []
+    checked_stops = []
+
+    moon = {
+        "uuid": "OPNUSDT_1780848528",
+        "symbol": "OPNUSDT",
+        "side": "Sell",
+        "qty": 113.0,
+        "entry_price": 0.132,
+        "current_stop": 0.1056,
+        "leverage": 50.0,
+        "flash_last_stop_roi": 1000.0,
+        "contract_meta": {"tick_size": 0.0001, "ct_val": 10.0, "qty_step": 1.0, "min_qty": 1.0},
+    }
+
+    async def fake_get_current_price(symbol):
+        assert symbol == "OPNUSDT"
+        return 0.0932  # ~1469% ROI: current price already pulled back below the broken peak
+
+    def fake_get_peak_price(symbol, side, current_price):
+        assert symbol == "OPNUSDT"
+        assert side == "sell"
+        return 0.08712  # 1700% ROI: ULTRA_1600 was touched inside the recent WS window
+
+    async def fake_check_stop_hit(side, stop_price, symbol):
+        checked_stops.append(stop_price)
+        return False
+
+    async def fake_update_moonbag_sl(moon_uuid, symbol, sl_price, roi, flash_action="MOONBAG_TRAIL", stop_roi=None):
+        updated.append((moon_uuid, symbol, sl_price, flash_action, stop_roi))
+
+    monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+    monkeypatch.setattr(flash, "_get_peak_price", fake_get_peak_price)
+    monkeypatch.setattr(flash, "_check_stop_hit", fake_check_stop_hit)
+    monkeypatch.setattr(flash, "_update_moonbag_sl", fake_update_moonbag_sl)
+
+    await flash._process_moonbag(moon)
+
+    assert checked_stops == [pytest.approx(0.1056), pytest.approx(0.0964)]
+    assert updated == [("OPNUSDT_1780848528", "OPNUSDT", pytest.approx(0.0964), "ULTRA_1600", 1350.0)]
 
 
 @pytest.mark.asyncio

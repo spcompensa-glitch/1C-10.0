@@ -19,7 +19,7 @@ Author: 1Crypten Space V4.0
 import asyncio
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from config import settings
 from services.database_service import database_service
@@ -107,6 +107,119 @@ class FlashAgent:
     def _moonbag_hard_lock_roi(self, moon: Dict[str, Any]) -> float:
         return max(110.0, float(moon.get("flash_last_stop_roi") or 0))
 
+    def _stop_roi_from_price(self, entry_price: float, stop_price: float, side: str, leverage: float) -> Optional[float]:
+        if entry_price <= 0 or stop_price <= 0 or leverage <= 0:
+            return None
+        return self._calc_roi(entry_price, stop_price, side, leverage)
+
+    def _fmt_price(self, value: float) -> str:
+        if value is None or value <= 0:
+            return "n/a"
+        return f"${value:.8f}"
+
+    def _fmt_roi(self, value: Optional[float]) -> str:
+        if value is None:
+            return "n/a"
+        return f"{value:+.1f}%"
+
+    def _level_label(self, level: Any) -> str:
+        if not isinstance(level, dict) or not level:
+            return "NONE"
+        name = level.get("name") or level.get("label") or "UNKNOWN"
+        trigger = level.get("trigger_roi")
+        stop_roi = level.get("stop_roi")
+        parts = [str(name)]
+        if trigger is not None:
+            parts.append(f"trigger={float(trigger):.0f}%")
+        if stop_roi is not None:
+            parts.append(f"stop={float(stop_roi):.0f}%")
+        return "/".join(parts)
+
+    def _log_flash_exception(self, scope: str, symbol: str, exc: BaseException):
+        logger.error(
+            f"[FLASH-ERROR][{scope}] {symbol} falhou no ciclo de monitoramento: {exc}",
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+    def _log_price_unavailable(self, scope: str, symbol: str, entry_price: float, current_stop: float, side: str, leverage: float):
+        stop_roi = self._stop_roi_from_price(entry_price, current_stop, side, leverage)
+        logger.warning(
+            f"[FLASH-TRACK][{scope}] {symbol} side={side.upper()} price=n/a "
+            f"entry={self._fmt_price(entry_price)} stop_db={self._fmt_price(current_stop)} "
+            f"stop_db_roi={self._fmt_roi(stop_roi)} action=PRICE_UNAVAILABLE"
+        )
+
+    def _log_slot_tracking(
+        self,
+        slot_id: Any,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        current_price: float,
+        current_stop: float,
+        leverage: float,
+        roi: float,
+        effective_roi: float,
+        projection: Dict[str, Any],
+    ):
+        active_level = projection.get("active_level")
+        next_level = projection.get("next_level")
+        phase = projection.get("phase") or "UNKNOWN"
+        target_stop = float(projection.get("recommended_stop") or 0)
+        current_stop_roi = self._stop_roi_from_price(entry_price, current_stop, side, leverage)
+        target_stop_roi = self._stop_roi_from_price(entry_price, target_stop, side, leverage)
+        if target_stop_roi is None and isinstance(active_level, dict) and active_level.get("stop_roi") is not None:
+            target_stop_roi = float(active_level.get("stop_roi"))
+        improves = self._stop_improves(side, current_stop, target_stop)
+        action = "APPLY_STOP" if improves else "MONITOR"
+
+        logger.info(
+            f"[FLASH-TRACK][SLOT] slot={slot_id} symbol={symbol} side={side.upper()} "
+            f"price={self._fmt_price(current_price)} entry={self._fmt_price(entry_price)} "
+            f"roi={self._fmt_roi(roi)} peak_roi={self._fmt_roi(effective_roi)} phase={phase} "
+            f"active={self._level_label(active_level)} next={self._level_label(next_level)} "
+            f"stop_db={self._fmt_price(current_stop)} stop_db_roi={self._fmt_roi(current_stop_roi)} "
+            f"stop_target={self._fmt_price(target_stop)} stop_target_roi={self._fmt_roi(target_stop_roi)} "
+            f"improves={improves} action={action}"
+        )
+
+    def _log_moonbag_tracking(
+        self,
+        moon_uuid: Any,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        current_price: float,
+        current_stop: float,
+        leverage: float,
+        roi: float,
+        projection: Dict[str, Any],
+        hard_lock_stop: float,
+        hard_lock_roi: float,
+        hard_lock_improves: bool,
+    ):
+        active_level = projection.get("active_level")
+        next_level = projection.get("next_level")
+        phase = projection.get("phase") or "MOONBAG"
+        target_stop = float(projection.get("recommended_stop") or 0)
+        current_stop_roi = self._stop_roi_from_price(entry_price, current_stop, side, leverage)
+        target_stop_roi = self._stop_roi_from_price(entry_price, target_stop, side, leverage)
+        if target_stop_roi is None and isinstance(active_level, dict) and active_level.get("stop_roi") is not None:
+            target_stop_roi = float(active_level.get("stop_roi"))
+        trailing_improves = self._stop_improves(side, current_stop, target_stop)
+        action = "HARD_LOCK" if hard_lock_improves else ("TRAIL_STOP" if trailing_improves else "MONITOR")
+
+        logger.info(
+            f"[FLASH-TRACK][MOONBAG] uuid={moon_uuid} symbol={symbol} side={side.upper()} "
+            f"price={self._fmt_price(current_price)} entry={self._fmt_price(entry_price)} "
+            f"roi={self._fmt_roi(roi)} phase={phase} active={self._level_label(active_level)} "
+            f"next={self._level_label(next_level)} stop_db={self._fmt_price(current_stop)} "
+            f"stop_db_roi={self._fmt_roi(current_stop_roi)} hard_lock={self._fmt_price(hard_lock_stop)} "
+            f"hard_lock_roi={self._fmt_roi(hard_lock_roi)} hard_lock_improves={hard_lock_improves} "
+            f"stop_target={self._fmt_price(target_stop)} stop_target_roi={self._fmt_roi(target_stop_roi)} "
+            f"trailing_improves={trailing_improves} action={action}"
+        )
+
     async def start(self):
         if self.is_running:
             return
@@ -133,7 +246,10 @@ class FlashAgent:
                     self._scan_all_slots(),
                     self._scan_all_moonbags(),
                 ]
-                await asyncio.gather(*tasks, return_exceptions=True)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for scope, result in zip(("SLOTS", "MOONBAGS"), results):
+                    if isinstance(result, BaseException):
+                        self._log_flash_exception(scope, "SCAN", result)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -153,12 +269,18 @@ class FlashAgent:
         if not slots:
             return
 
-        tasks = []
+        tracked_tasks: List[tuple] = []
         for slot in slots:
             if slot.get("symbol") and float(slot.get("entry_price", 0)) > 0:
-                tasks.append(self._process_slot(slot))
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+                tracked_tasks.append((str(slot.get("symbol")), self._process_slot(slot)))
+        if tracked_tasks:
+            results = await asyncio.gather(
+                *(task for _, task in tracked_tasks),
+                return_exceptions=True,
+            )
+            for (symbol, _), result in zip(tracked_tasks, results):
+                if isinstance(result, BaseException):
+                    self._log_flash_exception("SLOT", symbol, result)
 
     async def _process_slot(self, slot: Dict[str, Any]):
         """Processa UM slot tático: Escadinha, SL, Emancipação."""
@@ -175,6 +297,7 @@ class FlashAgent:
 
         current_price = await self._get_current_price(symbol)
         if current_price <= 0:
+            self._log_price_unavailable("SLOT", symbol, entry_price, current_stop, side, leverage)
             return
 
         projection = await order_projection_service.build_projection(
@@ -204,6 +327,19 @@ class FlashAgent:
                 current_price=decision_price,
                 phase_hint="SLOT",
             )
+
+        self._log_slot_tracking(
+            slot_id,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            current_stop,
+            leverage,
+            roi,
+            effective_roi,
+            decision_projection,
+        )
 
         # Atualiza PnL (a cada 2s)
         self._update_pnl(slot_id, roi, slot)
@@ -295,12 +431,18 @@ class FlashAgent:
         if not moons:
             return
 
-        tasks = []
+        tracked_tasks: List[tuple] = []
         for moon in moons:
             if moon.get("symbol") and float(moon.get("entry_price", 0)) > 0:
-                tasks.append(self._process_moonbag(moon))
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+                tracked_tasks.append((str(moon.get("symbol")), self._process_moonbag(moon)))
+        if tracked_tasks:
+            results = await asyncio.gather(
+                *(task for _, task in tracked_tasks),
+                return_exceptions=True,
+            )
+            for (symbol, _), result in zip(tracked_tasks, results):
+                if isinstance(result, BaseException):
+                    self._log_flash_exception("MOONBAG", symbol, result)
 
     async def _process_moonbag(self, moon: Dict[str, Any]):
         """
@@ -323,6 +465,7 @@ class FlashAgent:
 
         current_price = await self._get_current_price(symbol)
         if current_price <= 0:
+            self._log_price_unavailable("MOONBAG", symbol, entry_price, current_stop, side, leverage)
             return
 
         projection = await order_projection_service.build_projection(
@@ -335,6 +478,21 @@ class FlashAgent:
         hard_lock_stop = await self._calc_stop_price(entry_price, hard_lock_roi, side, leverage, symbol)
         hard_lock_improves = self._stop_improves(side, current_stop, hard_lock_stop)
         effective_stop = hard_lock_stop if hard_lock_improves else current_stop
+
+        self._log_moonbag_tracking(
+            moon_uuid,
+            symbol,
+            side,
+            entry_price,
+            current_price,
+            current_stop,
+            leverage,
+            roi,
+            projection,
+            hard_lock_stop,
+            hard_lock_roi,
+            hard_lock_improves,
+        )
 
         # ⚡ 1. VIOLAÇÃO DE STOP → FECHAR MOONBAG IMEDIATAMENTE
         if effective_stop > 0:

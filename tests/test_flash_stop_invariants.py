@@ -243,6 +243,10 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
         assert symbol == "ZECUSDT"
         return 428.74  # ~74.6% ROI: current price already pulled back
 
+    async def fake_get_rest_price(symbol):
+        assert symbol == "ZECUSDT"
+        return 0.0
+
     def fake_get_peak_price(symbol, side, current_price):
         assert symbol == "ZECUSDT"
         assert side == "buy"
@@ -261,6 +265,7 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
         emancipated.append((slot_id, symbol, sl_price))
 
     monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+    monkeypatch.setattr(flash, "_get_rest_price", fake_get_rest_price)
     monkeypatch.setattr(flash, "_get_peak_price", fake_get_peak_price)
     monkeypatch.setattr(flash, "_check_stop_hit", fake_check_stop_hit)
     monkeypatch.setattr(flash, "_update_slot_sl", fake_update_slot_sl)
@@ -296,10 +301,15 @@ async def test_slot_profit_stop_closes_with_rest_confirmation_when_ws_is_stale(m
         assert symbol == "ZECUSDT"
         return 424.75
 
+    async def fake_get_rest_price(symbol):
+        assert symbol == "ZECUSDT"
+        return 424.75
+
     async def fake_close_position(slot_id, symbol, side, qty, reason):
         closed.append((slot_id, symbol, side, qty, reason))
 
     monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+    monkeypatch.setattr(flash, "_get_rest_price", fake_get_rest_price)
     monkeypatch.setattr(flash, "_close_position", fake_close_position)
     monkeypatch.setattr(flash, "_update_pnl", lambda *args, **kwargs: None)
 
@@ -317,10 +327,45 @@ async def test_check_stop_hit_uses_rest_when_conservative_ws_misses(monkeypatch)
         lambda symbol, side: 430.0,
     )
 
-    async def fake_get_current_price(symbol):
+    async def fake_get_rest_price(symbol):
         assert symbol == "ZECUSDT"
         return 424.75
 
-    monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
+    monkeypatch.setattr(flash, "_get_rest_price", fake_get_rest_price)
 
     assert await flash._check_stop_hit("buy", 426.24, "ZECUSDT") is True
+
+
+@pytest.mark.asyncio
+async def test_check_stop_hit_uses_rest_for_short_when_ws_is_stale(monkeypatch):
+    flash = FlashAgent()
+
+    monkeypatch.setattr(
+        "services.agents.flash_agent.okx_ws_public_service.get_conservative_price",
+        lambda symbol, side: 35.88,
+    )
+
+    async def fake_get_rest_price(symbol):
+        assert symbol == "DASHUSDT.P"
+        return 37.03
+
+    monkeypatch.setattr(flash, "_get_rest_price", fake_get_rest_price)
+
+    assert await flash._check_stop_hit("sell", 37.0323, "DASHUSDT.P") is False
+    assert await flash._check_stop_hit("sell", 37.03, "DASHUSDT.P") is True
+
+
+@pytest.mark.asyncio
+async def test_get_rest_price_parses_okx_rest_payload(monkeypatch):
+    flash = FlashAgent()
+
+    async def fake_get_tickers(symbol=None):
+        assert symbol == "DASHUSDT.P"
+        return {"retCode": 0, "result": {"list": [{"symbol": "DASHUSDT", "lastPrice": "37.03"}]}}
+
+    monkeypatch.setattr(
+        "services.okx_rest.okx_rest_service.get_tickers",
+        fake_get_tickers,
+    )
+
+    assert await flash._get_rest_price("DASHUSDT.P") == pytest.approx(37.03)

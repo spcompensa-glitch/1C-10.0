@@ -297,7 +297,9 @@ class FlashAgent:
         if entry_price <= 0:
             return
 
-        current_price = await self._get_current_price(symbol)
+        current_price = await self._get_rest_price(symbol)
+        if current_price <= 0:
+            current_price = await self._get_current_price(symbol)
         if current_price <= 0:
             self._log_price_unavailable("SLOT", symbol, entry_price, current_stop, side, leverage)
             return
@@ -352,6 +354,10 @@ class FlashAgent:
         if current_stop > 0:
             stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
+                fresh_price = await self._get_rest_price(symbol)
+                if fresh_price > 0:
+                    current_price = fresh_price
+                    roi = self._calc_roi(entry_price, current_price, side, leverage)
                 # Determina se é stop de lucro ou perda
                 is_profit_stop = (side == "buy" and current_stop >= entry_price) or \
                                  (side == "sell" and current_stop <= entry_price)
@@ -656,6 +662,10 @@ class FlashAgent:
             ticker = await okx_rest_service.get_tickers(symbol=symbol)
             if isinstance(ticker, list) and ticker:
                 return float(ticker[0].get("lastPrice") or 0)
+            if isinstance(ticker, dict):
+                ticker_list = ticker.get("result", {}).get("list", [])
+                if ticker_list:
+                    return float(ticker_list[0].get("lastPrice") or 0)
         except Exception:
             pass
         return 0.0
@@ -890,10 +900,16 @@ class FlashAgent:
             side_norm = side.lower()
             if side_norm == "buy":
                 # Para LONG: CVD positivo (dinheiro entrando) = gás favorável
-                return cvd_5m > threshold
+                favorable = cvd_5m > threshold
             else:
                 # Para SHORT: CVD negativo (dinheiro saindo) = gás favorável
-                return cvd_5m < -threshold
+                favorable = cvd_5m < -threshold
+
+            logger.info(
+                f"[GAS-AUDIT-FLASH] {symbol} side={side_norm.upper()} "
+                f"CVD_5m={cvd_5m:.0f} threshold={threshold:.0f} favorable={favorable}"
+            )
+            return favorable
 
         except Exception as e:
             logger.warning(f"⚡ [FLASH] Erro no gas check (non-critical): {e}")

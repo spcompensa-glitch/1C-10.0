@@ -1030,6 +1030,16 @@ class OKXRest:
                         # aceitamos entry no mercado com log de aviso
                         logger.info(f"📍 [V110.65 AMBUSH] {symbol} Market entry ${last_price:.6f} (Ambush zone: ${ambush_price:.6f} não alcançada)")
 
+                try:
+                    instrument_info = await self.get_instrument_info(symbol)
+                    ct_val = float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0"))
+                except Exception as ct_err:
+                    logger.warning(f"[PAPER] Failed to fetch ctVal for {symbol}: {ct_err}. Using 1.0")
+                    ct_val = 1.0
+                if ct_val <= 0:
+                    ct_val = 1.0
+
+                entry_margin = (qty * last_price * ct_val) / leverage
 
                 # 2. Create Position Object (Mocking Bybit Schema)
                 new_position = {
@@ -1040,7 +1050,8 @@ class OKXRest:
                     "leverage": str(leverage),
                     "stopLoss": str(sl_price),
                     "takeProfit": str(tp_price) if tp_price else "",
-                    "entry_margin": str((qty * last_price) / leverage),
+                    "entry_margin": str(entry_margin),
+                    "ctVal": str(ct_val),
                     "createdTime": str(int(time.time() * 1000)),
                     "opened_at": time.time(), # [V84.1] Absolute start
                     "maestria_guard_active": False, # [V84.1] Start clean
@@ -1062,7 +1073,15 @@ class OKXRest:
                 # Return fake order response
                 return {
                     "retCode": 0,
-                    "result": {"orderId": f"PAPER-{api_symbol}-123", "orderLinkId": f"PAPER-{api_symbol}-123"}
+                    "result": {
+                        "orderId": f"PAPER-{api_symbol}-123",
+                        "orderLinkId": f"PAPER-{api_symbol}-123",
+                        "avgPrice": str(last_price),
+                        "filledQty": str(qty),
+                        "notionalUsd": str(qty * last_price * ct_val),
+                        "ctVal": str(ct_val),
+                        "status": "FILLED",
+                    }
                 }
 
             except Exception as e:

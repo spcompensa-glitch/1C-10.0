@@ -1856,11 +1856,49 @@ class BankrollManager:
                         ambush_price = execution_protocol.calculate_ambush_price(current_price, final_sl, side, multiplier=0.50)
                         logger.info(f"🎯 [V110.65] Ambush Zone calculada: ${ambush_price:.6f} (Entry: ${current_price:.6f})")
                 
+                execution_started_at = time.time()
                 order = await asyncio.wait_for(okx_rest_service.place_atomic_order(symbol, side, qty, final_sl, final_tp, slot_id=slot_id, leverage=current_leverage, ambush_price=ambush_price), timeout=10.0)
+                execution_completed_at = time.time()
                 
                 if order and order.get("retCode") == 0:
                     # [V58.0] Refresh opening timestamp on success
                     self.recent_openings[norm_symbol] = time.time()
+
+                    position_snapshot = None
+                    order_result = order.get("result", {}) if isinstance(order, dict) else {}
+                    if not (order_result.get("avgPrice") or order_result.get("avgPx")):
+                        try:
+                            pos_list = await asyncio.wait_for(okx_rest_service.get_active_positions(symbol=symbol), timeout=3.0)
+                            position_snapshot = pos_list[0] if pos_list else None
+                        except Exception as _pos_audit_err:
+                            logger.warning(f"[EXEC-AUDIT] Could not fetch post-order position snapshot for {symbol}: {_pos_audit_err}")
+
+                    try:
+                        funding_rate = await asyncio.wait_for(okx_rest_service.get_funding_rate(symbol), timeout=3.0)
+                    except Exception:
+                        funding_rate = 0.0
+
+                    from services.execution_audit import execution_audit_service
+                    execution_audit = execution_audit_service.build_open_order_audit(
+                        symbol=symbol,
+                        side=side,
+                        requested_qty=qty,
+                        expected_price=current_price,
+                        ct_val=ct_val,
+                        leverage=current_leverage,
+                        order_response=order,
+                        capacity_report=capacity_report,
+                        started_at=execution_started_at,
+                        completed_at=execution_completed_at,
+                        funding_rate=funding_rate,
+                        position_snapshot=position_snapshot,
+                    )
+                    if execution_audit.get("status") == "WARN":
+                        await firebase_service.log_event(
+                            "Captain",
+                            f"[EXEC-AUDIT] {symbol} WARN: {execution_audit.get('reasons', [])} {execution_audit.get('warnings', [])}",
+                            "WARNING",
+                        )
                     
                     # [V33.0] Extract reverse sniper flag for Regime Shield
                     is_reverse_sniper = signal_data.get("is_reverse_sniper", False) if signal_data else False
@@ -1907,6 +1945,7 @@ class BankrollManager:
                         "rescue_resolved": False,
                         "is_shadow_strike": signal_data.get("is_shadow_strike", False) if signal_data else False,
                         "score": signal_data.get("score", 0) if signal_data else 0,
+                        "execution_audit": execution_audit,
                         "timestamp_last_update": opened_ts
                     })
 
@@ -1925,6 +1964,7 @@ class BankrollManager:
                         "tp_price": final_tp,
                         "margin_usd": round(actual_margin_usd, 4),
                         "execution_capacity": signal_data.get("execution_capacity", {}) if signal_data else {},
+                        "execution_audit": execution_audit,
                         "signal_score": signal_data.get("score", 0) if signal_data else 0,
                         "signal_timestamp": signal_data.get("timestamp", opened_ts) if signal_data else opened_ts,
                         "opened_at": opened_ts,

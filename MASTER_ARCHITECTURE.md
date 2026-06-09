@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.830 "Temporal Moonbag Simulation"
+# MASTER_ARCHITECTURE.md — V110.831 "Paper Equity Parity"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.830)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.830)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.831)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.831)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.831: PAPER EQUITY PARITY [JUN 09]**
+    - **Banca paper sem dupla verdade:** `BankrollManager.update_banca_status()` passa a calcular `EquityVivo` com a mesma tese do `BankrollGuardian`: banca base + PnL realizado + PnL aberto de slots + PnL aberto de moonbags.
+    - **Base operacional contida:** em modo PAPER, `saldo_total` e `configured_balance` continuam ancorados em `OKX_SIMULATED_BALANCE` para nao inflar automaticamente o sizing do Capitao quando moonbags disparam.
+    - **Telemetria separada:** o sync publica/loga `calculated_equity`, `paper_equity` e `paper_float_pnl`, deixando claro o que e patrimonio vivo e o que e capital operacional.
+    - **Regressao de producao:** `tests/test_bankroll_slot_allocation.py` cobre o caso real com base 20, realized negativo, slots negativos e moonbags positivas gerando equity vivo correto.
 
 *   **V110.830: TEMPORAL MOONBAG SIMULATION [JUN 08]**
     - **Tempo simulado sem modo paper:** `tests/test_flash_moonbag_stress.py` agora inclui uma linha do tempo de 6 ciclos do Flash, sem depender de preco real ou espera externa.
@@ -520,7 +526,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.830)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.831)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -541,7 +547,7 @@
   - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
   - **Telemetria de stop:** cada slot e moonbag processado emite `[FLASH-TRACK]` nos logs do backend com stop persistido, ROI travado, stop alvo, nível ativo, próximo nível e ação do ciclo; falhas paralelas aparecem como `[FLASH-ERROR]` por símbolo. Slots táticos usam preço REST fresco da OKX para confirmar stops quando o WS/cache está atrasado; stops de perda acionam o Sentinel com auditoria `[GAS-AUDIT-FLASH]` de CVD 5m, threshold e direção favorável antes de fechar ou dar respiro.
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
-- **CaptainAgent / BankrollManager:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo. Em PAPER, o Postgres e a tabela `slots` são a SSOT de capacidade; `paper_positions` não pode lotar artificialmente slots vazios quando carregar posições antigas, duplicadas ou já emancipadas para moonbag.
+- **CaptainAgent / BankrollManager:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo. Em PAPER, o Postgres e a tabela `slots` são a SSOT de capacidade; `paper_positions` não pode lotar artificialmente slots vazios quando carregar posições antigas, duplicadas ou já emancipadas para moonbag. O sync de banca separa `saldo_total`/`configured_balance` como base operacional contida e `paper_equity`/`calculated_equity` como patrimônio vivo.
 - **Guardião da Banca:** autoridade preventiva acima do Capitão. Avalia saúde da banca, drawdown, lucro protegido, exposição por slots/moonbags, histórico por símbolo e suspensões de pares antes de liberar uma nova ordem. O score mínimo da banca usa o Radar Score (`score`/`score_radar`) como métrica principal; `unified_confidence` fica como contexto de auditoria. Em `ACUMULACAO_PROTEGIDA`, ele eleva o score mínimo e mantém 4/4 slots disponíveis; moonbags lucrativas e slots com stop em break-even/lucro são tratados como acumulação protegida pelo Flash, não como motivo para desligar a fábrica. Limita slots apenas em `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL` sem lucro vivo protegido. Expõe relatório em PT-BR por `/api/bankroll/guardian-report`.
 - **Harvester (Ceifeiro Infinito):** níveis WAVE→APEX e continuação `ULTRA_*` pós-1200%, mantendo colheitas parciais e trailing sem teto fixo.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
@@ -557,7 +563,7 @@
 - **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 200% ROI com stop 200% abaixo do alvo rompido. A decisao do Flash usa `peakROI` recente para nao perder rompimentos rapidos; exemplo: pico `ULTRA_1400` aplica stop `+1200%`, e pico `ULTRA_1600` aplica stop `+1400%`.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
-- **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`. Em lucro forte, moonbag lucrativa ou escadinha já protegida, protege o pico da banca e aumenta o score mínimo mantendo 4 slots; em cautela/defesa/preservação sem lucro protegido, reduz ou pausa novas entradas.
+- **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`; o `BankrollManager` usa a mesma conta em PAPER para publicar `paper_equity`, sem aumentar automaticamente a base de sizing. Em lucro forte, moonbag lucrativa ou escadinha já protegida, protege o pico da banca e aumenta o score mínimo mantendo 4 slots; em cautela/defesa/preservação sem lucro protegido, reduz ou pausa novas entradas.
 - **Suspensão por Par:** perdas recentes em `trade_history` geram quarentena temporária do símbolo. Duas perdas consecutivas elevam a suspensão para até 24h.
 
 ### 5. Auth & Failsafe
@@ -572,13 +578,13 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.830)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.831)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
 ### 1. PostgreSQL (Mestre / SSOT no Railway)
 Utilizado em produção como Fonte Única de Verdade (SSOT) para toda a lógica de negócios e status financeiro do robô.
-*   **`banca_status`**: Armazena o saldo atual, o risco real alocado, o número de slots ocupados e a banca simulada configurada.
+*   **`banca_status`**: Armazena a base operacional, o risco real alocado, o número de slots ocupados e a banca simulada configurada. Em PAPER, `saldo_total` permanece como base contida; o equity vivo trafega em `calculated_equity`/`paper_equity` no RTDB/Firestore e no relatório do Guardião.
     *   *Colunas chave*: `saldo_total` (Float), `configured_balance` (Float), `risco_real_percent` (Float), `status` (String).
 *   **`slots`**: Gerencia o estado de alocação de cada uma das 4 instâncias de `SlotOperatorAgent`.
     *   *Colunas chave*: `id` (Integer, 1-4), `symbol` (String), `side` (String), `qty` (Float), `entry_price` (Float), `entry_margin` (Float), `initial_stop` (Float), `current_stop` (Float), `target_price` (Float), `leverage` (Float), `status_risco` (String), `sentinel_first_hit_at` (Float), `vision_url` (String).
@@ -598,7 +604,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.830)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.831)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -615,5 +621,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-09 (V110.832) Sincronizado*
+*Documento atualizado em: 2026-06-09 (V110.831) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

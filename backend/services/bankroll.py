@@ -7,6 +7,7 @@ import math
 import os
 from typing import Optional, List, Dict, Any, Tuple
 from services.firebase_service import firebase_service
+from services.database_service import database_service
 from services.okx_rest import okx_rest_service as okx_rest_service
 from services.vault_service import vault_service
 from config import settings
@@ -160,6 +161,81 @@ class BankrollManager:
         if side == "SELL" and stop <= entry:
             return True
         return False
+
+    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+        try:
+            if value is None or value == "":
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _position_pnl_usd(self, position: Dict[str, Any]) -> float:
+        projection = position.get("projection")
+        if isinstance(projection, dict):
+            projected_pnl = projection.get("pnl_usd")
+            if projected_pnl is not None:
+                return self._safe_float(projected_pnl, 0.0)
+
+        direct_pnl = position.get("pnl_usd")
+        if direct_pnl is not None:
+            return self._safe_float(direct_pnl, 0.0)
+
+        pnl = position.get("pnl")
+        if pnl is not None:
+            return self._safe_float(pnl, 0.0)
+
+        roi = self._safe_float(
+            position.get("pnl_percent")
+            or position.get("roi_percent")
+            or position.get("roi"),
+            0.0,
+        )
+        margin = self._safe_float(position.get("entry_margin"), 0.0)
+
+        if margin <= 0 and isinstance(projection, dict):
+            margin = self._safe_float(projection.get("entry_margin"), 0.0)
+
+        if margin <= 0:
+            entry = self._safe_float(position.get("entry_price"), 0.0)
+            qty = self._safe_float(position.get("qty"), 0.0)
+            leverage = self._safe_float(position.get("leverage"), 50.0)
+            contract = projection.get("contract") if isinstance(projection, dict) else position.get("contract_meta")
+            ct_val = self._safe_float(contract.get("ct_val") if isinstance(contract, dict) else None, 1.0)
+            if entry > 0 and qty > 0 and leverage > 0:
+                margin = (entry * qty * ct_val) / leverage
+
+        return (roi / 100.0) * margin if margin > 0 else 0.0
+
+    def _paper_equity_snapshot(
+        self,
+        base_balance: float,
+        realized_pnl: float,
+        active_slots: List[Dict[str, Any]],
+        active_moonbags: List[Dict[str, Any]],
+    ) -> Dict[str, float]:
+        active_slots = [
+            slot for slot in active_slots
+            if slot.get("symbol") and self._safe_float(slot.get("qty"), 0.0) > 0
+        ]
+        active_moonbags = [
+            moonbag for moonbag in active_moonbags
+            if moonbag.get("symbol") and self._safe_float(moonbag.get("qty"), 0.0) > 0
+        ]
+        open_slots_pnl = sum(self._position_pnl_usd(slot) for slot in active_slots)
+        open_moonbags_pnl = sum(self._position_pnl_usd(moonbag) for moonbag in active_moonbags)
+        calculated_equity = base_balance + realized_pnl + open_slots_pnl + open_moonbags_pnl
+
+        return {
+            "base_balance": base_balance,
+            "realized_pnl": realized_pnl,
+            "open_slots_pnl": open_slots_pnl,
+            "open_moonbags_pnl": open_moonbags_pnl,
+            "float_pnl": open_slots_pnl + open_moonbags_pnl,
+            "calculated_equity": calculated_equity,
+            "active_slots": float(len(active_slots)),
+            "active_moonbags": float(len(active_moonbags)),
+        }
 
     async def _audit_zombie_slots(self, firestore_slots: list, exchange_map: dict):
         """
@@ -1280,41 +1356,33 @@ class BankrollManager:
                 
                 # [V110.9] Calculations logic for PAPER and REAL parity
                 if okx_rest_service.execution_mode == "PAPER":
-                    # [V110.118 FIX-B] Inclui PnL não realizado das paper_positions + paper_moonbags
-                    # e o saldo dinâmico simulado em tempo real (okx_rest_service.paper_balance).
-                    float_pnl = 0.0
-                    try:
-                        for p in okx_rest_service.paper_positions:
-                            raw_float = p.get("unrealisedPnl", 0)
-                            if raw_float:
-                                float_pnl += float(raw_float)
-                        for m in okx_rest_service.paper_moonbags:
-                            # Tenta calcular ou puxar unrealisedPnl para as moonbags no paper mode
-                            from services.okx_ws_public import okx_ws_public_service
-                            sym = m.get("symbol")
-                            entry = float(m.get("avgPrice", 0))
-                            qty = float(m.get("size", 0))
-                            side = m.get("side", "Buy")
-                            if entry > 0 and qty > 0:
-                                price = okx_ws_public_service.get_current_price(sym) or entry
-                                price_diff = (price - entry) / entry if side == "Buy" else (entry - price) / entry
-                                pnl_usd = price_diff * qty * entry
-                                float_pnl += pnl_usd
-                    except Exception as e:
-                        logger.error(f"Error summing paper float_pnl: {e}")
+                    # Paper equity follows the Guardian/Postgres source of truth.
+                    base_balance = float(settings.OKX_SIMULATED_BALANCE)
+                    active_slots = await database_service.get_active_slots()
+                    active_moonbags = await database_service.get_moonbags()
+                    paper_snapshot = self._paper_equity_snapshot(
+                        base_balance=base_balance,
+                        realized_pnl=total_pnl,
+                        active_slots=active_slots,
+                        active_moonbags=active_moonbags,
+                    )
+                    float_pnl = paper_snapshot["float_pnl"]
                     
-                    # A banca simulada no paper_balance do okx_rest_service já acumula as parciais e lucros reais de trades fechados.
-                    # Portanto, o Equity dinâmico correto é o saldo atualizado (paper_balance) + o PnL flutuante (float_pnl).
-                    # Mas se o banco foi resetado recentemente para $20 e no Postgres temos $20, o paper_balance também deve sincronizar com o banco.
-                    # Garantimos que calculated_equity reflita a realidade do settings (20.0) mais os lucros acumulados (ou seja, se a banca no banco for 20.0, usamos ela).
-                    db_balance = banca.get("saldo_total", settings.OKX_SIMULATED_BALANCE) if banca else settings.OKX_SIMULATED_BALANCE
-                    # Sincroniza o paper_balance em memória para evitar dessincronização visual
+                    db_balance = base_balance
+                    # Keep sizing anchored to the configured paper bankroll.
                     if abs(okx_rest_service.paper_balance - db_balance) > 0.01:
-                        logger.info(f"🔄 Syncing okx_rest_service.paper_balance ({okx_rest_service.paper_balance}) to DB balance ({db_balance})")
+                        logger.info(f"🔄 Syncing okx_rest_service.paper_balance ({okx_rest_service.paper_balance}) to paper base ({db_balance})")
                         okx_rest_service.paper_balance = db_balance
-                    calculated_equity = db_balance + float_pnl
+                    calculated_equity = paper_snapshot["calculated_equity"]
                     reported_real_okx = 0.0
-                    logger.info(f"📊 [PAPER BALANCE] Base={config_bal} | CurrentSimBalance={okx_rest_service.paper_balance:.2f} | FloatPnl={float_pnl:.2f} | Equity={calculated_equity:.2f}")
+                    logger.info(
+                        "📊 [PAPER BALANCE] "
+                        f"BaseOperacional={base_balance:.2f} | "
+                        f"Realized={total_pnl:.2f} | "
+                        f"Slots={paper_snapshot['open_slots_pnl']:.2f} | "
+                        f"Moonbags={paper_snapshot['open_moonbags_pnl']:.2f} | "
+                        f"EquityVivo={calculated_equity:.2f}"
+                    )
 
 
 
@@ -1357,13 +1425,23 @@ class BankrollManager:
                     "vault_total": vault_total,
                     "leverage": banca.get("leverage", settings.LEVERAGE),
                     "configured_balance": settings.OKX_SIMULATED_BALANCE if okx_rest_service.execution_mode == "PAPER" else config_bal,
-                    "saldo_total": settings.OKX_SIMULATED_BALANCE if okx_rest_service.execution_mode == "PAPER" else calculated_equity
+                    "saldo_total": settings.OKX_SIMULATED_BALANCE if okx_rest_service.execution_mode == "PAPER" else calculated_equity,
+                    "calculated_equity": calculated_equity,
+                    "paper_equity": calculated_equity if okx_rest_service.execution_mode == "PAPER" else None,
+                    "paper_float_pnl": float_pnl if okx_rest_service.execution_mode == "PAPER" else None,
                 }
                 await firebase_service.update_banca_status(update_data)
                 
                 # [V3.0 Refinement] Explicitly log sync success for user verification
                 if firebase_service.rtdb:
-                    logger.info(f"🛰️ RTDB SYNC SUCCESS: Banca Total=${calculated_equity:.2f} | Accumulated Profit=${total_pnl:.2f}")
+                    if okx_rest_service.execution_mode == "PAPER":
+                        logger.info(
+                            f"🛰️ RTDB SYNC SUCCESS: PaperEquity=${calculated_equity:.2f} | "
+                            f"BaseOperacional=${settings.OKX_SIMULATED_BALANCE:.2f} | "
+                            f"Accumulated Profit=${total_pnl:.2f}"
+                        )
+                    else:
+                        logger.info(f"🛰️ RTDB SYNC SUCCESS: Banca Total=${calculated_equity:.2f} | Accumulated Profit=${total_pnl:.2f}")
                 else:
                     logger.warning("🛰️ RTDB SYNC SKIPPED: RTDB not connected.")
                 

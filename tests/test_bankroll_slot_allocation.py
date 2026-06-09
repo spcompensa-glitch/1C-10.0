@@ -25,6 +25,31 @@ def _slot(slot_id, symbol=None, qty=0, entry_price=0, status_risco="IDLE"):
     }
 
 
+def test_paper_equity_snapshot_uses_postgres_projection_totals():
+    manager = BankrollManager()
+
+    snapshot = manager._paper_equity_snapshot(
+        base_balance=20.0,
+        realized_pnl=-10.6063,
+        active_slots=[
+            {"symbol": "SENTUSDT", "qty": 1, "projection": {"pnl_usd": -0.315}},
+            {"symbol": "ATOMUSDT", "qty": 1, "projection": {"pnl_usd": -1.204}},
+            {"symbol": None, "qty": 0, "projection": {"pnl_usd": 999}},
+            {"symbol": "INJUSDT", "qty": 1, "projection": {"pnl_usd": -3.0525}},
+        ],
+        active_moonbags=[
+            {"symbol": "KAITOUSDT", "qty": 1, "projection": {"pnl_usd": 12.309}},
+            {"symbol": "OPNUSDT", "qty": 1, "projection": {"pnl_usd": 47.573}},
+        ],
+    )
+
+    assert snapshot["open_slots_pnl"] == pytest.approx(-4.5715)
+    assert snapshot["open_moonbags_pnl"] == pytest.approx(59.882)
+    assert snapshot["calculated_equity"] == pytest.approx(64.7042)
+    assert snapshot["active_slots"] == 3
+    assert snapshot["active_moonbags"] == 2
+
+
 @pytest.mark.asyncio
 async def test_paper_capacity_uses_postgres_slots_not_stale_memory(monkeypatch):
     manager = BankrollManager()

@@ -93,3 +93,68 @@ async def test_public_rate_limiter_sets_global_cooldown_on_429(monkeypatch):
     assert response.status_code == 429
     assert service._public_429_streak == 1
     assert service._public_cooldown_until > before
+
+
+@pytest.mark.asyncio
+async def test_concurrent_account_ratio_shares_one_rubik_request(monkeypatch):
+    calls = {"count": 0}
+    payload = {"code": "0", "data": [{"ratio": "1.42"}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url):
+            calls["count"] += 1
+            await asyncio.sleep(0.01)
+            return _FakeResponse(200, payload)
+
+    monkeypatch.setattr(okx_rest_module.httpx, "AsyncClient", FakeClient)
+
+    service = OKXRest()
+    service._public_min_interval = 0.0
+    service._rubik_min_interval = 0.0
+    service._public_http_semaphore = asyncio.Semaphore(20)
+
+    results = await asyncio.gather(*[
+        service.get_account_ratio("BTCUSDT.P")
+        for _ in range(10)
+    ])
+
+    assert calls["count"] == 1
+    assert results == [1.42] * 10
+
+
+@pytest.mark.asyncio
+async def test_account_ratio_uses_public_cooldown_on_429(monkeypatch):
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url):
+            return _FakeResponse(429, headers={"Retry-After": "4"})
+
+    monkeypatch.setattr(okx_rest_module.httpx, "AsyncClient", FakeClient)
+
+    service = OKXRest()
+    service._public_min_interval = 0.0
+    service._rubik_min_interval = 0.0
+    before = time.time()
+
+    ratio = await service.get_account_ratio("BTCUSDT.P")
+
+    assert ratio == 1.0
+    assert service._public_429_streak == 1
+    assert service._public_cooldown_until > before

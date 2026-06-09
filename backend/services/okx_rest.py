@@ -7,7 +7,7 @@ import os
 import httpx
 from datetime import datetime, timezone
 from services.time_utils import get_br_iso_str
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pybit.unified_trading import HTTP
 from config import settings
 from services.resilience import with_circuit_breaker
@@ -34,6 +34,9 @@ class OKXRest:
         self._paper_engine_task = None
         self._instrument_cache = {} # Cache for tickSize and stepSize
         self._open_interest_cache = {}
+        self._account_ratio_cache = {}
+        self._account_ratio_locks = {}
+        self._account_ratio_cache_ttl = float(os.getenv("OKX_ACCOUNT_RATIO_CACHE_TTL_SECONDS", "120"))
         self.last_balance = 0.0 # V5.2.4.6: Cache for non-blocking health checks
         # [V96.5] Path fix for Paper Mode persistence
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +57,7 @@ class OKXRest:
         self._public_http_semaphore = asyncio.Semaphore(int(os.getenv("OKX_PUBLIC_MAX_CONCURRENCY", "4")))
         self._public_http_lock = asyncio.Lock()
         self._public_min_interval = float(os.getenv("OKX_PUBLIC_MIN_INTERVAL_SECONDS", "0.12"))
+        self._rubik_min_interval = float(os.getenv("OKX_RUBIK_MIN_INTERVAL_SECONDS", "0.75"))
         self._public_429_base_cooldown = float(os.getenv("OKX_PUBLIC_429_BASE_COOLDOWN", "2.0"))
         self._public_next_request_at = 0.0
         self._public_cooldown_until = 0.0
@@ -66,7 +70,13 @@ class OKXRest:
         self._elite_cache_time = 0
         self._elite_cache_ttl = 900 # 15 minutes
 
-    async def _public_rate_limited_get(self, url: str, timeout: float = 5.0, label: str = "public"):
+    async def _public_rate_limited_get(
+        self,
+        url: str,
+        timeout: float = 5.0,
+        label: str = "public",
+        min_interval: Optional[float] = None,
+    ):
         """Throttle OKX public REST calls across radar workers to avoid 429 bursts."""
         async with self._public_http_semaphore:
             async with self._public_http_lock:
@@ -74,7 +84,8 @@ class OKXRest:
                 wait_for = max(self._public_cooldown_until - now, self._public_next_request_at - now, 0.0)
                 if wait_for > 0:
                     await asyncio.sleep(wait_for)
-                self._public_next_request_at = time.time() + self._public_min_interval
+                interval = max(self._public_min_interval, min_interval or 0.0)
+                self._public_next_request_at = time.time() + interval
 
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(url)
@@ -1803,10 +1814,78 @@ class OKXRest:
         """
         try:
             from services.okx_service import okx_service
-            return await okx_service.get_long_short_ratio(symbol, period)
+            inst_id = okx_service.to_okx_inst_id(symbol)
+            ccy = inst_id.split("-")[0]
+
+            okx_period = "5m"
+            period_norm = (period or "").lower()
+            if "15" in period_norm:
+                okx_period = "15m"
+            elif "30" in period_norm:
+                okx_period = "30m"
+            elif "4h" in period_norm:
+                okx_period = "4h"
+            elif "1h" in period_norm:
+                okx_period = "1h"
+            elif "1d" in period_norm or period_norm == "d":
+                okx_period = "1d"
+
+            cache_key = f"{ccy}:{okx_period}"
+            cached = self._account_ratio_cache.get(cache_key)
+            if cached:
+                ts, ratio = cached
+                if time.time() - ts < self._account_ratio_cache_ttl:
+                    return ratio
+
+            if cache_key not in self._account_ratio_locks:
+                self._account_ratio_locks[cache_key] = asyncio.Lock()
+
+            async with self._account_ratio_locks[cache_key]:
+                cached = self._account_ratio_cache.get(cache_key)
+                if cached:
+                    ts, ratio = cached
+                    if time.time() - ts < self._account_ratio_cache_ttl:
+                        return ratio
+
+                url = (
+                    "https://www.okx.com/api/v5/rubik/stat/contracts/"
+                    f"long-short-account-ratio?ccy={ccy}&period={okx_period}"
+                )
+                response = await self._public_rate_limited_get(
+                    url,
+                    timeout=10.0,
+                    label=f"account-ratio:{ccy}:{okx_period}",
+                    min_interval=self._rubik_min_interval,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        ratio_data = data.get("data", [])
+                        if ratio_data:
+                            item = ratio_data[0]
+                            if isinstance(item, dict):
+                                ratio = float(item.get("ratio", 1.0))
+                            elif isinstance(item, list) and len(item) >= 2:
+                                ratio = float(item[1])
+                            else:
+                                ratio = 1.0
+                            self._account_ratio_cache[cache_key] = (time.time(), ratio)
+                            return ratio
+                    logger.debug(
+                        "[OKX REST Rubik] account ratio unavailable for %s: %s",
+                        ccy,
+                        data.get("msg"),
+                    )
+                else:
+                    logger.debug(
+                        "[OKX REST Rubik] HTTP %s fetching account ratio for %s",
+                        response.status_code,
+                        ccy,
+                    )
         except Exception as e:
             logger.error(f"Error fetching Account Ratio from OKX for {symbol}: {e}")
             return 1.0
+        return 1.0
 
     # [V25.1] Funding Rate Cache
     _funding_cache: dict = {}  # { symbol: { rate, timestamp } }

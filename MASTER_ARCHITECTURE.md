@@ -1,9 +1,16 @@
-# MASTER_ARCHITECTURE.md — V110.832 "OKX Public Rate Gate"
+# MASTER_ARCHITECTURE.md — V110.833 "Execution Capacity Gate"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.832)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.832)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.833)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.833)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.833: EXECUTION CAPACITY GATE [JUN 09]**
+    - **Trava pre-trade de capacidade:** `BankrollManager.open_position()` agora valida o book L2 da OKX antes de `set_leverage`/`place_atomic_order`, medindo spread, profundidade visivel, fill ratio, slippage estimado e uso percentual do book.
+    - **Preparacao para ordens maiores:** o gate calcula notional real com `ctVal`, estima `max_safe_qty`/`max_safe_notional_usd` e bloqueia ordens que nao cabem no mercado dentro dos limites configurados.
+    - **PAPER seguro, REAL estrito:** se o book falhar em PAPER, a simulacao passa com aviso; em REAL, book indisponivel bloqueia a entrada.
+    - **Telemetria operacional:** logs `[EXEC-CAPACITY-GATE]` mostram cada decisao do Capitao com motivos de bloqueio/aprovacao, ajudando a calibrar banca maior, liquidez por par e limites anti-slippage.
+    - **Regressao de execucao:** `tests/test_execution_capacity_gate.py` cobre aprovacao, profundidade insuficiente, slippage alto, SHORT consumindo bids e fallback de book ausente.
 
 *   **V110.832: OKX PUBLIC RATE GATE [JUN 09]**
     - **Válvula pública anti-429:** `OKXRest` passa a usar gate global para chamadas públicas OKX com concorrência configurável, intervalo mínimo entre requests e cooldown global quando a exchange responde `429`.
@@ -532,7 +539,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.832)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.833)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -553,13 +560,14 @@
   - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
   - **Telemetria de stop:** cada slot e moonbag processado emite `[FLASH-TRACK]` nos logs do backend com stop persistido, ROI travado, stop alvo, nível ativo, próximo nível e ação do ciclo; falhas paralelas aparecem como `[FLASH-ERROR]` por símbolo. Slots táticos usam preço REST fresco da OKX para confirmar stops quando o WS/cache está atrasado; stops de perda acionam o Sentinel com auditoria `[GAS-AUDIT-FLASH]` de CVD 5m, threshold e direção favorável antes de fechar ou dar respiro.
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
-- **CaptainAgent / BankrollManager:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo. Em PAPER, o Postgres e a tabela `slots` são a SSOT de capacidade; `paper_positions` não pode lotar artificialmente slots vazios quando carregar posições antigas, duplicadas ou já emancipadas para moonbag. O sync de banca separa `saldo_total`/`configured_balance` como base operacional contida e `paper_equity`/`calculated_equity` como patrimônio vivo.
+- **CaptainAgent / BankrollManager:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo. Em PAPER, o Postgres e a tabela `slots` são a SSOT de capacidade; `paper_positions` não pode lotar artificialmente slots vazios quando carregar posições antigas, duplicadas ou já emancipadas para moonbag. O sync de banca separa `saldo_total`/`configured_balance` como base operacional contida e `paper_equity`/`calculated_equity` como patrimônio vivo. Antes de enviar qualquer ordem, o `ExecutionCapacityGate` valida spread, slippage estimado, profundidade visível, fill ratio, uso do book, `ctVal`, notional real e `max_safe_qty`; PAPER tolera book ausente com aviso, REAL bloqueia.
 - **Guardião da Banca:** autoridade preventiva acima do Capitão. Avalia saúde da banca, drawdown, lucro protegido, exposição por slots/moonbags, histórico por símbolo e suspensões de pares antes de liberar uma nova ordem. O score mínimo da banca usa o Radar Score (`score`/`score_radar`) como métrica principal; `unified_confidence` fica como contexto de auditoria. Em `ACUMULACAO_PROTEGIDA`, ele eleva o score mínimo e mantém 4/4 slots disponíveis; moonbags lucrativas e slots com stop em break-even/lucro são tratados como acumulação protegida pelo Flash, não como motivo para desligar a fábrica. Limita slots apenas em `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL` sem lucro vivo protegido. Expõe relatório em PT-BR por `/api/bankroll/guardian-report`.
 - **Harvester (Ceifeiro Infinito):** níveis WAVE→APEX e continuação `ULTRA_*` pós-1200%, mantendo colheitas parciais e trailing sem teto fixo.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
 - **Oracle:** SSOT de regime de mercado (ALTA/BAIXA/LATERAL com threshold ADX>30), validação e FleetAudit pós-trade.
 - **Anti-Slippage Engine:** Greedy Snake Sharding em 4 cohorts balanceados com Random Jitter 0-350ms para pulverizar ordens no book.
+- **Execution Capacity Gate:** barreira pre-trade L2 que mede se a ordem cabe no book atual da OKX antes da execução atomica. Thresholds configuraveis por ambiente: `EXEC_CAPACITY_MAX_SPREAD_BPS`, `EXEC_CAPACITY_MAX_SLIPPAGE_BPS`, `EXEC_CAPACITY_MAX_BOOK_USAGE_PCT`, `EXEC_CAPACITY_MIN_FILL_RATIO` e `EXEC_CAPACITY_ORDERBOOK_LIMIT`.
 - **OKX Public Rate Gate:** chamadas públicas críticas de candles/OI passam por pacing global, concorrência limitada, cooldown em `429` e cache compartilhado por `symbol+interval`, impedindo que o Radar sature a exchange durante ciclos frios.
 
 ### 4. Motor de Trading (Sniper + Escadinha + Moonbag)
@@ -585,7 +593,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.832)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.833)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -611,7 +619,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.832)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.833)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -628,5 +636,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-09 (V110.832) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*
+*Documento atualizado em: 2026-06-09 (V110.833) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

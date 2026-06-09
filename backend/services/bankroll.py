@@ -1667,6 +1667,62 @@ class BankrollManager:
                     logger.warning(f"❌ Calculated quantity is zero for {symbol} (Margin Too Small for price/step). Raw qty was {raw_qty}, ctVal={ct_val}, qty_step={qty_step}")
                     return None
                 
+                # [V110.833] EXECUTION CAPACITY GATE: validate live book capacity before order placement.
+                actual_margin_usd = (qty * current_price * ct_val) / current_leverage
+                from services.execution_capacity import execution_capacity_gate
+
+                capacity_report = await execution_capacity_gate.evaluate_order_capacity(
+                    symbol=symbol,
+                    side=side,
+                    qty=qty,
+                    entry_price=current_price,
+                    leverage=current_leverage,
+                    ct_val=ct_val,
+                    margin_usd=actual_margin_usd,
+                    execution_mode=getattr(okx_rest_service, "execution_mode", settings.OKX_EXECUTION_MODE),
+                )
+                capacity_metrics = capacity_report.get("metrics", {})
+                fill_ratio_pct = (capacity_metrics.get("fill_ratio") or 0.0) * 100.0
+                spread_metric = capacity_metrics.get("spread_bps")
+                slippage_metric = capacity_metrics.get("slippage_bps")
+                usage_metric = capacity_metrics.get("book_usage_pct")
+                capacity_log = (
+                    f"[EXEC-CAPACITY-GATE] {symbol} {side} qty={qty} "
+                    f"notional=${capacity_metrics.get('notional_usd', 0.0):.2f} "
+                    f"spread={spread_metric:.2f}bps "
+                    if isinstance(spread_metric, (int, float))
+                    else (
+                        f"[EXEC-CAPACITY-GATE] {symbol} {side} qty={qty} "
+                        f"notional=${capacity_metrics.get('notional_usd', 0.0):.2f} spread=n/a "
+                    )
+                )
+                capacity_log += (
+                    f"slippage={slippage_metric:.2f}bps "
+                    if isinstance(slippage_metric, (int, float))
+                    else "slippage=n/a "
+                )
+                capacity_log += (
+                    f"book_use={usage_metric:.2f}% "
+                    if isinstance(usage_metric, (int, float))
+                    else "book_use=n/a "
+                )
+                capacity_log += (
+                    f"fill={fill_ratio_pct:.1f}% "
+                    f"max_safe_qty={capacity_metrics.get('max_safe_qty', 0.0)}"
+                )
+
+                if not capacity_report.get("approved", False):
+                    reasons = "; ".join(capacity_report.get("reasons", [])) or "UNKNOWN"
+                    msg = f"{capacity_log} | BLOCKED: {reasons}"
+                    logger.warning(msg)
+                    await firebase_service.log_event("Captain", msg, "WARNING")
+                    return None
+
+                warnings = "; ".join(capacity_report.get("warnings", []))
+                logger.info(f"{capacity_log} | APPROVED" + (f" | WARN: {warnings}" if warnings else ""))
+                if signal_data is not None:
+                    signal_data["execution_capacity"] = capacity_report
+
                 # -----------------------------------------------------
                 # [V24.0] 10D STRICT LOGIC (10% Banca, 50x, 2% TP)
                 # -----------------------------------------------------
@@ -1785,7 +1841,7 @@ class BankrollManager:
                 await okx_rest_service.set_leverage(symbol, current_leverage)
                 
                 # Log exact expected margin usage
-                margin_usd = (qty * current_price) / current_leverage
+                margin_usd = actual_margin_usd
                 logger.info(f"{squadron_emoji} {slot_type} DEPLOYING: {side} {qty} {symbol} @ {current_price} | Margin: ${margin_usd:.2f} (Expected: 10% of banca)")
                 
                 await firebase_service.log_event("Captain", f"{squadron_emoji} {slot_type} DEPLOYED: {side} {qty} {symbol} @ {current_price} | Margin: ${margin_usd:.2f}", "SUCCESS")
@@ -1867,7 +1923,8 @@ class BankrollManager:
                         "entry_price": current_price,
                         "sl_price": final_sl,
                         "tp_price": final_tp,
-                        "margin_usd": round((qty * current_price) / current_leverage, 4),
+                        "margin_usd": round(actual_margin_usd, 4),
+                        "execution_capacity": signal_data.get("execution_capacity", {}) if signal_data else {},
                         "signal_score": signal_data.get("score", 0) if signal_data else 0,
                         "signal_timestamp": signal_data.get("timestamp", opened_ts) if signal_data else opened_ts,
                         "opened_at": opened_ts,

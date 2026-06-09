@@ -33,6 +33,7 @@ class OKXRest:
         self.paper_orders_history = [] 
         self._paper_engine_task = None
         self._instrument_cache = {} # Cache for tickSize and stepSize
+        self._open_interest_cache = {}
         self.last_balance = 0.0 # V5.2.4.6: Cache for non-blocking health checks
         # [V96.5] Path fix for Paper Mode persistence
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +50,14 @@ class OKXRest:
         # [V43.0] Position Mode Cache (Hedge vs One-Way)
         self._position_mode_cache = {} # { symbol: mode_int }
         self.emancipating_symbols = set() # { symbol }
-        self._http_semaphore = asyncio.Semaphore(80) # [V110.601] Aumentado para 80 para evitar timeouts concorrentes na Elite Matrix
+        self._http_semaphore = asyncio.Semaphore(80) # Internal/private calls keep their own guard.
+        self._public_http_semaphore = asyncio.Semaphore(int(os.getenv("OKX_PUBLIC_MAX_CONCURRENCY", "4")))
+        self._public_http_lock = asyncio.Lock()
+        self._public_min_interval = float(os.getenv("OKX_PUBLIC_MIN_INTERVAL_SECONDS", "0.12"))
+        self._public_429_base_cooldown = float(os.getenv("OKX_PUBLIC_429_BASE_COOLDOWN", "2.0"))
+        self._public_next_request_at = 0.0
+        self._public_cooldown_until = 0.0
+        self._public_429_streak = 0
         self._paper_save_lock = asyncio.Lock() # [V110.23.2] Concurrency Shield for Paper Persistence
         self.is_ready = False # [V110.25.0] Ready flag for sync loop
         
@@ -57,6 +65,46 @@ class OKXRest:
         self._elite_cache = []
         self._elite_cache_time = 0
         self._elite_cache_ttl = 900 # 15 minutes
+
+    async def _public_rate_limited_get(self, url: str, timeout: float = 5.0, label: str = "public"):
+        """Throttle OKX public REST calls across radar workers to avoid 429 bursts."""
+        async with self._public_http_semaphore:
+            async with self._public_http_lock:
+                now = time.time()
+                wait_for = max(self._public_cooldown_until - now, self._public_next_request_at - now, 0.0)
+                if wait_for > 0:
+                    await asyncio.sleep(wait_for)
+                self._public_next_request_at = time.time() + self._public_min_interval
+
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(url)
+
+            if response.status_code == 429:
+                retry_after = self._parse_retry_after(response)
+                async with self._public_http_lock:
+                    self._public_429_streak = min(self._public_429_streak + 1, 5)
+                    cooldown = retry_after or min(
+                        self._public_429_base_cooldown * self._public_429_streak,
+                        12.0,
+                    )
+                    self._public_cooldown_until = max(self._public_cooldown_until, time.time() + cooldown)
+                logger.warning(
+                    f"⚠️ [OKX-429-GATE] {label} limitado. "
+                    f"Cooldown global {cooldown:.1f}s | streak={self._public_429_streak}"
+                )
+            elif response.status_code < 500:
+                self._public_429_streak = max(0, self._public_429_streak - 1)
+
+            return response
+
+    def _parse_retry_after(self, response) -> float:
+        try:
+            raw = response.headers.get("Retry-After")
+            if raw is None:
+                return 0.0
+            return max(0.0, float(raw))
+        except Exception:
+            return 0.0
 
     async def _load_paper_state(self):
         """[V110.23.5] Global Loader - loads paper positions and balance from Firestore. Resilient to Cloud Run restarts."""
@@ -1433,6 +1481,105 @@ class OKXRest:
             logger.error(f"Error fetching orderbook from OKX for {symbol}: {e}")
             return {"b": [], "a": []}
 
+    async def _fetch_klines_payload_limited(self, symbol: str, interval: str, fetch_limit: int, cache_key: str):
+        global _GLOBAL_KLINES_CACHE
+
+        try:
+            from services.okx_service import okx_service
+            inst_id = okx_service.to_okx_inst_id(symbol)
+            interval_map = {
+                "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
+                "60": "1H", "120": "2H", "240": "4H", "360": "6H", "720": "12H",
+                "D": "1D", "W": "1W", "M": "1M",
+                "1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "30m": "30m",
+                "1H": "1H", "2H": "2H", "4H": "4H", "6H": "6H", "12H": "12H",
+                "1D": "1D", "1W": "1W", "1M": "1M",
+            }
+            bar = interval_map.get(str(interval), "1H")
+            url = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar={bar}&limit={fetch_limit}"
+
+            for attempt in range(2):
+                response = await self._public_rate_limited_get(url, timeout=5.0, label=f"klines:{symbol}:{interval}")
+                if response.status_code == 429:
+                    await asyncio.sleep(0.25 * (attempt + 1))
+                    continue
+                if response.status_code != 200:
+                    break
+
+                data = response.json()
+                if data.get("code") != "0" or not data.get("data"):
+                    break
+
+                formatted = []
+                for candle in data.get("data", []):
+                    if len(candle) < 5 or any(v is None for v in candle[:5]):
+                        continue
+                    try:
+                        float(candle[1])
+                        float(candle[2])
+                        float(candle[3])
+                        float(candle[4])
+                    except ValueError:
+                        continue
+
+                    formatted.append([
+                        candle[0],
+                        candle[1],
+                        candle[2],
+                        candle[3],
+                        candle[4],
+                        candle[5] if len(candle) > 5 and candle[5] is not None else "0",
+                        candle[6] if len(candle) > 6 and candle[6] is not None else "0",
+                    ])
+
+                if formatted:
+                    _GLOBAL_KLINES_CACHE[cache_key] = (time.time(), formatted)
+                    return formatted
+
+        except Exception as e:
+            logger.error(f"Error fetching klines from OKX public API for {symbol}: {e}")
+
+        logger.warning(f"⚠️ [OKX-REST KLINES FALLBACK] Ativando contingencia de candles para {symbol} (Intervalo: {interval})")
+        try:
+            gate_interval_map = {
+                "1": "1m", "3": "1m", "5": "5m", "15": "15m", "30": "30m",
+                "60": "1h", "120": "2h", "240": "4h", "D": "1d",
+                "1m": "1m", "3m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+                "1H": "1h", "2H": "2h", "4H": "4h", "1D": "1d",
+            }
+            gate_bar = gate_interval_map.get(str(interval), "1h")
+            gate_sym = symbol.replace(".P", "").replace(".p", "").upper()
+            for old, new in (("SHIB1000", "SHIB"), ("PEPE1000", "PEPE"), ("LUNA2", "LUNA")):
+                gate_sym = gate_sym.replace(old, new)
+            gate_sym = gate_sym[:-4] + "_USDT" if gate_sym.endswith("USDT") else gate_sym + "_USDT"
+            gate_url = f"https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract={gate_sym}&interval={gate_bar}&limit={fetch_limit}"
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(gate_url)
+            if response.status_code == 200:
+                gate_candles = response.json()
+                if isinstance(gate_candles, list) and gate_candles:
+                    formatted = []
+                    for candle in gate_candles:
+                        if isinstance(candle, dict) and "t" in candle and "o" in candle:
+                            formatted.append([
+                                str(int(candle["t"]) * 1000),
+                                candle["o"],
+                                candle["h"],
+                                candle["l"],
+                                candle["c"],
+                                str(candle.get("v", "0")),
+                                "0",
+                            ])
+                    if formatted:
+                        logger.info(f"✅ [KLINES FALLBACK SUCCESS] Candles publicos da Gate.io obtidos com sucesso para {symbol}.")
+                        _GLOBAL_KLINES_CACHE[cache_key] = (time.time(), formatted)
+                        return formatted
+        except Exception as gate_err:
+            logger.debug(f"[GATEIO-KLINES-FALLBACK-TRY] Falha ao obter da Gate.io: {gate_err}")
+
+        return []
+
     async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20, *args, **kwargs):
         """Fetches historical klines for ATR and variation calculations from OKX Mainnet public API."""
         global _GLOBAL_KLINES_CACHE
@@ -1463,6 +1610,11 @@ class OKXRest:
                 ts, cached_data = _GLOBAL_KLINES_CACHE[cache_key]
                 if now - ts < 180.0:
                     return cached_data[:limit]
+
+            # Keep the per-key lock while fetching, so parallel radar workers share
+            # one OKX/Gate request instead of stampeding the same symbol+interval.
+            formatted = await self._fetch_klines_payload_limited(symbol, interval, fetch_limit, cache_key)
+            return formatted[:limit] if formatted else []
                     
         # 4. Tentar obter via OKX
         try:
@@ -1593,15 +1745,25 @@ class OKXRest:
         [V15.5] Fetches the current Open Interest for a symbol from OKX Mainnet.
         """
         try:
+            cache_key = symbol.replace(".P", "").upper()
+            cached = self._open_interest_cache.get(cache_key)
+            if cached and time.time() - cached.get("ts", 0.0) < 30.0:
+                return cached.get("oi", 0.0)
+
             from services.okx_service import okx_service
             inst_id = okx_service.to_okx_inst_id(symbol)
             url = f"https://www.okx.com/api/v5/public/open-interest?instId={inst_id}"
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                response = await client.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("code") == "0" and data.get("data"):
-                        return float(data["data"][0].get("oi", 0.0))
+            response = await self._public_rate_limited_get(url, timeout=4.0, label=f"open-interest:{symbol}")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == "0" and data.get("data"):
+                    oi = float(data["data"][0].get("oi", 0.0))
+                    self._open_interest_cache[cache_key] = {
+                        "oi": oi,
+                        "ts": time.time(),
+                        "raw_ts": data["data"][0].get("ts", str(int(time.time() * 1000))),
+                    }
+                    return oi
         except Exception as e:
             logger.error(f"Error fetching Open Interest from OKX for {symbol}: {e}")
         return 0.0
@@ -1611,6 +1773,14 @@ class OKXRest:
         [V46.0] Fetches historical Open Interest data from OKX.
         """
         try:
+            cache_key = symbol.replace(".P", "").upper()
+            cached = self._open_interest_cache.get(cache_key)
+            if cached and time.time() - cached.get("ts", 0.0) < 30.0:
+                return [{
+                    "openInterest": str(cached.get("oi", 0.0)),
+                    "timestamp": cached.get("raw_ts", str(int(time.time() * 1000))),
+                }]
+
             from services.okx_service import okx_service
             inst_id = okx_service.to_okx_inst_id(symbol)
             url = f"https://www.okx.com/api/v5/public/open-interest?instId={inst_id}"

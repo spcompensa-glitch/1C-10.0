@@ -1007,16 +1007,15 @@ class BankrollManager:
             # [V43.2] Pre-fetch slots for Risk-Free check (Ancorado na SSOT Postgres)
             from services.database_service import database_service
             slots = await database_service.get_active_slots()
-            active_slots_data = slots if okx_rest_service.execution_mode == "REAL" else []
-            if okx_rest_service.execution_mode == "PAPER":
-                # Create a structure matching REAL slots for the risk check
-                for p in okx_rest_service.paper_positions:
-                    active_slots_data.append({
-                        "symbol": p.get("symbol"),
-                        "side": p.get("side"),
-                        "entry_price": p.get("avgPrice"),
-                        "current_stop": p.get("stopLoss")
-                    })
+            # Postgres is the tactical slot SSOT in both REAL and PAPER. In PAPER,
+            # paper_positions can temporarily hold stale/emancipated positions, so
+            # it must not decide whether the four tactical slots are full.
+            active_slots_data = [
+                s for s in slots
+                if s.get("symbol")
+                and s.get("status") != "EMANCIPATED"
+                and s.get("status_risco") != "EMANCIPATED"
+            ]
 
             at_risk_count = 0
             for s in active_slots_data:
@@ -1072,20 +1071,70 @@ class BankrollManager:
             # [V29.0] PAPER MODE: Use local paper positions as source of truth
             if okx_rest_service.execution_mode == "PAPER":
                 paper_positions = okx_rest_service.paper_positions
+                moonbags_data = await database_service.get_moonbags()
+                moon_symbols = {
+                    (okx_rest_service._strip_p(m.get("symbol") or "") or "").upper()
+                    for m in moonbags_data
+                    if m.get("symbol")
+                }
+
+                active_slot_symbols = {
+                    (okx_rest_service._strip_p(s.get("symbol") or "") or "").upper()
+                    for s in slots
+                    if s.get("symbol")
+                    and s.get("status") != "EMANCIPATED"
+                    and s.get("status_risco") != "EMANCIPATED"
+                }
+                active_slot_ids = {
+                    int(s.get("id"))
+                    for s in slots
+                    if s.get("id") in [1, 2, 3, 4]
+                    and s.get("symbol")
+                    and float(s.get("qty", 0) or 0) > 0
+                    and float(s.get("entry_price", 0) or 0) > 0
+                    and s.get("status") != "EMANCIPATED"
+                    and s.get("status_risco") != "EMANCIPATED"
+                }
+                stale_memory_symbols = []
+                tactical_paper_positions = []
+                for p in paper_positions:
+                    p_symbol = (okx_rest_service._strip_p(p.get("symbol") or "") or "").upper()
+                    if not p_symbol:
+                        continue
+                    if p.get("status") == "EMANCIPATED" or p.get("status_risco") == "EMANCIPATED":
+                        stale_memory_symbols.append(p_symbol)
+                        continue
+                    if p_symbol in moon_symbols:
+                        stale_memory_symbols.append(p_symbol)
+                        continue
+                    if p_symbol in active_slot_symbols:
+                        tactical_paper_positions.append(p)
+                    else:
+                        stale_memory_symbols.append(p_symbol)
                 
                 # [V29.1] HYBRID OCCUPIED COUNT: Anti-Flap Shield
-                # Prevent the Single Order Rule from breaking if memory is momentarily blank but Firestore is not
-                # [V110.0] Ignora slots emancipados no limite de capacidade
-                firestore_occupied = sum(1 for s in slots if s.get("symbol") and s.get("status") != "EMANCIPATED" and s.get("status_risco") != "EMANCIPATED")
-                occupied_count = max(len([p for p in paper_positions if p.get("status") != "EMANCIPATED" and p.get("status_risco") != "EMANCIPATED"]), firestore_occupied)
+                # Prevent memory drift from making empty Postgres slots look full.
+                occupied_count = len(active_slot_ids)
+                if stale_memory_symbols:
+                    log_key = "paper_slot_memory_reconcile"
+                    now_log = time.time()
+                    if now_log - self.last_log_times.get(log_key, 0) > 30:
+                        logger.warning(
+                            "[PAPER-SLOT-RECONCILE] Ignoring %s stale paper position(s) for capacity: %s | db_active_slots=%s/%s",
+                            len(stale_memory_symbols),
+                            sorted(set(stale_memory_symbols))[:8],
+                            occupied_count,
+                            max_total_slots,
+                        )
+                        self.last_log_times[log_key] = now_log
                 
                 # Check if symbol is already pending or active
                 if symbol:
                     norm_symbol = (okx_rest_service._strip_p(symbol) or "").upper()
                     if any(k[0] == norm_symbol for k in self.pending_slots):
                         return None
-                    # Check if symbol already in a paper position
-                    for p in paper_positions:
+                    # Check if symbol already belongs to an active tactical paper slot.
+                    for p in tactical_paper_positions:
                         if (p.get("symbol") or "").upper().replace(".P", "") == norm_symbol:
                             return None
                     # [V53.4] DEEP DUPLICATE CHECK: Also check Firestore slots before re-adoption

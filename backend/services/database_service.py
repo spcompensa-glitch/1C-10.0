@@ -56,6 +56,7 @@ class Slot(Base):
     pattern = Column(String, nullable=True)
     unified_confidence = Column(Float, default=50.0)
     fleet_intel = Column(JSON, nullable=True)
+    execution_audit = Column(JSON, nullable=True)
     is_reverse_sniper = Column(Boolean, default=False)
     market_regime = Column(String, nullable=True)
     rescue_activated = Column(Boolean, default=False)
@@ -171,6 +172,7 @@ class DatabaseService:
                         ("slots", "pattern", "TEXT"),
                         ("slots", "unified_confidence", "DOUBLE PRECISION"),
                         ("slots", "fleet_intel", "JSONB"),
+                        ("slots", "execution_audit", "JSONB"),
                         ("slots", "is_reverse_sniper", "BOOLEAN"),
                         ("slots", "market_regime", "TEXT"),
                         ("slots", "rescue_activated", "BOOLEAN"),
@@ -360,6 +362,7 @@ class DatabaseService:
                     "qty": 0,
                     "entry_margin": 0,
                     "opened_at": None,
+                    "execution_audit": None,
                     "entry_price": 0,
                     "initial_stop": 0,
                     "current_stop": 0,

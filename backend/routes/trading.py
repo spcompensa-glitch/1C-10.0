@@ -70,6 +70,7 @@ async def get_slots():
                 "pattern": s.get("pattern"),
                 "unified_confidence": s.get("unified_confidence"),
                 "fleet_intel": s.get("fleet_intel"),
+                "execution_audit": s.get("execution_audit"),
                 "is_reverse_sniper": s.get("is_reverse_sniper"),
                 "market_regime": s.get("market_regime"),
                 "rescue_activated": s.get("rescue_activated"),

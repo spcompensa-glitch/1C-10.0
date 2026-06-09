@@ -7,6 +7,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from services.execution_audit import ExecutionAuditService
+from services.database_service import Slot
 
 
 def _service() -> ExecutionAuditService:
@@ -127,3 +128,7 @@ def test_missing_fill_confirmation_warns_but_uses_expected_price():
     assert audit["warnings"] == ["FILL_CONFIRMATION_UNAVAILABLE"]
     assert audit["metrics"]["avg_fill_price"] == pytest.approx(10.0)
     assert audit["metrics"]["filled_qty"] == pytest.approx(2.0)
+
+
+def test_slot_model_persists_execution_audit_json():
+    assert "execution_audit" in Slot.__table__.columns

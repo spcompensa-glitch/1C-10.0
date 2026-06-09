@@ -54,6 +54,7 @@ async def migrate():
         ("slots", "pattern", "TEXT"),
         ("slots", "unified_confidence", "DOUBLE PRECISION"),
         ("slots", "fleet_intel", "JSONB"),
+        ("slots", "execution_audit", "JSONB"),
         ("slots", "is_reverse_sniper", "BOOLEAN"),
         ("slots", "market_regime", "TEXT"),
         ("slots", "rescue_activated", "BOOLEAN"),

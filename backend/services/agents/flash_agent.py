@@ -941,13 +941,107 @@ class FlashAgent:
         """🌙🛑 Fecha Moonbag por violação de SL."""
         try:
             from services.okx_rest import okx_rest_service
-            await okx_rest_service.close_position(symbol, side, qty, reason=reason)
+            closed = await okx_rest_service.close_position(symbol, side, qty, reason=reason)
+            if not closed:
+                logger.error(
+                    f"[MOONBAG-CLOSE-GUARD] {symbol} close_position retornou False. "
+                    f"Moonbag {moon_uuid} NAO sera removida sem ledger."
+                )
+                closed = await self._forensic_close_paper_moonbag(moon_uuid, symbol, side, qty, reason)
+            if not closed:
+                return
             await database_service.remove_moonbag(moon_uuid)
             logger.warning(f"🌙🛑⚡ [FLASH] Moonbag {symbol} FECHADA por SL. Motivo: {reason}")
         except Exception as e:
             logger.error(f"⚡ [FLASH] Erro ao fechar Moonbag {symbol}: {e}")
 
     # ==================== SINCRONIZAÇÃO ====================
+
+    async def _forensic_close_paper_moonbag(self, moon_uuid: str, symbol: str, side: str, qty: float, reason: str) -> bool:
+        """Fecha uma moonbag PAPER pelo registro Postgres quando a memoria local perdeu a posicao."""
+        try:
+            from services.okx_rest import okx_rest_service
+            if okx_rest_service.execution_mode != "PAPER":
+                return False
+
+            moon = await database_service.get_moonbag(moon_uuid)
+            if not moon:
+                logger.error(f"[MOONBAG-FORENSIC-CLOSE] {symbol} sem registro Postgres {moon_uuid}.")
+                return False
+
+            entry_price = float(moon.get("entry_price") or 0)
+            exit_price = float(moon.get("current_stop") or 0)
+            close_qty = float(qty or moon.get("qty") or 0)
+            leverage = float(moon.get("leverage") or 50)
+            if entry_price <= 0 or exit_price <= 0 or close_qty <= 0:
+                logger.error(
+                    f"[MOONBAG-FORENSIC-CLOSE] {symbol} dados invalidos: "
+                    f"entry={entry_price} exit={exit_price} qty={close_qty}"
+                )
+                return False
+
+            projection = moon.get("projection") or {}
+            contract = projection.get("contract") or moon.get("contract_meta") or {}
+            ct_val = float(contract.get("ct_val") or contract.get("ctVal") or 0)
+            if ct_val <= 0:
+                try:
+                    info = await okx_rest_service.get_instrument_info(symbol)
+                    ct_val = float(info.get("lotSizeFilter", {}).get("ctVal") or 1.0)
+                except Exception:
+                    ct_val = 1.0
+
+            from services.execution_protocol import execution_protocol
+            final_pnl = execution_protocol.calculate_pnl(entry_price, exit_price, close_qty, side, ct_val)
+            final_roi = order_projection_service.calculate_roi(entry_price, exit_price, side, leverage)
+            entry_margin = float(moon.get("entry_margin") or 0)
+            pnl_percent = (final_pnl / entry_margin * 100.0) if entry_margin > 0 else final_roi
+
+            trade_data = {
+                "symbol": symbol,
+                "side": side,
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "qty": close_qty,
+                "order_id": f"{moon_uuid}_forensic",
+                "genesis_id": moon.get("genesis_id"),
+                "pnl": final_pnl,
+                "slot_id": 0,
+                "slot_type": "MOONBAG",
+                "close_reason": f"MOONBAG_FORENSIC_CLOSE_{reason}",
+                "final_roi": final_roi,
+                "closed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "opened_at": moon.get("opened_at", 0),
+                "entry_margin": entry_margin,
+                "leverage": leverage,
+                "pnl_percent": round(pnl_percent, 2),
+                "current_stop_at_close": exit_price,
+                "flash_last_action": moon.get("flash_last_action"),
+                "flash_last_stop_roi": moon.get("flash_last_stop_roi"),
+                "reasoning_report": (
+                    f"MOONBAG FORENSIC CLOSE\n"
+                    f"Motivo: {reason}\n"
+                    f"Memoria paper nao confirmou close_position; fechamento reconstruido do Postgres.\n"
+                    f"Entry={entry_price} ExitStop={exit_price} Qty={close_qty} ctVal={ct_val} PnL={final_pnl:.4f} ROI={final_roi:.1f}%"
+                ),
+            }
+
+            from services.bankroll import bankroll_manager
+            await bankroll_manager.register_sniper_trade(trade_data)
+            okx_rest_service.paper_balance += final_pnl
+            norm = okx_rest_service.normalize_symbol(symbol)
+            okx_rest_service.paper_moonbags = [
+                p for p in okx_rest_service.paper_moonbags
+                if okx_rest_service.normalize_symbol(p.get("symbol", "")) != norm
+            ]
+            await okx_rest_service._save_paper_state()
+            logger.warning(
+                f"[MOONBAG-FORENSIC-CLOSE] {symbol} ledger registrado | "
+                f"pnl=${final_pnl:.2f} roi={final_roi:.1f}% stop=${exit_price:.8f}"
+            )
+            return True
+        except Exception as exc:
+            logger.error(f"[MOONBAG-FORENSIC-CLOSE] Falha ao fechar {symbol}: {exc}")
+            return False
 
     async def _sync_paper_stop(self, symbol: str, sl_price: float):
         """Sincroniza stop no Paper Memory (fire-and-forget)."""

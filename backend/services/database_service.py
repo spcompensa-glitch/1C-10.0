@@ -329,6 +329,12 @@ class DatabaseService:
                     current_stop = float(slot.get("current_stop", 0))
                     if emancipation_stop and float(emancipation_stop) > 0:
                         current_stop = float(emancipation_stop)
+                    fleet_intel = slot.get("fleet_intel") or {}
+                    contract_meta = (
+                        fleet_intel.get("contract_info")
+                        or fleet_intel.get("contract")
+                        or None
+                    )
 
                     moon = Moonbag(
                         uuid=moon_uuid,
@@ -347,6 +353,7 @@ class DatabaseService:
                         strategy=slot.get("strategy"),
                         strategy_label=slot.get("strategy_label"),
                         opened_at=slot.get("opened_at"),
+                        contract_meta=contract_meta,
                         pnl_percent=float(slot.get("pnl_percent", 0)),
                         flash_last_action="EMANCIPACAO",
                         flash_last_stop_roi=110.0,
@@ -362,15 +369,29 @@ class DatabaseService:
                     "qty": 0,
                     "entry_margin": 0,
                     "opened_at": None,
+                    "order_id": None,
+                    "genesis_id": None,
+                    "fleet_intel": {},
                     "execution_audit": None,
                     "entry_price": 0,
                     "initial_stop": 0,
                     "current_stop": 0,
                     "target_price": 0,
+                    "structural_target": 0,
+                    "target_extended": 0,
                     "status_risco": "LIVRE",
                     "pnl_percent": 0,
                     "slot_type": None,
+                    "strategy": None,
+                    "strategy_label": None,
                     "pattern": None,
+                    "unified_confidence": 50,
+                    "is_reverse_sniper": False,
+                    "market_regime": None,
+                    "is_shadow_strike": False,
+                    "move_room_pct": 0,
+                    "score": 0,
+                    "vision_url": None,
                     "pensamento": f"🔄 Emancipado: {slot['symbol']}",
                     "rescue_activated": False,
                     "rescue_resolved": False,
@@ -387,6 +408,15 @@ class DatabaseService:
             moons = result.scalars().all()
             rows = [{c.name: getattr(m, c.name) for c in m.__table__.columns} for m in moons]
             return await self._attach_order_projections(rows, phase_hint="MOONBAG")
+
+    async def get_moonbag(self, moon_uuid: str):
+        async with self.AsyncSessionLocal() as session:
+            moon = await session.get(Moonbag, moon_uuid)
+            if not moon:
+                return None
+            row = {c.name: getattr(moon, c.name) for c in moon.__table__.columns}
+            enriched = await self._attach_order_projections([row], phase_hint="MOONBAG")
+            return enriched[0] if enriched else row
 
     async def _attach_order_projections(self, orders: List[Dict[str, Any]], phase_hint: str):
         """Attach backend-official ROI/stop projection for UI rendering."""
@@ -494,10 +524,26 @@ class DatabaseService:
                         initial_stop=0.0,
                         target_price=0.0,
                         liq_price=0.0,
+                        structural_target=0.0,
+                        target_extended=0,
                         pnl_percent=0.0,
                         status_risco='LIVRE',
                         order_id=None,
                         genesis_id=None,
+                        slot_type=None,
+                        strategy=None,
+                        strategy_label=None,
+                        pattern=None,
+                        unified_confidence=50.0,
+                        fleet_intel={},
+                        execution_audit=None,
+                        is_reverse_sniper=False,
+                        market_regime=None,
+                        rescue_activated=False,
+                        rescue_resolved=False,
+                        is_shadow_strike=False,
+                        move_room_pct=0.0,
+                        v42_tag='STANDARD',
                         vision_url=None,
                         pensamento='ZERO RESET',
                         score=0,
@@ -539,7 +585,7 @@ class DatabaseService:
                     pass
                 
                 await session.commit()
-                logger.info("System data reset complete - all slots LIVRE, bank $100, history cleared.")
+                logger.info(f"System data reset complete - all slots LIVRE, bank ${target_balance:.2f}, history cleared.")
                 return True
         except Exception as e:
             logger.error(f"Error resetting system data: {e}")

@@ -1,9 +1,15 @@
-# MASTER_ARCHITECTURE.md — V110.836 "Execution Audit Ledger Persistence"
+# MASTER_ARCHITECTURE.md — V110.837 "Moonbag Forensic Close Guard"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.836)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.836)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.837)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.837)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
+
+*   **V110.837: MOONBAG FORENSIC CLOSE GUARD [JUN 10]**
+    - **Moonbag nao some sem ledger:** `FlashAgent._close_moonbag()` deixa de remover a moonbag quando `close_position()` nao confirma fechamento.
+    - **Fallback forense PAPER:** se a memoria paper perdeu a moonbag, o Flash reconstrói o fechamento a partir do Postgres, usa `current_stop` como saida, calcula PnL com `ctVal`, registra `trade_history`, atualiza paper state e so entao remove a moonbag.
+    - **Reset realmente nuclear:** `free_slot`, `hard_reset_slot` e `reset_system_data` limpam `genesis_id`, order metadata, auditoria, alvos, regime, score e flags auxiliares para impedir cards fantasmas em slots vazios.
+    - **Contrato preservado:** moonbags promovidas passam a carregar `contract_meta` quando o contrato veio na inteligencia do slot, reduzindo risco de PnL errado em contratos OKX com `ctVal` diferente de 1.
 
 *   **V110.836: EXECUTION AUDIT LEDGER PERSISTENCE [JUN 09]**
     - **Slot auditavel no Postgres:** `slots.execution_audit` passa a existir como JSON/JSONB no modelo e na migracao auto-healing, evitando descarte silencioso do ledger pos-ordem.
@@ -557,7 +563,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.836)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.837)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -612,7 +618,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.836)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.837)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -638,7 +644,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.836)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.837)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -655,5 +661,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-09 (V110.836) Sincronizado*
+*Documento atualizado em: 2026-06-10 (V110.837) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Execution Audit Ledger, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

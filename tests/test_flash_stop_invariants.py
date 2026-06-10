@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from services.agents.flash_agent import FlashAgent
+from services.execution_protocol import execution_protocol
 
 
 def test_stop_improvement_direction_is_consistent_for_long_and_short():
@@ -173,6 +174,93 @@ async def test_moonbag_short_uses_hard_lock_stop_when_persisted_stop_regressed(m
     assert closed[0][1] == "XPLUSDT"
     assert closed[0][2] == "sell"
     assert closed[0][4].startswith("MOONBAG_SL_")
+
+
+@pytest.mark.asyncio
+async def test_moonbag_close_does_not_remove_when_close_and_forensic_fail(monkeypatch):
+    flash = FlashAgent()
+    removed = []
+
+    class FakeOkx:
+        async def close_position(self, symbol, side, qty, reason):
+            return False
+
+    class FakeDatabase:
+        async def remove_moonbag(self, moon_uuid):
+            removed.append(moon_uuid)
+            return True
+
+    async def fake_forensic(*args, **kwargs):
+        return False
+
+    monkeypatch.setattr("services.okx_rest.okx_rest_service", FakeOkx())
+    monkeypatch.setattr("services.agents.flash_agent.database_service", FakeDatabase())
+    monkeypatch.setattr(flash, "_forensic_close_paper_moonbag", fake_forensic)
+
+    await flash._close_moonbag("OPNUSDT_1", "OPNUSDT", "sell", 10, "MOONBAG_TRAIL_SL_1600%")
+
+    assert removed == []
+
+
+@pytest.mark.asyncio
+async def test_forensic_paper_moonbag_close_registers_ledger_and_saves_state(monkeypatch):
+    flash = FlashAgent()
+    trades = []
+
+    class FakeDatabase:
+        async def get_moonbag(self, moon_uuid):
+            return {
+                "uuid": moon_uuid,
+                "symbol": "OPNUSDT",
+                "side": "Sell",
+                "qty": 113.0,
+                "entry_price": 0.132,
+                "entry_margin": 3.0,
+                "current_stop": 0.0898,
+                "leverage": 50.0,
+                "opened_at": 1780848528,
+                "genesis_id": "SWG-1780848528-OPNU-66067F",
+                "flash_last_action": "ULTRA_1800",
+                "flash_last_stop_roi": 1600.0,
+                "projection": {"contract": {"ct_val": 10.0}},
+            }
+
+    class FakeOkx:
+        execution_mode = "PAPER"
+        paper_balance = 20.0
+        paper_moonbags = [{"symbol": "OPNUSDT"}]
+
+        def normalize_symbol(self, symbol):
+            return (symbol or "").replace(".P", "").upper()
+
+        async def get_instrument_info(self, symbol):
+            return {"lotSizeFilter": {"ctVal": "10"}}
+
+        async def _save_paper_state(self):
+            self.saved = True
+
+    class FakeBankroll:
+        async def register_sniper_trade(self, trade_data):
+            trades.append(trade_data)
+
+    fake_okx = FakeOkx()
+    monkeypatch.setattr("services.agents.flash_agent.database_service", FakeDatabase())
+    monkeypatch.setattr("services.okx_rest.okx_rest_service", fake_okx)
+    monkeypatch.setattr("services.bankroll.bankroll_manager", FakeBankroll())
+
+    ok = await flash._forensic_close_paper_moonbag(
+        "OPNUSDT_1780848528", "OPNUSDT", "Sell", 113.0, "MOONBAG_TRAIL_SL_1800%"
+    )
+
+    assert ok is True
+    assert len(trades) == 1
+    assert trades[0]["slot_type"] == "MOONBAG"
+    assert trades[0]["close_reason"].startswith("MOONBAG_FORENSIC_CLOSE_")
+    assert trades[0]["pnl"] == pytest.approx(
+        execution_protocol.calculate_pnl(0.132, 0.0898, 113.0, "Sell", 10.0)
+    )
+    assert fake_okx.paper_moonbags == []
+    assert fake_okx.saved is True
 
 
 @pytest.mark.asyncio

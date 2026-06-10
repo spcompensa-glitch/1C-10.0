@@ -754,10 +754,29 @@ class FlashAgent:
             new_stop = entry_price * (1 - price_offset_pct)  # Stop ABAIXO do entry para SHORT
         try:
             from services.okx_rest import okx_rest_service
-            new_stop = await okx_rest_service.round_price(symbol, new_stop)
+            info = await okx_rest_service.get_instrument_info(symbol)
+            tick_size = float(info.get("priceFilter", {}).get("tickSize") or 0)
+            new_stop = self._round_stop_to_tick(new_stop, tick_size, side, stop_roi)
         except Exception:
             pass
         return new_stop
+
+    def _round_stop_to_tick(self, price: float, tick_size: float, side: str, stop_roi: float) -> float:
+        if price <= 0 or tick_size <= 0:
+            return price
+        from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
+
+        price_dec = Decimal(str(price))
+        tick_dec = Decimal(str(tick_size))
+        side_norm = (side or "").lower()
+        if stop_roi >= 0 and side_norm == "buy":
+            rounding = ROUND_CEILING
+        elif stop_roi >= 0 and side_norm in ("sell", "short"):
+            rounding = ROUND_FLOOR
+        else:
+            rounding = ROUND_HALF_UP
+        rounded = (price_dec / tick_dec).quantize(Decimal("1"), rounding=rounding) * tick_dec
+        return float(rounded.normalize())
 
     # ==================== AÇÕES ====================
 

@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from services.agents.flash_agent import FlashAgent
 from services.execution_protocol import execution_protocol
+from services.firebase_service import FirebaseService
+from services.okx_rest import okx_rest_service
 
 
 def test_stop_improvement_direction_is_consistent_for_long_and_short():
@@ -19,6 +21,144 @@ def test_stop_improvement_direction_is_consistent_for_long_and_short():
     assert flash._stop_improves("buy", 102.0, 100.0) is False
     assert flash._stop_improves("sell", 100.0, 98.0) is True
     assert flash._stop_improves("sell", 98.0, 100.0) is False
+
+
+def test_profit_stop_rounding_never_reduces_promised_roi():
+    flash = FlashAgent()
+
+    long_stop = flash._round_stop_to_tick(0.42520964, 0.0001, "buy", 6.0)
+    short_stop = flash._round_stop_to_tick(0.01518176, 0.00001, "sell", 6.0)
+
+    assert long_stop == pytest.approx(0.4253)
+    assert short_stop == pytest.approx(0.01518)
+    assert flash._calc_roi(0.4247, long_stop, "buy", 50.0) >= 6.0
+    assert flash._calc_roi(0.0152, short_stop, "sell", 50.0) >= 6.0
+
+
+@pytest.mark.asyncio
+async def test_paper_close_uses_authoritative_slot_stop(monkeypatch):
+    trades = []
+    resets = []
+
+    class FakeRedis:
+        async def acquire_lock(self, *args, **kwargs):
+            return True
+
+        async def release_lock(self, *args, **kwargs):
+            return True
+
+    class FakeDatabase:
+        async def get_slot(self, slot_id):
+            return {"id": slot_id, "symbol": "KAITOUSDT", "current_stop": 0.4252}
+
+        async def get_moonbags(self):
+            return []
+
+    class FakeBankroll:
+        async def register_sniper_trade(self, trade_data):
+            trades.append(trade_data.copy())
+
+    class FakeFirebase:
+        async def get_slot(self, slot_id):
+            return {"fleet_intel": {}, "unified_confidence": 50, "pensamento": "test"}
+
+        async def hard_reset_slot(self, slot_id, reason="test", pnl=0, trade_data=None):
+            resets.append((slot_id, reason, pnl, trade_data.copy()))
+            return True
+
+    monkeypatch.setattr(okx_rest_service, "execution_mode", "PAPER")
+    monkeypatch.setattr(okx_rest_service, "redis", FakeRedis())
+    monkeypatch.setattr(okx_rest_service, "pending_closures", set())
+    monkeypatch.setattr(okx_rest_service, "paper_balance", 20.0)
+    monkeypatch.setattr(okx_rest_service, "paper_orders_history", [])
+    monkeypatch.setattr(okx_rest_service, "paper_moonbags", [])
+    monkeypatch.setattr(okx_rest_service, "paper_positions", [{
+        "symbol": "KAITOUSDT",
+        "side": "Buy",
+        "size": "353",
+        "avgPrice": "0.4247",
+        "leverage": "50",
+        "stopLoss": "0.4242",
+        "slot_id": 1,
+        "opened_at": 1781074725,
+    }])
+
+    async def fake_get_instrument_info(symbol):
+        return {"lotSizeFilter": {"ctVal": "1"}}
+
+    async def fake_cleanup(symbol, delay=15):
+        return None
+
+    monkeypatch.setattr(okx_rest_service, "get_instrument_info", fake_get_instrument_info)
+    monkeypatch.setattr(okx_rest_service, "_cleanup_pending_closure", fake_cleanup)
+    monkeypatch.setattr("services.database_service.database_service", FakeDatabase())
+    monkeypatch.setattr("services.bankroll.bankroll_manager", FakeBankroll())
+    monkeypatch.setattr("services.firebase_service.firebase_service", FakeFirebase())
+
+    ok = await okx_rest_service.close_position("KAITOUSDT", "buy", 353, "FLASH_PROFIT_SL_6%")
+
+    assert ok is True
+    assert trades[0]["exit_price"] == pytest.approx(0.4252)
+    assert resets[0][3]["exit_price"] == pytest.approx(0.4252)
+    assert trades[0]["pnl"] > 0
+
+
+@pytest.mark.asyncio
+async def test_hard_reset_preserves_explicit_exit_price(monkeypatch):
+    service = FirebaseService()
+    captured = []
+
+    async def fake_get_slot(slot_id):
+        return {
+            "id": slot_id,
+            "symbol": "KAITOUSDT",
+            "side": "Buy",
+            "qty": 353,
+            "entry_price": 0.4247,
+            "entry_margin": 3.0,
+            "current_stop": 0.4252,
+            "opened_at": 1781074725,
+        }
+
+    async def fake_log_trade(trade_data):
+        captured.append(trade_data.copy())
+
+    async def noop(*args, **kwargs):
+        return True
+
+    async def no_genesis(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(service, "get_slot", fake_get_slot)
+    monkeypatch.setattr(service, "get_order_genesis", no_genesis)
+    monkeypatch.setattr(service, "log_trade", fake_log_trade)
+    monkeypatch.setattr(service, "register_sl_cooldown", noop)
+    monkeypatch.setattr(service, "update_slot", noop)
+    monkeypatch.setattr(service, "log_event", noop)
+    service.rtdb = None
+
+    await service._hard_reset_slot_full(
+        1,
+        reason="PAPER_CLOSE_ATOMIC_FLASH_PROFIT_SL_6%",
+        pnl=0.10,
+        trade_data={
+            "symbol": "KAITOUSDT",
+            "side": "Buy",
+            "entry_price": 0.4247,
+            "exit_price": 0.4252,
+            "qty": 353,
+            "pnl": 0.10,
+            "pnl_percent": 5.89,
+            "final_roi": 5.89,
+            "order_id": "KAITOUSDT_1781074725",
+            "slot_id": 1,
+            "entry_margin": 3.0,
+            "leverage": 50.0,
+        },
+    )
+
+    assert captured[0]["exit_price"] == pytest.approx(0.4252)
+    assert captured[0]["current_stop_at_close"] == pytest.approx(0.4252)
 
 
 def test_moonbag_hard_lock_never_drops_below_emancipation():
@@ -362,9 +502,9 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
 
     await flash._process_slot(slot)
 
-    assert checked_stops == [pytest.approx(426.24), pytest.approx(431.73)]
-    assert updated == [(3, "ZECUSDT", pytest.approx(431.73), "PROFIT_LOCK", "buy", 35.0)]
-    assert emancipated == [(3, "ZECUSDT", pytest.approx(431.73))]
+    assert checked_stops == [pytest.approx(426.24), pytest.approx(431.74)]
+    assert updated == [(3, "ZECUSDT", pytest.approx(431.74), "PROFIT_LOCK", "buy", 35.0)]
+    assert emancipated == [(3, "ZECUSDT", pytest.approx(431.74))]
 
 
 @pytest.mark.asyncio

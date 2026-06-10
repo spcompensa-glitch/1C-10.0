@@ -1271,15 +1271,20 @@ class FirebaseService:
         
         if symbol and entry_price > 0 and qty > 0:
             # 1. Tenta obter o preço atual do ativo
-            market_price = 0.0
+            explicit_exit_price = float(trade_data.get("exit_price") or 0)
+            explicit_pnl = trade_data.get("pnl") is not None
+            if "current_stop_at_close" not in trade_data:
+                trade_data["current_stop_at_close"] = float(current_state.get("current_stop") or 0)
+            market_price = explicit_exit_price if explicit_exit_price > 0 else 0.0
             clean_sym = symbol.replace(".P", "").upper()
             
             # Método A: Buscar no Redis (ticker rápido)
-            try:
-                from services.redis_service import redis_service
-                market_price = await redis_service.get_ticker(clean_sym) or 0.0
-            except Exception as e:
-                logger.debug(f"Redis get_ticker fallback failed: {e}")
+            if market_price <= 0:
+                try:
+                    from services.redis_service import redis_service
+                    market_price = await redis_service.get_ticker(clean_sym) or 0.0
+                except Exception as e:
+                    logger.debug(f"Redis get_ticker fallback failed: {e}")
                 
             # Método B: WebSocket da Bybit
             if market_price <= 0:
@@ -1307,7 +1312,7 @@ class FirebaseService:
             trade_data["exit_price"] = market_price
             
             # Se o pnl passado for 0, calcula
-            if pnl == 0:
+            if pnl == 0 and not explicit_pnl:
                 pnl_percent = 0.0
                 if side.upper() in ["BUY", "LONG"]:
                     price_diff_pct = (market_price - entry_price) / entry_price

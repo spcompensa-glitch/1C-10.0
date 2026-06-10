@@ -5,6 +5,12 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
+*   **V110.839: FLASH LEDGER STOP AUTHORITY [JUN 10]**
+    - **Stop do Flash manda no ledger:** em PAPER, fechamentos por `FLASH`/`SL`/`STOP` passam a resolver o stop atual no Postgres antes de calcular a saida, evitando usar stop antigo da memoria local.
+    - **Hard reset nao sobrescreve saida auditada:** `hard_reset_slot` preserva `exit_price`, `pnl` e `current_stop_at_close` quando o fechamento ja trouxe dados do executor.
+    - **Stop arredondado a favor do lucro:** stops de lucro LONG arredondam para cima e SHORT para baixo, garantindo que o tick da OKX nao reduza o ROI prometido pelo degrau.
+    - **Historico Postgres idempotente:** `trade_history` atualiza registros existentes pelo `order_id`, impedindo duplicacao quando Firestore/Postgres recebem o mesmo fechamento.
+
 *   **V110.838: LIVE EQUITY KILL SWITCH [JUN 10]**
     - **Capitao olha equity viva:** `monitor_signals()` e `can_open_new_slot()` deixam de usar apenas saldo configurado/saldo salvo para o Zero Equity Shield e passam a usar `base + historico realizado + PnL aberto de slots + PnL aberto de moonbags`.
     - **Banca quebrada nao abre slot:** se a equity viva cair abaixo do piso critico operacional, novas entradas sao bloqueadas mesmo que `configured_balance` continue em `$20.00`.

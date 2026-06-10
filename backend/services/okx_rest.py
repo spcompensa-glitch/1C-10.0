@@ -1187,6 +1187,7 @@ class OKXRest:
                         leverage = float(pos.get("leverage", 50))
                         side_pos = pos["side"]
                         stop_price = float(pos.get("stopLoss", 0))
+                        slot_id = int(pos.get("slot_id", 0) or 0)
                         
                         # [V110.118] Determinar qty real a fechar
                         close_qty = min(float(qty) if qty > 0 else size, size)  # Nunca fechar mais que o size total
@@ -1196,6 +1197,30 @@ class OKXRest:
                         
                         reason_upper = (reason or "").upper()
                         is_sl_trigger = any(kw in reason_upper for kw in ["SL", "STOP", "RISK_ZERO", "SAFE", "STABILIZE", "FLASH", "MEGA", "PROFIT"])
+
+                        if is_sl_trigger:
+                            try:
+                                from services.database_service import database_service
+                                authoritative_stop = 0.0
+                                if slot_id > 0:
+                                    slot_state = await database_service.get_slot(slot_id)
+                                    if slot_state and self.normalize_symbol(slot_state.get("symbol", "")) == norm_symbol:
+                                        authoritative_stop = float(slot_state.get("current_stop") or 0)
+                                if authoritative_stop <= 0:
+                                    moonbags = await database_service.get_moonbags()
+                                    for moon in moonbags:
+                                        if self.normalize_symbol(moon.get("symbol", "")) == norm_symbol:
+                                            authoritative_stop = float(moon.get("current_stop") or 0)
+                                            break
+                                if authoritative_stop > 0:
+                                    stop_price = authoritative_stop
+                                    pos["stopLoss"] = str(stop_price)
+                                    logger.info(
+                                        f"[PAPER] Authoritative stop resolved from ledger for {norm_symbol}: "
+                                        f"${stop_price:.8f}"
+                                    )
+                            except Exception as stop_err:
+                                logger.warning(f"[PAPER] Failed to resolve authoritative stop for {norm_symbol}: {stop_err}")
                         
                         if is_sl_trigger and stop_price > 0:
                             exit_price = stop_price
@@ -1259,7 +1284,6 @@ class OKXRest:
                         # [V110.65] ATOMIC CLOSURE PROTOCOL
                         try:
                             from services.bankroll import bankroll_manager
-                            slot_id = pos.get("slot_id", 0)
                             
                             # Capture intelligence BEFORE clearing slot or removing from memory
                             fleet_intel = {}

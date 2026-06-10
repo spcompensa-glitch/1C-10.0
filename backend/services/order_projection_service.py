@@ -78,6 +78,22 @@ class OrderProjectionService:
         rounded = (Decimal(str(price)) / tick).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * tick
         return float(rounded.normalize())
 
+    def round_stop_to_tick(self, price: float, tick_size: float, side: Any, stop_roi: float) -> float:
+        if price <= 0 or tick_size <= 0:
+            return price
+        from decimal import ROUND_CEILING, ROUND_FLOOR
+
+        tick = Decimal(str(tick_size))
+        normalized_side = self.normalize_side(side)
+        if stop_roi >= 0 and normalized_side == "buy":
+            rounding = ROUND_CEILING
+        elif stop_roi >= 0 and normalized_side == "sell":
+            rounding = ROUND_FLOOR
+        else:
+            rounding = ROUND_HALF_UP
+        rounded = (Decimal(str(price)) / tick).quantize(Decimal("1"), rounding=rounding) * tick
+        return float(rounded.normalize())
+
     async def price_from_roi(self, symbol: str, entry_price: float, roi_percent: float, side: Any, leverage: float) -> float:
         raw_price = self.raw_price_from_roi(entry_price, roi_percent, side, leverage)
         if raw_price <= 0:
@@ -200,7 +216,7 @@ class OrderProjectionService:
         levels = []
         for level in stop_ladder:
             raw_price = self.raw_price_from_roi(entry_price, level.stop_roi, side, leverage)
-            price = self.round_to_tick(raw_price, contract["tick_size"])
+            price = self.round_stop_to_tick(raw_price, contract["tick_size"], side, level.stop_roi)
             raw_target_price = self.raw_price_from_roi(entry_price, level.trigger_roi, side, leverage)
             target_price = self.round_to_tick(raw_target_price, contract["tick_size"])
             levels.append({
@@ -217,7 +233,7 @@ class OrderProjectionService:
         recommended_stop = 0.0
         if active_level:
             raw_stop = self.raw_price_from_roi(entry_price, active_level.stop_roi, side, leverage)
-            recommended_stop = self.round_to_tick(raw_stop, contract["tick_size"])
+            recommended_stop = self.round_stop_to_tick(raw_stop, contract["tick_size"], side, active_level.stop_roi)
 
         pnl_usd = 0.0
         if entry_price > 0 and current_price > 0 and qty > 0:

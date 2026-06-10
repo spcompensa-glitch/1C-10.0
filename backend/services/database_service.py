@@ -618,8 +618,16 @@ class DatabaseService:
                 else:
                     ts_val = datetime.utcnow()
                 
-                new_trade = TradeHistory(
-                    order_id=str(trade_data.get("order_id")) if trade_data.get("order_id") else None,
+                order_id = str(trade_data.get("order_id")) if trade_data.get("order_id") else None
+                existing = None
+                if order_id:
+                    result = await session.execute(
+                        select(TradeHistory).where(TradeHistory.order_id == order_id).limit(1)
+                    )
+                    existing = result.scalar_one_or_none()
+
+                new_trade = existing or TradeHistory(
+                    order_id=order_id,
                     genesis_id=trade_data.get("genesis_id"),
                     symbol=trade_data.get("symbol"),
                     side=trade_data.get("side"),
@@ -633,7 +641,21 @@ class DatabaseService:
                     data=clean_data,
                     vision_url=trade_data.get("vision_url")
                 )
-                session.add(new_trade)
+                if existing:
+                    new_trade.genesis_id = trade_data.get("genesis_id")
+                    new_trade.symbol = trade_data.get("symbol")
+                    new_trade.side = trade_data.get("side")
+                    new_trade.pnl = float(trade_data.get("pnl", 0))
+                    new_trade.pnl_percent = float(trade_data.get("pnl_percent", 0))
+                    new_trade.entry_price = float(trade_data.get("entry_price", 0))
+                    new_trade.exit_price = float(trade_data.get("exit_price", 0))
+                    new_trade.strategy = trade_data.get("strategy")
+                    new_trade.close_reason = trade_data.get("close_reason")
+                    new_trade.timestamp = ts_val
+                    new_trade.data = clean_data
+                    new_trade.vision_url = trade_data.get("vision_url")
+                else:
+                    session.add(new_trade)
                 await session.commit()
                 logger.info(f"✅ Trade logged in Postgres: {trade_data.get('symbol')}")
             except Exception as e:

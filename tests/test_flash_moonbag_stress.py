@@ -18,7 +18,7 @@ def _price_from_roi(entry_price, roi_percent, side, leverage, tick_size):
         side,
         leverage,
     )
-    return order_projection_service.round_to_tick(raw, tick_size)
+    return order_projection_service.round_stop_to_tick(raw, tick_size, side, roi_percent)
 
 
 @pytest.mark.asyncio

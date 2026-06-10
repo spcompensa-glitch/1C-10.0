@@ -4,6 +4,7 @@ import logging
 import time
 import math
 from collections import deque
+from websockets.exceptions import ConnectionClosed
 from config import settings
 from services.redis_service import redis_service
 from services.okx_service import okx_service
@@ -597,13 +598,10 @@ class OKXWSPublic:
                                     "data": data_okx.get("data", [])
                                 })
                                 
-                        except asyncio.timeout: # compatibilidade 3.11/3.10
-                            logger.warning("⚠️ [OKX-WS PUBLIC] Silêncio de dados. Enviando ping manual...")
-                            await ws.send("ping")
                         except asyncio.TimeoutError:
                             logger.warning("⚠️ [OKX-WS PUBLIC] Silêncio de dados. Enviando ping manual...")
                             await ws.send("ping")
-                        except websockets.exceptions.ConnectionClosed:
+                        except ConnectionClosed:
                             logger.warning("⚠️ [OKX-WS PUBLIC] Conexão fechada pelo servidor remoto OKX.")
                             break
                             

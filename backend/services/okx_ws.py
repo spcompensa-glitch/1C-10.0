@@ -8,6 +8,7 @@ import hashlib
 import base64
 from typing import List, Dict, Any, Optional, Callable
 import websockets
+from websockets.exceptions import ConnectionClosed
 from config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -151,7 +152,7 @@ class OKXWebSocket:
                         except asyncio.TimeoutError:
                             logger.warning("⚠️ [OKX-WS] Watchdog: Nenhuma mensagem recebida em 45s. Enviando ping manual...")
                             await ws.send("ping")
-                        except websockets.exceptions.ConnectionClosed:
+                        except ConnectionClosed:
                             logger.warning("⚠️ [OKX-WS] Conexão fechada pelo servidor remoto.")
                             break
                             

@@ -347,6 +347,31 @@ class BankrollGuardian:
 
         profitable_moonbag_active = active_moonbags > 0 and open_moonbags_pnl > 0 and session_profit > 0
         protected_slot_active = protected_slots > 0 and session_profit > 0
+
+        if equity <= max(2.0, base_balance * 0.10):
+            mode = "PRESERVACAO_TOTAL"
+            state_label = "Preservacao total"
+            min_score = 999.0
+            max_slots = 0
+            health = 5
+            reasons = [f"Equity viva critica (${equity:.2f}). Kill-switch operacional ativo; novas entradas pausadas."]
+            return {
+                "mode": mode,
+                "state_label": state_label,
+                "health_score": health,
+                "min_score": min_score,
+                "max_slots": max_slots,
+                "session_profit": round(session_profit, 4),
+                "session_roi": round(session_roi, 2),
+                "peak_equity": round(self.peak_equity, 4),
+                "drawdown_from_peak": round(drawdown_from_peak, 4),
+                "drawdown_from_peak_pct": round(drawdown_from_peak_pct, 2),
+                "locked_profit": round(locked_profit, 4),
+                "allowed_giveback": round(allowed_giveback, 4),
+                "protected_floor": round(protected_floor, 4),
+                "reasons": reasons,
+            }
+
         if profitable_moonbag_active or protected_slot_active:
             if profit_multiple >= 4.0:
                 min_score = 88.0

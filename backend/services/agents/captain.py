@@ -550,10 +550,10 @@ class CaptainAgent(AIOSAgent):
                 slots = await firebase_service.get_active_slots()
                 
                 # [V110.0] ZERO EQUITY SHIELD: Monitoramento proativo no Capitão
-                balance = await bankroll_manager._get_operating_balance()
+                balance = await bankroll_manager.get_live_operating_equity()
                 if balance < 2.0:
                     if not hasattr(self, "_last_zero_equity_log") or (time.time() - self._last_zero_equity_log) > 60:
-                        msg = f"🛑 [ZERO EQUITY] Capitão em standby. Banca (${balance:.2f}) insuficiente."
+                        msg = f"🛑 [ZERO EQUITY] Capitão em standby. LiveEquity (${balance:.2f}) insuficiente."
                         logger.error(msg)
                         await firebase_service.log_event("SNIPER", msg, "CRITICAL")
                         self._last_zero_equity_log = time.time()
@@ -564,9 +564,9 @@ class CaptainAgent(AIOSAgent):
 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
-                    balance = await bankroll_manager._get_operating_balance()
+                    balance = await bankroll_manager.get_live_operating_equity()
                     vault_ok, vault_reason = await vault_service.is_trading_allowed()
-                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {okx_rest_service.execution_mode} | Slots: {occupied_count}/4 | Balance: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
+                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {okx_rest_service.execution_mode} | Slots: {occupied_count}/4 | LiveEquity: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
                     self._last_heartbeat = time.time()
                 
                 free_slots = 4 - occupied_count

@@ -5,6 +5,12 @@
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
+*   **V110.838: LIVE EQUITY KILL SWITCH [JUN 10]**
+    - **Capitao olha equity viva:** `monitor_signals()` e `can_open_new_slot()` deixam de usar apenas saldo configurado/saldo salvo para o Zero Equity Shield e passam a usar `base + historico realizado + PnL aberto de slots + PnL aberto de moonbags`.
+    - **Banca quebrada nao abre slot:** se a equity viva cair abaixo do piso critico operacional, novas entradas sao bloqueadas mesmo que `configured_balance` continue em `$20.00`.
+    - **Guardiao explicito:** `/api/bankroll/guardian-report` passa a retornar `PRESERVACAO_TOTAL`, `health_score=5`, `max_slots=0` e motivo de kill-switch quando a equity viva esta critica.
+    - **Logs sem dupla leitura:** heartbeat e alocacao de slot passam a logar `LiveEquity`, deixando claro se o sistema esta usando patrimonio vivo ou apenas capital configurado.
+
 *   **V110.837: MOONBAG FORENSIC CLOSE GUARD [JUN 10]**
     - **Moonbag nao some sem ledger:** `FlashAgent._close_moonbag()` deixa de remover a moonbag quando `close_position()` nao confirma fechamento.
     - **Fallback forense PAPER:** se a memoria paper perdeu a moonbag, o Flash reconstrói o fechamento a partir do Postgres, usa `current_stop` como saida, calcula PnL com `ctVal`, registra `trade_history`, atualiza paper state e so entao remove a moonbag.

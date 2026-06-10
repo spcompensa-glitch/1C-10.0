@@ -86,7 +86,7 @@ async def test_paper_capacity_uses_postgres_slots_not_stale_memory(monkeypatch):
 
     monkeypatch.setattr(database_service, "get_active_slots", fake_get_active_slots)
     monkeypatch.setattr(database_service, "get_moonbags", fake_get_moonbags)
-    monkeypatch.setattr(manager, "_get_operating_balance", fake_balance)
+    monkeypatch.setattr(manager, "get_live_operating_equity", fake_balance)
 
     assert await manager.can_open_new_slot(symbol="CRVUSDT", slot_type="BLITZ_30M") == 3
 
@@ -115,6 +115,30 @@ async def test_paper_capacity_still_blocks_when_postgres_slots_are_full(monkeypa
 
     monkeypatch.setattr(database_service, "get_active_slots", fake_get_active_slots)
     monkeypatch.setattr(database_service, "get_moonbags", fake_get_moonbags)
-    monkeypatch.setattr(manager, "_get_operating_balance", fake_balance)
+    monkeypatch.setattr(manager, "get_live_operating_equity", fake_balance)
+
+    assert await manager.can_open_new_slot(symbol="SUIUSDT", slot_type="BLITZ_30M") is None
+
+
+@pytest.mark.asyncio
+async def test_paper_capacity_blocks_on_critical_live_equity(monkeypatch):
+    manager = BankrollManager()
+    manager.pending_slots.clear()
+
+    monkeypatch.setattr(okx_rest_service, "execution_mode", "PAPER")
+    monkeypatch.setattr(okx_rest_service, "paper_positions", [])
+
+    async def fake_get_active_slots():
+        return [_slot(1), _slot(2), _slot(3), _slot(4)]
+
+    async def fake_get_moonbags():
+        return []
+
+    async def fake_live_equity():
+        return 1.75
+
+    monkeypatch.setattr(database_service, "get_active_slots", fake_get_active_slots)
+    monkeypatch.setattr(database_service, "get_moonbags", fake_get_moonbags)
+    monkeypatch.setattr(manager, "get_live_operating_equity", fake_live_equity)
 
     assert await manager.can_open_new_slot(symbol="SUIUSDT", slot_type="BLITZ_30M") is None

@@ -144,6 +144,34 @@ class BankrollManager:
             logger.error(f"Error calculating operating balance for {username}: {e}")
             return 100.0
 
+    async def get_live_operating_equity(self) -> float:
+        """
+        Returns live paper equity for operational kill-switches.
+        It includes realized history and open PnL, not only configured balance.
+        """
+        try:
+            base_balance = float(settings.OKX_SIMULATED_BALANCE)
+            banca = await database_service.get_banca_status()
+            if banca:
+                configured = self._safe_float(banca.get("configured_balance"), 0.0)
+                if configured > 0:
+                    base_balance = configured
+
+            slots = await database_service.get_active_slots()
+            moonbags = await database_service.get_moonbags()
+            history = await database_service.get_trade_history(limit=1000)
+            realized_pnl = sum(self._safe_float(trade.get("pnl"), 0.0) for trade in history)
+            snapshot = self._paper_equity_snapshot(
+                base_balance=base_balance,
+                realized_pnl=realized_pnl,
+                active_slots=slots,
+                active_moonbags=moonbags,
+            )
+            return float(snapshot["calculated_equity"])
+        except Exception as e:
+            logger.error(f"Error calculating live operating equity: {e}")
+            return await self._get_operating_balance()
+
     def _is_slot_risk_free(self, slot: dict) -> bool:
         """
         [V10.4] Check if a slot has reached Risk-Free status.
@@ -1121,11 +1149,11 @@ class BankrollManager:
 
             # [V43.1] Bankroll Recovery: Limit to 1 slot if balance < $15
             # AND respect the '1-at-risk' rule.
-            balance = await self._get_operating_balance()
+            balance = await self.get_live_operating_equity()
             
             # [V110.0] ZERO EQUITY SHIELD: Stop if balance is too low (Effective Zero)
             if balance < 2.0:
-                logger.warning(f"🚫 [ZERO EQUITY] Balance ${balance:.2f} is critically low. Blocked all new openings.")
+                logger.warning(f"🚫 [ZERO EQUITY] LiveEquity ${balance:.2f} is critically low. Blocked all new openings.")
                 await firebase_service.log_event("Bankroll", f"🛑 CRITICAL: Zero Equity Shield Active (${balance:.2f}). System Paused.", "CRITICAL")
                 return None
 
@@ -1135,10 +1163,10 @@ class BankrollManager:
             if balance < 10.0:
                 max_total_slots = 2  # [V110.802.6] Menos de $10, max 2 slots
                 max_at_risk_slots = 2
-                logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | Balance=${balance:.2f}")
+                logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
             else:
                 max_at_risk_slots = 4  # [V110.802.6] Todos os 4 slots liberados
-                logger.info(f"🛡️ [V110.802.6] Full Slots Mode: Max At-Risk=4 | Balance=${balance:.2f}")
+                logger.info(f"🛡️ [V110.802.6] Full Slots Mode: Max At-Risk=4 | LiveEquity=${balance:.2f}")
 
             if at_risk_count >= max_at_risk_slots:
                 logger.warning(f"🚫 [V43.2] Dual-Slot BLOCK: At least {at_risk_count} position(s) unprotected. Waiting for Risk-Zero.")

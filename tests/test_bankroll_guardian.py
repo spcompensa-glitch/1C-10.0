@@ -55,6 +55,23 @@ def test_profit_floor_still_blocks_without_profitable_moonbag():
     assert health["min_score"] == 999.0
 
 
+def test_critical_live_equity_triggers_operational_kill_switch():
+    guardian = BankrollGuardian()
+
+    health = guardian._health_mode(
+        equity=1.75,
+        base_balance=20.0,
+        active_slots=0,
+        active_moonbags=0,
+        open_moonbags_pnl=0.0,
+    )
+
+    assert health["mode"] == "PRESERVACAO_TOTAL"
+    assert health["max_slots"] == 0
+    assert health["min_score"] == 999.0
+    assert "Equity viva critica" in health["reasons"][0]
+
+
 def test_protected_slot_keeps_accumulation_protected_when_below_profit_floor():
     guardian = BankrollGuardian()
     guardian.peak_equity = 45.7288

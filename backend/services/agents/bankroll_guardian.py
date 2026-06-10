@@ -326,8 +326,14 @@ class BankrollGuardian:
         drawdown_from_peak = self.peak_equity - equity
         drawdown_from_peak_pct = (drawdown_from_peak / self.peak_equity) * 100 if self.peak_equity > 0 else 0.0
         profit_multiple = (peak_profit / base_balance) if base_balance > 0 else 0.0
+        protected_profit_context = (
+            (active_moonbags > 0 and open_moonbags_pnl > 0 and session_profit > 0)
+            or (protected_slots > 0 and session_profit > 0)
+        )
+        material_profit_floor = peak_profit >= max(1.0, base_balance * 0.05)
+
         lock_ratio = 0.0
-        if peak_profit > 0:
+        if peak_profit > 0 and (material_profit_floor or protected_profit_context):
             if profit_multiple >= 4.0:
                 lock_ratio = 0.85
             elif profit_multiple >= 1.0:
@@ -407,7 +413,7 @@ class BankrollGuardian:
                 "reasons": reasons,
             }
 
-        if peak_profit > 0 and equity <= protected_floor:
+        if material_profit_floor and peak_profit > 0 and equity <= protected_floor:
             mode = "PRESERVACAO_TOTAL"
             state_label = "Preservacao total"
             min_score = 999.0

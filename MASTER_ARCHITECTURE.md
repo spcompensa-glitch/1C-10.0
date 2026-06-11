@@ -1,7 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.841 "Elite Ladder Synchronization"
+# MASTER_ARCHITECTURE.md — V110.904 "Real-World ECC Maturity"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+
+*   **V110.904: REAL-WORLD ECC MATURITY [JUN 11]**
+    *   **Infraestrutura de Fila OKX (Anti-429):** Implementado o `OKXCommandQueue` ([okx_queue.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/services/okx_queue.py)) que utiliza `asyncio.Queue` e loop em background para agrupar comandos privados (como atualizações de Stop Loss em lote via `amend-algos`), eliminando erros 429 de Rate Limit.
+    *   **Cost Gate (ECC cost-tracking):** Implementada a avaliação preventiva de custos operacionais no `CaptainAgent` (`_evaluate_cost_gate`). O sinal é abortado (`CUSTO_ABUSIVO`) se o custo projetado de taxa taker round-trip + 24h de Funding Rate ultrapassar 15% do lucro projetado do trade.
+    *   **Slippage L2 e Profundidade (ECC llm-trading-agent-security):** Integrada a verificação de liquidez no `ExecutionCapacityGate` (`check_slippage_with_fallback`) antes da abertura em `BankrollManager.open_position`. Slippage acima de 20bps ativa redução do tamanho nominal (`REDUCE_QTY`) ou conversão para ordem Limit *Post-Only* (`POST_ONLY`).
+    *   **Panic Filter de Correlação (ECC ito-market-intelligence):** Criado o detector de pânico em `macro_analyst.py` (`get_btc_altcoin_correlation`) por cálculo manual de correlação de Pearson. Em momentos de forte volatilidade do BTC (>2% em 1H) com correlação $> 0.8$, entradas a favor do movimento de queda/alta do BTC são preventivamente bloqueadas.
+    *   *Princípio de Resiliência:* Todos os filtros operam com fallback seguro e não-bloqueante no caso de falha de comunicação com as APIs da OKX.
 
 *   **V110.840: ATOMIC CLOSE RECONCILIATION [JUN 10]**
     *   O Sentinel agora respeita `pending_closures` e o cooldown `recently_closed`, impedindo que a janela entre remoção da posição Paper e reset do slot gere uma segunda entrada no Vault.
@@ -680,5 +687,6 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-10 (V110.840) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Execution Audit Ledger, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*
+*Documento atualizado em: 2026-06-11 (V110.904) Sincronizado*
+*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Execution Audit Ledger, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca, renderização estável do Cockpit, Cost Gate preventivo de Funding Rate, simulação L2 de Slippage com Post-Only fallback, detecção de correlação de Pearson de pânico contra o BTC e a infraestrutura de fila atômica anti-429 da OKX.*
+

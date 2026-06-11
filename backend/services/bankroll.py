@@ -1558,6 +1558,24 @@ class BankrollManager:
                 if target_slot_id and target_slot_id != slot_id:
                      logger.info(f"🛡️ [V6.3] Slot Routing Override: Requested {target_slot_id}, but providing {slot_id} for safety.")
                 
+                # [V15.0] BANKROLL GUARDIAN ATOMIC CHECK (Double Shield)
+                try:
+                    from services.agents.bankroll_guardian import bankroll_guardian
+                    sig_payload = signal_data or {"symbol": symbol, "score": 90}
+                    guardian_decision = await bankroll_guardian.authorize_new_trade(sig_payload)
+                    
+                    if not guardian_decision.get("approved", False):
+                        reason = " | ".join(guardian_decision.get("reasons", []))
+                        logger.warning(f"[BANKROLL-GUARDIAN-ATOMIC] {symbol} negado dentro do lock: {reason}")
+                        await firebase_service.log_event(
+                            "GUARDIAO_BANCA",
+                            f"Entrada atômica negada em {symbol}: {reason}",
+                            "WARNING"
+                        )
+                        return None
+                except Exception as bge:
+                    logger.error(f"[BANKROLL-GUARDIAN-ATOMIC] Falha na validação interna para {symbol}: {bge}")
+                
                 # [V110.181] ATOMIC SLOT INTEGRITY TRAVA (Anticolisão de Slot)
                 check_slot = next((s for s in active_slots if s.get("id") == slot_id), None)
                 if check_slot:

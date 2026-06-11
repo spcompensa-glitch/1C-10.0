@@ -686,6 +686,200 @@ class OKXService:
                         logger.info(f"✅ [OKX REST] Alavancagem de {inst_id} configurada para {leverage}x ({mgn_mode})")
                         return data
                     else:
+    async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20) -> List[List[Any]]:
+        """
+        Busca velas históricas (Klines) públicas na OKX.
+        Retorna uma lista de velas no formato da Bybit: [start_time, open, high, low, close]
+        """
+        # Se for OKX Testnet, apenas BTC e ETH têm cobertura garantida. Altcoins dão Instrument ID doesn't exist
+        clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
+        if self.testnet and clean_sym not in ["BTCUSDT", "ETHUSDT"]:
+            logger.info(f"ℹ️ [OKX REST] Ignorando chamada kline para {symbol} na OKX Testnet (cobertura reduzida).")
+            return []
+
+        inst_id = self.to_okx_inst_id(symbol)
+        
+        # Mapeamento de intervalos Bybit -> OKX
+        interval_map = {
+            "1": "1m",
+            "3": "3m",
+            "5": "5m",
+            "15": "15m",
+            "30": "30m",
+            "60": "1H",
+            "120": "2H",
+            "240": "4H",
+            "360": "6H",
+            "720": "12H",
+            "D": "1D",
+            "W": "1W",
+            "M": "1M"
+        }
+        bar = interval_map.get(str(interval), "1H")
+        
+        if self.is_mock:
+            # Mock de klines para desenvolvimento local
+            now_ms = int(time.time() * 1000)
+            mock_klines = []
+            import random
+            price = 100.0
+            for i in range(limit):
+                ts = now_ms - (i * 3600 * 1000)
+                o = price + random.uniform(-1.0, 1.0)
+                h = o + random.uniform(0.0, 2.0)
+                l = o - random.uniform(0.0, 2.0)
+                c = (h + l) / 2
+                mock_klines.append([str(ts), str(o), str(h), str(l), str(c)])
+            return mock_klines
+
+        request_path = f"/api/v5/market/candles?instId={inst_id}&bar={bar}&limit={limit}"
+        url = self.base_url + request_path
+        headers = self._get_headers("GET", request_path)
+
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        okx_candles = data.get("data", [])
+                        # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+                        # Bybit espera: [start_time, open, high, low, close]
+                        formatted = []
+                        for c in okx_candles:
+                            if len(c) >= 5:
+                                formatted.append([
+                                    c[0], # ts
+                                    c[1], # o
+                                    c[2], # h
+                                    c[3], # l
+                                    c[4]  # c
+                                ])
+                        return formatted
+                    else:
+                        logger.error(f"❌ [OKX REST] Erro ao obter klines para {inst_id}: {data.get('msg')}")
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao buscar klines para {inst_id}")
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao obter klines para {inst_id}: {e}")
+        
+        return []
+
+    async def get_open_interest(self, symbol: str) -> float:
+        """
+        Busca o Open Interest atual para um símbolo na OKX.
+        """
+        # Se for OKX Testnet, apenas BTC e ETH têm cobertura garantida. Altcoins dão Instrument ID doesn't exist
+        clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
+        if self.testnet and clean_sym not in ["BTCUSDT", "ETHUSDT"]:
+            return 0.0
+
+        inst_id = self.to_okx_inst_id(symbol)
+        
+        if self.is_mock:
+            return 1500000.0
+
+        request_path = f"/api/v5/public/open-interest?instId={inst_id}"
+        url = self.base_url + request_path
+        headers = self._get_headers("GET", request_path)
+
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        return float(data["data"][0].get("oi", 0.0))
+                    else:
+                        logger.error(f"❌ [OKX REST] Erro ao obter Open Interest para {inst_id}: {data.get('msg')}")
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao buscar Open Interest para {inst_id}")
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao obter Open Interest para {inst_id}: {e}")
+            
+        return 0.0
+
+    async def get_long_short_ratio(self, symbol: str, period: str = "5min") -> float:
+        """
+        Busca a proporção Long/Short para o símbolo na OKX.
+        """
+        inst_id = self.to_okx_inst_id(symbol)
+        ccy = inst_id.split("-")[0] # ex: BTC
+        
+        # Mapeamento do período Bybit -> OKX
+        okx_period = "5m"
+        if "5" in period:
+            okx_period = "5m"
+        elif "15" in period:
+            okx_period = "15m"
+        elif "30" in period:
+            okx_period = "30m"
+        elif "1h" in period:
+            okx_period = "1h"
+        elif "4h" in period:
+            okx_period = "4h"
+        elif "1d" in period or "D" in period:
+            okx_period = "1d"
+
+        if self.is_mock:
+            return 1.2
+
+        request_path = f"/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy={ccy}&period={okx_period}"
+        url = self.base_url + request_path
+        headers = self._get_headers("GET", request_path)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        ratio_data = data.get("data", [])
+                        if ratio_data and len(ratio_data) > 0:
+                            item = ratio_data[0]
+                            if isinstance(item, dict):
+                                return float(item.get("ratio", 1.0))
+                            elif isinstance(item, list) and len(item) >= 2:
+                                return float(item[1])
+                    else:
+                        logger.debug(f"ℹ️ [OKX REST Rubik] Endpoint ratio indisponível ou erro: {data.get('msg')}")
+                else:
+                    logger.debug(f"ℹ️ [OKX REST Rubik] Erro HTTP {response.status_code} ao buscar ratio")
+        except Exception as e:
+            logger.debug(f"❌ [OKX REST] Erro ao buscar long-short ratio no Rubik: {e}")
+            
+        return 1.0
+
+    async def set_leverage(self, symbol: str, leverage: float, mgn_mode: str = "cross") -> Dict[str, Any]:
+        """
+        [V110.705] Configura a alavancagem e modo de margem na conta OKX.
+        POST /api/v5/account/set-leverage
+        """
+        if self.is_mock:
+            logger.info(f"🤖 [OKX-REST MOCK] set_leverage simulado para {symbol}: {leverage}x ({mgn_mode})")
+            return {"code": "0", "msg": "success"}
+
+        inst_id = self.to_okx_inst_id(symbol)
+        request_path = "/api/v5/account/set-leverage"
+        url = self.base_url + request_path
+        
+        body = {
+            "instId": inst_id,
+            "lever": str(int(leverage)),
+            "mgnMode": mgn_mode
+        }
+        body_str = json.dumps(body)
+        headers = self._get_headers("POST", request_path, body_str)
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, content=body_str)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0":
+                        logger.info(f"✅ [OKX REST] Alavancagem de {inst_id} configurada para {leverage}x ({mgn_mode})")
+                        return data
+                    else:
                         logger.warning(f"⚠️ [OKX REST] Falha ao configurar alavancagem para {inst_id}: {data.get('msg')}")
                         return data
                 else:
@@ -693,6 +887,143 @@ class OKXService:
                     return {"code": str(response.status_code), "msg": response.text}
         except Exception as e:
             logger.error(f"❌ [OKX REST] Falha crítica ao setar alavancagem para {inst_id}: {e}")
+            return {"code": "-1", "msg": str(e)}
+
+    async def get_pending_algo_orders(self, symbol: str) -> List[Dict[str, Any]]:
+        """Busca ordens condicionais pendentes (como stop loss) para o par informado."""
+        if self.is_mock:
+            return [{"algoId": "mock_algo_sl_123", "instId": self.to_okx_inst_id(symbol), "slTriggerPx": "10.0", "ordType": "conditional"}]
+
+        inst_id = self.to_okx_inst_id(symbol)
+        request_path = f"/api/v5/trade/orders-algo-pending?instType=SWAP&instId={inst_id}&ordType=conditional"
+        url = self.base_url + request_path
+        headers = self._get_headers("GET", request_path)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0":
+                        return data.get("data", [])
+                    else:
+                        logger.error(f"❌ [OKX REST] Erro ao obter algo orders para {inst_id}: {data.get('msg')}")
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao obter algo orders")
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha ao obter algo orders para {inst_id}: {e}")
+        return []
+
+    async def amend_algo_order(self, symbol: str, algo_id: str, new_stop_price: float) -> Dict[str, Any]:
+        """Altera o preço de disparo de uma algo order existente (Stop Loss)."""
+        if self.is_mock:
+            logger.info(f"🤖 [OKX-REST MOCK] amend_algo_order {algo_id} para {new_stop_price}")
+            return {"code": "0", "msg": "success", "data": [{"algoId": algo_id, "sCode": "0", "sMsg": "success"}]}
+
+        inst_id = self.to_okx_inst_id(symbol)
+        request_path = "/api/v5/trade/amend-algos"
+        url = self.base_url + request_path
+
+        payload = {
+            "algoId": algo_id,
+            "instId": inst_id,
+            "newSlTriggerPx": f"{new_stop_price:.8f}".rstrip('0').rstrip('.')
+        }
+        body_str = json.dumps(payload)
+        headers = self._get_headers("POST", request_path, body_str)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, content=body_str)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao alterar algo order: {response.text}")
+                    return {"code": str(response.status_code), "msg": response.text}
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao alterar algo order {algo_id}: {e}")
+            return {"code": "-1", "msg": str(e)}
+
+    async def place_algo_order(self, symbol: str, side: str, qty: float, sl_price: float, pos_side: str = None) -> Dict[str, Any]:
+        """Coloca uma nova algo order condicional (Stop Loss independente)."""
+        inst_id = self.to_okx_inst_id(symbol)
+        side_okx = side.lower()
+        if not pos_side:
+            pos_side = "long" if side_okx == "buy" else "short"
+
+        if self.is_mock:
+            logger.info(f"🤖 [OKX-REST MOCK] place_algo_order {symbol} {side_okx} {qty} sl={sl_price}")
+            return {"code": "0", "msg": "success", "data": [{"algoId": "mock_new_algo_123", "sCode": "0", "sMsg": "success"}]}
+
+        details = await self.get_instrument_details(symbol)
+        lot_size = float(details.get("lotSize", "1.0"))
+        rounded_qty = round(qty / lot_size) * lot_size
+        min_sz = float(details.get("minSz", "1.0"))
+        if rounded_qty < min_sz:
+            rounded_qty = min_sz
+        qty_str = f"{rounded_qty:.4f}".rstrip('0').rstrip('.')
+
+        payload = {
+            "instId": inst_id,
+            "tdMode": "cross",
+            "side": "sell" if pos_side == "long" else "buy",  # O lado da ordem condicional de stop deve fechar a posição
+            "posSide": pos_side,
+            "ordType": "conditional",
+            "sz": qty_str,
+            "slTriggerPx": f"{sl_price:.8f}".rstrip('0').rstrip('.'),
+            "slOrdPx": "-1",  # Stop Loss a mercado
+            "reduceOnly": True
+        }
+
+        request_path = "/api/v5/trade/order-algo"
+        url = self.base_url + request_path
+        body_str = json.dumps(payload)
+        headers = self._get_headers("POST", request_path, body_str)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, content=body_str)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao criar algo order: {response.text}")
+                    return {"code": str(response.status_code), "msg": response.text}
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao criar algo order para {symbol}: {e}")
+            return {"code": "-1", "msg": str(e)}
+
+    async def amend_batch_algo_orders(self, amends: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Altera múltiplas algo orders (stops) de uma só vez (máximo 10 por chamada da API da OKX).
+        Formato de cada item em amends:
+        {
+           "algoId": str,
+           "instId": str,
+           "newSlTriggerPx": str
+        }
+        """
+        if self.is_mock:
+            logger.info(f"🤖 [OKX-REST MOCK] amend_batch_algo_orders para {len(amends)} ordens")
+            return {"code": "0", "msg": "success", "data": [{"algoId": item["algoId"], "sCode": "0", "sMsg": "success"} for item in amends]}
+
+        if not amends:
+            return {"code": "0", "msg": "No orders to amend", "data": []}
+
+        request_path = "/api/v5/trade/amend-algos"
+        url = self.base_url + request_path
+        body_str = json.dumps(amends)
+        headers = self._get_headers("POST", request_path, body_str)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, headers=headers, content=body_str)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} no amend de lote: {response.text}")
+                    return {"code": str(response.status_code), "msg": response.text}
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica no amend de algo orders em lote: {e}")
             return {"code": "-1", "msg": str(e)}
 
 # Instanciação Singleton

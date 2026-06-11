@@ -227,7 +227,97 @@ class CaptainAgent(AIOSAgent):
                 "marginRatio": round(margin_ratio, 4),
             }
         }
-    
+
+    async def _evaluate_cost_gate(self, signal: Dict[str, Any], symbol: str) -> Dict[str, Any]:
+        """
+        [ECC cost-tracking] Avalia se as taxas operacionais (Funding Rate + taxas taker)
+        comprometem mais de 15% do lucro projetado até o Alvo Principal.
+        Bloqueia a entrada preventivamente caso o custo seja abusivo.
+        """
+        COST_BLOCK_THRESHOLD = 0.15  # 15% do lucro projetado
+        TAKER_FEE = 0.00050          # Taxa taker OKX: 0.05% por lado (entrada + saída = 0.10%)
+
+        side = (signal.get("side") or "Buy").lower()
+        leverage = float(signal.get("leverage") or 50)
+        entry_price = float(signal.get("entry_price_signal") or 0)
+        target_price = float(signal.get("tp_price") or signal.get("target_price") or 0)
+
+        result = {
+            "block": False,
+            "reason": "CUSTO_OK",
+            "funding_rate": 0.0,
+            "taker_cost_pct": round(TAKER_FEE * 2 * leverage * 100, 4),
+            "funding_cost_pct": 0.0,
+            "total_cost_pct": 0.0,
+            "projected_profit_pct": 0.0,
+            "cost_ratio": 0.0,
+        }
+
+        if entry_price > 0 and target_price > 0:
+            if side in ("buy", "long"):
+                profit_pct = (target_price - entry_price) / entry_price * leverage * 100
+            else:
+                profit_pct = (entry_price - target_price) / entry_price * leverage * 100
+        else:
+            result["reason"] = "SEM_ALVO_DEFINIDO"
+            return result
+
+        result["projected_profit_pct"] = round(profit_pct, 2)
+
+        if profit_pct <= 0:
+            result["reason"] = "LUCRO_NAO_CALCULAVEL"
+            return result
+
+        try:
+            from services.okx_rest import okx_rest_service
+            funding_rate = await asyncio.wait_for(
+                okx_rest_service.get_funding_rate(symbol),
+                timeout=2.0
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ [COST-GATE] Falha ao obter Funding Rate de {symbol}: {e}")
+            funding_rate = 0.0
+
+        result["funding_rate"] = round(funding_rate * 100, 6)
+
+        funding_penalizes_us = (
+            (side in ("buy", "long") and funding_rate > 0) or
+            (side in ("sell", "short") and funding_rate < 0)
+        )
+        if funding_penalizes_us:
+            funding_cost_pct = abs(funding_rate) * 3 * leverage * 100
+        else:
+            funding_cost_pct = 0.0
+
+        result["funding_cost_pct"] = round(funding_cost_pct, 4)
+
+        taker_cost_pct = TAKER_FEE * 2 * leverage * 100
+        total_cost_pct = taker_cost_pct + funding_cost_pct
+        result["taker_cost_pct"] = round(taker_cost_pct, 4)
+        result["total_cost_pct"] = round(total_cost_pct, 4)
+
+        cost_ratio = total_cost_pct / profit_pct if profit_pct > 0 else 0.0
+        result["cost_ratio"] = round(cost_ratio, 4)
+
+        if cost_ratio > COST_BLOCK_THRESHOLD:
+            result["block"] = True
+            result["reason"] = (
+                f"CUSTO_ABUSIVO: custo={total_cost_pct:.2f}% vs lucro={profit_pct:.2f}% "
+                f"(ratio={cost_ratio*100:.1f}% > limite {COST_BLOCK_THRESHOLD*100:.0f}%) | "
+                f"FR={funding_rate*100:.4f}%"
+            )
+            logger.warning(
+                f"💸 [COST-GATE] {symbol} {side.upper()} BLOQUEADO por custo abusivo: "
+                f"total={total_cost_pct:.2f}% | lucro={profit_pct:.2f}% | ratio={cost_ratio*100:.1f}%"
+            )
+        else:
+            result["reason"] = (
+                f"CUSTO_OK: total={total_cost_pct:.2f}% vs lucro={profit_pct:.2f}% "
+                f"(ratio={cost_ratio*100:.1f}%)"
+            )
+
+        return result
+
     async def _get_fleet_consensus(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """
         [V43.0] Queries the Python-Logic fleet (Sentiment, Whale, Macro) for final approval.
@@ -246,6 +336,17 @@ class CaptainAgent(AIOSAgent):
             # 1. Macro Bias
             macro = await kernel.dispatch({"sender": self.agent_id, "receiver": "macro_analyst", "type": "GET_MACRO_BIAS"})
             risk_score = macro.get("data", {}).get("risk_score", 5) if macro else 5
+
+            # [ECC ito-market-intelligence] 1b. PANIC FILTER (Correlação de Pearson BTC/Altcoin)
+            panic_response = await kernel.dispatch({
+                "sender": self.agent_id,
+                "receiver": "macro_analyst",
+                "type": "GET_PANIC_FILTER",
+                "data": {"symbol": symbol}
+            })
+            panic_data = (panic_response or {}).get("data", {})
+            panic_mode = panic_data.get("panic_mode", False)
+            panic_reason = panic_data.get("reason", "")
             
             # 2. Sentiment [V43.0 Rigorous]
             # Injects is_ranging context for the specialist
@@ -270,7 +371,13 @@ class CaptainAgent(AIOSAgent):
             # Decision Logic [V56.0 UNIFIED GAUGE]
             approved = True
             reasons = []
-            
+
+            # [ECC ito-market-intelligence] PANIC FILTER: Bloqueia LONG em colapso de mercado correlacionado
+            if panic_mode and side.lower() in ("buy", "long"):
+                approved = False
+                reasons.append(f"🚨🚫 PANIC_FILTER: {panic_reason}")
+                logger.warning(f"🚨 [PANIC-BLOCK] {symbol} LONG BLOQUEADO por modo pânico: {panic_reason}")
+
             # 4. Score Normalization (0-100)
             macro_score = max(0, min(100, (10 - risk_score) * 10))
             
@@ -392,7 +499,14 @@ class CaptainAgent(AIOSAgent):
                     f"📐 [CONTRACT-PENALTY] {symbol} {side} -{contract_penalty:.1f} pts | "
                     + "; ".join(contract_quality.get("reasons", []))
                 )
-                
+
+            # [ECC cost-tracking] Bloqueio preventivo por taxa de funding + taker abusivos
+            cost_gate = await self._evaluate_cost_gate(signal, symbol)
+            if cost_gate.get("block"):
+                approved = False
+                reasons.append(f"💸🚫 COST_GATE: {cost_gate.get('reason')}")
+                logger.warning(f"💸 [COST-GATE-BLOCK] {symbol} {side} bloqueado: {cost_gate.get('reason')}")
+
             # [V110.27.0] ABSOLUTE CONVERGENCE SHIELD: Minimum Confidence
             # Quality gate: keep PAPER and live signal selection aligned so weak radar
             # candidates do not occupy slots just because the simulator is permissive.

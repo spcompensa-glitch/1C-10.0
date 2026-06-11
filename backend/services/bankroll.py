@@ -1769,11 +1769,49 @@ class BankrollManager:
                 if signal_data is not None:
                     signal_data["execution_capacity"] = capacity_report
 
+                # [ECC llm-trading-agent-security] PRE-SEND SLIPPAGE L2
+                # Analisa a profundidade do livro L2 e ajusta a ordem se necessário
+                try:
+                    slippage_check = await execution_capacity_gate.check_slippage_with_fallback(
+                        symbol=symbol,
+                        side=side,
+                        qty=qty,
+                        entry_price=current_price,
+                        leverage=current_leverage,
+                        ct_val=ct_val,
+                        margin_usd=actual_margin_usd,
+                        execution_mode=getattr(okx_rest_service, "execution_mode", settings.OKX_EXECUTION_MODE),
+                    )
+                    slippage_rec = slippage_check.get("recommendation", "MARKET")
+                    if slippage_rec == "REDUCE_QTY":
+                        new_qty = float(slippage_check.get("adjusted_qty", qty))
+                        if new_qty > 0 and new_qty < qty:
+                            logger.warning(
+                                f"📉 [SLIPPAGE-L2] {symbol} qty reduzida: {qty:.4f} → {new_qty:.4f} | "
+                                f"slippage={slippage_check.get('slippage_pct', 0):.3f}%"
+                            )
+                            qty = new_qty
+                    elif slippage_rec == "POST_ONLY":
+                        logger.warning(
+                            f"📋 [SLIPPAGE-L2] {symbol} livro raso! Convertendo para Limit Post-Only. "
+                            f"slippage={slippage_check.get('slippage_pct', 0):.3f}%"
+                        )
+                        # Sinaliza para o executor usar Limit Post-Only
+                        if signal_data is not None:
+                            signal_data["use_post_only"] = True
+                        else:
+                            signal_data = {"use_post_only": True}
+                    if signal_data is not None:
+                        signal_data["slippage_l2"] = slippage_check
+                except Exception as slip_err:
+                    logger.warning(f"⚠️ [SLIPPAGE-L2] Falha ao verificar slippage para {symbol}: {slip_err}")
+
                 # -----------------------------------------------------
                 # [V24.0] 10D STRICT LOGIC (10% Banca, 50x, 2% TP)
                 # -----------------------------------------------------
                 # Risk/Reward Ratio enforced natively. SL max 1% (50% ROI), TP EXACTLY 2% (100% ROI).
                 
+
                 # [V12.1.2] Extract Indicator Data (V33.1 HARDENED)
                 indicators = (signal_data or {}).get("indicators", {}) or {}
                 try:

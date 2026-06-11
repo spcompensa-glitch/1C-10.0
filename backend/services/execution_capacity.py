@@ -301,5 +301,98 @@ class ExecutionCapacityGate:
             "orderbook_limit": float(self.orderbook_limit),
         }
 
+    async def check_slippage_with_fallback(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        qty: float,
+        entry_price: float,
+        leverage: float,
+        ct_val: float,
+        margin_usd: float = 0.0,
+        execution_mode: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        [ECC llm-trading-agent-security] Analisa o livro de ofertas L2 e verifica
+        se o slippage projetado é > 0.2% (20bps).
+
+        Retorna:
+          - use_post_only: True se deve usar Limit Post-Only
+          - adjusted_qty: quantidade reduzida se necessário
+          - slippage_pct: slippage percentual calculado
+          - recommendation: 'MARKET' | 'POST_ONLY' | 'REDUCE_QTY'
+        """
+        SLIPPAGE_POST_ONLY_THRESHOLD_PCT = 0.002   # 0.2% = 20bps
+        SLIPPAGE_POST_ONLY_THRESHOLD_BPS = 20.0
+
+        result = {
+            "use_post_only": False,
+            "adjusted_qty": qty,
+            "slippage_pct": 0.0,
+            "slippage_bps": 0.0,
+            "recommendation": "MARKET",
+            "reason": "L2_BOOK_OK",
+        }
+
+        try:
+            from services.okx_rest import okx_rest_service
+            orderbook = await okx_rest_service.get_orderbook(symbol, limit=self.orderbook_limit)
+        except Exception as exc:
+            logger.warning("[SLIPPAGE-L2] Falha ao obter livro de ofertas para %s: %s", symbol, exc)
+            return result
+
+        if not orderbook:
+            return result
+
+        side_norm = self._normalize_side(side)
+        levels = self._select_book_side(orderbook, side_norm)
+
+        if not levels:
+            return result
+
+        fill = self._simulate_fill(levels, qty, ct_val, entry_price, side_norm)
+        slippage_bps = fill.get("slippage_bps", 0.0)
+        slippage_pct = slippage_bps / 10000.0
+
+        result["slippage_pct"] = round(slippage_pct * 100, 4)  # em %
+        result["slippage_bps"] = round(slippage_bps, 2)
+
+        if slippage_bps > SLIPPAGE_POST_ONLY_THRESHOLD_BPS:
+            # Calcula a quantidade máxima que seria executável dentro do threshold
+            max_safe_qty, _ = self._estimate_max_safe_qty(levels, ct_val, entry_price, side_norm)
+
+            if max_safe_qty > 0 and max_safe_qty < qty:
+                result["adjusted_qty"] = max_safe_qty
+                result["recommendation"] = "REDUCE_QTY"
+                result["use_post_only"] = False
+                result["reason"] = (
+                    f"SLIPPAGE_REDUZ_QTY: {slippage_pct*100:.3f}% > {SLIPPAGE_POST_ONLY_THRESHOLD_PCT*100:.1f}% | "
+                    f"qty_original={qty:.4f} ajustada para {max_safe_qty:.4f}"
+                )
+                logger.warning(
+                    "[SLIPPAGE-L2] %s %s slippage=%.2fbps > %.0fbps. Reduzindo qty: %.4f→%.4f",
+                    symbol, side_norm, slippage_bps, SLIPPAGE_POST_ONLY_THRESHOLD_BPS, qty, max_safe_qty
+                )
+            else:
+                # Livro muito raso — converter para Limit Post-Only
+                result["use_post_only"] = True
+                result["recommendation"] = "POST_ONLY"
+                result["reason"] = (
+                    f"SLIPPAGE_POST_ONLY: {slippage_pct*100:.3f}% > {SLIPPAGE_POST_ONLY_THRESHOLD_PCT*100:.1f}% | "
+                    f"Livro L2 raso para {symbol}. Convertendo para Limit Post-Only."
+                )
+                logger.warning(
+                    "[SLIPPAGE-L2] %s %s slippage=%.2fbps > %.0fbps. Livro raso → POST-ONLY.",
+                    symbol, side_norm, slippage_bps, SLIPPAGE_POST_ONLY_THRESHOLD_BPS
+                )
+        else:
+            result["reason"] = (
+                f"SLIPPAGE_OK: {slippage_pct*100:.3f}% <= {SLIPPAGE_POST_ONLY_THRESHOLD_PCT*100:.1f}%"
+            )
+
+        return result
+
 
 execution_capacity_gate = ExecutionCapacityGate()
+

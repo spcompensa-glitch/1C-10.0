@@ -686,6 +686,15 @@ class OKXService:
                         logger.info(f"✅ [OKX REST] Alavancagem de {inst_id} configurada para {leverage}x ({mgn_mode})")
                         return data
                     else:
+                        logger.error(f"❌ [OKX REST] Falha ao configurar alavancagem para {inst_id}: {data.get('msg')}")
+                        return data
+                else:
+                    logger.error(f"❌ [OKX REST] Erro HTTP {response.status_code} ao setar alavancagem")
+                    return {"code": str(response.status_code), "msg": f"HTTP error {response.status_code}"}
+        except Exception as e:
+            logger.error(f"❌ [OKX REST] Falha crítica ao setar alavancagem para {inst_id}: {e}")
+            return {"code": "-1", "msg": str(e)}
+
     async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20) -> List[List[Any]]:
         """
         Busca velas históricas (Klines) públicas na OKX.

@@ -3766,10 +3766,7 @@
             const activeLevel = projection.active_level || lastActiveLevel;
             const flashAction = activeLevel?.name || flashIntel.last_action || s.flash_last_action || 'MONITORANDO';
             const fallbackLevels = [
-                { phase: 'ESCADINHA', name: 'BREAKEVEN', trigger_roi: 30, stop_roi: 6 },
-                { phase: 'ESCADINHA', name: 'PROFIT_BRIDGE', trigger_roi: 50, stop_roi: 25 },
-                { phase: 'ESCADINHA', name: 'RISCO_ZERO', trigger_roi: 70, stop_roi: 45 },
-                { phase: 'ESCADINHA', name: 'PROFIT_LOCK', trigger_roi: 110, stop_roi: 80 },
+                { phase: 'ESCADINHA', name: 'RISCO_ZERO', trigger_roi: 80, stop_roi: 15 },
                 { phase: 'EMANCIPACAO', name: 'EMANCIPADA', trigger_roi: 150, stop_roi: 110 },
                 { phase: 'MOONBAG', name: 'WAVE', trigger_roi: 200, stop_roi: 150 },
                 { phase: 'MOONBAG', name: 'ROCKET', trigger_roi: 300, stop_roi: 220 },

@@ -24,10 +24,7 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER: List[StopLevel] = [
-    StopLevel("ESCADINHA", "BREAKEVEN", 30.0, 6.0, "SL_0"),
-    StopLevel("ESCADINHA", "PROFIT_BRIDGE", 50.0, 25.0, "SL_0"),
-    StopLevel("ESCADINHA", "RISCO_ZERO", 70.0, 45.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PROFIT_LOCK", 110.0, 80.0, "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "RISCO_ZERO", 80.0, 15.0, "RISCO_ZERO"),
     StopLevel("EMANCIPACAO", "EMANCIPADA", 150.0, 110.0, "PROFIT_LOCK"),
     StopLevel("MOONBAG", "WAVE", 200.0, 150.0, "MOONBAG_TRAIL"),
     StopLevel("MOONBAG", "ROCKET", 300.0, 220.0, "MOONBAG_TRAIL"),

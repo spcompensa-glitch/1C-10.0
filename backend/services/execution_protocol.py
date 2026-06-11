@@ -26,11 +26,9 @@ logger = logging.getLogger("ExecutionProtocol")
 # [V110.23.3] DEEP CLEAN: SAFE phase removed to allow maximum breathing room until 70% ROI.
 SMART_SL_PHASES = {
     "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -70.0,  "icon": "🔴", "color": "red",    "label": "BREATHING"},
-    "PHASE_BREAKEVEN":    {"trigger_roi": 30.0,  "stop_roi": 10.0,   "icon": "⚖️", "color": "cyan",   "label": "FEE_GUARD"},
-    "PHASE_PROFIT_BRIDGE":{"trigger_roi": 50.0,  "stop_roi": 25.0,   "icon": "🌉", "color": "teal",   "label": "PROFIT_BRIDGE"},
-    "PHASE_RISK_ZERO":    {"trigger_roi": 70.0,  "stop_roi": 45.0,   "icon": "🛡️", "color": "green",  "label": "RISK_ZERO"},
-    "PHASE_PROFIT_LOCK":  {"trigger_roi": 110.0, "stop_roi": 80.0,  "icon": "🟡", "color": "gold",   "label": "PROFIT_LOCK"},
-    "PHASE_MEGA_PULSE":   {"trigger_roi": 150.0, "trailing_gap": 20.0, "icon": "💎", "color": "diamond", "label": "MEGA_PULSE"}
+    "PHASE_BREAKEVEN":    {"trigger_roi": 80.0,  "stop_roi": 15.0,   "icon": "⚖️", "color": "cyan",   "label": "BREAKEVEN"},
+    "PHASE_RISK_ZERO":    {"trigger_roi": 80.0,  "stop_roi": 15.0,   "icon": "🛡️", "color": "green",  "label": "RISK_ZERO"},
+    "PHASE_MEGA_PULSE":   {"trigger_roi": 150.0, "stop_roi": 110.0,  "icon": "💎", "color": "diamond", "label": "MEGA_PULSE"}
 }
 
 # V12.0 Risk Management Constants

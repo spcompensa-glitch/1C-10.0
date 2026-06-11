@@ -22,12 +22,9 @@ logger = logging.getLogger("HermesAgent")
 
 # --- Docs SSOT (Hardcoded from _reversa_sdd/ para acesso rápido) ---
 ESCADINHA_DOCS_SSOT = {
-    "description": "Escadinha (Trailing Stop) — Sincronizado com protocol_registry.py (ROI_TRIGGERS / SL_PROTECTION_LEVELS)",
+    "description": "Escadinha (Trailing Stop) — Sincronizado com order_projection_service.py (ORDER_STOP_LADDER)",
     "phases": [
-        {"name": "RISK_ZERO", "trigger_roi": 20.0, "sl_target_roi": 0.0, "desc": "Risk Zero: SL vai para 0% ROI (break-even)"},
-        {"name": "PROFIT_BRIDGE", "trigger_roi": 40.0, "sl_target_roi": 15.0, "desc": "Profit Bridge: SL vai para +15% ROI"},
-        {"name": "SHIELD_ACTIVE", "trigger_roi": 70.0, "sl_target_roi": 35.0, "desc": "Shield Active: SL vai para +35% ROI"},
-        {"name": "MAESTRIA", "trigger_roi": 110.0, "sl_target_roi": 70.0, "desc": "Maestria: SL vai para +70% ROI"},
+        {"name": "RISK_ZERO", "trigger_roi": 80.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
         {"name": "EMANCIPATION", "trigger_roi": 150.0, "sl_target_roi": 110.0, "desc": "Emancipação: Slot liberado, vira Moonbag"}
     ],
     "stop_loss_rules": {
@@ -170,17 +167,17 @@ class HermesAgent(AIOSAgent):
         await self._lazy_load_deps()
         
         try:
-            # 1. Load code constants from protocol_registry
-            from services.protocol_registry import ROI_TRIGGERS, SL_PROTECTION_LEVELS
+            # 1. Load code constants from order_projection_service
+            from services.order_projection_service import ORDER_STOP_LADDER
             
             code_phases = {}
-            for phase_name, trigger_roi in ROI_TRIGGERS.items():
-                sl_level = SL_PROTECTION_LEVELS.get(phase_name, 0)
-                code_phases[phase_name] = {
-                    "trigger_roi": trigger_roi,
-                    "sl_target_roi": sl_level,
-                    "label": phase_name.replace("_", " ").title()
-                }
+            for level in ORDER_STOP_LADDER:
+                if level.phase in ("ESCADINHA", "EMANCIPACAO"):
+                    code_phases[level.name] = {
+                        "trigger_roi": level.trigger_roi,
+                        "sl_target_roi": level.stop_roi,
+                        "label": level.name.replace("_", " ").title()
+                    }
             
             # 2. Get runtime data from sovereign_service
             runtime_slots = []
@@ -234,10 +231,10 @@ class HermesAgent(AIOSAgent):
             for slot in runtime_slots:
                 roi = slot.get("roi", 0)
                 phase = slot.get("phase", "UNKNOWN")
-                if phase == "UNKNOWN" and roi > 30:
+                if phase == "UNKNOWN" and roi > 80:
                     divergencias.append({
                         "area": f"Runtime - {slot['symbol']}",
-                        "expected": "Escadinha deveria estar ativa (ROI > 30%)",
+                        "expected": "Escadinha deveria estar ativa (ROI > 80%)",
                         "actual": f"ROI={roi:.1f}% mas sem fase de Escadinha",
                         "severity": "CRITICAL",
                         "impact": "Lucro não protegido — risco de perda total do gain"

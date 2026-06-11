@@ -36,15 +36,18 @@ class BankrollGuardian:
         self.agent_id = "bankroll-guardian"
         self.name = "Guardiao da Banca"
         self.peak_equity = 0.0
+        self.protected_profit_peak = 0.0
         self.last_report: Dict[str, Any] = {}
         self.last_report_at = 0.0
 
     def reset_runtime_state(self) -> Dict[str, Any]:
         snapshot = {
             "peak_equity": self.peak_equity,
+            "protected_profit_peak": self.protected_profit_peak,
             "last_report_at": self.last_report_at,
         }
         self.peak_equity = 0.0
+        self.protected_profit_peak = 0.0
         self.last_report = {}
         self.last_report_at = 0.0
         return snapshot
@@ -269,6 +272,27 @@ class BankrollGuardian:
                 protected += 1
         return protected
 
+    def _position_stop_pnl_usd(self, position: Dict[str, Any]) -> float:
+        stop_roi = self._position_stop_roi(position)
+        if stop_roi is None or stop_roi <= 0:
+            return 0.0
+
+        margin = _safe_float(position.get("entry_margin"), 0.0)
+        projection = position.get("projection")
+        if margin <= 0 and isinstance(projection, dict):
+            margin = _safe_float(projection.get("entry_margin"), 0.0)
+
+        if margin <= 0:
+            entry = _safe_float(position.get("entry_price") or position.get("entry"), 0.0)
+            qty = _safe_float(position.get("qty") or position.get("size"), 0.0)
+            leverage = _safe_float(position.get("leverage"), 50.0)
+            contract = projection.get("contract") if isinstance(projection, dict) else position.get("contract_meta")
+            ct_val = _safe_float(contract.get("ct_val") if isinstance(contract, dict) else None, 1.0)
+            if entry > 0 and qty > 0 and leverage > 0:
+                margin = (entry * qty * ct_val) / leverage
+
+        return max(0.0, (stop_roi / 100.0) * margin) if margin > 0 else 0.0
+
     def _realized_pnl_usd(self, history: List[Dict[str, Any]]) -> float:
         return sum(_safe_float(trade.get("pnl"), 0.0) for trade in history)
 
@@ -311,6 +335,8 @@ class BankrollGuardian:
         active_moonbags: int = 0,
         open_moonbags_pnl: float = 0.0,
         protected_slots: int = 0,
+        realized_pnl: float = 0.0,
+        secured_open_pnl: float = 0.0,
     ) -> Dict[str, Any]:
         if base_balance <= 0:
             base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
@@ -322,26 +348,31 @@ class BankrollGuardian:
 
         session_profit = equity - base_balance
         peak_profit = max(0.0, self.peak_equity - base_balance)
+        secured_profit_now = max(
+            0.0,
+            min(max(0.0, session_profit), realized_pnl + secured_open_pnl),
+        )
+        self.protected_profit_peak = max(self.protected_profit_peak, secured_profit_now)
         session_roi = (session_profit / base_balance) * 100 if base_balance > 0 else 0.0
         drawdown_from_peak = self.peak_equity - equity
         drawdown_from_peak_pct = (drawdown_from_peak / self.peak_equity) * 100 if self.peak_equity > 0 else 0.0
-        profit_multiple = (peak_profit / base_balance) if base_balance > 0 else 0.0
+        profit_multiple = (self.protected_profit_peak / base_balance) if base_balance > 0 else 0.0
         protected_profit_context = (
             (active_moonbags > 0 and open_moonbags_pnl > 0 and session_profit > 0)
             or (protected_slots > 0 and session_profit > 0)
         )
-        material_profit_floor = peak_profit >= max(1.0, base_balance * 0.05)
+        material_profit_floor = self.protected_profit_peak >= max(1.0, base_balance * 0.05)
 
         lock_ratio = 0.0
-        if peak_profit > 0 and (material_profit_floor or protected_profit_context):
+        if self.protected_profit_peak > 0 and (material_profit_floor or protected_profit_context):
             if profit_multiple >= 4.0:
                 lock_ratio = 0.85
             elif profit_multiple >= 1.0:
                 lock_ratio = 0.80
             else:
                 lock_ratio = 0.70
-        locked_profit = max(0.0, peak_profit * lock_ratio)
-        allowed_giveback = max(0.0, peak_profit - locked_profit)
+        locked_profit = max(0.0, self.protected_profit_peak * lock_ratio)
+        allowed_giveback = max(0.0, self.protected_profit_peak - locked_profit)
         protected_floor = base_balance + locked_profit
 
         mode = "ACUMULACAO"
@@ -413,7 +444,7 @@ class BankrollGuardian:
                 "reasons": reasons,
             }
 
-        if material_profit_floor and peak_profit > 0 and equity <= protected_floor:
+        if material_profit_floor and self.protected_profit_peak > 0 and equity <= protected_floor:
             mode = "PRESERVACAO_TOTAL"
             state_label = "Preservacao total"
             min_score = 999.0
@@ -441,7 +472,7 @@ class BankrollGuardian:
             max_slots = 2
             health = 65
             reasons = ["Banca cautelosa. Reduzindo exposicao."]
-        elif peak_profit > 0:
+        elif self.protected_profit_peak > 0:
             if profit_multiple >= 4.0:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
@@ -457,7 +488,8 @@ class BankrollGuardian:
             else:
                 health = 92 if active_slots <= 4 else 80
             reasons = [
-                f"Lucro vivo detectado. Protegendo ${locked_profit:.2f} de um pico de ${peak_profit:.2f}.",
+                f"Lucro confirmado por historico/stops. Protegendo ${locked_profit:.2f} "
+                f"de ${self.protected_profit_peak:.2f} assegurados.",
                 f"Devolucao maxima planejada: ${allowed_giveback:.2f}.",
             ]
             return {
@@ -509,6 +541,10 @@ class BankrollGuardian:
         ]
         active_moonbags = [m for m in moonbags if m.get("symbol")]
         protected_slots = self._protected_slot_count(active_slots)
+        secured_open_pnl = sum(
+            self._position_stop_pnl_usd(position)
+            for position in [*active_slots, *active_moonbags]
+        )
 
         memory = self._build_symbol_memory(history)
         suspensions = self._symbol_suspensions(memory)
@@ -521,6 +557,8 @@ class BankrollGuardian:
             len(active_moonbags),
             open_moonbags_pnl=live_bankroll["open_moonbags_pnl"],
             protected_slots=protected_slots,
+            realized_pnl=live_bankroll["realized_pnl"],
+            secured_open_pnl=secured_open_pnl,
         )
 
         report = {
@@ -543,6 +581,8 @@ class BankrollGuardian:
             "realized_pnl": round(live_bankroll["realized_pnl"], 4),
             "open_slots_pnl": round(live_bankroll["open_slots_pnl"], 4),
             "open_moonbags_pnl": round(live_bankroll["open_moonbags_pnl"], 4),
+            "secured_open_pnl": round(secured_open_pnl, 4),
+            "protected_profit_peak": round(self.protected_profit_peak, 4),
             "active_slots": len(active_slots),
             "protected_slots": protected_slots,
             "unprotected_slots": max(0, len(active_slots) - protected_slots),

@@ -18,6 +18,7 @@ class SentinelAuditor:
         self.auto_healings: List[Dict[str, Any]] = []
         self.is_active: bool = True
         self._lock = asyncio.Lock()
+        self._orphan_missing_since: Dict[str, float] = {}
 
     def record_heartbeat(self, module_name: str):
         """[V126] Registra o batimento cardíaco (liveness) de um loop operacional."""
@@ -98,12 +99,29 @@ class SentinelAuditor:
                 if sym:
                     clean_sym = okx_rest_service._strip_p(sym).upper()
                     positions_by_symbol[clean_sym] = p
+                    self._orphan_missing_since.pop(clean_sym, None)
 
             # -----------------------------------------------------------------
             # FASE 1: CASO A - SLOT NO BANCO MAS NÃO NA EXCHANGE (POSICAO ÓRFÃ NO BANCO)
             # -----------------------------------------------------------------
             for clean_sym, slot in list(slots_by_symbol.items()):
                 if clean_sym not in positions_by_symbol:
+                    if clean_sym in okx_rest_service.pending_closures:
+                        self._orphan_missing_since.pop(clean_sym, None)
+                        logger.info(
+                            f"[SENTINEL-CLOSE-GRACE] {clean_sym} possui fechamento em andamento. "
+                            "Reconciliacao orfa adiada."
+                        )
+                        continue
+
+                    if bankroll_manager.is_recently_closed(clean_sym):
+                        self._orphan_missing_since.pop(clean_sym, None)
+                        logger.info(
+                            f"[SENTINEL-CLOSE-GRACE] {clean_sym} foi encerrado recentemente. "
+                            "Aguardando o reset atomico do slot."
+                        )
+                        continue
+
                     opened_at = slot.get("opened_at", 0)
                     from datetime import datetime
                     if isinstance(opened_at, datetime):
@@ -115,6 +133,19 @@ class SentinelAuditor:
 
                     if 0 <= (now - opened_at_ts) < 15.0:
                         continue  # Dá um grace period de 15s para a criação se consolidar
+
+                    missing_since = self._orphan_missing_since.setdefault(clean_sym, now)
+                    orphan_grace = max(
+                        5.0,
+                        float(getattr(settings, "SENTINEL_ORPHAN_GRACE_SECONDS", 10.0)),
+                    )
+                    missing_for = now - missing_since
+                    if missing_for < orphan_grace:
+                        logger.warning(
+                            f"[SENTINEL-ORPHAN-GRACE] {clean_sym} ausente da exchange por "
+                            f"{missing_for:.1f}s/{orphan_grace:.1f}s. Aguardando confirmacao."
+                        )
+                        continue
 
                     slot_id = slot.get("id")
                     logger.warning(
@@ -215,6 +246,7 @@ class SentinelAuditor:
                             pnl=pnl_val,
                             trade_data=trade_data
                         )
+                        self._orphan_missing_since.pop(clean_sym, None)
                     except Exception as he:
                         logger.error(f"❌ [SENTINEL] Falha ao curar slot órfão {slot_id}: {he}")
 

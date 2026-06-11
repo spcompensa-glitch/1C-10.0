@@ -158,7 +158,7 @@ async def get_signals(min_score: int = 0, limit: int = 20):
         return [{"id": "forced_debug", "symbol": "BTCUSDT", "score": 95, "indicators": {"cvd": 10.5}, "is_elite": True, "timestamp": "Now"}]
 
 @router.get("/history")
-async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str = None, start_date: str = None, end_date: str = None):
+async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str = None, start_date: str = None, end_date: str = None, page: int = 1):
     firebase_service, _, _, _, _ = get_services()
     try:
         return await firebase_service.get_trade_history(
@@ -166,7 +166,8 @@ async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str =
             last_timestamp=last_timestamp,
             symbol=symbol,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            page=page
         )
     except Exception as e:
         logger.error(f"Error fetching trade history: {e}")

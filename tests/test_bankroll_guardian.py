@@ -38,21 +38,44 @@ def test_profitable_moonbag_keeps_accumulation_protected_when_below_profit_floor
     assert "Moonbag lucrativa ativa" in health["reasons"][0]
 
 
-def test_profit_floor_still_blocks_without_profitable_moonbag():
+def test_unsecured_equity_peak_does_not_create_profit_floor():
     guardian = BankrollGuardian()
-    guardian.peak_equity = 45.7288
+    guardian.peak_equity = 20.9
 
     health = guardian._health_mode(
-        equity=36.6753,
+        equity=20.7,
         base_balance=20.0,
         active_slots=2,
         active_moonbags=0,
         open_moonbags_pnl=0.0,
     )
 
-    assert health["mode"] == "PRESERVACAO_TOTAL"
-    assert health["max_slots"] == 0
-    assert health["min_score"] == 999.0
+    assert health["mode"] == "ACUMULACAO"
+    assert health["max_slots"] == 4
+    assert health["locked_profit"] == 0.0
+    assert health["protected_floor"] == 20.0
+
+
+def test_guardian_locks_only_realized_or_stop_secured_profit():
+    guardian = BankrollGuardian()
+    guardian.peak_equity = 23.2086
+
+    health = guardian._health_mode(
+        equity=20.637,
+        base_balance=20.0,
+        active_slots=4,
+        active_moonbags=0,
+        open_moonbags_pnl=0.0,
+        protected_slots=1,
+        realized_pnl=0.7672,
+        secured_open_pnl=0.25,
+    )
+
+    assert health["mode"] == "ACUMULACAO_PROTEGIDA"
+    assert guardian.protected_profit_peak == pytest.approx(0.637)
+    assert health["locked_profit"] == pytest.approx(0.4459)
+    assert health["protected_floor"] == pytest.approx(20.4459)
+    assert health["locked_profit"] < 1.0
 
 
 def test_small_unprotected_peak_does_not_pause_slot_factory():

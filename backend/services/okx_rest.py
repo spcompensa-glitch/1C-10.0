@@ -1325,7 +1325,7 @@ class OKXRest:
                                 "fleet_intel": fleet_intel,
                                 "unified_confidence": unified_confidence,
                                 "pensamento": pensamento,
-                                "entry_margin": round(close_qty * entry_price / leverage, 2),
+                                "entry_margin": round(close_qty * entry_price * ct_val / leverage, 2),
                                 "leverage": leverage,
                                 "is_partial": is_partial_real,
                                 "pnl_percent": round(harvest_roi, 2)
@@ -1363,6 +1363,9 @@ class OKXRest:
                                         logger.info(f"✅ [PAPER-HARVEST] Firebase Moonbag atualizado para {symbol}.")
                             else:
                                 # FECHAMENTO TOTAL: remover de memória e limpar slot
+                                register_closed = getattr(bankroll_manager, "register_recently_closed", None)
+                                if callable(register_closed):
+                                    register_closed(norm_symbol)
                                 if pos in self.paper_positions:
                                     self.paper_positions.remove(pos)
                                 elif pos in self.paper_moonbags:

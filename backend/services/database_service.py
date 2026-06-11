@@ -661,7 +661,7 @@ class DatabaseService:
             except Exception as e:
                 logger.error(f"Error logging trade: {e}")
 
-    async def get_trade_history(self, limit: int = 50, symbol: str = None, start_date: str = None, end_date: str = None):
+    async def get_trade_history(self, limit: int = 50, page: int = 1, symbol: str = None, start_date: str = None, end_date: str = None):
         async with self.AsyncSessionLocal() as session:
             try:
                 stmt = select(TradeHistory)
@@ -682,7 +682,8 @@ class DatabaseService:
                     except:
                         pass
                 
-                stmt = stmt.order_by(desc(TradeHistory.timestamp)).limit(limit)
+                offset = (page - 1) * limit
+                stmt = stmt.order_by(desc(TradeHistory.timestamp)).offset(offset).limit(limit)
                 result = await session.execute(stmt)
                 trades = result.scalars().all()
                 return [{c.name: getattr(t, c.name) for c in t.__table__.columns} for t in trades]

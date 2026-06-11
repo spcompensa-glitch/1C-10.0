@@ -446,7 +446,7 @@ class FirebaseService:
             pass
         return ts_str  # fallback to original value
 
-    async def get_trade_history(self, limit: int = 50, last_timestamp: str = None, symbol: str = None, start_date: str = None, end_date: str = None):
+    async def get_trade_history(self, limit: int = 50, page: int = 1, last_timestamp: str = None, symbol: str = None, start_date: str = None, end_date: str = None):
         """
         Fetches completed trade history with pagination and filtering support.
         [V15.1] Added memory fallback for missing composite indexes.
@@ -456,6 +456,7 @@ class FirebaseService:
                 from services.database_service import database_service
                 trades = await database_service.get_trade_history(
                     limit=limit,
+                    page=page,
                     symbol=symbol,
                     start_date=start_date,
                     end_date=end_date

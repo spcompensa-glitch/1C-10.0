@@ -84,7 +84,7 @@ async def test_paper_close_uses_authoritative_slot_stop(monkeypatch):
     }])
 
     async def fake_get_instrument_info(symbol):
-        return {"lotSizeFilter": {"ctVal": "1"}}
+        return {"lotSizeFilter": {"ctVal": "10"}}
 
     async def fake_cleanup(symbol, delay=15):
         return None
@@ -100,6 +100,7 @@ async def test_paper_close_uses_authoritative_slot_stop(monkeypatch):
     assert ok is True
     assert trades[0]["exit_price"] == pytest.approx(0.4252)
     assert resets[0][3]["exit_price"] == pytest.approx(0.4252)
+    assert trades[0]["entry_margin"] == pytest.approx(29.98)
     assert trades[0]["pnl"] > 0
 
 

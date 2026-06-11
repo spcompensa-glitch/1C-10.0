@@ -1,7 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.837 "Moonbag Forensic Close Guard"
+# MASTER_ARCHITECTURE.md — V110.840 "Atomic Close Reconciliation"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada (V110.837)**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA (V110.837)` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+
+*   **V110.840: ATOMIC CLOSE RECONCILIATION [JUN 10]**
+    *   O Sentinel agora respeita `pending_closures` e o cooldown `recently_closed`, impedindo que a janela entre remoção da posição Paper e reset do slot gere uma segunda entrada no Vault.
+    *   Divergências de posição órfã precisam persistir por uma janela de confirmação antes da auto-cura.
+    *   O Guardião separa pico de equity de lucro protegido: o piso usa apenas PnL realizado e PnL assegurado pelos stops do Flash.
+    *   O ledger de fechamento Paper grava a margem usando o `ctVal` real do contrato OKX.
+    *   O Histórico da Vault passa a atualizar automaticamente a cada 30 segundos e ao retornar para a aba.
 
 ## 🚀 ROADMAP DE VERSÕES & MARCOS TÉCNICOS
 
@@ -575,7 +582,7 @@
     - **Asset Trend Guard**: Implementação de trava obrigatória para alinhar trades com a tendência H4 em ativos de volatilidade EXTREME.
     - **Spring Directionality**---
 
-## 🏗️ ARQUITETURA DE SISTEMA (V110.837)
+## 🏗️ ARQUITETURA DE SISTEMA (V110.840)
 
 ### 1. Camada de Redirecionamento e Servimento de Estáticos (FastAPI)
 - **Catch-All Resiliente:** Processamento inteligente no FastAPI que limpa hashes e query-params do path físico antes de verificar arquivos no container, garantindo que Service Workers, ícones da PWA e scripts estáticos em `/vendor` nunca retornem 404.
@@ -630,7 +637,7 @@
 - **Fluxo de Logout Limpo:** O logout no Cockpit limpa incondicionalmente todos os tokens (`auth_token`, `sniper_token`, `refresh_token`, `user`), forçando o redirecionamento seguro para `/login` e prevenindo logins automáticos por tokens órfãos.
 - **Resiliência Anti-Cache:** O arquivo raiz `index.html` atua como desregistrador forçado de Service Workers antigos no navegador do usuário e faz o redirecionamento imediato para `/login`, quebrando loops infinitos de cache em produção.
 
-## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.837)
+## 🗄️ CAMADA DE DADOS HÍBRIDA & ESQUEMAS (V110.840)
 
 O sistema opera em uma arquitetura de dados híbrida e resiliente, utilizando espelhamento e auto-healing nas inicializações:
 
@@ -656,7 +663,7 @@ Banco de dados autônomo local e isolado para controle de acesso, auditoria admi
 
 ---
 
-## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.837)
+## 🎨 MODULARIZAÇÃO DO FRONTEND (V110.840)
 
 Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, a aplicação foi segmentada em componentes reativos autocontidos compilados JIT (Babel standalone):
 1.  **Orquestrador central (`frontend/app.js`)**: Gerencia o roteador (`ReactRouterDOM`), alertas `Toast`, escuta reativa WebSockets `/ws/cockpit` e renderização base do cockpit.
@@ -673,5 +680,5 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-10 (V110.837) Sincronizado*
+*Documento atualizado em: 2026-06-10 (V110.840) Sincronizado*
 *Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Execution Audit Ledger, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca e renderização estável do Cockpit.*

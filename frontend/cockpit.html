@@ -5674,24 +5674,17 @@
                 const fetchHistory = async () => {
                     setLoadingHistory(true);
                     try {
-                        let url = `${API_BASE}/api/history?limit=${historyLimit}`;
+                        let url = `${API_BASE}/api/history?limit=${historyLimit}&page=${historyPage}`;
                         if (searchSymbol) url += `&symbol=${searchSymbol}`;
                         if (startDate) url += `&start_date=${startDate}`;
                         if (endDate) url += `&end_date=${endDate}`;
-                        
-                        // Calculando o cursor (pagination via skip/offset não é nativo do Firestore stream, mas faremos via timestamp para estabilidade)
-                        if (historyPage > 1 && historyLogs.length > 0) {
-                            // Simularemos paginação via offset real se necessário, ou cursor. 
-                            // Para manter simples e rápido na UI, usaremos offset client-side ou expandiremos a query.
-                            // V15.0: Simplificado para carregar a página atual
-                            const lastTs = (historyLogs.length > 0) ? historyLogs[historyLogs.length - 1].timestamp : null;
-                            if (lastTs) url += `&last_timestamp=${lastTs}`;
-                        }
 
                         const res = await fetch(url);
                         if (res.ok) {
                             const data = await res.json();
                             setHistoryLogs(data);
+                        } else {
+                            console.warn(`Historico da Vault HTTP ${res.status}`);
                         }
                     } catch (e) {
                         console.warn('Erro ao carregar histórico da Vault', e);
@@ -5707,12 +5700,32 @@
                         if (startDate) url += `&start_date=${startDate}`;
                         if (endDate) url += `&end_date=${endDate}`;
                         const res = await fetch(url);
-                        if (res.ok) setHistoryTotal(await res.json());
+                        if (res.ok) {
+                            setHistoryTotal(await res.json());
+                        } else {
+                            console.warn(`Stats do historico HTTP ${res.status}`);
+                        }
                     } catch (e) {}
                 };
 
-                fetchHistory();
-                fetchStats();
+                const refreshHistory = () => {
+                    fetchHistory();
+                    fetchStats();
+                };
+                const onVisibilityChange = () => {
+                    if (document.visibilityState === 'visible') refreshHistory();
+                };
+
+                refreshHistory();
+                const interval = historyPage === 1
+                    ? setInterval(refreshHistory, 30000)
+                    : null;
+                document.addEventListener('visibilitychange', onVisibilityChange);
+
+                return () => {
+                    if (interval) clearInterval(interval);
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                };
             }, [searchSymbol, startDate, endDate, historyPage]); // Recarregar ao mudar filtros ou página
 
             const activeSymbols = useMemo(() => {

@@ -533,42 +533,18 @@ class ExecutionProtocol:
 
             return False, None, None
 
-        # 🌟 V110.65 ESCADINHA DE ELITE: Travas Progressivas Unificadas
+        # 🌟 V15.0 ESCADINHA DE ELITE: Fôlego Macro com Apenas 2 Degraus
         # [V110.28.2 FIX] SHADOW incluído para garantir emancipação de slots do tipo Shadow
         if slot_type in ["TREND", "SWING", "SNIPER", "SCALP", "SHADOW"]:
             target_stop_roi_trend = 0
             
-            # [V110.65] ESCADINHA DE ELITE COM PONTE PARA MOONBAG:
-            # 150%+ → Emancipação (SL em +110% ROI estrito conforme Ordem 10D)
-            # 110%+ → Profit Lock (SL em +70%)
-            # 70%+  → Risk-Zero (SL em +5%)
-            # 50%+  → Profit Bridge (SL em +20%) 🆕
-            # 30%+  → Break-Even (SL em 0%)    🆕
-            # [V110.134] ESCADINHA ADAPTATIVA:
-            # Se o ativo é RETEST_HEAVY, damos mais fôlego na primeira fase para não ser stopado no fingimento.
-            try:
-                from services.agents.librarian import librarian_agent
-                dna = await librarian_agent.get_asset_dna(symbol)
-                is_retest_heavy = dna.get("is_retest_heavy", False)
-                wick_mult = dna.get("wick_multiplier", 1.0)
-            except:
-                is_retest_heavy = False
-                wick_mult = 1.0
-
-            # Gatilhos dinâmicos: moedas traiçoeiras precisam de 50% ROI para travar o stop, moedas diretas 30%.
-            breakeven_trigger = 30.0 * (1.2 if is_retest_heavy else 1.0)
-            if wick_mult > 3.0: breakeven_trigger = 50.0 # Pavios extremos = Respiro extremo
-
-            if roi >= 150.0:     # Degrau 5: Emancipação
+            # [V15.0] Apenas 2 fases:
+            # 1. 80% ROI (Gatilho) -> Move Stop Loss para +15% ROI (Fôlego/Taxas)
+            # 2. 150% ROI (Gatilho) -> Promove para Moonbag com Stop travado em +110% ROI
+            if roi >= 150.0:
                 target_stop_roi_trend = 110.0
-            elif roi >= 110.0:   # Degrau 4: Profit Lock
-                target_stop_roi_trend = 80.0
-            elif roi >= 70.0:    # Degrau 3: Risk-Zero (Paciência Absoluta)
-                target_stop_roi_trend = 45.0
-            elif roi >= 50.0:    # Degrau 2: PROFIT BRIDGE
-                target_stop_roi_trend = 25.0
-            elif roi >= breakeven_trigger: # Degrau 1: BREAK-EVEN ADAPTATIVO
-                target_stop_roi_trend = 6.0 # Cobre taxas (0.11% taker combo)
+            elif roi >= 80.0:
+                target_stop_roi_trend = 15.0
                 
             if target_stop_roi_trend > 0:
                 # [V110.135] Use current trade leverage for correct price offset calculation
@@ -595,7 +571,7 @@ class ExecutionProtocol:
 
                 # Atualiza se melhor (Paciência Absoluta: só move o stop para CIMA/PROVEITO)
                 if (side_norm == "buy" and new_stop > current_sl) or (side_norm == "sell" and (current_sl == 0 or new_stop < current_sl)):
-                    logger.info(f"🛡️ [V110.21 ESCADINHA] {symbol} ROI={roi:.0f}%. Novo SL garantido em +{target_stop_roi_trend}% ROI.")
+                    logger.info(f"🛡️ [V15.0 ESCADINHA] {symbol} ROI={roi:.0f}%. Novo SL garantido em +{target_stop_roi_trend}% ROI.")
                     return False, None, new_stop
 
 
@@ -654,17 +630,11 @@ class ExecutionProtocol:
         scale_trigger = max(1.0, scale)
         current_phase = "SAFE"
 
-        # 1. Fase baseada no ROI atual
+        # 1. Fase baseada no ROI atual (V15.0: Apenas 2 Degraus)
         if roi >= 150.0 * scale_trigger:
             current_phase = "MEGA_PULSE"
-        elif roi >= 110.0 * scale_trigger:
-            current_phase = "PROFIT_LOCK"
-        elif roi >= 70.0 * scale_trigger:
+        elif roi >= 80.0 * scale_trigger:
             current_phase = "RISK_ZERO"
-        elif roi >= 50.0 * scale_trigger:
-            current_phase = "PROFIT_BRIDGE"
-        elif roi >= 30.0 * scale_trigger:
-            current_phase = "BREAKEVEN"
 
         # 2. Persistência baseada no SL (Caso o mercado recue mas o SL continue travado)
         if slot_data:

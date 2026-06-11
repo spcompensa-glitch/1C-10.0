@@ -32,11 +32,7 @@ logger = logging.getLogger("FlashAgent")
 # Formato: (roi_minimo, stop_roi_destino, label, status_risco)
 ESCADINHA_DEGRAUS = [
     (150.0, 110.0, "EMANCIPACAO", "PROFIT_LOCK"),
-    (130.0, 105.0, "PRE_EMANCIPACAO", "PROFIT_LOCK"),
-    (110.0, 80.0,  "PROFIT_LOCK", "PROFIT_LOCK"),
-    (70.0,  45.0,  "RISCO_ZERO", "RISCO_ZERO"),
-    (50.0,  25.0,  "PROFIT_BRIDGE", "SL_0"),
-    (30.0,  6.0,   "BREAKEVEN", "SL_0"),
+    (80.0,  15.0,  "RISCO_ZERO", "RISCO_ZERO"),
 ]
 
 # ⚡ Escadinha BLITZ_30M — Degraus adaptados (Doutrina das 10)

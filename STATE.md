@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.902)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.903)
 
 ## Resumo Executivo
-* **Versão:** `V110.902: Login Direto no Domínio Raiz`
-* **Data:** 2026-06-04
+* **Versão:** `V110.903: Sincronização Escadinha Simplificada`
+* **Data:** 2026-06-11
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Servidores de Autenticação e Trading unificados sob o mesmo processo FastAPI na porta principal. Novo fluxo de segurança onde novos registros de usuários entram como inativos por padrão (`is_active = False`) e necessitam de aprovação de um Administrador. A página de login e cadastro agora é servida diretamente no domínio raiz (`/`), eliminando o redirecionamento com tela de carregamento. Interface administrativa de Controle de Usuários adicionada ao Cockpit UI.
+* **Escopo:** Sincronização e consolidação da nova lógica simplificada de 2 degraus da Escadinha de Elite (80% ROI -> SL +15% / 150% ROI -> Moonbag SL +110%) em toda a frota (Backend, Frontend Cockpit, Projeção e Hermes compliance). E login/registro de usuários sob processo FastAPI na porta principal.
 
 ---
 
@@ -18,11 +18,8 @@
 ### 2. Sniper & Trailing Stop Progressivo (Escadinha)
 * Monitoramento de altíssima frequência (ciclo de **0.2 segundos**) para capturar pavios rápidos de mercado.
 * **Gatilhos de ROI da Escadinha:**
-  * **T1 (Break-Even):** 30% ROI → Stop Loss movido para 0%
-  * **T2 (Profit Bridge):** 50% ROI → Stop Loss movido para 20%
-  * **T3 (Risk-Zero):** 70% ROI → Stop Loss movido para 5%
-  * **T4 (Profit-Lock):** 110% ROI → Stop Loss movido para 70%
-  * **T5 (Emancipação / Moonbags):** 150% ROI → Stop Loss movido para 110%
+  * **T1 (Risk-Zero):** 80% ROI → Stop Loss movido para +15% ROI (Fôlego/Taxas)
+  * **T2 (Emancipação / Moonbags):** 150% ROI → Stop Loss movido para +110% ROI (Promovido para Moonbag)
 
 ### 3. Portfolio Guardian & Algoritmo Knife-Drop
 * Máquina de estados atômica unificada monitorando o ROI consolidado da conta Master.
@@ -61,6 +58,6 @@ Validação completa do HarvesterAgent com **0 falhas**:
 
 ### ✅ Jornada Completa (test_jornada_completa.py)
 Validação ponta a ponta com **0 falhas**:
-- **FASE 1 - Slot Ativo**: STOP INICIAL (-100% ROI) → Break-Even (+30%) → Profit Bridge (+50%) → Risk Zero (+70%) → Profit Lock (+110%) → EMANCIPAÇÃO (+150%)
+- **FASE 1 - Slot Ativo**: STOP INICIAL (-100% ROI) → Risk-Zero (+80% ROI / SL +15%) → EMANCIPAÇÃO (+150% ROI / SL +110%)
 - **FASE 2 - Moonbag**: WAVE (200%) → ROCKET (300%) → STAR (400%) → CROWN (500%) → SUPERNOVA (600%) → GOD_MODE (700%) → CHOKE_HOLD (800-1200%) com colheitas parciais no caminho
 - **FASE 3 - Tabela Consolidada**: Visualização completa da trajetória de $0 a 1200% ROI

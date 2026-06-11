@@ -1,4 +1,4 @@
-# MASTER_ARCHITECTURE.md — V110.840 "Atomic Close Reconciliation"
+# MASTER_ARCHITECTURE.md — V110.841 "Elite Ladder Synchronization"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
@@ -594,7 +594,7 @@
 ### 3. Camada de Execução (Actor Model)
 - **OrderProjectionService:** fonte única de verdade para ROI, stop price, fase operacional, linhas do gráfico, `tickSize`, `ctVal`, margem e PnL estimado. O frontend não recalcula alvos quando `projection.levels` existe.
 - **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir. A regra de melhoria/violação de stop é única para LONG/SHORT e coberta por testes de invariantes:
-  - **Slots Táticos:** Escadinha oficial (30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + Moonbag)
+  - **Slots Táticos:** Escadinha oficial (80%→15% ROI, 150%→110% ROI + Moonbag)
   - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
   - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%, depois `ULTRA_*` a cada 200% com stop 200% ROI abaixo do alvo)
   - **Moonbag peak trail:** moonbags tambem usam maior ROI recente (`peakROI`) para promover stops de alvos rompidos; se o preco volta apos tocar um alvo, o Flash atualiza o stop conquistado e confirma violacao imediatamente.
@@ -618,7 +618,7 @@
 - **Ciclo:** Flash monitora em alta frequência; Captain abre slots; SlotOperator observa; backend calcula e frontend renderiza.
 - **Fórmula oficial de ROI:** `((current - entry) / entry) * leverage * 100` para LONG e `((entry - current) / entry) * leverage * 100` para SHORT.
 - **Fórmula oficial de preço do stop:** `entry * (1 + stop_roi / (leverage * 100))` para LONG e `entry * (1 - stop_roi / (leverage * 100))` para SHORT, sempre arredondada por `tickSize` OKX.
-- **Escadinha oficial:** 30%→6%, 50%→25%, 70%→45%, 110%→80%, 150%→110% + emancipação.
+- **Escadinha oficial:** 80%→15% ROI, 150%→110% ROI + emancipação.
 - **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 200% ROI com stop 200% abaixo do alvo rompido. A decisao do Flash usa `peakROI` recente para nao perder rompimentos rapidos; exemplo: pico `ULTRA_1400` aplica stop `+1200%`, e pico `ULTRA_1600` aplica stop `+1400%`.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.

@@ -7,11 +7,8 @@ O sistema opera sob o conceito de **Single Source of Truth (SSOT)** centralizado
 ### 1. Gatilhos de ROI e Proteção
 | Fase | Gatilho (ROI %) | Proteção SL (ROI %) | Status UI |
 | :--- | :--- | :--- | :--- |
-| **T1: Break-Even** | 30% | 0% | `BREAKEVEN` |
-| **T2: Profit Bridge**| 50% | 20% | `PROFIT_BRIDGE`|
-| **T3: Risk-Zero** | 70% | 5% | `RISK_ZERO` |
-| **T4: Profit-Lock** | 110% | 70% | `PROFIT_LOCK` |
-| **T5: Emancipação** | 150% | 110% | `EMANCIPATED` |
+| **T1: Risk-Zero** | 80% | 15% | `RISK_ZERO` |
+| **T2: Emancipação** | 150% | 110% | `EMANCIPATED` |
 
 ### 2. Simetria Operacional (Long vs Short)
 O sistema é 100% simétrico.
@@ -31,4 +28,4 @@ python 1CRYPTEN_SPACE_V4.0/backend/nuclear_reset.py
 *Ação: Cancela ordens, limpa slots, reseta banca para $100 e apaga histórico.*
 
 ---
-**Status: ESTÁVEL | Versão: V110.668**
+**Status: ESTÁVEL | Versão: V110.841**

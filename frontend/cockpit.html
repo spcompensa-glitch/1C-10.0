@@ -4659,6 +4659,7 @@
                             to: candles.length
                         });
                         isFirstLoadRef.current = false;
+                    }
                     if (chartInstance.current.volumeSeries) chartInstance.current.volumeSeries.applyOptions({ visible: settings.volume });
                     if (sma21SeriesRef.current) sma21SeriesRef.current.applyOptions({ visible: settings.sma && eagleMode });
                     if (sma100SeriesRef.current) sma100SeriesRef.current.applyOptions({ visible: settings.sma && eagleMode });

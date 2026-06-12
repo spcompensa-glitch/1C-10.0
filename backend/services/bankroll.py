@@ -1667,14 +1667,11 @@ class BankrollManager:
                         f"Leverage={current_leverage}x, Margin={dna_margin_pct*100:.0f}%"
                     )
 
-                # [V12.0] Forçar margem de exatamente 10% da banca configurada conforme regra do usuário.
                 balance = await self._get_operating_balance()
                 margin = round(balance * 0.10, 2)
                 
-                # Garante um mínimo operacional de $2.00 para não quebrar em ordens de banca muito reduzida
-                if margin < 2.0 and balance >= 2.0:
-                    margin = 2.0
-                elif margin < 1.0:
+                # Garante um mínimo operacional de $1.00 para não quebrar em ordens de banca extremamente reduzida
+                if margin < 1.0:
                     margin = 1.0
                 
                 # Calibração de leverage

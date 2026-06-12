@@ -38,7 +38,7 @@ V12_STRUCTURAL_BUFFER = 2.5 # [V110.22.0] Restored to 2.5% for correct breathing
 
 # [V36.0] Rescue Mode Constants
 RESCUE_ACTIVATION_ROI = -999.0   # [V110.12.11] DESATIVADO: Evita ordens zumbis
-HARD_STOP_ROI = -80.0          # [V110.24.0] Hard Stop ampliado para 1.6% preço @ 50x — sobrevive volatilidade normal
+HARD_STOP_ROI = -50.0          # [V110.24.0] Hard Stop atômico fixo em -50% conforme especificado pelo usuário
 
 # [V88.0] MAESTRIA SIMPLIFIED - DESATIVADO PARA UNIFICAÇÃO SNIPER
 # MAESTRIA_FEE_GUARD_TRIGGER = 60.0 

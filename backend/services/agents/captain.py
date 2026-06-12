@@ -176,7 +176,7 @@ class CaptainAgent(AIOSAgent):
 
         tick_roi = (tick_size / current_price) * target_leverage * 100 if current_price > 0 else 0.0
         min_order_margin = (current_price * ct_val * max(min_qty, lot_size, 1e-12)) / max(max_leverage, 1.0) if current_price > 0 else 0.0
-        balance = self._safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
+        balance = self._safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
         margin_ratio = (min_order_margin / balance) if balance > 0 else 0.0
 
         penalty = 0.0

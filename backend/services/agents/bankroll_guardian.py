@@ -339,7 +339,7 @@ class BankrollGuardian:
         secured_open_pnl: float = 0.0,
     ) -> Dict[str, Any]:
         if base_balance <= 0:
-            base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
+            base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
 
         if self.peak_equity <= 0:
             self.peak_equity = max(equity, base_balance)
@@ -533,7 +533,7 @@ class BankrollGuardian:
         history = await self._get_history()
 
         configured = _safe_float(banca.get("configured_balance"), 0.0)
-        base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 20.0), 20.0)
+        base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
 
         active_slots = [
             s for s in slots

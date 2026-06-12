@@ -952,8 +952,8 @@
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-gray-500">
-                            <span>Alocação por Slot (10%)</span>
-                            <span className="text-white">${(liveEquity * 0.1).toFixed(2)}</span>
+                            <span>Alocação por Slot (1% - 2%)</span>
+                            <span className="text-white">${(liveEquity * 0.01).toFixed(2)} - ${(liveEquity * 0.02).toFixed(2)}</span>
                         </div>
                         <div className="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden p-[1px]">
                             <div 
@@ -4251,6 +4251,9 @@
             const [localSymbol, setLocalSymbol] = useState(symbol || "BTCUSDT");
             const [localTimeframe, setLocalTimeframe] = useState("15");
             const [historicalData, setHistoricalData] = useState({ candles: [], volumes: [] });
+            const [studyData, setStudyData] = useState(null);
+            const extraLinesRef = useRef([]);
+            const extraSeriesRef = useRef([]);
             const [eagleMode, setEagleMode] = useState(() => {
                 try { return localStorage.getItem('eagle_vision_mode_grid') !== 'simple'; } catch(e) { return true; }
             });
@@ -4275,6 +4278,26 @@
             const sma21SeriesRef = useRef(null);
             const sma100SeriesRef = useRef(null);
             const gutterLabelsRef = useRef([]);
+
+            // Effect to fetch market study (SMC, ABCD, MOLA, 123)
+            useEffect(() => {
+                const fetchStudyData = async () => {
+                    if (!localSymbol || localSymbol.length < 3 || localSymbol === 'VVV' || localSymbol.includes('undefined')) return;
+                    try {
+                        const cleanSym = localSymbol.replace('.P', '').replace('.p', '').trim();
+                        const res = await fetch(`${API_BASE}/api/market/study?symbol=${cleanSym}&interval=${localTimeframe}&limit=350`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            setStudyData(data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch market study for grid item", localSymbol, e);
+                    }
+                };
+                fetchStudyData();
+                const itv = setInterval(fetchStudyData, 60000);
+                return () => clearInterval(itv);
+            }, [localSymbol, localTimeframe]);
 
             useEffect(() => {
                 try { localStorage.setItem('eagle_vision_mode_grid', eagleMode ? 'analytic' : 'simple'); } catch(e) {}
@@ -4636,8 +4659,6 @@
                             to: candles.length
                         });
                         isFirstLoadRef.current = false;
-                    }
-                    
                     if (chartInstance.current.volumeSeries) chartInstance.current.volumeSeries.applyOptions({ visible: settings.volume });
                     if (sma21SeriesRef.current) sma21SeriesRef.current.applyOptions({ visible: settings.sma && eagleMode });
                     if (sma100SeriesRef.current) sma100SeriesRef.current.applyOptions({ visible: settings.sma && eagleMode });
@@ -4645,9 +4666,6 @@
                     syncGutter();
                 }
             }, [historicalData, eagleMode, settings]);
-
-            // [V110.380] Optimized Price Lines & Sentinel Marker
-            useEffect(() => {
                 const updatePriceLines = () => {
                     if (!candlestickSeries.current) return;
 
@@ -4656,6 +4674,7 @@
                         const preActiveMoon = moonbags && moonbags.find(m => m && m.symbol && normalizeTradeSymbol(m.symbol) === normalizeTradeSymbol(localSymbol));
                         const preOrder = preActiveMoon || preActiveSlot || focusedAsset || {};
                         const preProjection = preOrder.projection || {};
+                        
                         const priceLineSignature = JSON.stringify({
                             symbol: normalizeTradeSymbol(localSymbol),
                             entry: preOrder.entry_price || preOrder.entry || 0,
@@ -4664,12 +4683,13 @@
                             side: preOrder.side || '',
                             phase: preProjection.phase || '',
                             active: preProjection.active_level?.name || '',
-                            levels: (preProjection.levels || []).map(l => [l.name, l.price, l.active])
+                            levels: (preProjection.levels || []).map(l => [l.name, l.price, l.active]),
+                            studyHash: studyData ? (studyData.obs?.length || 0) + (studyData.fvgs?.length || 0) : 0
                         });
                         if (priceLinesSignatureRef.current === priceLineSignature) return;
                         priceLinesSignatureRef.current = priceLineSignature;
 
-                        // 1. Cleanup
+                        // 1. Cleanup de linhas antigas de ordens
                         if (priceLinesRef.current.entry) { try { candlestickSeries.current.removePriceLine(priceLinesRef.current.entry); } catch(e){} }
                         if (priceLinesRef.current.sl) { try { candlestickSeries.current.removePriceLine(priceLinesRef.current.sl); } catch(e){} }
                         if (priceLinesRef.current.tp) { try { candlestickSeries.current.removePriceLine(priceLinesRef.current.tp); } catch(e){} }
@@ -4681,7 +4701,19 @@
                             priceLinesRef.current.targets = [];
                         }
 
-                        // 2. Identify Points
+                        // 2. Cleanup de linhas de SMC Extras
+                        extraLinesRef.current.forEach(l => {
+                            try { candlestickSeries.current.removePriceLine(l); } catch(e){}
+                        });
+                        extraLinesRef.current = [];
+
+                        // 3. Cleanup de Series Extras (ABCD)
+                        extraSeriesRef.current.forEach(s => {
+                            try { chartInstance.current.removeSeries(s); } catch(e){}
+                        });
+                        extraSeriesRef.current = [];
+
+                        // 4. Identify Points
                         const activeSlot = slots.find(s => s && s.symbol && normalizeTradeSymbol(s.symbol) === normalizeTradeSymbol(localSymbol));
                         const activeMoon = moonbags && moonbags.find(m => m && m.symbol && normalizeTradeSymbol(m.symbol) === normalizeTradeSymbol(localSymbol));
                         let points = null;
@@ -4719,7 +4751,6 @@
                             const entry = parseFloat(activeSlot.entry_price || 0);
                             let sl = parseFloat(activeSlot.current_stop || activeSlot.stop_loss || 0);
                             
-                            // Se o stop for zero ou for um stop de perda (ROI <= 0), visualmente forçamos no gráfico a linha do stop atômico em -50%
                             const computedRoi = entry > 0 && sl > 0 
                                 ? (isLong ? ((sl / entry) - 1) : (1 - (sl / entry))) * leverage * 100
                                 : -100;
@@ -4732,13 +4763,12 @@
                             points = { entry: entry, sl: sl, side: activeSlot.side, leverage: leverage, projection: activeSlot.projection, slot_type: activeSlot.slot_type };
                         }
 
-                        // 3. Render [V110.658] STOP LOSS DINÂMICO (Grid View)
+                        // 5. Render Price Lines
                         if (points && points.entry > 0) {
                             const sideUpper = (points.side || "").toUpperCase().trim();
                             const isLong = ['BUY', 'LONG', 'L', 'B'].includes(sideUpper);
                             const leverage = parseFloat(points.leverage || 50);
                             
-                            // Determina Status Visual do Stop
                             let slColor = '#ef4444'; // Red
                             let slTitle = 'STOP';
                             let slWidth = 2;
@@ -4747,7 +4777,7 @@
                             if (points.sl > 0) {
                                 if (points.isMoonbag) {
                                     const slRoi = Math.abs((points.sl - points.entry) / points.entry) * leverage * 100;
-                                    slColor = '#10b981'; // Emerald
+                                    slColor = '#10b981';
                                     slTitle = `PROFIT-LOCK ${slRoi.toFixed(0)}% 💎`;
                                     slWidth = 3;
                                 } else {
@@ -4755,11 +4785,11 @@
                                     const isProfitLocked = isLong ? (points.sl > points.entry * 1.01) : (points.sl < points.entry * 0.99);
                                     
                                     if (isProfitLocked) {
-                                        slColor = '#10b981'; // Emerald
+                                        slColor = '#10b981';
                                         slTitle = 'PROFIT-LOCK 💎';
                                         slWidth = 3;
                                     } else if (isRiskFree) {
-                                        slColor = '#3b82f6'; // Blue
+                                        slColor = '#3b82f6';
                                         slTitle = 'RISK-FREE 🛡️';
                                         slWidth = 3;
                                     }
@@ -4770,7 +4800,6 @@
                                 price: points.entry, color: '#fff', lineWidth: 1, lineStyle: 2, title: 'ENTRY', axisLabelVisible: true 
                             });
                             
-                                                        // Active degrau badge
                             let activeDegrau = '';
                             if (points.entry > 0 && points.sl > 0) {
                                 const stopRoi = isLong 
@@ -4799,8 +4828,7 @@
                                     }
                                 }
                                 if (activeDegrau) {
-                                    // Only show degrau badge on SL line (not on already-labeled moonbag/risk-free)
-                                    slTitle = slTitle === 'STOP' ? '\u26a1 ' + activeDegrau : slTitle;
+                                    slTitle = slTitle === 'STOP' ? '⚡ ' + activeDegrau : slTitle;
                                 }
                             }
 
@@ -4819,7 +4847,7 @@
                                 .filter(lvl => Math.abs(lvl.value - points.entry) / points.entry > 0.00001);
                             if (backendLevels.length > 0) {
                                 if (priceLinesRef.current.tp) {
-                                    try { candlestickSeries.current.removePriceLine(priceLinesRef.current.tp); } catch(e) {}
+                                    try { candlestickSeries.current.removePriceLine(priceLinesRef.current.tp); } catch(e){}
                                     priceLinesRef.current.tp = null;
                                 }
                                 priceLinesRef.current.targets = backendLevels.map(lvl => candlestickSeries.current.createPriceLine({
@@ -4830,41 +4858,166 @@
                                     title: lvl.label,
                                     axisLabelVisible: lvl.axisLabelVisible
                                 }));
-                                return;
+                            } else {
+                                const escadinhaLevels = [];
+                                if (points.isMoonbag) {
+                                    escadinhaLevels.push(
+                                        { roi: 110, color: 'rgba(16, 185, 129, 0.4)', title: 'EMANCIPADO (110%)' },
+                                        { roi: 130, color: 'rgba(6, 182, 212, 0.5)', title: 'TRAILING START (130%)' },
+                                        { roi: 150, color: 'rgba(59, 130, 246, 0.55)', title: 'WAVE (150%)' },
+                                        { roi: 220, color: 'rgba(139, 92, 246, 0.6)', title: 'ROCKET (220%)' },
+                                        { roi: 280, color: 'rgba(236, 72, 153, 0.6)', title: 'STAR (280%)' },
+                                        { roi: 350, color: 'rgba(245, 158, 11, 0.7)', title: 'CROWN (350%)' },
+                                        { roi: 420, color: 'rgba(249, 115, 22, 0.7)', title: 'SUPERNOVA (420%)' },
+                                        { roi: 500, color: 'rgba(239, 68, 68, 0.8)', title: 'GOD MODE (500%)' }
+                                    );
+                                } else {
+                                    escadinhaLevels.push(
+                                        { roi: 50, color: 'rgba(34, 197, 94, 0.5)', title: 'RZ (50%)' },
+                                        { roi: 100, color: 'rgba(34, 197, 94, 0.7)', title: 'LG (100%)' },
+                                        { roi: 130, color: 'rgba(234, 179, 8, 0.9)', title: 'ST (130%)' },
+                                        { roi: 150, color: '#22c55e', title: 'EM (150%)' }
+                                    );
+                                }
+                                priceLinesRef.current.targets = escadinhaLevels.map(lvl => {
+                                    const move = lvl.roi / (leverage * 100);
+                                    const p = isLong ? points.entry * (1 + move) : points.entry * (1 - move);
+                                    return candlestickSeries.current.createPriceLine({
+                                        price: p, color: lvl.color, lineWidth: 1, lineStyle: 1, title: lvl.title, axisLabelVisible: false
+                                    });
+                                });
+                            }
+                        }
+
+                        // 6. SMC / Observatory Patterns drawing
+                        let currentPrice = (historicalData.candles.length > 0 ? historicalData.candles[historicalData.candles.length - 1].close : 0) || points?.entry || 0;
+                        const combinedMarkers = [];
+
+                        if (studyData) {
+                            // Order Blocks (OBs)
+                            const allObs = studyData.obs || studyData.ob || [];
+                            const obsAbove = allObs.filter(ob => ob.bottom > currentPrice).sort((a, b) => a.bottom - b.bottom);
+                            const obsBelow = allObs.filter(ob => ob.top < currentPrice).sort((a, b) => b.top - a.top);
+                            const relevantObs = [...obsBelow.slice(0, 1), ...obsAbove.slice(0, 1)];
+
+                            relevantObs.forEach(ob => {
+                                const color = ob.type === 'BULLISH' ? '#10b981' : '#ef4444';
+                                try {
+                                    extraLinesRef.current.push(candlestickSeries.current.createPriceLine({
+                                        price: ob.top,
+                                        color: color + '55',
+                                        lineWidth: 1,
+                                        lineStyle: 0,
+                                        axisLabelVisible: true,
+                                        title: `OB ${ob.type === 'BULLISH' ? 'SUP' : 'RES'}`
+                                    }));
+                                } catch (e) { }
+                            });
+
+                            // Fair Value Gaps (FVGs)
+                            const allFvgs = studyData.fvgs || studyData.fvg || [];
+                            allFvgs.slice(-1).forEach(fvg => {
+                                const fvgColor = fvg.type === 'BULLISH' ? '#10b981' : '#ef4444';
+                                try {
+                                    extraLinesRef.current.push(candlestickSeries.current.createPriceLine({
+                                        price: (fvg.top + fvg.bottom) / 2,
+                                        color: fvgColor + '44',
+                                        lineWidth: 1,
+                                        lineStyle: 3,
+                                        axisLabelVisible: true,
+                                        title: `FVG ${fvg.type === 'BULLISH' ? 'B' : 'S'}`
+                                    }));
+                                } catch (e) { }
+                            });
+
+                            // ABCD Harmonics
+                            if (studyData.patterns_abcd && studyData.patterns_abcd.length > 0) {
+                                studyData.patterns_abcd.slice(-1).forEach(p => {
+                                    try {
+                                        const series = chartInstance.current.addLineSeries({
+                                            color: 'rgba(168,85,247,0.85)',
+                                            lineWidth: 1.5,
+                                            lineStyle: 0,
+                                            priceLineVisible: false,
+                                            lastValueVisible: false
+                                        });
+                                        const lineData = [
+                                            { time: p.points.A.time, value: p.points.A.val },
+                                            { time: p.points.B.time, value: p.points.B.val },
+                                            { time: p.points.C.time, value: p.points.C.val },
+                                            { time: p.points.D.time, value: p.points.D.val }
+                                        ];
+                                        series.setData(lineData);
+                                        extraSeriesRef.current.push(series);
+
+                                        combinedMarkers.push({ time: p.points.A.time, position: 'aboveBar', color: '#a855f7', shape: 'circle', text: 'A' });
+                                        combinedMarkers.push({ time: p.points.B.time, position: 'belowBar', color: '#a855f7', shape: 'circle', text: 'B' });
+                                        combinedMarkers.push({ time: p.points.C.time, position: 'aboveBar', color: '#a855f7', shape: 'circle', text: 'C' });
+                                        combinedMarkers.push({ time: p.points.D.time, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: '✓ ABCD' });
+                                    } catch (e) { }
+                                });
                             }
 
-                            const escadinhaLevels = [];
-                            if (points.isMoonbag) {
-                                // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (discretos e finos)
-                                escadinhaLevels.push(
-                                    { roi: 110, color: 'rgba(16, 185, 129, 0.4)', title: 'EMANCIPADO (110%)', isOld: true },
-                                    { roi: 130, color: 'rgba(6, 182, 212, 0.5)', title: 'TRAILING START (130%)' },
-                                    { roi: 150, color: 'rgba(59, 130, 246, 0.55)', title: 'WAVE (150%)' },
-                                    { roi: 220, color: 'rgba(139, 92, 246, 0.6)', title: 'ROCKET (220%)' },
-                                    { roi: 280, color: 'rgba(236, 72, 153, 0.6)', title: 'STAR (280%)' },
-                                    { roi: 350, color: 'rgba(245, 158, 11, 0.7)', title: 'CROWN (350%)' },
-                                    { roi: 420, color: 'rgba(249, 115, 22, 0.7)', title: 'SUPERNOVA (420%)' },
-                                    { roi: 500, color: 'rgba(239, 68, 68, 0.8)', title: 'GOD MODE (500%)' }
-                                );
-                                // Extended price projections (subtle)
-                                try {
-                                    escadinhaLevels.push(
-                                        { roi: 750, color: 'rgba(148, 163, 184, 0.25)', title: '7.5K (750%)', isOld: true },
-                                        { roi: 1000, color: 'rgba(148, 163, 184, 0.3)', title: '10K (1000%)', isOld: true },
-                                        { roi: 1200, color: 'rgba(148, 163, 184, 0.35)', title: 'HYPER (1200%)', isOld: true }
-                                    );
-                                } catch(e) {
-                                    console.warn("Chart Update Failed (disposed?):", e);
+                            // Mola Zones
+                            if (studyData.patterns_mola && studyData.patterns_mola.length > 0) {
+                                const bestMola = studyData.patterns_mola.reduce((min, ev) => ev.compression < min.compression ? ev : min, studyData.patterns_mola[0]);
+                                if (bestMola) {
+                                    combinedMarkers.push({
+                                        time: bestMola.timestamp,
+                                        position: 'belowBar',
+                                        color: '#f59e0b',
+                                        shape: 'circle',
+                                        text: `MOLA ${(bestMola.compression * 100).toFixed(0)}%`
+                                    });
                                 }
                             }
+
+                            // 1-2-3 Patterns
+                            if (studyData.patterns_123 && studyData.patterns_123.length > 0) {
+                                studyData.patterns_123.slice(-1).forEach(p => {
+                                    const color = p.side === 'buy' ? '#10b981' : '#ef4444';
+                                    if (p.points) {
+                                        Object.entries(p.points).forEach(([num, data]) => {
+                                            combinedMarkers.push({
+                                                time: data.time || (historicalData.candles && historicalData.candles[data.idx] ? historicalData.candles[data.idx].time : null),
+                                                position: p.side === 'buy' ? 'belowBar' : 'aboveBar',
+                                                color: color,
+                                                shape: 'circle',
+                                                text: num
+                                            });
+                                        });
+                                    }
+                                });
+                            }
+
+                            // DVAP Zones
+                            if (studyData.dvap_history && studyData.dvap_history.length > 0) {
+                                studyData.dvap_history.slice(-3).forEach(hist => {
+                                    const isLong = hist.side.toUpperCase() === 'LONG' || hist.side.toUpperCase() === 'BUY';
+                                    combinedMarkers.push({
+                                        time: hist.time,
+                                        position: isLong ? 'belowBar' : 'aboveBar',
+                                        color: '#FFD700',
+                                        shape: isLong ? 'arrowUp' : 'arrowDown',
+                                        text: `DVAP ${hist.side.toUpperCase()}`
+                                    });
+                                });
+                            }
                         }
-                        } catch (error) {
-                            console.warn("Price lines update error:", error);
+
+                        // Order markers
+                        combinedMarkers.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+                        if (candlestickSeries.current) {
+                            try {
+                                candlestickSeries.current.setMarkers(combinedMarkers);
+                            } catch(e){}
                         }
-                };
-                updatePriceLines();
-                syncGutter();
-            }, [slots, localSymbol, focusedAsset, moonbags]);
+
+                    } catch (error) {
+                        console.warn("Price lines update error:", error);
+                    }
+            }, [slots, localSymbol, focusedAsset, moonbags, studyData, historicalData]);
 
             // [FIX] Chama syncGutter também quando slots ou focusedAsset mudam sem historicalData mudar
             useEffect(() => {
@@ -5045,6 +5198,78 @@
                     )}
 
                     <div ref={chartContainerRef} className="flex-1 w-full" />
+
+                    {/* Spy Intel / Glassmorphic Intelligence Overlay */}
+                    {(() => {
+                        const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
+                        const activeMoon = moonbags && moonbags.find(m => m && m.symbol && m.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
+                        const hasIntel = !!(activeSlot || activeMoon || (focusedAsset && focusedAsset.symbol && focusedAsset.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase()));
+
+                        if (!hasIntel) return null;
+
+                        let strategy = 'ANÁLISE DE MERCADO';
+                        let score = 50;
+                        let pensamento = 'Varrendo estruturas de SMC no radar operacional...';
+                        let vies = studyData?.bias_2h || 'TREND_SYNC';
+
+                        if (activeSlot) {
+                            strategy = activeSlot.strategy || activeSlot.slot_type || 'SLOT TÁTICO';
+                            score = activeSlot.score || activeSlot.unified_confidence || 50;
+                            pensamento = activeSlot.last_thought || activeSlot.pensamento || `Espião operando... Foco na Escadinha. Score ${score}`;
+                            const rawIntel = activeSlot.fleet_intel || {};
+                            if (rawIntel.bias || rawIntel.macro_bias) vies = rawIntel.bias || rawIntel.macro_bias;
+                        } else if (activeMoon) {
+                            strategy = 'MOONBAG EMANCIPADA';
+                            score = 100;
+                            pensamento = `FLASH EM CONTROLE: moonbag ativa com stop vivo e próximo alvo contínuo.`;
+                            vies = 'BULLISH';
+                        } else if (focusedAsset && focusedAsset.symbol && focusedAsset.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase()) {
+                            strategy = focusedAsset.strategy || focusedAsset.slot_type || (focusedAsset.type === 'moonbag' ? 'MOONBAG' : 'SLOT');
+                            score = focusedAsset.score || 50;
+                            pensamento = focusedAsset.pensamento || `Análise de viés e estruturas ativas para ${localSymbol}.`;
+                        }
+
+                        return (
+                            <div className="absolute bottom-6 left-5 z-20 max-w-[320px] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex flex-col gap-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:border-white/20 hover:bg-black/75 transition-all pointer-events-auto">
+                                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-widest">Estratégia</span>
+                                        <span className="text-[10px] font-black text-white font-mono uppercase tracking-tight">{strategy}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[7px] font-black text-gray-500 uppercase tracking-widest">Score</span>
+                                        <span className="text-[10px] font-black text-lime-400 font-mono">{score}/100</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-[9px]">
+                                    <div className="bg-white/[0.02] border border-white/5 rounded-lg p-1.5 flex flex-col">
+                                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-wider">Viés 2H</span>
+                                        <span className={`font-black font-mono mt-0.5 ${
+                                            vies === 'LONG_ONLY' || vies === 'BULLISH' ? 'text-green-400' :
+                                            vies === 'SHORT_ONLY' || vies === 'BEARISH' ? 'text-red-400' : 'text-gray-400'
+                                        }`}>{vies}</span>
+                                    </div>
+                                    <div className="bg-white/[0.02] border border-white/5 rounded-lg p-1.5 flex flex-col">
+                                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-wider">Desgrude</span>
+                                        <span className="font-black text-white font-mono mt-0.5">
+                                            {studyData?.is_decorrelated ? 'DECORRELADO' : 'SYNCED'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1 bg-white/[0.02] border border-white/5 rounded-lg p-2">
+                                    <div className="flex items-center gap-1.5 text-[8px] font-black text-gray-400 uppercase tracking-wider">
+                                        <span className="material-icons-round text-[10px] text-lime-400 animate-pulse">psychology</span>
+                                        Raciocínio IA
+                                    </div>
+                                    <p className="text-[9px] text-gray-300 font-medium leading-relaxed italic">
+                                        "{pensamento}"
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {settings.sentinel && (
                         <div className={`scanning-effect ${pulseStatus === 'OFFLINE' ? 'scanning-offline' : 'scanning-online'}`}></div>
@@ -5445,102 +5670,11 @@
                 <div className="desktop-command-grid h-screen overflow-hidden flex bg-[#050505] text-white">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.05),_transparent)] pointer-events-none"></div>
 
-                    {/* --- COLUNA ESQUERDA: COMANDO & INTELIGÊNCIA --- */}
-                    <aside className="w-[300px] border-none flex flex-col bg-black/20 backdrop-blur-md z-20 overflow-y-auto no-scrollbar">
-                        <div className="p-6 space-y-8">
-                            {/* 1. OBSERVATORY BUTTON [V5.0] */}
-                            <section>
-                                <button 
-                                    onClick={() => window.open('/observatory', '_blank')}
-                                    className="w-full h-11 flex items-center justify-center gap-3 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-indigo-500/50 hover:bg-white/[0.05] text-gray-300 hover:text-white font-bold text-[11px] uppercase tracking-[0.25em] transition-all duration-300 group cursor-pointer shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
-                                >
-                                    <span className="material-icons-round text-sm text-indigo-400 group-hover:text-[#00ffcc] transition-colors duration-300">visibility</span>
-                                    <span>Observatório Premium</span>
-                                </button>
-                            </section>
-
-                            {/* 2. IGNITION CONTROL ENGINE [V6.0] */}
-                            <section className="space-y-4">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white flex items-center gap-2">
-                                    <span className="material-icons-round text-sm">bolt</span>
-                                    Ignition Control
-                                </h3>
-                                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3">
-                                    <div className="flex gap-2 font-mono text-[9px] text-gray-400">
-                                        <span className="text-gray-500">&gt;</span>
-                                        <span>Engine: Active Bypass Protocol.</span>
-                                    </div>
-                                    <div className="flex gap-2 font-mono text-[9px] text-gray-400">
-                                        <span className="text-gray-500">&gt;</span>
-                                        <span>Strategy: Sniper Elite V6.0.</span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            {/* [V5.0] NOVO POSICIONAMENTO: RADAR E HISTÓRICO */}
-                            <section className="pt-2">
-                                <MarketRadarWidget signals={filteredSignals} context={pulseData?.market_context} intelligenceMessage={intelligenceMessage} setSelectedHistoryLog={setSelectedHistoryLog} />
-                            </section>
-
-                            <section className="pt-2 border-t border-white/5 flex flex-col">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-2">
-                                        <span className="material-icons-round text-sm">history</span>
-                                        Histórico da Vault
-                                    </h3>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => setHistoryPage(p => Math.max(1, p-1))} className="text-gray-500 hover:text-white cursor-pointer" disabled={historyPage === 1}>
-                                            <span className="material-icons-round text-sm">chevron_left</span>
-                                        </button>
-                                        <span className="text-[9px] font-mono font-bold text-gray-400">{historyPage}</span>
-                                        <button onClick={() => setHistoryPage(p => p+1)} className="text-gray-500 hover:text-white cursor-pointer" disabled={historyLogs.length < historyLimit}>
-                                            <span className="material-icons-round text-sm">chevron_right</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto no-scrollbar">
-                                    {loadingHistory ? (
-                                        <p className="text-[9px] text-center text-gray-600 italic">Consultando arquivo...</p>
-                                    ) : historyLogs.length === 0 ? (
-                                        <p className="text-[9px] text-center text-gray-600 italic">Vazio</p>
-                                    ) : (
-                                        historyLogs.map((log, i) => {
-                                            const isProfit = (log.pnl || 0) >= 0;
-                                            return (
-                                                <div 
-                                                    key={i} 
-                                                    onClick={() => setSelectedHistoryLog && setSelectedHistoryLog(log)} 
-                                                    className="flex justify-between items-center p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.04] active:bg-white/5 transition-all cursor-pointer"
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-bold text-white uppercase">{log.symbol}</span>
-                                                        <div className="flex items-center gap-1">
-                                                            {log.genesis_id && <span className="text-[7px] font-mono text-white/30 uppercase block">🧬 {log.genesis_id}</span>}
-                                                            {log.vision_url && <span className="material-icons-round text-[10px] text-green-400 opacity-60">visibility</span>}
-                                                        </div>
-                                                        <span className="text-[8px] text-gray-500 uppercase font-bold">{log.side}</span>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <span className={`text-xs font-mono font-black ${isProfit ? 'text-success' : 'text-red-400'}`}>
-                                                            {isProfit ? '+' : '-'}${Math.abs(log.pnl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </span>
-                                                        <div className="text-[7px] text-gray-600 uppercase font-black">{new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </section>
-                        </div>
-                    </aside>
-
-                    {/* --- COLUNA CENTRAL: TACTICAL CORE --- */}
-                    <main className="flex-1 flex flex-col min-w-0 bg-[#050505] relative z-10">
-                        {/* GRID CONTROL & CHARTS */}
-                        <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden relative">
-                            {/* UNIFIED QUANTUM HUD (NOW INTEGRATED WITH TACTICAL AREA) */}
+                    {/* --- COLUNA CENTRAL: TACTICAL CORE & CUSTÓDIA --- */}
+                    <main className="flex-1 flex flex-col min-w-0 bg-[#050505] relative z-10 h-screen overflow-hidden">
+                        {/* 1. TOP HALF: HUD & GRÁFICOS (~60% de altura) */}
+                        <div className="h-[60%] p-6 flex flex-col gap-4 overflow-hidden relative border-b border-white/5">
+                            {/* UNIFIED QUANTUM HUD */}
                             <UnifiedQuantumHUD 
                                 btc={btcCommandStatus}
                                 realAdx={realAdx}
@@ -5624,9 +5758,48 @@
                                 ))}
                             </div>
                         </div>
+
+                        {/* 2. BOTTOM HALF: PAINEL DE CUSTÓDIA HORIZONTAL (~40% de altura) */}
+                        <div className="h-[40%] p-6 flex flex-col gap-3 overflow-hidden relative bg-black/10">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white flex items-center gap-2">
+                                    <span className="material-icons-round text-sm">account_balance_wallet</span>
+                                    Painel de Custódia
+                                </h3>
+                                <span className="text-[9px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-widest">
+                                    {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length} POSIÇÕES ATIVAS
+                                </span>
+                            </div>
+                            
+                            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
+                                <PositionsTable
+                                    slots={slots}
+                                    tickers={tickers}
+                                    moonbags={moonbags}
+                                    onClosePosition={onClosePosition}
+                                    onSelectSlot={(s) => {
+                                        if (s && s.symbol) {
+                                            setFocusedAsset({
+                                                type: 'slot',
+                                                symbol: s.symbol,
+                                                pensamento: s.last_thought || `Espião operando... Foco na Escadinha. Score ${s.score}`,
+                                                entry: s.entry_price,
+                                                sl: s.current_stop,
+                                                target_price: s.target_price,
+                                                leverage: s.leverage,
+                                                side: s.side,
+                                                strategy: s.strategy,
+                                                score: s.score
+                                            });
+                                            setGridMode('1');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
                     </main>
 
-                    {/* --- COLUNA DIREITA: PAINEL OPERACIONAL --- */}
+                    {/* --- COLUNA DIREITA: PAINEL OPERACIONAL & HISTÓRICO --- */}
                     <aside className="w-[420px] border-l border-white/5 flex flex-col bg-black/20 backdrop-blur-md z-20 overflow-y-auto no-scrollbar">
                         <div className="p-6 space-y-8">
                             {/* 1. NET WORTH / BANCA */}
@@ -5702,41 +5875,7 @@
                                 </div>
                             </section>
 
-                            {/* 2. PAINEL DE CUSTÓDIA — Ultra-Diversificado (V111.0) */}
-                            <section className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white flex items-center gap-2">
-                                        <span className="material-icons-round text-sm">account_balance_wallet</span>
-                                        Custódia Ativa
-                                    </h3>
-                                    <span className="text-[9px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-widest">
-                                        {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length} POSIÇÕES
-                                    </span>
-                                </div>
-                                <PositionsTable
-                                    slots={slots}
-                                    tickers={tickers}
-                                    moonbags={moonbags}
-                                    onClosePosition={(s) => { /* integração futura de fechamento */ }}
-                                    onSelectSlot={(s) => {
-                                        if (s && s.symbol) {
-                                            setFocusedAsset({
-                                                type: 'slot',
-                                                symbol: s.symbol,
-                                                pensamento: s.last_thought || `Espião operando... Foco na Escadinha. Score ${s.score}`,
-                                                entry: s.entry_price,
-                                                sl: s.current_stop,
-                                                target_price: s.target_price,
-                                                leverage: s.leverage,
-                                                side: s.side,
-                                            });
-                                            setGridMode('1');
-                                        }
-                                    }}
-                                />
-                            </section>
-
-                            {/* 3. MOONBAG VAULT */}
+                            {/* 2. MOONBAG VAULT */}
                             <section>
                                 <div onClick={(e) => {
                                     // [V110.700] Clique cirúrgico na Moonbag → abre gráfico com trajetória completa
@@ -5764,6 +5903,77 @@
                                     }
                                 }}>
                                     <MoonbagVault moonbags={moonbags} tickers={tickers} />
+                                </div>
+                            </section>
+
+                            {/* 3. HISTÓRICO DA VAULT (Mover da coluna esquerda) */}
+                            <section className="pt-2 border-t border-white/5 flex flex-col">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-2">
+                                        <span className="material-icons-round text-sm">history</span>
+                                        Histórico da Vault
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setHistoryPage(p => Math.max(1, p-1))} className="text-gray-500 hover:text-white cursor-pointer" disabled={historyPage === 1}>
+                                            <span className="material-icons-round text-sm">chevron_left</span>
+                                        </button>
+                                        <span className="text-[9px] font-mono font-bold text-gray-400">{historyPage}</span>
+                                        <button onClick={() => setHistoryPage(p => p+1)} className="text-gray-500 hover:text-white cursor-pointer" disabled={historyLogs.length < historyLimit}>
+                                            <span className="material-icons-round text-sm">chevron_right</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto no-scrollbar">
+                                    {loadingHistory ? (
+                                        <p className="text-[9px] text-center text-gray-600 italic">Consultando arquivo...</p>
+                                    ) : historyLogs.length === 0 ? (
+                                        <p className="text-[9px] text-center text-gray-600 italic">Vazio</p>
+                                    ) : (
+                                        historyLogs.map((log, i) => {
+                                            const isProfit = (log.pnl || 0) >= 0;
+                                            return (
+                                                <div 
+                                                    key={i} 
+                                                    onClick={() => setSelectedHistoryLog && setSelectedHistoryLog(log)} 
+                                                    className="flex justify-between items-center p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.04] active:bg-white/5 transition-all cursor-pointer"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-white uppercase">{log.symbol}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            {log.genesis_id && <span className="text-[7px] font-mono text-white/30 uppercase block">🧬 {log.genesis_id}</span>}
+                                                            {log.vision_url && <span className="material-icons-round text-[10px] text-green-400 opacity-60">visibility</span>}
+                                                        </div>
+                                                        <span className="text-[8px] text-gray-500 uppercase font-bold">{log.side}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className={`text-xs font-mono font-black ${isProfit ? 'text-success' : 'text-red-400'}`}>
+                                                            {isProfit ? '+' : '-'}${Math.abs(log.pnl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                        <div className="text-[7px] text-gray-600 uppercase font-black">{new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </section>
+
+                            {/* 4. IGNITION CONTROL (Mover da coluna esquerda) */}
+                            <section className="space-y-4 pt-2 border-t border-white/5">
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white flex items-center gap-2">
+                                    <span className="material-icons-round text-sm">bolt</span>
+                                    Ignition Control
+                                </h3>
+                                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3">
+                                    <div className="flex gap-2 font-mono text-[9px] text-gray-400">
+                                        <span className="text-gray-500">&gt;</span>
+                                        <span>Engine: Active Bypass Protocol.</span>
+                                    </div>
+                                    <div className="flex gap-2 font-mono text-[9px] text-gray-400">
+                                        <span className="text-gray-500">&gt;</span>
+                                        <span>Strategy: Sniper Elite V6.0.</span>
+                                    </div>
                                 </div>
                             </section>
                         </div>
@@ -6082,7 +6292,7 @@
                 : (banca.lucro_total_acumulado || 0) + liveTotalPnL;
             // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX
             const isRealMode = banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0;
-            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 10));
+            const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 100));
             const liveEquity = hasGuardianEquity
                 ? guardianEquity
                 : (isRealMode ? (banca.saldo_real_okx || banca.saldo_total) : (baseEquity + liveTotalPnL));
@@ -6132,7 +6342,7 @@
             };
 
             // --- [V40.0] Gamificação: Casco, Escudo e Patentes ---
-            const startBankroll = vault.cycle_start_bankroll || 10;
+            const startBankroll = vault.cycle_start_bankroll || 100;
             const isDrawdown = liveEquity < startBankroll;
             const hullIntegrityPct = Math.min(100, Math.max(0, (liveEquity / startBankroll) * 100));
             const shieldPowerPct = Math.max(0, ((liveEquity - startBankroll) / startBankroll) * 100);

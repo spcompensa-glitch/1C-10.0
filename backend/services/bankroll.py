@@ -1667,23 +1667,34 @@ class BankrollManager:
                         f"Leverage={current_leverage}x, Margin={dna_margin_pct*100:.0f}%"
                     )
 
+                # [V12.0] Forçar margem de exatamente 10% da banca configurada conforme regra do usuário.
+                balance = await self._get_operating_balance()
+                margin = round(balance * 0.10, 2)
+                
+                # Garante um mínimo operacional de $2.00 para não quebrar em ordens de banca muito reduzida
+                if margin < 2.0 and balance >= 2.0:
+                    margin = 2.0
+                elif margin < 1.0:
+                    margin = 1.0
+                
+                # Calibração de leverage
+                if settings.OKX_API_KEY_MASTER:
+                    current_leverage = 50.0
+                else:
+                    from services.agents.librarian import librarian_agent
+                    lib_dna = await librarian_agent.get_asset_dna(symbol)
+                    vol_class = lib_dna.get("volatility_class", "STABLE")
+                    dna_leverage_map = {"EXTREME": 30.0, "VOLATILE": 40.0, "STABLE": 50.0}
+                    qm_leverage = float(signal_data.get("leverage", 0)) if signal_data else 0
+                    current_leverage = qm_leverage if qm_leverage > 0 else dna_leverage_map.get(vol_class, 50.0)
+                    
+                logger.info(f"💰 [MARGEM ATÔMICA 10%] Calibrado para exatamente ${margin:.2f} (Banca: ${balance:.2f}) com {current_leverage}x alavancagem.")
+                
                 qty_step = float(info.get("lotSizeFilter", {}).get("qtyStep", 0.001))
                 
-                balance = await self._get_operating_balance()
-
                 if balance < 1:
                     logger.warning(f"❌ BANKROLL BELOW MINIMUM ($1): ${balance:.2f}. Blocked.")
                     return None
-                
-                margin = await self._calculate_target_margin(balance, current_leverage, dna_margin_pct)
-                
-                if settings.OKX_API_KEY_MASTER:
-                    margin = round(balance * 0.10, 2)
-                    current_leverage = 50.0
-                    # [V110.705] Ajuste para banca pequena: garante margem mínima de $3.00 se o saldo comportar
-                    if balance < 50.0 and balance >= 3.0:
-                        margin = max(margin, 3.0)
-                    logger.info(f"💰 [OKX BANCA VIRTUAL] Calibrado slot para exactly {margin:.2f} margem (Banca: ${balance:.2f}) com {current_leverage}x alavancagem.")
 
                 cycle_status = await vault_service.get_cycle_status()
                 cycle_bankroll = cycle_status.get("cycle_start_bankroll", 0)

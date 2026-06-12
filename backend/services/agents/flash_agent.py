@@ -344,9 +344,13 @@ class FlashAgent:
         # Atualiza PnL (a cada 2s)
         self._update_pnl(slot_id, roi, slot)
 
-        # ⚡ Violação de SL — com Sentinel Inteligente
-        # Stops de LUCRO (stop além do entry) → fecha imediatamente
-        # Stops de PERDA (stop aquém do entry) → verifica GÁS, se favorável dá respiro
+        # ⚡ Checagem Preventiva de Stop Loss Atômico Fixo em -50% ROI (Regra do Usuário)
+        if roi <= -50.0:
+            logger.warning(f"🛑⚡ [FLASH-ATOMIC-SL-50] {symbol} atingiu ROI crítico de {roi:.1f}%. Fechamento imediato sem Sentinel.")
+            await self._close_position(slot_id, symbol, side, qty, f"ATOMIC_SL_50_{roi:.1f}%")
+            return
+
+        # ⚡ Violação de SL
         if current_stop > 0:
             stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
@@ -354,6 +358,7 @@ class FlashAgent:
                 if fresh_price > 0:
                     current_price = fresh_price
                     roi = self._calc_roi(entry_price, current_price, side, leverage)
+                
                 # Determina se é stop de lucro ou perda
                 is_profit_stop = (side == "buy" and current_stop >= entry_price) or \
                                  (side == "sell" and current_stop <= entry_price)
@@ -364,14 +369,10 @@ class FlashAgent:
                     await self._close_position(slot_id, symbol, side, qty, f"FLASH_PROFIT_SL_{roi:.1f}%")
                     return
                 else:
-                    # 🔴 STOP DE PERDA: Ativa Sentinel — verifica Gás antes de fechar
-                    await self._process_sentinel_stop(slot_id, symbol, side, qty, entry_price,
-                                                       current_stop, current_price, roi, slot)
+                    # 🔴 STOP DE PERDA: Fecha imediatamente sem acionar o Sentinel (Sem olhar gás/respiro)
+                    logger.warning(f"🛑⚡ [FLASH-SL-LOSS-IMMEDIATE] {symbol} SL de perda atingido! Fechando imediatamente sem Sentinel. ROI={roi:.1f}%")
+                    await self._close_position(slot_id, symbol, side, qty, f"FLASH_LOSS_SL_{roi:.1f}%")
                     return
-            else:
-                # 🟢 PREÇO RECUPEROU: Se estava sob Sentinel, limpa cache para próxima ativação ser nova
-                if slot_id in self._sentinel_cache:
-                    self._sentinel_cache.pop(slot_id, None)
 
         # 🚀 Emancipação (ROI >= 150%)
         if decision_projection.get("should_emancipate"):

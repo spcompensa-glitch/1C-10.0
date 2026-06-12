@@ -642,12 +642,13 @@ class BankrollGuardian:
             approved = False
             reasons.append("Modo Preservacao Total ativo. Novas entradas pausadas.")
         
-        # [V15.0] Exposição Progressiva: Se há slots ativos, só permite novos se TODOS os atuais estiverem protegidos (Stop no BE/Lucro)
-        if report.get("active_slots", 0) > 0 and report.get("unprotected_slots", 0) > 0:
-            approved = False
-            reasons.append(
-                f"Exposicao progressiva ativada: {report.get('unprotected_slots', 0)} slot(s) ativo(s) ainda sem protecao de Stop Loss."
-            )
+        # [V15.0] Exposição Progressiva: Removido conforme solicitação direta do usuário para liberar os 4 slots simultâneos livremente.
+        # if report.get("active_slots", 0) > 0 and report.get("unprotected_slots", 0) > 0:
+        #     approved = False
+        #     reasons.append(
+        #         f"Exposicao progressiva ativada: {report.get('unprotected_slots', 0)} slot(s) ativo(s) ainda sem protecao de Stop Loss."
+        #     )
+        pass
 
         if report.get("active_slots", 0) >= report.get("max_slots_allowed", 4):
             approved = False

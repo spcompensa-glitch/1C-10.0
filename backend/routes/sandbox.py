@@ -45,25 +45,26 @@ async def get_sandbox_stats():
         
         wins = 0
         losses = 0
-        total_pnl = 0.0
+        total_pnl_usd = 0.0  # Lucro acumulado em dólares com base em $2 de margem por trade
         strategy_stats = {}
 
         for t in trades:
+            # PnL USD de cada trade: (ROI / 100) * $2.00 de margem
+            trade_pnl_usd = (t.pnl_pct / 100.0) * 2.0
+            
+            # Somar no PnL total da banca
+            total_pnl_usd += trade_pnl_usd
+            
             if t.status != "ACTIVE":
-                # Se fechou com PnL positivo é win, senão é loss
-                pnl = t.pnl_pct
-                total_pnl += pnl
-                if pnl > 0:
+                if t.pnl_pct > 0:
                     wins += 1
                 else:
                     losses += 1
-            else:
-                total_pnl += t.pnl_pct
 
             # Agrupar estatísticas por estratégia
             strat = t.strategy or "UNKNOWN"
             if strat not in strategy_stats:
-                strategy_stats[strat] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+                strategy_stats[strat] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0}
             
             strategy_stats[strat]["total"] += 1
             if t.status != "ACTIVE":
@@ -71,10 +72,19 @@ async def get_sandbox_stats():
                     strategy_stats[strat]["wins"] += 1
                 else:
                     strategy_stats[strat]["losses"] += 1
-                strategy_stats[strat]["pnl"] += t.pnl_pct
+                strategy_stats[strat]["pnl_usd"] += trade_pnl_usd
+            else:
+                strategy_stats[strat]["pnl_usd"] += trade_pnl_usd
+
+        # ROI da banca de $100.00: (total_pnl_usd / 100.0) * 100 = total_pnl_usd
+        bank_pnl_percent = total_pnl_usd
 
         win_rate = (wins / closed * 100.0) if closed > 0 else 0.0
-        avg_pnl = (total_pnl / total) if total > 0 else 0.0
+        avg_pnl = (bank_pnl_percent / total) if total > 0 else 0.0
+
+        # Para cada estratégia, converter pnl_usd para o ROI equivalente da banca
+        for strat in strategy_stats:
+            strategy_stats[strat]["pnl"] = strategy_stats[strat]["pnl_usd"]
 
         # Encontrar melhor estratégia baseada em PnL total
         best_strategy = "N/A"
@@ -92,7 +102,7 @@ async def get_sandbox_stats():
             "losses": losses,
             "win_rate": round(win_rate, 2),
             "average_pnl": round(avg_pnl, 2),
-            "total_pnl": round(total_pnl, 2),
+            "total_pnl": round(bank_pnl_percent, 2),
             "best_strategy": best_strategy,
             "strategy_breakdown": strategy_stats
         }

@@ -881,7 +881,20 @@ class ExecutionProtocol:
         entry_fee = (qty * entry_price * ct_val) * 0.00055
         exit_fee = (qty * exit_price * ct_val) * 0.00055
         total_fee = entry_fee + exit_fee
-        return raw_pnl - total_fee
+        final_pnl = raw_pnl - total_fee
+        
+        # [V110.12.9.1] ATOMIC PNL CAP: No modo simulado (PAPER), limitamos a perda do saldo real de banca
+        # para refletir rigorosamente o limite atômico de -50% da margem real colocada na ordem.
+        from config import settings
+        if getattr(settings, "EXECUTION_MODE", "PAPER") == "PAPER":
+            # Posição aproximada da margem: notional / leverage = (qty * entry_price * ct_val) / 50.0
+            approx_margin = (qty * entry_price * ct_val) / 50.0
+            max_pnl_loss = -0.50 * approx_margin
+            if final_pnl < max_pnl_loss:
+                final_pnl = max_pnl_loss
+                logger.info(f"🛡️ [ATOMIC PNL CAP] PnL ajustado para o limite do stop de -50% da margem: ${final_pnl:.2f}")
+                
+        return final_pnl
 
 
 # Instância global

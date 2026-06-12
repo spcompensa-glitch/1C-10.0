@@ -26,13 +26,14 @@
         const admItems = [
             { to: '/', icon: 'space_dashboard', label: 'Banca' },
             { to: '/neural-chat', icon: 'psychology', label: 'Chat' },
+            { href: '/sandbox', icon: 'science', label: 'Sandbox', targetSelf: true },
             { to: '/config', icon: 'settings', label: 'Config' },
             ...(isAdmin ? [{ to: '/adm', icon: 'admin_panel_settings', label: 'Controle' }] : []),
             { to: '/kanban', icon: 'view_kanban', label: 'Kanban' },
             { href: 'https://n8n-production-8e2d4.up.railway.app', icon: 'account_tree', label: 'N8N', external: true },
         ];
 
-        const NavBtn = ({ to, href, icon, label, isActive, external, onClick }) => {
+        const NavBtn = ({ to, href, icon, label, isActive, external, targetSelf, onClick }) => {
             const base = `flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition-all w-full ${
                 isActive ? 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
                          : 'text-gray-400 hover:text-white hover:bg-white/5'}`;
@@ -41,7 +42,7 @@
                 <span className="text-[9px] font-bold tracking-widest uppercase mt-1 hidden lg:block">{label}</span>
                 <span className="text-[8px] font-bold tracking-widest uppercase mt-0.5 lg:hidden">{label}</span>
             </>);
-            if (href) return <a href={href} target="_blank" className={base} title={label} onClick={onClick}>{content}</a>;
+            if (href) return <a href={href} target={targetSelf ? "_self" : "_blank"} className={base} title={label} onClick={onClick}>{content}</a>;
             return <Link to={to} className={base} onClick={onClick}>{content}</Link>;
         };
 

@@ -5780,7 +5780,7 @@
                                     slots={slots}
                                     tickers={tickers}
                                     moonbags={moonbags}
-                                    onClosePosition={onClosePosition}
+                                    onClosePosition={(s) => { /* integração futura de fechamento */ }}
                                     onSelectSlot={(s) => {
                                         if (s && s.symbol) {
                                             setFocusedAsset({

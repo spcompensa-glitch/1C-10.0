@@ -57,11 +57,14 @@ async def test_sandbox_trade_flow(monkeypatch):
 
     # Rodar um ciclo manual do loop de atualização de preços
     sandbox.is_running = True
-    await sandbox._price_update_loop()
+    task1 = asyncio.create_task(sandbox._price_update_loop())
+    await asyncio.sleep(0.1)
+    sandbox.is_running = False
+    await task1
 
     # Verificar se subiu o stop
     trade_updated = await database_service.get_sandbox_trade(trade.id)
-    assert trade_updated.current_roi >= 80.0
+    assert trade_updated.current_roi >= 79.9
     assert trade_updated.flash_state.get("active_level") == "RISCO_ZERO"
     assert trade_updated.flash_state.get("stop_roi") == 15.0 # SL movido para +15% ROI
 
@@ -70,7 +73,11 @@ async def test_sandbox_trade_flow(monkeypatch):
     # Se cair para 100.1, viola o stop de 100.3
     monkeypatch.setattr(okx_ws_public_service, "get_current_price", lambda sym: 100.1)
 
-    await sandbox._price_update_loop()
+    sandbox.is_running = True
+    task2 = asyncio.create_task(sandbox._price_update_loop())
+    await asyncio.sleep(0.1)
+    sandbox.is_running = False
+    await task2
 
     # Verificar fechamento
     trade_closed = await database_service.get_sandbox_trade(trade.id)

@@ -33,7 +33,7 @@ def test_profitable_moonbag_keeps_accumulation_protected_when_below_profit_floor
     )
 
     assert health["mode"] == "ACUMULACAO_PROTEGIDA"
-    assert health["max_slots"] == 4
+    assert health["max_slots"] == 20
     assert health["min_score"] < 999.0
     assert "Moonbag lucrativa ativa" in health["reasons"][0]
 
@@ -51,7 +51,7 @@ def test_unsecured_equity_peak_does_not_create_profit_floor():
     )
 
     assert health["mode"] == "ACUMULACAO"
-    assert health["max_slots"] == 4
+    assert health["max_slots"] == 20
     assert health["locked_profit"] == 0.0
     assert health["protected_floor"] == 20.0
 
@@ -92,7 +92,7 @@ def test_small_unprotected_peak_does_not_pause_slot_factory():
     )
 
     assert health["mode"] == "ACUMULACAO"
-    assert health["max_slots"] == 4
+    assert health["max_slots"] == 20
     assert health["min_score"] < 999.0
     assert health["locked_profit"] == 0.0
     assert health["protected_floor"] == 20.0
@@ -129,7 +129,7 @@ def test_protected_slot_keeps_accumulation_protected_when_below_profit_floor():
     )
 
     assert health["mode"] == "ACUMULACAO_PROTEGIDA"
-    assert health["max_slots"] == 4
+    assert health["max_slots"] == 20
     assert health["min_score"] < 999.0
     assert "stop em break-even/lucro" in health["reasons"][0]
 

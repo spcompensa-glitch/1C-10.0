@@ -101,10 +101,8 @@ async def test_paper_capacity_still_blocks_when_postgres_slots_are_full(monkeypa
 
     async def fake_get_active_slots():
         return [
-            _slot(1, "DASHUSDT.P", qty=100, entry_price=35.78, status_risco="ATIVO"),
-            _slot(2, "APTUSDT", qty=10, entry_price=0.6744, status_risco="ATIVO"),
-            _slot(3, "CRVUSDT", qty=10, entry_price=0.3, status_risco="ATIVO"),
-            _slot(4, "INJUSDT", qty=10, entry_price=12.0, status_risco="ATIVO"),
+            _slot(i, f"SYM{i}USDT.P", qty=10, entry_price=1.0, status_risco="ATIVO")
+            for i in range(1, 41)
         ]
 
     async def fake_get_moonbags():

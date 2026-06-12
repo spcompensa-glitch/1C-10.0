@@ -1682,16 +1682,16 @@ class BankrollManager:
                         f"Leverage={current_leverage}x, Margin={dna_margin_pct*100:.0f}%"
                     )
 
-                 # [V125] Define margem estrita de $1.00 ou $2.00 por slot para suportar até 40 posições simultâneas
-                 is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
-                     not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
-                 )
-                 if is_ranging_mode:
-                     margin = self.margin_lateral      # $2.00
-                 else:
-                     margin = self.margin_trending     # $1.00
-                 
-                 logger.info(f"💰 [MARGEM DINA-SLOT] Definido para exatamente ${margin:.2f} (Modo Ranging: {is_ranging_mode})")
+                    # [V125] Define margem estrita de $1.00 ou $2.00 por slot para suportar até 40 posições simultâneas
+                    is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
+                        not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+                    )
+                    if is_ranging_mode:
+                        margin = self.margin_lateral      # $2.00
+                    else:
+                        margin = self.margin_trending     # $1.00
+                    
+                    logger.info(f"💰 [MARGEM DINA-SLOT] Definido para exatamente ${margin:.2f} (Modo Ranging: {is_ranging_mode})")
                 
                 # Calibração de leverage
                 if settings.OKX_API_KEY_MASTER:

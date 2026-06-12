@@ -354,7 +354,8 @@ class TestCacheSecurity:
             value = cache.get("large_key")
             assert value == large_data
     
-    def test_cache_decorator(self):
+    @pytest.mark.asyncio
+    async def test_cache_decorator(self):
         """Testa decorator de cache"""
         
         @cached(ttl=60)

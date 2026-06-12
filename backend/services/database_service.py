@@ -109,6 +109,26 @@ class Moonbag(Base):
     promoted_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class SandboxTrade(Base):
+    __tablename__ = "sandbox_trades"
+    id = Column(String, primary_key=True)
+    symbol = Column(String, nullable=False)
+    strategy = Column(String, nullable=True)
+    direction = Column(String, nullable=False)
+    entry_price = Column(Float, nullable=False)
+    current_price = Column(Float, nullable=False)
+    stop_loss = Column(Float, nullable=True)
+    target = Column(Float, nullable=True)
+    max_roi = Column(Float, default=0.0)
+    current_roi = Column(Float, default=0.0)
+    pnl_pct = Column(Float, default=0.0)
+    status = Column(String, default="ACTIVE")
+    opened_at = Column(Float, nullable=False)
+    closed_at = Column(Float, nullable=True)
+    flash_state = Column(JSON, nullable=True)
+    contract_meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class RadarPulse(Base):
     __tablename__ = "radar_pulse"
     id = Column(Integer, primary_key=True)
@@ -715,5 +735,66 @@ class DatabaseService:
             except Exception as e:
                 logger.error(f"Error getting radar pulse from database: {e}")
             return None
+
+    async def save_sandbox_trade(self, trade_data: dict):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                obj = await session.get(SandboxTrade, trade_data.get("id"))
+                if not obj:
+                    obj = SandboxTrade(**trade_data)
+                    session.add(obj)
+                    await session.commit()
+                    logger.info(f"🧪 Sandbox trade {trade_data.get('id')} saved in Postgres.")
+                    return True
+            except Exception as e:
+                logger.error(f"Error saving sandbox trade in database: {e}")
+            return False
+
+    async def get_sandbox_trades(self, active_only: bool = False):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                if active_only:
+                    q = select(SandboxTrade).where(SandboxTrade.status == "ACTIVE").order_by(desc(SandboxTrade.opened_at))
+                else:
+                    q = select(SandboxTrade).order_by(desc(SandboxTrade.opened_at))
+                res = await session.execute(q)
+                return res.scalars().all()
+            except Exception as e:
+                logger.error(f"Error getting sandbox trades: {e}")
+            return []
+
+    async def get_sandbox_trade(self, trade_id: str):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                return await session.get(SandboxTrade, trade_id)
+            except Exception as e:
+                logger.error(f"Error getting sandbox trade {trade_id}: {e}")
+            return None
+
+    async def update_sandbox_trade(self, trade_id: str, data: dict):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                obj = await session.get(SandboxTrade, trade_id)
+                if obj:
+                    for k, v in data.items():
+                        if hasattr(obj, k):
+                            setattr(obj, k, v)
+                    await session.commit()
+                    return True
+            except Exception as e:
+                logger.error(f"Error updating sandbox trade {trade_id}: {e}")
+            return False
+
+    async def clear_sandbox_trades(self):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                q = delete(SandboxTrade)
+                await session.execute(q)
+                await session.commit()
+                logger.info("🧪 Sandbox trades database table cleared.")
+                return True
+            except Exception as e:
+                logger.error(f"Error clearing sandbox trades: {e}")
+            return False
 
 database_service = DatabaseService()

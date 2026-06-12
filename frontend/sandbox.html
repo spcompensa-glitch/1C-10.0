@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1Crypten - Sandbox de Simulação</title>
+    <link rel="icon" type="image/png" href="logo10DTrasp.png?v=4">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0a0a0c',
+                        darker: '#050506',
+                        primary: '#3b82f6', // Azul elegante
+                        cyberGreen: '#00ff88', // Verde neon
+                        cyberRed: '#ff2d55', // Vermelho neon
+                        cyberOrange: '#ff9500', // Laranja neon
+                        panelBg: 'rgba(17, 17, 21, 0.75)',
+                        borderSubtle: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #050506;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08), transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(0, 255, 136, 0.03), transparent 30%);
+            background-attachment: fixed;
+        }
+        .glass-panel {
+            background: rgba(17, 17, 21, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .neon-glow-green {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+        }
+        .neon-glow-red {
+            box-shadow: 0 0 15px rgba(255, 45, 85, 0.15);
+        }
+        .neon-text-green {
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+        .neon-text-red {
+            text-shadow: 0 0 8px rgba(255, 45, 85, 0.5);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(5, 5, 6, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="text-gray-200 font-sans min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="flex-shrink-0 px-6 py-4 glass-panel border-b border-white/5 sticky top-0 z-40 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <img src="logo10DTrasp.png" alt="Logo" class="w-9 h-9 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-white font-display">1CRYPTEN <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span></h1>
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V110.903</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='/cockpit'" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm border border-white/5">
+                <span class="material-icons-round text-sm">dashboard</span> Voltar ao Cockpit
+            </button>
+            <button onclick="clearSandbox()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyberRed/10 hover:bg-cyberRed/20 text-cyberRed transition-all text-sm border border-cyberRed/20">
+                <span class="material-icons-round text-sm">delete_sweep</span> Limpar Testes
+            </button>
+        </div>
+    </header>
+
+    <!-- Dashboard Main -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+
+        <!-- Banner Explicativo -->
+        <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
+            <span class="material-icons-round text-primary text-3xl mt-1">science</span>
+            <div>
+                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais</h3>
+                <p class="text-sm text-gray-400">Este Sandbox captura **todos** os sinais gerados em tempo real pelo Radar. As ordens são simuladas infinitamente com a lógica real de trailing stop progressivo do **FlashAgent** (Break-Even, Risk-Zero, Emancipação e Moonbag) usando preços reais de WebSocket. Use este painel para analisar padrões lucrativos antes de promovê-los ao sistema principal.</p>
+            </div>
+        </div>
+
+        <!-- Estatísticas Gerais -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <!-- Card 1 -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                <span class="text-xs text-gray-500 font-mono uppercase">Trades Totais</span>
+                <span id="stat-total" class="text-3xl font-bold text-white font-mono mt-2">-</span>
+            </div>
+            <!-- Card 2 -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberOrange">
+                <span class="text-xs text-gray-500 font-mono uppercase">Em Andamento</span>
+                <span id="stat-active" class="text-3xl font-bold text-cyberOrange font-mono mt-2">-</span>
+            </div>
+            <!-- Card 3 -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberGreen">
+                <span class="text-xs text-gray-500 font-mono uppercase">Win Rate</span>
+                <span id="stat-winrate" class="text-3xl font-bold text-cyberGreen font-mono mt-2">-</span>
+            </div>
+            <!-- Card 4 -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                <span class="text-xs text-gray-500 font-mono uppercase">ROI Acumulado</span>
+                <span id="stat-pnl" class="text-3xl font-bold text-white font-mono mt-2">-</span>
+            </div>
+            <!-- Card 5 -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                <span class="text-xs text-gray-500 font-mono uppercase">Melhor Estratégia</span>
+                <span id="stat-best" class="text-lg font-bold text-primary truncate mt-2">-</span>
+            </div>
+        </div>
+
+        <!-- Planilha de Simulações -->
+        <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
+            <div class="p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h2 class="text-white font-bold text-lg">Planilha de Ordens Simuladas</h2>
+                    <p class="text-xs text-gray-500">Histórico e atualizações de posições simuladas do Radar.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="filter-status" onchange="fetchData()" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-300 focus:outline-none focus:border-primary">
+                        <option value="all">Todos os Status</option>
+                        <option value="active">Apenas Ativos</option>
+                    </select>
+                    <button onclick="exportCSV()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-all text-xs border border-primary/20 font-medium">
+                        <span class="material-icons-round text-sm">download</span> Exportar CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabela -->
+            <div class="overflow-x-auto w-full">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                            <th class="p-4">Ativo</th>
+                            <th class="p-4">Estratégia</th>
+                            <th class="p-4">Direção</th>
+                            <th class="p-4">Entrada</th>
+                            <th class="p-4">Preço Atual / Saída</th>
+                            <th class="p-4">Stop Loss</th>
+                            <th class="p-4">ROI Máx</th>
+                            <th class="p-4">ROI Atual</th>
+                            <th class="p-4">Fase Flash</th>
+                            <th class="p-4">Status</th>
+                            <th class="p-4 text-center">Histórico</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table" class="divide-y divide-white/5 text-sm">
+                        <!-- Conteúdo injetado por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Histórico de Mudanças (Flash Details) -->
+    <div id="history-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+            <div class="p-5 border-b border-white/5 flex items-center justify-between">
+                <h3 class="text-white font-bold text-lg flex items-center gap-2">
+                    <span class="material-icons-round text-primary">history</span> Histórico da Ordem <span id="modal-trade-id" class="text-xs font-mono text-gray-500"></span>
+                </h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white transition-all">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[350px] space-y-3" id="modal-content">
+                <!-- Linhas do histórico -->
+            </div>
+            <div class="p-4 bg-white/[0.02] border-t border-white/5 text-right">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts de Lógica e Render -->
+    <script>
+        let tradesData = [];
+
+        async function fetchData() {
+            try {
+                const statusFilter = document.getElementById("filter-status").value;
+                const activeOnly = statusFilter === "active";
+                
+                // Buscar estatísticas
+                const statsRes = await fetch("/api/sandbox/stats");
+                if (statsRes.ok) {
+                    const stats = await statsRes.json();
+                    document.getElementById("stat-total").innerText = stats.total_trades;
+                    document.getElementById("stat-active").innerText = stats.active_trades;
+                    document.getElementById("stat-winrate").innerText = stats.win_rate + "%";
+                    document.getElementById("stat-pnl").innerText = (stats.total_pnl > 0 ? "+" : "") + stats.total_pnl + "%";
+                    document.getElementById("stat-best").innerText = stats.best_strategy;
+                }
+
+                // Buscar trades
+                const tradesRes = await fetch(`/api/sandbox/trades?active_only=${activeOnly}`);
+                if (tradesRes.ok) {
+                    tradesData = await tradesRes.json();
+                    renderTable(tradesData);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar dados do sandbox:", err);
+            }
+        }
+
+        function renderTable(trades) {
+            const tbody = document.getElementById("trades-table");
+            if (!trades || trades.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="p-8 text-center text-gray-500 font-mono text-xs">
+                            Nenhuma simulação ativa. Aguardando sinais do Radar...
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = trades.map(t => {
+                const isLong = t.direction === "LONG";
+                const directionBadge = isLong 
+                    ? `<span class="px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen text-xs font-bold font-mono">LONG</span>`
+                    : `<span class="px-2 py-0.5 rounded bg-cyberRed/10 border border-cyberRed/20 text-cyberRed text-xs font-bold font-mono">SHORT</span>`;
+
+                const statusBadge = t.status === "ACTIVE"
+                    ? `<span class="px-2 py-0.5 rounded bg-cyberOrange/10 border border-cyberOrange/20 text-cyberOrange text-xs font-mono">ATIVO</span>`
+                    : t.status === "CLOSED_SL"
+                        ? `<span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">FECHADO SL</span>`
+                        : `<span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">FECHADO</span>`;
+
+                const pnlClass = t.pnl_pct >= 0 ? "text-cyberGreen font-bold" : "text-cyberRed font-bold";
+                const pnlSign = t.pnl_pct > 0 ? "+" : "";
+
+                const flashPhase = t.flash_state?.phase || "ESCADINHA";
+                const flashLevel = t.flash_state?.active_level || "INICIAL";
+
+                return `
+                    <tr class="hover:bg-white/[0.01] transition-all">
+                        <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
+                        <td class="p-4 font-mono text-xs text-gray-400">${t.strategy}</td>
+                        <td class="p-4">${directionBadge}</td>
+                        <td class="p-4 font-mono text-xs">${t.entry_price.toFixed(4)}</td>
+                        <td class="p-4 font-mono text-xs">${t.current_price.toFixed(4)}</td>
+                        <td class="p-4 font-mono text-xs text-cyberRed">${t.stop_loss.toFixed(4)}</td>
+                        <td class="p-4 font-mono text-xs text-cyberGreen">+${t.max_roi.toFixed(1)}%</td>
+                        <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${t.pnl_pct.toFixed(1)}%</td>
+                        <td class="p-4">
+                            <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">
+                                ${flashPhase} - ${flashLevel}
+                            </span>
+                        </td>
+                        <td class="p-4">${statusBadge}</td>
+                        <td class="p-4 text-center">
+                            <button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all">
+                                <span class="material-icons-round text-sm">visibility</span>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function showHistory(tradeId) {
+            const trade = tradesData.find(t => t.id === tradeId);
+            if (!trade) return;
+
+            document.getElementById("modal-trade-id").innerText = tradeId;
+            const content = document.getElementById("modal-content");
+            
+            const history = trade.flash_state?.history || [];
+            if (history.length === 0) {
+                content.innerHTML = `<p class="text-gray-500 font-mono text-xs text-center">Nenhum evento registrado.</p>`;
+            } else {
+                content.innerHTML = history.map((h, i) => `
+                    <div class="flex gap-3 text-xs border-l-2 border-primary/30 pl-4 py-1 relative">
+                        <div class="absolute w-2 h-2 rounded-full bg-primary -left-[5px] top-2"></div>
+                        <div class="text-gray-400 font-mono">${h}</div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById("history-modal").classList.remove("hidden");
+        }
+
+        function closeModal() {
+            document.getElementById("history-modal").classList.add("hidden");
+        }
+
+        async function clearSandbox() {
+            if (!confirm("Tem certeza que deseja limpar todo o histórico do Sandbox?")) return;
+            try {
+                const res = await fetch("/api/sandbox/clear", { method: "POST" });
+                if (res.ok) {
+                    fetchData();
+                }
+            } catch (err) {
+                console.error("Erro ao limpar sandbox:", err);
+            }
+        }
+
+        function exportCSV() {
+            if (tradesData.length === 0) {
+                alert("Sem dados para exportar.");
+                return;
+            }
+            
+            let csv = "ID,Symbol,Strategy,Direction,Entry Price,Exit Price,Max ROI %,Final PnL %,Status,Opened At\n";
+            tradesData.forEach(t => {
+                const date = new Date(t.opened_at * 1000).toISOString();
+                csv += `"${t.id}","${t.symbol}","${t.strategy}","${t.direction}",${t.entry_price},${t.current_price},${t.max_roi},${t.pnl_pct},"${t.status}","${date}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", `sandbox_trades_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Loop de atualização a cada 2 segundos
+        setInterval(fetchData, 2000);
+        fetchData();
+    </script>
+</body>
+</html>

@@ -587,6 +587,14 @@ async def lifespan(app: FastAPI):
                 await sentinel_auditor.start()
                 logger.info("🛡️ [SaaS] Sentinel Auditor ONLINE e reconciliando!")
 
+                # 🧪 5. Inicializa o Sandbox Service
+                try:
+                    from services.sandbox_service import sandbox_service
+                    sandbox_service.start()
+                    logger.info("🧪 [SaaS] Sandbox Service ONLINE e monitorando!")
+                except Exception as sandbox_err:
+                    logger.error(f"❌ [SaaS] Falha ao iniciar Sandbox Service: {sandbox_err}")
+
                 logger.info("✅ [SaaS] OKX e Hermes Broker inicializados com SUCESSO!")
             except Exception as saas_init_err:
                 logger.error(f"❌ [SaaS] Falha ao iniciar serviços OKX/Hermes: {saas_init_err}", exc_info=True)
@@ -620,6 +628,12 @@ async def lifespan(app: FastAPI):
             await okx_ws_service.stop()
             await hermes_broker_service.stop_mqtt()
             await hermes_broker_service.stop_grpc()
+            # 🧪 Desliga o Sandbox Service
+            try:
+                from services.sandbox_service import sandbox_service
+                sandbox_service.stop()
+            except Exception:
+                pass
             logger.info("✅ [SaaS] Serviços desativados com sucesso.")
         except Exception as saas_err:
             logger.error(f"Erro ao desligar serviços SaaS: {saas_err}")
@@ -729,7 +743,7 @@ if settings.SERVE_STATIC_FRONTEND:
 # =================================================================
 # ROUTES & MODULARIZATION (V110.25.0)
 # =================================================================
-from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens
+from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens, sandbox
 
 # Include Modulated Routers
 app.include_router(auth.router, prefix="/api/auth")
@@ -743,6 +757,7 @@ app.include_router(vault.router)
 app.include_router(backtest_routes.router)
 app.include_router(sentinel.router)
 app.include_router(tokens.router)  # [V2.0] OKX Credentials per User
+app.include_router(sandbox.router)
 
 # =================================================================
 # WEBSOCKET ENDPOINT (V110.175)
@@ -881,6 +896,20 @@ if settings.SERVE_STATIC_FRONTEND:
                 headers={
                     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
                     "ETag": f"1c-cockpit-{time.time()}"
+                }
+            )
+
+    @app.get("/sandbox")
+    @app.get("/sandbox.html")
+    async def serve_sandbox_page():
+        path = os.path.join(FRONTEND_DIR, "sandbox.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-sandbox-{time.time()}"
                 }
             )
 

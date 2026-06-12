@@ -1043,6 +1043,13 @@ class FirebaseService:
         }))
         self.radar_pulse_cache = data
         
+        # 🧪 Hook para o Sandbox de Sinais
+        try:
+            from services.sandbox_service import sandbox_service
+            asyncio.create_task(sandbox_service.on_radar_pulse(signals or []))
+        except Exception as sandbox_err:
+            logger.error(f"Error triggering sandbox service: {sandbox_err}")
+
         try:
             from services.websocket_service import websocket_service
             asyncio.create_task(websocket_service.update_radar_pulse(

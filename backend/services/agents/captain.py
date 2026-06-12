@@ -1141,7 +1141,7 @@ class CaptainAgent(AIOSAgent):
             is_blitz = best_signal.get("is_blitz", False) or best_signal.get("timeframe") == "30" or best_signal.get("layer") == "BLITZ"
             is_decorrelated = best_signal.get("decorrelation", {}).get("is_active", False)
 
-            # --- [V110.128] SENTINEL PROTOCOL: LATERAL BLOCK + ELITE NECTAR BYPASS ---
+            # --- [V110.172] SENTINEL PROTOCOL: LATERAL BLOCK + ELITE NECTAR BYPASS ---
             if btc_dir == "LATERAL":
                 # Busca DNA do ativo para verificar se tem permissão de Elite Bypass
                 lib_dna_lateral = await librarian_agent.get_asset_dna(symbol)
@@ -1157,18 +1157,17 @@ class CaptainAgent(AIOSAgent):
                 
                 # [V110.137] Blitz Sniper ignora o ADX Slope Guard em laterais
                 can_bypass_lateral = (is_elite_nectar or is_elite_score) and is_warming_up
-                if is_blitz or is_decorrelated or okx_rest_service.execution_mode == "PAPER":
+                if is_blitz or is_decorrelated:
                     can_bypass_lateral = True
-                    logger.info(f"⚡ [BYPASS-LATERAL] {symbol} ({side}) ignorando trava lateral Sentinel (Paper={okx_rest_service.execution_mode == 'PAPER'}, Decor={is_decorrelated}).")
+                    logger.info(f"⚡ [BYPASS-LATERAL] {symbol} ({side}) ignorando trava lateral Sentinel (Blitz={is_blitz}, Decor={is_decorrelated}).")
 
-                if True: # FORCING BYPASS FOR TESTE DE FOGO
-                    bypass_reason = "TestFire"
+                if can_bypass_lateral:
+                    bypass_reason = "EliteNectar" if is_elite_nectar else ("EliteScore" if is_elite_score else "Blitz/Decor")
                     msg = (
-                        f"💎 [V110.118 ELITE-BYPASS] {symbol} ({side}) | BTC LATERAL mas sinal de {bypass_reason}. "
+                        f"💎 [V110.172 ELITE-BYPASS] {symbol} ({side}) | BTC LATERAL mas sinal de {bypass_reason}. "
                         f"ADX-Slope: {adx_slope:+.2f}. Caçada autorizada!"
                     )
                     logger.info(msg)
-                    logger.info(f"💎 [PAPER-TEST-FIRE] Forçando bypass lateral para {symbol}.")
                     await firebase_service.log_event("SENTINELA", msg, "SUCCESS")
                 else:
                     if not is_warming_up and (is_elite_nectar or is_elite_score):
@@ -1177,7 +1176,7 @@ class CaptainAgent(AIOSAgent):
                         block_reason = f"Score {score} < 95 ou Seal {nectar_seal_lateral} insuficiente"
                         
                     msg = (
-                        f"🛡️ [V110.128 LATERAL-BLOCK] {symbol} ({side}) negado: {block_reason}. "
+                        f"🛡️ [V110.172 LATERAL-BLOCK] {symbol} ({side}) negado: {block_reason}. "
                         f"Evitando armadilha de lateralidade sem força."
                     )
                     logger.warning(msg)
@@ -1221,6 +1220,36 @@ class CaptainAgent(AIOSAgent):
                     self.active_tocaias.discard(symbol)
                     return
 
+            # --- [V110.172] MACRO BEAR MARKET SHIELD — Bloqueia LONGs em altcoins em Bear lateral ---
+            # Diagnóstico Sandbox: 0% win rate em LONGs quando dominance > 57% e ADX < 25.
+            # 100% dos ganhos vieram de SHORTs no mesmo período. Filtro obrigatório.
+            if side.lower() in ("buy", "long", "b"):
+                try:
+                    from services.agents.macro_analyst import macro_analyst
+                    btc_dominance_now = getattr(macro_analyst, '_dom_cache', 0.0)
+                    if btc_dominance_now <= 0:
+                        btc_dominance_now = 58.0  # fallback conservador
+                except Exception:
+                    btc_dominance_now = 58.0
+
+                is_bear_lateral = btc_dominance_now > 57.0 and current_btc_adx < 25.0
+                if is_bear_lateral and not is_blitz and not is_decorrelated:
+                    msg = (
+                        f"🛡️ [V110.172 MACRO-BEAR-SHIELD] {symbol} LONG bloqueado. "
+                        f"Dominância BTC={btc_dominance_now:.1f}% (>57%) + ADX={current_btc_adx:.1f} (<25). "
+                        f"Bear lateral — LONGs em altcoins com alta taxa de falha. Abortando."
+                    )
+                    logger.warning(msg)
+                    await firebase_service.log_event("SENTINELA", msg, "WARNING")
+                    if best_signal.get("id"):
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "MACRO_BEAR_SHIELD")
+                    self.active_tocaias.discard(symbol)
+                    return
+                elif is_bear_lateral and (is_blitz or is_decorrelated):
+                    logger.info(
+                        f"⚡ [MACRO-BEAR-BYPASS] {symbol} LONG | Bear lateral detectado mas Blitz/Decor permite entrada. "
+                        f"Dom={btc_dominance_now:.1f}% ADX={current_btc_adx:.1f}."
+                    )
 
             # [LIBRARIAN-EARLY-SYNC] V2.1 - Busca DNA do ativo precocemente para travar o Elite Bypass
             lib_dna = await librarian_agent.get_asset_dna(symbol)
@@ -1262,11 +1291,10 @@ class CaptainAgent(AIOSAgent):
             if armory.get("block_reason"):
                 msg = f"🛡️ [QUARTERMASTER-BLOCK] {symbol} ({side}) negado: {armory['block_reason']}"
                 logger.warning(msg)
-                logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO QUARTERMASTER PARA {symbol}.")
-                # await firebase_service.log_event("QUARTERMASTER", msg, "WARNING")
-                # await firebase_service.update_signal_outcome(best_signal.get("id"), "QUARTERMASTER_BLOCK")
-                # self.active_tocaias.discard(symbol)
-                # return
+                await firebase_service.log_event("QUARTERMASTER", msg, "WARNING")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "QUARTERMASTER_BLOCK")
+                self.active_tocaias.discard(symbol)
+                return
             
             # Injeta parâmetros de alavancagem adaptativa no sinal
             best_signal["leverage"] = armory["leverage"]

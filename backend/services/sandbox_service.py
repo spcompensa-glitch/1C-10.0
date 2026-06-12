@@ -71,8 +71,10 @@ class SandboxService:
             # Criar novo trade simulado
             trade_id = f"sb_{symbol.replace('.P', '')}_{strategy}_{int(time.time())}"
             
-            # Setup inicial do stop loss (-100% de ROI)
-            initial_stop_roi = -100.0
+            # Setup inicial do stop loss
+            # [V110.172] Stop inicial reduzido de -100% → -50% ROI para cortar risco máximo por trade.
+            # Com 50x alavancagem: -100% ROI = 2% de queda (muito amplo), -50% ROI = 1% de queda (mais seguro).
+            initial_stop_roi = -50.0
             stop_price = proj_service.raw_price_from_roi(entry_price, initial_stop_roi, side, 50.0)
 
             trade_data = {

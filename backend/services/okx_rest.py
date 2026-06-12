@@ -1334,6 +1334,9 @@ class OKXRest:
                             # Registrar no histórico
                             await bankroll_manager.register_sniper_trade(trade_data)
                             
+                            from services.firebase_service import firebase_service
+                            from services.time_utils import get_br_iso_str
+                            
                             if is_partial_real:
                                 # [V110.118] PARCIAL: Moonbag sobrevive — NÃO limpar slot
                                 # Apenas atualizar a quantidade e margem restantes na memória
@@ -1343,9 +1346,15 @@ class OKXRest:
                                     f"🌾 [PAPER-HARVEST] {symbol} | Colhido {close_qty:.6f} ({(close_qty/size)*100:.1f}%) "
                                     f"| Restante: {remaining_qty:.6f} | PNL Parcial: ${final_pnl:.2f} | ROI: {harvest_roi:.1f}%"
                                 )
+                                # Registrar no histórico
+                                if "closed_at" not in trade_data:
+                                    trade_data["closed_at"] = get_br_iso_str()
+                                if "timestamp" not in trade_data:
+                                    trade_data["timestamp"] = trade_data["closed_at"]
+                                await firebase_service.log_trade(trade_data)
+                                
                                 # Atualizar Firebase do Moonbag (se aplicável) sem resetar o slot
                                 if slot_id_val > 0:
-                                    from services.firebase_service import firebase_service
                                     # Se é um moonbag (emancipado), atualizar o registro do vault
                                     moonbags_state = await firebase_service.get_moonbags()
                                     t_moon = next((m for m in moonbags_state if self._strip_p(m.get("symbol", "")) == norm_symbol), None)
@@ -1372,10 +1381,18 @@ class OKXRest:
                                     self.paper_moonbags.remove(pos)
                                 logger.info(f"🛑 [PAPER-CLOSE] Full Close: {symbol} removido das posições.")
 
-                                if slot_id_val > 0:
-                                    from services.firebase_service import firebase_service
+                                is_emancipated = pos.get("status") == "EMANCIPATED" or slot_data.get("status") == "EMANCIPATED"
+                                if slot_id_val > 0 and not is_emancipated:
                                     await firebase_service.hard_reset_slot(slot_id_val, reason=f"PAPER_CLOSE_ATOMIC_{reason}", pnl=final_pnl, trade_data=trade_data)
                                     logger.info(f"🧹 [PAPER-SYNC] Slot {slot_id_val} resetado com audit log.")
+                                else:
+                                    # Moonbag ou slot_id_val == 0: apenas loga o trade diretamente no histórico
+                                    if "closed_at" not in trade_data:
+                                        trade_data["closed_at"] = get_br_iso_str()
+                                    if "timestamp" not in trade_data:
+                                        trade_data["timestamp"] = trade_data["closed_at"]
+                                    await firebase_service.log_trade(trade_data)
+                                    logger.info(f"🧹 [PAPER-SYNC] Moonbag/Orphan trade {symbol} logado no histórico diretamente.")
 
                         except Exception as atomic_err:
                             logger.error(f"❌ [PAPER-ATOMIC-FAIL] Critical failure during {'harvest' if is_partial_real else 'closure'} for {symbol}: {atomic_err}")
@@ -2234,6 +2251,14 @@ class OKXRest:
                                                 }
                                                 await bankroll_manager.register_sniper_trade(trade_data)
                                                 
+                                                from services.firebase_service import firebase_service
+                                                from services.time_utils import get_br_iso_str
+                                                if "closed_at" not in trade_data:
+                                                    trade_data["closed_at"] = get_br_iso_str()
+                                                if "timestamp" not in trade_data:
+                                                    trade_data["timestamp"] = trade_data["closed_at"]
+                                                await firebase_service.log_trade(trade_data)
+                                                
                                                 # Update moonbag record with new qty
                                                 await firebase_service.update_moonbag(moon_uuid, {
                                                     "qty": q - close_qty,
@@ -2265,6 +2290,13 @@ class OKXRest:
                                                 "order_id": f"{symbol.replace('.P','')}_{slot.get('opened_at', int(time.time()))}"
                                             }
                                             await bankroll_manager.register_sniper_trade(trade_data)
+                                            from services.firebase_service import firebase_service
+                                            from services.time_utils import get_br_iso_str
+                                            if "closed_at" not in trade_data:
+                                                trade_data["closed_at"] = get_br_iso_str()
+                                            if "timestamp" not in trade_data:
+                                                trade_data["timestamp"] = trade_data["closed_at"]
+                                            await firebase_service.log_trade(trade_data)
                                             await firebase_service.remove_moonbag(moon_uuid, reason=reason)
                                         elif success and not is_moonbag:
                                             # [V125] FIX: Slots táticos (BLITZ, etc) agora registram histórico no Vault

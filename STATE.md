@@ -4,7 +4,7 @@
 * **Versão:** `V110.903: Sincronização Escadinha Simplificada`
 * **Data:** 2026-06-11
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Sincronização e consolidação da nova lógica simplificada de 2 degraus da Escadinha de Elite (80% ROI -> SL +15% / 150% ROI -> Moonbag SL +110%) em toda a frota (Backend, Frontend Cockpit, Projeção e Hermes compliance). E login/registro de usuários sob processo FastAPI na porta principal.
+* **Escopo:** Sincronização e consolidação da lógica de 4 degraus da Escadinha de Elite (50% ROI -> SL +15% / 100% ROI -> SL +50% / 130% ROI -> SL +110% / 150% ROI -> Moonbag SL +110%) em toda a frota (Backend, Frontend Cockpit, Projeção e Hermes compliance). E login/registro de usuários sob processo FastAPI na porta principal.
 
 ---
 
@@ -17,9 +17,11 @@
 
 ### 2. Sniper & Trailing Stop Progressivo (Escadinha)
 * Monitoramento de altíssima frequência (ciclo de **0.2 segundos**) para capturar pavios rápidos de mercado.
-* **Gatilhos de ROI da Escadinha:**
-  * **T1 (Risk-Zero):** 80% ROI → Stop Loss movido para +15% ROI (Fôlego/Taxas)
-  * **T2 (Emancipação / Moonbags):** 150% ROI → Stop Loss movido para +110% ROI (Promovido para Moonbag)
+* **Gatilhos de ROI da Escadinha (Elite Ladder):**
+  * **T1 (Risk-Zero):** 50% ROI → Stop Loss movido para +15% ROI (Fôlego/Taxas)
+  * **T2 (Lucro Garantido):** 100% ROI → Stop Loss movido para +50% ROI
+  * **T3 (Sucesso Total):** 130% ROI → Stop Loss movido para +110% ROI
+  * **T4 (Emancipação / Moonbags):** 150% ROI → Stop Loss movido para +110% ROI (Promovido para Moonbag)
 
 ### 3. Portfolio Guardian & Algoritmo Knife-Drop
 * Máquina de estados atômica unificada monitorando o ROI consolidado da conta Master.

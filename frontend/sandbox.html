@@ -137,6 +137,52 @@
             </div>
         </div>
 
+        <!-- Painel de Insights e Padrões (Carregado Dinamicamente) -->
+        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-white font-bold text-base flex items-center gap-2">
+                        <span class="material-icons-round text-cyberGreen">analytics</span> Insights de Padrões e Mineração Estatística
+                    </h3>
+                    <p class="text-xs text-gray-500">Métricas de otimização extraídas dos trades simulados encerrados.</p>
+                </div>
+                <span id="patterns-status" class="px-2.5 py-0.5 rounded bg-white/5 text-[10px] text-gray-400 font-mono uppercase tracking-wider">Aguardando Amostras</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Direção Preferida -->
+                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                    <span class="text-xs text-gray-400 font-mono uppercase">Performance por Direção</span>
+                    <div class="space-y-2 font-mono text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-cyberGreen">LONG:</span>
+                            <span id="pattern-long-val" class="font-bold">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-cyberRed">SHORT:</span>
+                            <span id="pattern-short-val" class="font-bold">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Whitelist Sugerida -->
+                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                    <span class="text-xs text-cyberGreen font-mono uppercase">Pares Recomendados (Whitelist)</span>
+                    <div id="pattern-whitelist" class="space-y-1 text-xs font-mono">
+                        <div class="text-gray-500">Nenhum par qualificado ainda.</div>
+                    </div>
+                </div>
+
+                <!-- Blacklist Sugerida -->
+                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                    <span class="text-xs text-cyberRed font-mono uppercase">Pares Críticos (Sugerido Blacklist)</span>
+                    <div id="pattern-blacklist" class="space-y-1 text-xs font-mono">
+                        <div class="text-gray-500 font-sans">Nenhum par crítico identificado.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Planilha de Simulações -->
         <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
             <div class="p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -352,7 +398,59 @@
 
         // Loop de atualização a cada 2 segundos
         setInterval(fetchData, 2000);
+        
+        async function fetchPatterns() {
+            try {
+                const res = await fetch("/api/sandbox/patterns");
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Atualiza status da amostragem
+                    const statusEl = document.getElementById("patterns-status");
+                    statusEl.innerText = data.insights.suggested_action.includes("Continuar") ? "Coletando Dados" : "Amostragem Madura";
+                    
+                    // Direção
+                    const longVal = data.direction_performance.LONG;
+                    const shortVal = data.direction_performance.SHORT;
+                    document.getElementById("pattern-long-val").innerHTML = `${longVal.win_rate}% WR <span class="text-xs text-gray-500">(${longVal.total} trades, ${longVal.pnl >= 0 ? '+' : ''}${longVal.pnl.toFixed(1)}% PnL)</span>`;
+                    document.getElementById("pattern-short-val").innerHTML = `${shortVal.win_rate}% WR <span class="text-xs text-gray-500">(${shortVal.total} trades, ${shortVal.pnl >= 0 ? '+' : ''}${shortVal.pnl.toFixed(1)}% PnL)</span>`;
+                    
+                    // Whitelist
+                    const wlEl = document.getElementById("pattern-whitelist");
+                    if (data.recommended_pairs.length === 0) {
+                        wlEl.innerHTML = `<div class="text-gray-500">Nenhum par qualificado ainda.</div>`;
+                    } else {
+                        wlEl.innerHTML = data.recommended_pairs.slice(0, 5).map(p => `
+                            <div class="flex justify-between items-center py-0.5 border-b border-white/5">
+                                <span class="text-white font-bold">${p.symbol}</span>
+                                <span class="text-cyberGreen font-bold">+${p.pnl.toFixed(1)}% ROI <span class="text-gray-500 text-[10px]">(${p.win_rate.toFixed(0)}% WR)</span></span>
+                            </div>
+                        `).join('');
+                    }
+
+                    // Blacklist
+                    const blEl = document.getElementById("pattern-blacklist");
+                    if (data.blacklist_candidates.length === 0) {
+                        blEl.innerHTML = `<div class="text-gray-500">Nenhum par crítico identificado.</div>`;
+                    } else {
+                        blEl.innerHTML = data.blacklist_candidates.slice(0, 5).map(p => `
+                            <div class="flex justify-between items-center py-0.5 border-b border-white/5">
+                                <span class="text-gray-400 font-bold">${p.symbol}</span>
+                                <span class="text-cyberRed font-bold">${p.pnl.toFixed(1)}% ROI <span class="text-gray-500 text-[10px]">(${p.win_rate.toFixed(0)}% WR)</span></span>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao carregar insights de padrões:", err);
+            }
+        }
+        
+        // Loop de patterns a cada 5 segundos
+        setInterval(fetchPatterns, 5000);
+
         fetchData();
+        fetchPatterns();
     </script>
 </body>
 </html>

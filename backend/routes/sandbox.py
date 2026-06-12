@@ -99,6 +99,84 @@ async def get_sandbox_stats():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar estatísticas do sandbox: {str(e)}")
 
+@router.get("/patterns")
+async def get_sandbox_patterns():
+    try:
+        trades = await database_service.get_sandbox_trades(active_only=False)
+        
+        pair_stats = {}
+        direction_stats = {"LONG": {"total": 0, "wins": 0, "pnl": 0.0}, "SHORT": {"total": 0, "wins": 0, "pnl": 0.0}}
+        exit_phases = {}
+        
+        closed_trades = [t for t in trades if t.status != "ACTIVE"]
+        
+        for t in closed_trades:
+            # Stats por Par
+            sym = t.symbol
+            if sym not in pair_stats:
+                pair_stats[sym] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+            
+            pair_stats[sym]["total"] += 1
+            is_win = t.pnl_pct > 0
+            if is_win:
+                pair_stats[sym]["wins"] += 1
+            else:
+                pair_stats[sym]["losses"] += 1
+            pair_stats[sym]["pnl"] += t.pnl_pct
+            
+            # Stats por Direção
+            dir_type = t.direction
+            if dir_type in direction_stats:
+                direction_stats[dir_type]["total"] += 1
+                if is_win:
+                    direction_stats[dir_type]["wins"] += 1
+                direction_stats[dir_type]["pnl"] += t.pnl_pct
+                
+            # Fase do FlashAgent na saída
+            # Normalmente salvo no flash_state ou deduzido pelo stop_loss / pnl
+            state = t.flash_state or {}
+            phase = state.get("fase", "DESCONHECIDA")
+            exit_phases[phase] = exit_phases.get(phase, 0) + 1
+
+        # Processar Melhores e Piores Pares
+        recommended_pairs = []
+        blacklist_candidates = []
+        
+        for sym, stat in pair_stats.items():
+            wr = (stat["wins"] / stat["total"] * 100.0) if stat["total"] > 0 else 0.0
+            stat["win_rate"] = round(wr, 2)
+            stat["pnl"] = round(stat["pnl"], 2)
+            
+            # Critérios de recomendação
+            if stat["total"] >= 2:
+                if stat["pnl"] > 0 and wr >= 50.0:
+                    recommended_pairs.append({"symbol": sym, "pnl": stat["pnl"], "win_rate": wr, "total": stat["total"]})
+                elif stat["pnl"] < -10.0 or (wr < 30.0 and stat["total"] >= 3):
+                    blacklist_candidates.append({"symbol": sym, "pnl": stat["pnl"], "win_rate": wr, "total": stat["total"]})
+
+        recommended_pairs.sort(key=lambda x: x["pnl"], reverse=True)
+        blacklist_candidates.sort(key=lambda x: x["pnl"])
+
+        # Cálculo de Win Rate por Direção
+        for d, s in direction_stats.items():
+            s["win_rate"] = round((s["wins"] / s["total"] * 100.0), 2) if s["total"] > 0 else 0.0
+            s["pnl"] = round(s["pnl"], 2)
+
+        return {
+            "total_analyzed": len(closed_trades),
+            "pair_performance": pair_stats,
+            "direction_performance": direction_stats,
+            "exit_phases": exit_phases,
+            "recommended_pairs": recommended_pairs,
+            "blacklist_candidates": blacklist_candidates,
+            "insights": {
+                "best_direction": "LONG" if direction_stats["LONG"]["pnl"] > direction_stats["SHORT"]["pnl"] else "SHORT",
+                "suggested_action": "Continuar acumulando amostras. É recomendado no mínimo 50 trades fechados para aplicar a blacklist com segurança no ambiente real." if len(closed_trades) < 50 else "Amostragem estatística madura. Considere aplicar a blacklist sugerida e focar nos pares recomendados."
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao extrair padrões: {str(e)}")
+
 @router.post("/clear")
 async def clear_sandbox():
     try:
@@ -106,3 +184,4 @@ async def clear_sandbox():
         return {"success": success, "message": "Sandbox resetado com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar sandbox: {str(e)}")
+

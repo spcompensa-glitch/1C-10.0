@@ -908,7 +908,7 @@
             const guardianStatus = guardianReport?.status || 'Sincronizando';
             const guardianHealth = Number(guardianReport?.health_score ?? hullIntegrityPct ?? 0);
             const guardianMinScore = Number(guardianReport?.min_score_required ?? 0);
-            const guardianMaxSlots = Number(guardianReport?.max_slots_allowed ?? 4);
+            const guardianMaxSlots = Number(guardianReport?.max_slots_allowed ?? 40);
             const lockedProfit = Number(guardianReport?.locked_profit ?? 0);
             const allowedGiveback = Number(guardianReport?.allowed_giveback ?? 0);
             const suspendedSymbols = Array.isArray(guardianReport?.suspended_symbols) ? guardianReport.suspended_symbols : [];
@@ -991,7 +991,7 @@
                         </div>
                         <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-gray-500">
                             <span>Score mín. {guardianMinScore.toFixed(0)}</span>
-                            <span>Slots liberados {guardianMaxSlots}/4</span>
+                            <span>Slots liberados {guardianMaxSlots}</span>
                         </div>
                         {suspendedSymbols.length > 0 && (
                             <div className="text-[9px] font-black uppercase tracking-widest text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-xl px-2 py-1">
@@ -1540,19 +1540,14 @@
                     return merged;
                 };
 
+                // [V111.0] hydrateSlots: dinâmico — sem slots fantasmas fixos
+                // Simplesmente mescla os slots vindos do servidor com o estado anterior
                 const hydrateFullSlots = (rawSlots, previousSlots = []) => {
-                    const fullSlots = [];
-                    for (let i = 1; i <= 4; i++) {
-                        const incoming = rawSlots.find(s => s && s.id === i);
-                        const previous = previousSlots.find(s => s && s.id === i);
-                        fullSlots.push(
-                            mergeSlotProjection(
-                                incoming || { id: i, symbol: null, entry_price: 0, current_stop: 0, status_risco: 'LIVRE', pnl_percent: 0 },
-                                previous
-                            )
-                        );
-                    }
-                    return fullSlots;
+                    if (!rawSlots || rawSlots.length === 0) return previousSlots;
+                    return rawSlots.map(incoming => {
+                        const previous = previousSlots.find(s => s && s.id === incoming.id);
+                        return mergeSlotProjection(incoming, previous);
+                    });
                 };
 
                 const handlePacket = (e) => {
@@ -2040,7 +2035,7 @@
                                 <span className="material-icons-round text-xs text-gray-500">{current.icon}</span>
                                 <span className="text-[11px] font-bold text-gray-200 tracking-tight">
                                     {systemState.current === 'MONITORING'
-                                        ? `Posições: ${systemState.slots_occupied}/4`
+                                        ? `${systemState.slots_occupied} Posições`
                                         : current.label}
                                 </span>
                             </div>
@@ -3678,6 +3673,257 @@
                 }
             }, []);
             return intel;
+        };
+
+        // --- Sub-Component: Positions Table (V111.0 — Ultra-Diversification OKX Style) ---
+        const PositionsTable = ({ slots, tickers, moonbags, onClosePosition, onSelectSlot }) => {
+            // Filtra apenas posições ativas (com símbolo e quantidade)
+            const activeSlots = (slots || []).filter(s => 
+                s && s.symbol && Number(s.entry_price || 0) > 0
+                && !moonbags.some(m => m.symbol === s.symbol)
+            );
+
+            // Métricas do header
+            const totalMarginAllocated = activeSlots.reduce((sum, s) => sum + Number(s.entry_margin || 2.0), 0);
+            const totalPnlPct = activeSlots.length > 0 
+                ? activeSlots.reduce((sum, s) => sum + Number(s.pnl_percent || 0), 0) / activeSlots.length 
+                : 0;
+            const isRangingMode = activeSlots.some(s => (s.strategy || '').includes('DECOR'));
+            const maxSlots = isRangingMode ? 20 : 40;
+            const capacityPct = Math.min(100, (activeSlots.length / maxSlots) * 100);
+            const modeLabel = isRangingMode ? 'DECOR_HUNTER' : 'ELITE_40_MATRIX';
+            const modeColor = isRangingMode ? '#22d3ee' : '#a78bfa';
+
+            // Determina degrau ativo da Escadinha de Elite
+            const getActiveDegrau = (s) => {
+                const pnl = Number(s.pnl_percent || 0);
+                const sl_phase = (s.sl_phase || s.status_risco || '').toUpperCase();
+                if (sl_phase.includes('EMANCIP') || pnl >= 150) return { label: 'EM', color: '#fbbf24', icon: 'rocket_launch', desc: '+110%' };
+                if (sl_phase.includes('ST') || pnl >= 130) return { label: 'ST', color: '#a78bfa', icon: 'stars', desc: '+110%' };
+                if (sl_phase.includes('LG') || sl_phase.includes('LUCRO') || pnl >= 100) return { label: 'LG', color: '#34d399', icon: 'trending_up', desc: '+50%' };
+                if (sl_phase.includes('RZ') || sl_phase.includes('RISCO') || pnl >= 50) return { label: 'RZ', color: '#22d3ee', icon: 'shield', desc: '+15%' };
+                return { label: '⚡', color: '#f59e0b', icon: 'pending', desc: 'ABERTO' };
+            };
+
+            if (activeSlots.length === 0) {
+                return (
+                    <div style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '16px',
+                        padding: '20px',
+                        textAlign: 'center'
+                    }}>
+                        <span className="material-icons-round" style={{ color: 'rgba(255,255,255,0.2)', fontSize: '28px' }}>search</span>
+                        <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', marginTop: '8px' }}>
+                            Nenhuma posição ativa — Radar em operação
+                        </p>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* Header de métricas globais */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                        gap: '6px',
+                        marginBottom: '4px'
+                    }}>
+                        {/* Posições */}
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '8px 10px' }}>
+                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>POSIÇÕES</div>
+                            <div style={{ fontSize: '16px', fontWeight: 900, color: '#fff', fontFamily: 'JetBrains Mono, monospace' }}>
+                                {activeSlots.length}<span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>/{maxSlots}</span>
+                            </div>
+                        </div>
+                        {/* Margem Total */}
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '8px 10px' }}>
+                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>MARGEM</div>
+                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: 'JetBrains Mono, monospace' }}>
+                                ${totalMarginAllocated.toFixed(0)}
+                            </div>
+                        </div>
+                        {/* PnL Médio */}
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '8px 10px' }}>
+                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>PnL MÉDIO</div>
+                            <div style={{ fontSize: '14px', fontWeight: 900, color: totalPnlPct >= 0 ? '#34d399' : '#f87171', fontFamily: 'JetBrains Mono, monospace' }}>
+                                {totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(1)}%
+                            </div>
+                        </div>
+                        {/* Modo */}
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '8px 10px' }}>
+                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>MODO</div>
+                            <div style={{ fontSize: '9px', fontWeight: 900, color: modeColor, fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.5px' }}>
+                                {modeLabel}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Barra de capacidade */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ flex: 1, height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${capacityPct}%`, background: `linear-gradient(90deg, ${modeColor}, ${modeColor}88)`, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+                        </div>
+                        <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.3)', fontWeight: 700, whiteSpace: 'nowrap' }}>{capacityPct.toFixed(0)}% CAPACIDADE</span>
+                    </div>
+
+                    {/* Tabela de posições */}
+                    <div style={{
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: '14px',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Cabeçalho da tabela */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 1fr 36px',
+                            gap: '4px',
+                            padding: '8px 12px',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)'
+                        }}>
+                            {['ATIVO', 'PNL %', 'DEGRAU', 'ENTR.', 'ATUAL', 'STOP', 'ESTRATÉGIA', ''].map((h, i) => (
+                                <div key={i} style={{ fontSize: '7px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
+                            ))}
+                        </div>
+
+                        {/* Linhas de posições */}
+                        <div style={{ maxHeight: '340px', overflowY: 'auto' }} className="no-scrollbar">
+                            {activeSlots.map((s, idx) => {
+                                const cleanSym = (s.symbol || '').replace('.P','').replace('.p','').toUpperCase();
+                                const tickerPrice = tickers ? (tickers[cleanSym] || 0) : 0;
+                                const pnl = Number(s.pnl_percent || 0);
+                                const isLong = s.side === 'Buy' || s.side === 'LONG';
+                                const isProfit = pnl >= 0;
+                                const degrau = getActiveDegrau(s);
+                                const entryPrice = Number(s.entry_price || 0);
+                                const currentStop = Number(s.current_stop || 0);
+                                const leverage = Number(s.leverage || 50);
+                                const stratLabel = s.strategy_label || s.strategy || (s.slot_type || '').replace(/_/g, ' ') || 'TACTICAL';
+                                const isEven = idx % 2 === 0;
+
+                                return (
+                                    <div
+                                        key={s.id || idx}
+                                        onClick={() => onSelectSlot && onSelectSlot(s)}
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 1fr 36px',
+                                            gap: '4px',
+                                            padding: '9px 12px',
+                                            background: isEven ? 'rgba(255,255,255,0.01)' : 'transparent',
+                                            borderBottom: '1px solid rgba(255,255,255,0.03)',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.15s',
+                                            alignItems: 'center'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = isEven ? 'rgba(255,255,255,0.01)' : 'transparent'}
+                                    >
+                                        {/* Col 1: Ativo + Badge LONG/SHORT */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 900, color: '#fff', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {cleanSym.replace('USDT','')}
+                                                <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/USDT</span>
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                <span style={{
+                                                    fontSize: '7px', fontWeight: 800,
+                                                    color: isLong ? '#34d399' : '#f87171',
+                                                    background: isLong ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
+                                                    border: `1px solid ${isLong ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                                                    padding: '1px 5px', borderRadius: '4px', letterSpacing: '0.5px'
+                                                }}>
+                                                    {isLong ? 'LONG' : 'SHORT'}
+                                                </span>
+                                                <span style={{ fontSize: '7px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>{leverage}x</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Col 2: PnL % */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                            <span style={{
+                                                fontSize: '13px', fontWeight: 900,
+                                                color: isProfit ? '#34d399' : '#f87171',
+                                                fontFamily: 'JetBrains Mono, monospace'
+                                            }}>
+                                                {isProfit ? '+' : ''}{pnl.toFixed(1)}%
+                                            </span>
+                                            <span style={{ fontSize: '7px', color: 'rgba(255,255,255,0.25)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {isProfit ? '+' : ''}${((pnl / 100) * Number(s.entry_margin || 2)).toFixed(2)}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 3: Degrau */}
+                                        <div>
+                                            <span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                fontSize: '9px', fontWeight: 800,
+                                                color: degrau.color,
+                                                background: `${degrau.color}18`,
+                                                border: `1px solid ${degrau.color}40`,
+                                                padding: '2px 7px', borderRadius: '6px', letterSpacing: '0.5px'
+                                            }}>
+                                                <span className="material-icons-round" style={{ fontSize: '9px' }}>{degrau.icon}</span>
+                                                {degrau.label} {degrau.desc}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 4: Preço de Entrada */}
+                                        <div>
+                                            <span style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,255,255,0.55)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {entryPrice > 0 ? entryPrice.toFixed(entryPrice < 1 ? 5 : entryPrice < 100 ? 3 : 2) : '—'}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 5: Preço Atual */}
+                                        <div>
+                                            <span style={{ fontSize: '9px', fontWeight: 700, color: tickerPrice > 0 ? (isProfit ? '#34d399' : '#f87171') : 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {tickerPrice > 0 ? tickerPrice.toFixed(tickerPrice < 1 ? 5 : tickerPrice < 100 ? 3 : 2) : '—'}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 6: Stop atual */}
+                                        <div>
+                                            <span style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,165,0,0.8)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                                {currentStop > 0 ? currentStop.toFixed(currentStop < 1 ? 5 : currentStop < 100 ? 3 : 2) : '—'}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 7: Estratégia */}
+                                        <div>
+                                            <span style={{ fontSize: '8px', fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                                                {stratLabel.length > 14 ? stratLabel.substring(0, 14) + '…' : stratLabel}
+                                            </span>
+                                        </div>
+
+                                        {/* Col 8: Fechar posição */}
+                                        <div>
+                                            <button
+                                                onClick={e => { e.stopPropagation(); onClosePosition && onClosePosition(s); }}
+                                                title="Fechar posição"
+                                                style={{
+                                                    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                                                    borderRadius: '6px', width: '26px', height: '26px',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    cursor: 'pointer', transition: 'all 0.15s', color: '#f87171'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.25)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)'; }}
+                                            >
+                                                <span className="material-icons-round" style={{ fontSize: '13px' }}>close</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
         // --- Sub-Component: Slot Card (V110.120 - Elite Command) ---
@@ -5456,39 +5702,38 @@
                                 </div>
                             </section>
 
-                            {/* 2. ACTIVE SLOTS */}
-                            <section className="space-y-4">
+                            {/* 2. PAINEL DE CUSTÓDIA — Ultra-Diversificado (V111.0) */}
+                            <section className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white flex items-center gap-2">
-                                        <span className="material-icons-round text-sm">segment</span>
-                                        Active Slots
+                                        <span className="material-icons-round text-sm">account_balance_wallet</span>
+                                        Custódia Ativa
                                     </h3>
                                     <span className="text-[9px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-widest">
-                                        {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0 && Number(s.qty || 0) > 0).length}/4 ACTIVE
+                                        {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length} POSIÇÕES
                                     </span>
                                 </div>
-                                <div className="flex flex-col gap-2.5">
-                                    {slots.filter(s => s && s.id <= 4).map(s => (
-                                        <div key={s.id} onClick={() => {
-                                            if(s && s.symbol) {
-                                                setFocusedAsset({
-                                                    type: 'slot',
-                                                    symbol: s.symbol,
-                                                    pensamento: s.last_thought || `Espião operando... Foco na Escadinha. Score ${s.score}`,
-                                                    entry: s.entry_price,
-                                                    sl: s.current_stop,
-                                                    target_price: s.target_price,
-                                                    leverage: s.leverage,
-                                                    side: s.side,
-                                                    t1: s.t1, t2: s.t2, t3: s.t3, t4: s.t4, t5: s.t5
-                                                });
-                                                setGridMode('1');
-                                            }
-                                        }}>
-                                            <SlotCard s={s} tickers={tickers} marketRadar={marketRadar} librarianIntel={librarianIntel} compact={true} />
-                                        </div>
-                                    ))}
-                                </div>
+                                <PositionsTable
+                                    slots={slots}
+                                    tickers={tickers}
+                                    moonbags={moonbags}
+                                    onClosePosition={(s) => { /* integração futura de fechamento */ }}
+                                    onSelectSlot={(s) => {
+                                        if (s && s.symbol) {
+                                            setFocusedAsset({
+                                                type: 'slot',
+                                                symbol: s.symbol,
+                                                pensamento: s.last_thought || `Espião operando... Foco na Escadinha. Score ${s.score}`,
+                                                entry: s.entry_price,
+                                                sl: s.current_stop,
+                                                target_price: s.target_price,
+                                                leverage: s.leverage,
+                                                side: s.side,
+                                            });
+                                            setGridMode('1');
+                                        }
+                                    }}
+                                />
                             </section>
 
                             {/* 3. MOONBAG VAULT */}
@@ -5911,15 +6156,17 @@
             
             // [V110.370] Radar Intelligence & Slot Needs
             const { intelligenceMessage, filteredSignals } = useMemo(() => {
-                const activeSlotsCount = slots.filter(s => s && s.id <= 4 && s.symbol).length;
-                const freeSlotsCount = 4 - activeSlotsCount;
+                const activeSlotsCount = slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length;
+                const isRangingMode = slots.some(s => s && (s.strategy || '').includes('DECOR'));
+                const maxSlots = isRangingMode ? 20 : 40;
+                const freeSlotsCount = maxSlots - activeSlotsCount;
 
                 let msg = "";
-                if (activeSlotsCount >= 4) {
-                    msg = "SLOTS PREENCHIDOS 4/4";
+                if (activeSlotsCount >= maxSlots) {
+                    msg = `CUSTÓDIA PLENA ${activeSlotsCount}/${maxSlots}`;
                 } else {
-                    const occupiedStr = `${activeSlotsCount}/4`;
-                    msg = `CAPITÃO BUSCANDO (${occupiedStr})`;
+                    const occupiedStr = `${activeSlotsCount}/${maxSlots}`;
+                    msg = `RADAR ATIVO (${occupiedStr})`;
                 }
 
                 // Filter bestSignals based on needs
@@ -6000,23 +6247,38 @@
                                 guardianReport={guardianReport}
                             />
 
-                            {/* SEÇÃO 3: OPERAÇÕES TÁTICAS (Slots) */}
-                            <section className="space-y-1.5">
+                            {/* SEÇÃO 3: PAINEL DE CUSTÓDIA ULTRA-DIVERSIFICADO (V111.0) */}
+                            <section className="space-y-3">
                                 <div className="flex items-center justify-between px-1">
-                                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <span className="material-icons-round text-white text-sm">segment</span>
-                                        Slots Ativos
+                                    <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <span className="material-icons-round text-white text-sm">account_balance_wallet</span>
+                                        Painel de Custódia
                                     </h3>
-                                    <span className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">{slots.filter(s => s.symbol).length} / 4</span>
+                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
+                                        {slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length} POSIÇÕES ATIVAS
+                                    </span>
                                 </div>
-                                <div className="flex flex-col gap-1.5">
-                                    {slots.filter(s => {
-                                        if (!s || s.id > 4) return false;
-                                        return !moonbags.some(m => m.symbol === s.symbol);
-                                    }).map(s => (
-                                        <SlotCard key={s.id} s={s} tickers={tickers} marketRadar={marketRadar} librarianIntel={librarianIntel} compact={false} />
-                                    ))}
-                                </div>
+                                <PositionsTable
+                                    slots={slots}
+                                    tickers={tickers}
+                                    moonbags={moonbags}
+                                    onClosePosition={(s) => { /* integração futura de fechamento */ }}
+                                    onSelectSlot={(s) => {
+                                        if (s && s.symbol) {
+                                            setFocusedAsset({
+                                                type: 'slot',
+                                                symbol: s.symbol,
+                                                pensamento: s.last_thought || `Espião operando... Foco na Escadinha. Score ${s.score}`,
+                                                entry: s.entry_price,
+                                                sl: s.current_stop,
+                                                target_price: s.target_price,
+                                                leverage: s.leverage,
+                                                side: s.side,
+                                            });
+                                            setGridMode('1');
+                                        }
+                                    }}
+                                />
                             </section>
 
                             {/* SEÇÃO 4: MOONBAG PROTOCOL (Ghost Battalion) */}

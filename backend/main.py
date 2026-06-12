@@ -232,12 +232,16 @@ async def lifespan(app: FastAPI):
                 from services.agents.blitz_sniper import blitz_sniper_agent # [V110.137] Blitz Active
 
                 # 🆕 [V4.0 DECENTRALIZATION] Slot Operator Agents (The New Core)
+                # [V111.0] Os primeiros 4 agentes de slot ficam em memória ativa para monitoramento rápido
+                # Slots adicionais (5-40) são gerenciados diretamente via DB sem agente dedicado em memória
                 from services.agents.slot_operator import SlotOperatorAgent
-                for sid in range(1, 5):
+                _initial_slot_agents = min(4, settings.MAX_SLOTS)
+                for sid in range(1, _initial_slot_agents + 1):
                     agent = SlotOperatorAgent(sid)
                     await kernel.register_agent(agent)
                     await agent.start()
                     logger.info(f"🚀 [SLOT-{sid}] Agente de Operação ONLINE — Monitoramento isolado ativo.")
+                logger.info(f"🎯 [V111.0] Pool de {_initial_slot_agents} agentes ativos. Sistema suporta até {settings.MAX_SLOTS} slots simultâneos.")
 
                 # 🆕 [V110.32.1] Oracle Agent - Data Integrity Guard
                 from services.agents.oracle_agent import oracle_agent

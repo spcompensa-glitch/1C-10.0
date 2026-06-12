@@ -135,7 +135,7 @@ async def get_slots():
     except Exception as e:
         logger.error(f"Error fetching slots: {e}")
     
-    return [{"id": i, "symbol": None, "entry_price": 0, "current_stop": 0, "side": None, "sl_phase": "IDLE", "sl_phase_icon": "⏳"} for i in range(1, 5)]
+    return []  # [V111.0] Ultra-Diversification: sem slots fantasma fixos, retorna vazio se não houver posições
 
 @router.get("/signals")
 async def get_signals(min_score: int = 0, limit: int = 20):

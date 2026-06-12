@@ -107,11 +107,15 @@ class Settings(BaseSettings):
 
     # [V110.550] Anti-Slippage Engine (Random Jitter)
     ANTI_SLIPPAGE_MAX_JITTER_MS: int = int(os.getenv("ANTI_SLIPPAGE_MAX_JITTER_MS", 350))
-    MAX_SLOTS: int = 4  # V12.0: Quad Slot System - Supports up to 4 concurrent trades
-    RISK_CAP_PERCENT: float = 0.40  # V12.0: Supports up to 4 slots (4 x 10% = 40% Max Exposure)
+    MAX_SLOTS: int = 40            # [V111.0] Ultra-Diversification: up to 40 concurrent trades
+    MAX_SLOTS_LATERAL: int = 20    # [V111.0] DECOR_HUNTER mode: up to 20 pairs (ranging market)
+    MAX_SLOTS_TRENDING: int = 40   # [V111.0] ELITE_40_MATRIX mode: up to 40 pairs (trending market)
+    MARGIN_PER_TRADE_LATERAL: float = 2.0   # [V111.0] $2.00 per pair in ranging (20 x $2 = $40 = 40% banca)
+    MARGIN_PER_TRADE_TRENDING: float = 1.0  # [V111.0] $1.00 per pair in trending (40 x $1 = $40 = 40% banca)
+    RISK_CAP_PERCENT: float = 0.40  # 40% da banca alocada no total (invariante)
     LEVERAGE: int = 50
-    LEVERAGE_RANGING: int = 20    # [V86.1] For Lateral Markets
-    LEVERAGE_TRENDING: int = 50   # [V86.1] For Trending Markets
+    LEVERAGE_RANGING: int = 50    # [V111.0] 50x em todos os cenários (margem pequena)
+    LEVERAGE_TRENDING: int = 50   # [V111.0] 50x em todos os cenários
     INITIAL_SLOTS: int = 1
     BREAKEVEN_TRIGGER_PERCENT: float = 5.0 # Increased to 5% ROI to avoid premature exits
     WIN_ROI_THRESHOLD: float = 80.0 # V11.0: ROI mínimo para contar como WIN no ciclo 1/10

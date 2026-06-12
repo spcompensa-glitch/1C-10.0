@@ -24,10 +24,15 @@ def get_slot_type(slot_id: int) -> str:
 
 class BankrollManager:
     def __init__(self):
-        self.max_slots = settings.MAX_SLOTS
-        self.risk_cap = settings.RISK_CAP_PERCENT 
-        self.margin_per_slot = 0.10 # [V12.0] 10% per slot (Combined = 40% Max)
+        self.max_slots = settings.MAX_SLOTS  # [V111.0] até 40 slots
+        self.risk_cap = settings.RISK_CAP_PERCENT  # 40% da banca (invariante)
+        self.margin_per_slot = 0.10  # legacy (substituído por margin_per_trade dinâmico)
         self.initial_slots = 1
+        # [V111.0] Margem por trade muda conforme regime de mercado
+        self.margin_lateral = settings.MARGIN_PER_TRADE_LATERAL   # $2.00 — DECOR_HUNTER
+        self.margin_trending = settings.MARGIN_PER_TRADE_TRENDING  # $1.00 — ELITE_40_MATRIX
+        self.max_slots_lateral = settings.MAX_SLOTS_LATERAL    # 20 pares em lateral
+        self.max_slots_trending = settings.MAX_SLOTS_TRENDING  # 40 pares em tendência
         self.last_log_times = {} # Cooldown for logs
         # V4.2: Sniper TP = +2% price = 100% ROI @ 50x
         self.sniper_tp_percent = 0.02  # 2% price movement
@@ -1157,16 +1162,26 @@ class BankrollManager:
                 await firebase_service.log_event("Bankroll", f"🛑 CRITICAL: Zero Equity Shield Active (${balance:.2f}). System Paused.", "CRITICAL")
                 return None
 
-            max_total_slots = 1 if self.strict_single_order_mode else 4
-            max_at_risk_slots = 4  # [V53.0] Default
-            
-            if balance < 10.0:
-                max_total_slots = 2  # [V110.802.6] Menos de $10, max 2 slots
+            # [V111.0] ULTRA-DIVERSIFICATION: slots e margem dinâmicos por regime de mercado
+            # O regime é determinado pelo campo market_regime do slot_type ou pelo sinal
+            is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
+                not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+            )
+            if self.strict_single_order_mode:
+                max_total_slots = 1
+                max_at_risk_slots = 1
+            elif balance < 10.0:
+                max_total_slots = 2  # [V110.802.6] Banca crítica: máx 2 slots
                 max_at_risk_slots = 2
                 logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
+            elif is_ranging_mode:
+                max_total_slots = self.max_slots_lateral   # 20 pares — DECOR_HUNTER
+                max_at_risk_slots = self.max_slots_lateral
+                logger.info(f"🛡️ [V111.0] DECOR_HUNTER Mode: Max Slots={max_total_slots} | Margin=$2.00/par | LiveEquity=${balance:.2f}")
             else:
-                max_at_risk_slots = 4  # [V110.802.6] Todos os 4 slots liberados
-                logger.info(f"🛡️ [V110.802.6] Full Slots Mode: Max At-Risk=4 | LiveEquity=${balance:.2f}")
+                max_total_slots = self.max_slots_trending  # 40 pares — ELITE_40_MATRIX
+                max_at_risk_slots = self.max_slots_trending
+                logger.info(f"🛡️ [V111.0] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | Margin=$1.00/par | LiveEquity=${balance:.2f}")
 
             if at_risk_count >= max_at_risk_slots:
                 logger.warning(f"🚫 [V43.2] Dual-Slot BLOCK: At least {at_risk_count} position(s) unprotected. Waiting for Risk-Zero.")
@@ -1261,24 +1276,22 @@ class BankrollManager:
                     logger.info(f"🚫 V29.0 [PAPER]: {occupied_count}/{max_total_slots} paper positions ativas.")
                     return None
                 
-                # [PAPER] BYPASS: Ignite ANY available slot from 1 to 4
-                for i in range(1, 5):
-                    slot = next((s for s in slots if s.get("id") == i), None)
-                    slot_symbol = (slot.get("symbol") or "").replace(".P", "").upper() if slot else None
-                    slot_status = (slot.get("status_risco") or slot.get("status")) if slot else None
-                    is_ghost = slot and slot.get("symbol") and (float(slot.get("qty", 0)) <= 0 or float(slot.get("entry_price", 0)) <= 0)
-                    if not slot or not slot_symbol or is_ghost or slot_status == "EMANCIPATED":
-                        if not any(k[1] == i for k in self.pending_slots):
-                            logger.info(f"💎 [PAPER-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type}.")
-                            return i
+                # [V111.0] PAPER: Ignite ANY available slot dynamically (up to max_total_slots)
+                # Slots are dynamic — find the first free ID (not in current active set)
+                active_ids = {int(s.get("id")) for s in slots if s.get("symbol") and s.get("status_risco") != "EMANCIPATED"}
+                pending_ids = {k[1] for k in self.pending_slots}
+                for i in range(1, max_total_slots + 1):
+                    if i not in active_ids and i not in pending_ids:
+                        logger.info(f"💎 [PAPER-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type} (max={max_total_slots}).")
+                        return i
 
-                logger.info(f"[PAPER] Todos os slots disponiveis ocupados.")
+                logger.info(f"[PAPER] Todos os {max_total_slots} slots disponíveis ocupados.")
                 return None
             
-            # REAL MODE: Original Firestore-based logic
+            # REAL MODE: Dynamic slot logic (V111.0)
             # slots already pre-fetched at the top
-            # Support for checking slots 1 to 4
-            slot_map = {s["id"]: s for s in slots if s["id"] in [1, 2, 3, 4]}
+            # Suporte dinâmico de 1 a max_total_slots (até 40)
+            slot_map = {s["id"]: s for s in slots}
             
             # Check if this symbol is already pending
             if symbol:
@@ -1325,15 +1338,15 @@ class BankrollManager:
                 logger.info(f"🚫 V110.0: Limite de {max_total_slots} trades táticos atingido ({occupied_count}). Moonbags não contam.")
                 return None
 
-            # [REAL] BYPASS: Ignite ANY available slot from 1 to 4
-            for i in range(1, 5):
-                slot_data = slot_map.get(i)
-                is_ghost = slot_data and slot_data.get("symbol") and (float(slot_data.get("qty", 0)) <= 0 or float(slot_data.get("entry_price", 0)) <= 0)
-                if not slot_data or not slot_data.get("symbol") or is_ghost or slot_data.get("status") == "EMANCIPATED" or slot_data.get("status_risco") == "EMANCIPATED":
-                    logger.info(f"💎 [REAL-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type}.")
+            # [V111.0] REAL: Ignite ANY available slot dynamically (up to max_total_slots)
+            active_ids = {int(s["id"]) for s in slots if s.get("symbol") and float(s.get("qty", 0)) > 0 and s.get("status") != "EMANCIPATED"}
+            pending_ids = {k[1] for k in self.pending_slots}
+            for i in range(1, max_total_slots + 1):
+                if i not in active_ids and i not in pending_ids:
+                    logger.info(f"💎 [REAL-TEST-FIRE] Forçando Slot {i} disponível para {slot_type} (max={max_total_slots}).")
                     return i
 
-            logger.info(f"[REAL] Todos os slots disponiveis ocupados.")
+            logger.info(f"[REAL] Todos os {max_total_slots} slots disponíveis ocupados.")
             return None
         
         except Exception as e:

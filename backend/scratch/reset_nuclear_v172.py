@@ -56,10 +56,10 @@ async def reset_full():
                 opened_at = 0.0
         """))
         
-        print("4. Resetando Banca para $20.00 (banca de teste)...")
+        print("4. Resetando Banca para $100.00...")
         await conn.execute(text("""
             UPDATE banca_status SET 
-                saldo_total = 20.0, 
+                saldo_total = 100.0, 
                 risco_real_percent = 0.0, 
                 slots_disponiveis = 4, 
                 status = 'FACTORY_RESET'
@@ -78,7 +78,7 @@ async def reset_full():
                 cycle_losses_count = 0,
                 accumulated_vault = 0.0,
                 used_symbols_in_cycle = '[]'::jsonb,
-                cycle_start_bankroll = 20.0,
+                cycle_start_bankroll = 100.0,
                 next_entry_value = 0.0,
                 mega_cycle_wins = 0,
                 mega_cycle_total = 0,

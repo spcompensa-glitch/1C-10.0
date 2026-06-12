@@ -1682,12 +1682,16 @@ class BankrollManager:
                         f"Leverage={current_leverage}x, Margin={dna_margin_pct*100:.0f}%"
                     )
 
-                balance = await self._get_operating_balance()
-                margin = round(balance * 0.10, 2)
-                
-                # Garante um mínimo operacional de $1.00 para não quebrar em ordens de banca extremamente reduzida
-                if margin < 1.0:
-                    margin = 1.0
+                 # [V125] Define margem estrita de $1.00 ou $2.00 por slot para suportar até 40 posições simultâneas
+                 is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
+                     not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+                 )
+                 if is_ranging_mode:
+                     margin = self.margin_lateral      # $2.00
+                 else:
+                     margin = self.margin_trending     # $1.00
+                 
+                 logger.info(f"💰 [MARGEM DINA-SLOT] Definido para exatamente ${margin:.2f} (Modo Ranging: {is_ranging_mode})")
                 
                 # Calibração de leverage
                 if settings.OKX_API_KEY_MASTER:

@@ -3789,6 +3789,7 @@
             const leverageNow = Number(s.leverage || 50);
             const isLongSlot = s.side === 'Buy' || s.side === 'LONG';
             const entryNow = Number(s.entry_price || 0);
+            const currentStopNow = Number(s.current_stop || s.stop_loss || 0);
             const stopRoiNow = entryNow > 0 && currentStopNow > 0
                 ? (() => {
                     const computed = (isLongSlot ? ((currentStopNow / entryNow) - 1) : (1 - (currentStopNow / entryNow))) * leverageNow * 100;

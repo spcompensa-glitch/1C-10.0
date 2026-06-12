@@ -3789,10 +3789,14 @@
             const leverageNow = Number(s.leverage || 50);
             const isLongSlot = s.side === 'Buy' || s.side === 'LONG';
             const entryNow = Number(s.entry_price || 0);
-            const currentStopNow = Number(s.current_stop || s.stop_loss || 0);
             const stopRoiNow = entryNow > 0 && currentStopNow > 0
-                ? (isLongSlot ? ((currentStopNow / entryNow) - 1) : (1 - (currentStopNow / entryNow))) * leverageNow * 100
-                : null;
+                ? (() => {
+                    const computed = (isLongSlot ? ((currentStopNow / entryNow) - 1) : (1 - (currentStopNow / entryNow))) * leverageNow * 100;
+                    // Se o stop for menor ou igual ao de entrada (prejuízo) e o Flash ainda não tiver subido ele para breakeven,
+                    // mostramos o stop atômico de -50% por padrão.
+                    return computed <= 0 ? -50.0 : computed;
+                })()
+                : -50.0;
             const recommendedStopNow = Number(projection.recommended_stop || 0);
             const recommendedStopLabel = recommendedStopNow > 0 ? `$${formatPrice(recommendedStopNow)}` : 'AGUARDANDO';
             const stopImprovementEpsilon = entryNow > 0 ? Math.max(entryNow * 0.000001, 0.00000001) : 0.00000001;
@@ -3808,7 +3812,7 @@
             const stopTargetRoi = stopTargetLevel ? Number(stopTargetLevel.stop_roi || 0) : null;
             const stopTargetLabel = stopTargetLevel
                 ? `${stopTargetLevel.name || 'STOP'} ${stopTargetRoi >= 0 ? '+' : ''}${stopTargetRoi.toFixed(0)}%`
-                : (stopRoiNow !== null ? `${stopRoiNow >= 0 ? '+' : ''}${stopRoiNow.toFixed(0)}%` : 'AGUARDANDO');
+                : `${stopRoiNow >= 0 ? '+' : ''}${stopRoiNow.toFixed(0)}%`;
             const nextJourneyLabel = nextLevel
                 ? `${nextLevel.name || 'ALVO'} ${Number(nextLevel.trigger_roi || 0).toFixed(0)}%`
                 : (projectionRoi >= 150 ? 'MOONBAG TRAIL' : 'EMANCIPACAO 150%');
@@ -4445,7 +4449,26 @@
                         } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {
                             points = { entry: parseFloat(focusedAsset.entry), sl: parseFloat(focusedAsset.sl), side: focusedAsset.side, leverage: focusedAsset.leverage || 50 };
                         } else if (activeSlot) {
-                            points = { entry: parseFloat(activeSlot.entry_price), sl: parseFloat(activeSlot.current_stop || activeSlot.stop_loss), side: activeSlot.side, leverage: activeSlot.leverage || 50, projection: activeSlot.projection };
+                            const isLong = activeSlot.side === 'Buy' || activeSlot.side === 'LONG';
+                            const leverage = activeSlot.leverage || 50;
+                            const entry = parseFloat(activeSlot.entry_price || 0);
+                            let sl = parseFloat(activeSlot.current_stop || activeSlot.stop_loss || 0);
+                            
+                            // Se o stop for zero ou for um stop de perda (ROI <= 0), visualmente forçamos no gráfico a linha do stop atômico em -50%
+                            const computedRoi = entry > 0 && sl > 0 
+                                ? (isLong ? ((sl / entry) - 1) : (1 - (sl / entry))) * leverage * 100
+                                : -100;
+                            
+                            if (sl <= 0 || computedRoi <= 0) {
+                                // -50% ROI do preço de entrada:
+                                // ROI = ((SL - Entry)/Entry) * leverage * 100 = -50
+                                // (SL - Entry)/Entry = -0.5 / leverage
+                                // SL = Entry * (1 - 0.5/leverage) para LONG, Entry * (1 + 0.5/leverage) para SHORT
+                                const slOffset = 0.5 / leverage;
+                                sl = isLong ? (entry * (1 - slOffset)) : (entry * (1 + slOffset));
+                            }
+                            
+                            points = { entry: entry, sl: sl, side: activeSlot.side, leverage: leverage, projection: activeSlot.projection };
                         }
 
                         // 3. Render [V110.658] STOP LOSS DINÂMICO (Grid View)

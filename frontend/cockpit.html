@@ -4248,7 +4248,7 @@
                         t1: activeSlot.t1, t2: activeSlot.t2, t3: activeSlot.t3, t4: activeSlot.t4, t5: activeSlot.t5,
                         projection: activeSlot.projection
                     };
-                } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase()) {
+                } else if (focusedAsset && normalizeTradeSymbol(focusedAsset.symbol) === normalizeTradeSymbol(localSymbol)) {
                     // Fallback para focusedAsset se não for um slot (ex: Moonbag sem slot ativo)
                     const sideUpper = (focusedAsset.side || "").toUpperCase().trim();
                     const isLong = ['BUY', 'LONG', 'LONGUSDT', 'B', 'L'].includes(sideUpper);
@@ -4259,7 +4259,8 @@
                         leverage: focusedAsset.leverage || 50, 
                         isLong,
                         target_price: focusedAsset.target_price,
-                        t1: focusedAsset.t1, t2: focusedAsset.t2, t3: focusedAsset.t3, t4: focusedAsset.t4, t5: focusedAsset.t5
+                        t1: focusedAsset.t1, t2: focusedAsset.t2, t3: focusedAsset.t3, t4: focusedAsset.t4, t5: focusedAsset.t5,
+                        isMoonbag: focusedAsset.type === 'moonbag'
                     };
                 }
 
@@ -4460,8 +4461,14 @@
                                 isMoonbag: true,
                                 projection: activeMoon.projection
                             };
-                        } else if (focusedAsset && focusedAsset.symbol.replace('.P','').replace('.p','') === localSymbol) {
-                            points = { entry: parseFloat(focusedAsset.entry), sl: parseFloat(focusedAsset.sl), side: focusedAsset.side, leverage: focusedAsset.leverage || 50 };
+                        } else if (focusedAsset && normalizeTradeSymbol(focusedAsset.symbol) === normalizeTradeSymbol(localSymbol)) {
+                            points = { 
+                                entry: parseFloat(focusedAsset.entry), 
+                                sl: parseFloat(focusedAsset.sl), 
+                                side: focusedAsset.side, 
+                                leverage: focusedAsset.leverage || 50,
+                                isMoonbag: focusedAsset.type === 'moonbag'
+                            };
                         } else if (activeSlot) {
                             const isLong = activeSlot.side === 'Buy' || activeSlot.side === 'LONG';
                             const leverage = activeSlot.leverage || 50;

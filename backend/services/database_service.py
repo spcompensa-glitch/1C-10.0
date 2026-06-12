@@ -276,8 +276,8 @@ class DatabaseService:
                 # [V125 FIX] Força saldo_total e configured_balance no modo PAPER
                 from config import settings
                 if settings.OKX_EXECUTION_MODE == "PAPER":
-                    res["saldo_total"] = settings.OKX_SIMULATED_BALANCE
-                    res["configured_balance"] = settings.OKX_SIMULATED_BALANCE
+                    res["saldo_total"] = 100.0
+                    res["configured_balance"] = 100.0
                 return res
             return {"saldo_total": 0, "risco_real_percent": 0, "slots_disponiveis": 4, "status": "UNKNOWN"}
 

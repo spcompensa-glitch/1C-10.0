@@ -21,13 +21,31 @@ async def reset_full():
     
     async with database_service.engine.begin() as conn:
         print("1. Limpando Histórico de Trades, Moonbags e Genesis...")
-        await conn.execute(text("DELETE FROM trade_history"))
-        await conn.execute(text("DELETE FROM moonbags"))
-        await conn.execute(text("DELETE FROM order_genesis"))
-        await conn.execute(text("DELETE FROM vault_withdrawals"))
+        try:
+            await conn.execute(text("DELETE FROM trade_history"))
+        except Exception as e:
+            print(f"   (Ignorado) trade_history: {e}")
+            
+        try:
+            await conn.execute(text("DELETE FROM moonbags"))
+        except Exception as e:
+            print(f"   (Ignorado) moonbags: {e}")
+            
+        try:
+            await conn.execute(text("DELETE FROM order_genesis"))
+        except Exception as e:
+            print(f"   (Ignorado) order_genesis: {e}")
+            
+        try:
+            await conn.execute(text("DELETE FROM vault_withdrawals"))
+        except Exception as e:
+            print(f"   (Ignorado) vault_withdrawals: {e}")
         
         print("2. Limpando Sandbox Lab (todos os trades simulados)...")
-        await conn.execute(text("DELETE FROM sandbox_trades"))
+        try:
+            await conn.execute(text("DELETE FROM sandbox_trades"))
+        except Exception as e:
+            print(f"   (Ignorado) sandbox_trades: {e}")
         
         print("3. Resetando Slots...")
         await conn.execute(text("""
@@ -45,14 +63,11 @@ async def reset_full():
                 status_risco = 'LIVRE',
                 order_id = NULL,
                 genesis_id = NULL,
-                symbol_adx = 0.0,
                 market_regime = NULL,
                 unified_confidence = 50,
                 fleet_intel = NULL,
                 pensamento = NULL,
-                timestamp_last_intel = 0.0,
                 sentinel_first_hit_at = 0.0,
-                timestamp_last_update = 0.0,
                 opened_at = 0.0
         """))
         
@@ -66,29 +81,35 @@ async def reset_full():
         """))
         
         print("5. Resetando Vault Cycles...")
-        await conn.execute(text("""
-            UPDATE vault_cycles SET 
-                sniper_wins = 0, 
-                cycle_number = 1, 
-                cycle_profit = 0.0, 
-                cycle_losses = 0.0,
-                vault_total = 0.0,
-                total_trades_cycle = 0,
-                cycle_gains_count = 0,
-                cycle_losses_count = 0,
-                accumulated_vault = 0.0,
-                used_symbols_in_cycle = '[]'::jsonb,
-                cycle_start_bankroll = 100.0,
-                next_entry_value = 0.0,
-                mega_cycle_wins = 0,
-                mega_cycle_total = 0,
-                mega_cycle_number = 1,
-                mega_cycle_profit = 0.0,
-                order_ids_processed = '[]'::jsonb
-        """))
+        try:
+            await conn.execute(text("""
+                UPDATE vault_cycles SET 
+                    sniper_wins = 0, 
+                    cycle_number = 1, 
+                    cycle_profit = 0.0, 
+                    cycle_losses = 0.0,
+                    vault_total = 0.0,
+                    total_trades_cycle = 0,
+                    cycle_gains_count = 0,
+                    cycle_losses_count = 0,
+                    accumulated_vault = 0.0,
+                    used_symbols_in_cycle = '[]'::jsonb,
+                    cycle_start_bankroll = 100.0,
+                    next_entry_value = 0.0,
+                    mega_cycle_wins = 0,
+                    mega_cycle_total = 0,
+                    mega_cycle_number = 1,
+                    mega_cycle_profit = 0.0,
+                    order_ids_processed = '[]'::jsonb
+            """))
+        except Exception as e:
+            print(f"   (Ignorado) vault_cycles: {e}")
         
         print("6. Limpando System State (Paper Engine)...")
-        await conn.execute(text("DELETE FROM system_state"))
+        try:
+            await conn.execute(text("DELETE FROM system_state"))
+        except Exception as e:
+            print(f"   (Ignorado) system_state: {e}")
 
         print("7. Verificando estado final...")
         r = await conn.execute(text("SELECT COUNT(*) FROM sandbox_trades"))

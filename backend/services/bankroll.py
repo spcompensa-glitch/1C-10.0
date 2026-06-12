@@ -1183,9 +1183,11 @@ class BankrollManager:
                 max_at_risk_slots = self.max_slots_trending
                 logger.info(f"🛡️ [V111.0] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | Margin=$1.00/par | LiveEquity=${balance:.2f}")
 
-            if at_risk_count >= max_at_risk_slots:
-                logger.warning(f"🚫 [V43.2] Dual-Slot BLOCK: At least {at_risk_count} position(s) unprotected. Waiting for Risk-Zero.")
-                return None
+            # [V125] Desativado bloqueio por posições sem stop para permitir preenchimento em escala de até 40 slots
+            # if at_risk_count >= max_at_risk_slots:
+            #     logger.warning(f"🚫 [V43.2] Dual-Slot BLOCK: At least {at_risk_count} position(s) unprotected. Waiting for Risk-Zero.")
+            #     return None
+            pass
 
             # [V29.0] PAPER MODE: Use local paper positions as source of truth
             if okx_rest_service.execution_mode == "PAPER":

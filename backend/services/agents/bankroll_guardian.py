@@ -115,12 +115,12 @@ class BankrollGuardian:
         reason = str(trade.get("close_reason") or "").upper()
 
         if consecutive_losses >= 2:
-            return 24 * 3600
+            return 15 * 60  # Reduzido de 24h para 15 minutos para re-entradas rápidas
         if "STOP" in reason or roi <= -100.0 or pnl <= -3.0:
-            return 6 * 3600
+            return 15 * 60  # Reduzido de 6h para 15 minutos
         if roi <= -50.0 or pnl <= -1.0:
-            return 2 * 3600
-        return 30 * 60
+            return 10 * 60  # Reduzido de 2h para 10 minutos
+        return 5 * 60      # Reduzido de 30m para 5 minutos
 
     def _build_symbol_memory(self, history: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         memory: Dict[str, Dict[str, Any]] = {}

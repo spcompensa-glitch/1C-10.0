@@ -3062,15 +3062,13 @@ class SignalGenerator:
                     except Exception as dv_err:
                         logger.error(f"Erro ao avaliar setup DVAP para {symbol}: {dv_err}")
 
-                    # 🛡️ [MODO PRESERVAÇÃO DE CAPITAL]
-                    # Se o ADX do BTC estiver abaixo de 22 (Mercado Morto), ativamos o modo defensivo
-                    # e permitimos apenas operações do setup de reversão estrutural DVAP.
-                    m_adx_check = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    if m_adx_check > 0 and m_adx_check < 22.0 and not is_dvap_play:
-                        reason = f"MODO PRESERVAÇÃO DE CAPITAL: M-ADX ({m_adx_check:.1f} < 22) indica Mercado Morto. Apenas sinais DVAP são permitidos."
-                        logger.warning(f"🚫 [PRESERVAÇÃO-REJECT] {symbol} rejeitado: {reason}")
-                        self.recent_rejections.append({"symbol": symbol, "reason": "MERCADO_MORTO_PRESERVAÇÃO", "timestamp": time.time()})
-                        return None
+                    # 🛡️ [MODO PRESERVAÇÃO DE CAPITAL] - Desativado para permitir a operação de todos os sinais (Mola, ABCD, 1-2-3, etc) em mercados laterais.
+                    # m_adx_check = getattr(okx_ws_public_service, 'btc_adx', 0)
+                    # if m_adx_check > 0 and m_adx_check < 22.0 and not is_dvap_play:
+                    #     reason = f"MODO PRESERVAÇÃO DE CAPITAL: M-ADX ({m_adx_check:.1f} < 22) indica Mercado Morto. Apenas sinais DVAP são permitidos."
+                    #     logger.warning(f"🚫 [PRESERVAÇÃO-REJECT] {symbol} rejeitado: {reason}")
+                    #     self.recent_rejections.append({"symbol": symbol, "reason": "MERCADO_MORTO_PRESERVAÇÃO", "timestamp": time.time()})
+                    #     return None
 
                     # [V127] PROTOCOLO ALT BIAS ONLY (AltForceDirection Guard)
                     # O viés direcional macro de 2H é lei absoluta para moedas desgrudadas (is_decorrelated = True)

@@ -5630,6 +5630,7 @@
             filteredSignals, intelligenceMessage,
             historyPage, setHistoryPage, historyLimit, loadingHistory, setSelectedHistoryLog
         }) => {
+            const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
             const [selectedSlotId, setSelectedSlotId] = useState(null);
             const [gridMode, setGridMode] = useState('4'); // Default to 4 charts
             const [gridSymbols, setGridSymbols] = useState(["BTCUSDT", "BTCUSDT", "BTCUSDT", "BTCUSDT"]);

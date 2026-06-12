@@ -4667,6 +4667,7 @@
                     syncGutter();
                 }
             }, [historicalData, eagleMode, settings]);
+            useEffect(() => {
                 const updatePriceLines = () => {
                     if (!candlestickSeries.current) return;
 
@@ -5018,6 +5019,8 @@
                     } catch (error) {
                         console.warn("Price lines update error:", error);
                     }
+                };
+                updatePriceLines();
             }, [slots, localSymbol, focusedAsset, moonbags, studyData, historicalData]);
 
             // [FIX] Chama syncGutter também quando slots ou focusedAsset mudam sem historicalData mudar

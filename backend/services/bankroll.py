@@ -1849,7 +1849,12 @@ class BankrollManager:
                 # Se o alvo é curto (1%), o stop deve ser no máximo 1% para manter R:R 1:1.
                 is_market_ranging = signal_data.get("is_market_ranging", False) if signal_data else False
                 
-                if is_market_ranging:
+                is_blitz_slot = (slot_type == "BLITZ_30M")
+                
+                if is_blitz_slot:
+                    max_risk = 0.010  # 1.0% de preço (50% ROI SL com alavancagem 50x)
+                    logger.info(f"⚡ [BLITZ_30M] Risco definido para {max_risk*100:.1f}% para alinhar com o stop de -50% ROI da estratégia.")
+                elif is_market_ranging:
                     # [V42.5] Volatility-Aware Ranging Cap:
                     # If asset volatility (ATR/Price) is > 0.8%, relax the cap to allow standard SWING protection.
                     asset_volatility = (atr / current_price) if current_price > 0 else 0
@@ -1867,7 +1872,11 @@ class BankrollManager:
                     else:
                         max_risk = 0.050 if is_swing_macro else 0.035 # [V87.0] 3.5% a 5% de respiração
 
-                if adaptive_sl > 0:
+                if is_blitz_slot:
+                    sl_percent = max_risk  # Garante exatamente o stop da estratégia de -50% ROI (1.0% preço)
+                    logger.info(f"🛡️ [BLITZ_30M SL] Forçando SL fixo de {sl_percent*100:.2f}% (50% ROI com alavancagem 50x)")
+                    final_sl = current_price * (1 - sl_percent) if side == "Buy" else current_price * (1 + sl_percent)
+                elif adaptive_sl > 0:
                     final_sl = adaptive_sl
                     # Calcula o percentual de risco real desse SL cirúrgico para logs
                     sl_percent = abs((current_price - final_sl) / current_price)

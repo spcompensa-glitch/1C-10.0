@@ -876,6 +876,16 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-11 (V110.904) Sincronizado*
-*Este documento reflete o backend como fonte única de verdade para stops, projeções, contratos OKX, quality gate do Capitão, Execution Capacity Gate, Execution Audit Ledger, Guardião da Banca com acumulação protegida por moonbags/escadinha, Radar Contract Intelligence, reset de runtime do Capitão, telemetria Flash nos cards e logs, inteligência da banca, renderização estável do Cockpit, Cost Gate preventivo de Funding Rate, simulação L2 de Slippage com Post-Only fallback, detecção de correlação de Pearson de pânico contra o BTC e a infraestrutura de fila atômica anti-429 da OKX.*
+*Documento atualizado em: 2026-06-12 (V125.0) Sincronizado*
+*Este documento reflete a remoção do bloqueio at_risk_count no Capitão e no Guardião, expansão total dos limites operacionais de 4 para até 40 slots simultâneos na banca principal sob a doutrina ELITE_40_MATRIX, redução drástica do cooldown de símbolo após perdas/stops para o patamar ágil de 15 minutos, compatibilidade SQLite no script de reset nuclear do banco local, e testes/auditorias das novas ordens.*
+
+---
+
+## 🚀 EXPANSÃO OPERACIONAL DE SLOTS & COOLDOWN (V125.0)
+
+O motor operacional principal foi adaptado para operar em escala total de diversificação com os seguintes refinamentos:
+1. **Desativação da Trava de Espera Risk-Free:** Removido o bloqueio `at_risk_count` no `BankrollManager`. O robô não precisa mais aguardar que as ordens anteriores tenham stops movidos para o breakeven para disparar novos setups qualificados. A diversificação atua como protetor matemático principal.
+2. **Capacidade Máxima Estendida para 40 Slots:** `BankrollGuardian` e `CaptainAgent` agora utilizam a capacidade total da matriz de slots (`max_slots_allowed = 40`) de forma flexível. Modos de Defesa e Cuidado foram escalonados proporcionalmente para 10 e 20 slots permitidos.
+3. **Cooldown Ágil (15m):** Reduzido o bloqueio de quarentena de re-entrada do Guardião em pares stopados de até 24 horas para no máximo **15 minutos** para capturar rápidas reversões da tendência.
+4. **Resiliência do Script de Reset:** Atualizado o script `reset_nuclear_v172.py` para ignorar tabelas ausentes e tratar a assinatura de colunas SQLite local de forma limpa.
 

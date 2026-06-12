@@ -24,9 +24,7 @@ logger = logging.getLogger("HermesAgent")
 ESCADINHA_DOCS_SSOT = {
     "description": "Escadinha (Trailing Stop) — Sincronizado com order_projection_service.py (ORDER_STOP_LADDER)",
     "phases": [
-        {"name": "RISK_ZERO", "trigger_roi": 50.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
-        {"name": "LUCRO_GARANTIDO", "trigger_roi": 100.0, "sl_target_roi": 50.0, "desc": "Garante +50% ROI"},
-        {"name": "SUCESSO_TOTAL", "trigger_roi": 130.0, "sl_target_roi": 110.0, "desc": "Garante +110% ROI"},
+        {"name": "RISK_ZERO", "trigger_roi": 80.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
         {"name": "EMANCIPATION", "trigger_roi": 150.0, "sl_target_roi": 110.0, "desc": "Emancipação: Slot liberado, vira Moonbag"}
     ],
     "stop_loss_rules": {

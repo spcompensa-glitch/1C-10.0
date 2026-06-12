@@ -2700,11 +2700,8 @@
                                 { roi: 95, color: 'rgba(34, 211, 238, 0.7)', title: 'UNIT1 (95%)', dash: true },
                                 { roi: 110,color: 'rgba(16, 185, 129, 0.9)', title: 'EMANCIPACAO (110%)', dash: false },
                             ] : [
-                                { roi: 30,  color: 'rgba(34, 197, 94, 0.3)', title: 'T1 (30%)', dash: true },
-                                { roi: 50,  color: 'rgba(34, 197, 94, 0.5)', title: 'T2 (50%)', dash: true },
-                                { roi: 70,  color: 'rgba(34, 197, 94, 0.7)', title: 'T3 (70%)', dash: true },
-                                { roi: 110, color: 'rgba(234, 179, 8, 0.8)',  title: 'T4 (110%)', dash: true },
-                                { roi: 150, color: '#22c55e',                title: 'T5 (150%)', dash: false }
+                                { roi: 80,  color: 'rgba(34, 197, 94, 0.6)', title: 'RISCO ZERO (80%)', dash: true },
+                                { roi: 150, color: '#22c55e',                title: 'EMANCIPACAO (150%)', dash: false }
                             ];
 
                             levels.forEach(lvl => {
@@ -4310,11 +4307,8 @@
                     if (points.isMoonbag) {
                         // 🏛️ Alvos antigos táticos (T1 a T5) - Estética de alvos batidos (cinza discreto)
                         escadinhaLevels.push(
-                            { roi: 30, color: 'rgba(148, 163, 184, 0.3)', title: 'T1' },
-                            { roi: 50, color: 'rgba(148, 163, 184, 0.3)', title: 'T2' },
-                            { roi: 70, color: 'rgba(148, 163, 184, 0.3)', title: 'T3' },
-                            { roi: 110, color: 'rgba(148, 163, 184, 0.3)', title: 'T4' },
-                            { roi: 150, color: 'rgba(16, 185, 129, 0.4)', title: 'T5 💎' }
+                            { roi: 80, color: 'rgba(148, 163, 184, 0.3)', title: 'RZ' },
+                            { roi: 150, color: 'rgba(16, 185, 129, 0.4)', title: 'EM 💎' }
                         );
                         // 🌾 Novos alvos de colheita do Ceifeiro até 1200% ROI - Cores brilhantes
                         escadinhaLevels.push(
@@ -4327,11 +4321,8 @@
                         );
                     } else {
                         escadinhaLevels.push(
-                            { roi: 30, color: 'rgba(34, 197, 94, 0.5)', title: 'T1', key: 't1' },
-                            { roi: 50, color: 'rgba(34, 197, 94, 0.7)', title: 'T2', key: 't2' },
-                            { roi: 70, color: 'rgba(34, 197, 94, 0.9)', title: 'T3', key: 't3' },
-                            { roi: 110, color: 'rgba(234, 179, 8, 0.9)', title: 'T4', key: 't4' },
-                            { roi: 150, color: '#22c55e', title: 'T5', key: 't5' }
+                            { roi: 80, color: 'rgba(34, 197, 94, 0.7)', title: 'RISCO ZERO (80%)' },
+                            { roi: 150, color: '#22c55e', title: 'EMANCIPACAO (150%)' }
                         );
                     }
 
@@ -4467,7 +4458,8 @@
                                 sl: parseFloat(focusedAsset.sl), 
                                 side: focusedAsset.side, 
                                 leverage: focusedAsset.leverage || 50,
-                                isMoonbag: focusedAsset.type === 'moonbag'
+                                isMoonbag: focusedAsset.type === 'moonbag',
+                                slot_type: focusedAsset.slot_type
                             };
                         } else if (activeSlot) {
                             const isLong = activeSlot.side === 'Buy' || activeSlot.side === 'LONG';
@@ -4485,7 +4477,7 @@
                                 sl = isLong ? (entry * (1 - slOffset)) : (entry * (1 + slOffset));
                             }
                             
-                            points = { entry: entry, sl: sl, side: activeSlot.side, leverage: leverage, projection: activeSlot.projection };
+                            points = { entry: entry, sl: sl, side: activeSlot.side, leverage: leverage, projection: activeSlot.projection, slot_type: activeSlot.slot_type };
                         }
 
                         // 3. Render [V110.658] STOP LOSS DINÂMICO (Grid View)
@@ -4542,9 +4534,16 @@
                                     else if (stopRoi >= 130) activeDegrau = 'TRAILING';
                                     else activeDegrau = 'EMANCIPADO';
                                 } else {
-                                    if (stopRoi >= 95) activeDegrau = 'UNIT1';
-                                    else if (stopRoi >= 50) activeDegrau = 'RZ';
-                                    else if (stopRoi >= 5) activeDegrau = 'BE';
+                                    const isBlitz = String(points.slot_type || "").startsWith('BLITZ') || points.slot_type === 'SNIPER';
+                                    if (isBlitz) {
+                                        if (stopRoi >= 110) activeDegrau = 'EM';
+                                        else if (stopRoi >= 95) activeDegrau = 'UNIT1';
+                                        else if (stopRoi >= 50) activeDegrau = 'RZ';
+                                        else if (stopRoi >= 5) activeDegrau = 'BE';
+                                    } else {
+                                        if (stopRoi >= 110) activeDegrau = 'EM';
+                                        else if (stopRoi >= 15) activeDegrau = 'RZ';
+                                    }
                                 }
                                 if (activeDegrau) {
                                     // Only show degrau badge on SL line (not on already-labeled moonbag/risk-free)

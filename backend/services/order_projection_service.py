@@ -24,11 +24,8 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER: List[StopLevel] = [
-    # [V110.172] RISCO_ZERO trigger reduzido de 80% → 50% ROI para proteger capital mais cedo.
-    # Com 50x alavancagem, 50% ROI = 1% de movimento de preço — ativa proteção mais rapidamente.
-    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 15.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 50.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
+    # Sincronizado com a lógica simplificada de 2 degraus da Escadinha de Elite (80% ROI -> SL +15% / 150% ROI -> Moonbag SL +110%)
+    StopLevel("ESCADINHA", "RISCO_ZERO", 80.0, 15.0, "RISCO_ZERO"),
     StopLevel("EMANCIPACAO", "EMANCIPADA", 150.0, 110.0, "PROFIT_LOCK"),
     StopLevel("MOONBAG", "WAVE", 200.0, 150.0, "MOONBAG_TRAIL"),
     StopLevel("MOONBAG", "ROCKET", 300.0, 220.0, "MOONBAG_TRAIL"),

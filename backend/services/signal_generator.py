@@ -704,10 +704,16 @@ class SignalGenerator:
             d_active = [sig for sig in signals[:10] if sig.get("decorrelation", {}).get("is_active")]
             avg_d_score = sum(d_scores) / len(d_scores) if d_scores else 0
             
-            # [V60.0] BTC Dominance - Mocked for visual "Triplice" or derived if needed
-            # For now, we use a slightly dynamic value based on time to keep it "alive"
-            import random
-            mock_dom = 58.0 + (random.random() * 0.4)
+            # [V110.172] BTC Dominance — valor real via Oracle (era mockado com random!)
+            try:
+                from services.agents.oracle_agent import oracle_agent
+                _oracle_ctx = await oracle_agent.get_context()
+                mock_dom = _oracle_ctx.get("dominance", 0.0)
+                if mock_dom <= 0:
+                    from services.agents.macro_analyst import macro_analyst
+                    mock_dom = getattr(macro_analyst, '_dom_cache', 58.0) or 58.0
+            except Exception:
+                mock_dom = 58.0
             
             # [V110.950] Calculate Global Heat Index (Average velocity of monitored symbols)
             try:
@@ -729,24 +735,106 @@ class SignalGenerator:
                 "btc_variation_15m": round(okx_ws_public_service.btc_variation_15m, 2),
                 "decorrelation_avg": round(avg_d_score, 1),
                 "decorrelation_active_count": len(d_active),
-                "heat_index": round(global_heat, 2), # 🆕 [V110.950] UI Sync for Global Heat Index
-                "radar_mode": self.current_radar_mode  # [V100.1] Sync radar mode to UI
+                "heat_index": round(global_heat, 2),
+                "radar_mode": self.current_radar_mode
             }
 
+            # [V110.172] DECOR HUNTER: Em mercado lateral (ADX < 25), complementa o radar
+            # com pares que estao se movendo independentemente do BTC.
+            if inferred_regime == "RANGING" and m_adx_radar < 25:
+                try:
+                    decor_hits = await self._scan_decorrelated_hunters()
+                    if decor_hits:
+                        # Inject no topo da lista (prioridade maxima em mercado lateral)
+                        signals = decor_hits + [s for s in signals if s.get("symbol") not in {d["symbol"] for d in decor_hits}]
+                        market_context["radar_mode"] = "DECOR_HUNTER"
+                        logger.info(f"[DECOR-HUNTER] {len(decor_hits)} pares desgrudados injetados no Radar como prioridade.")
+                except Exception as dh_err:
+                    logger.warning(f"DECOR-HUNTER injection error: {dh_err}")
 
             await firebase_service.update_radar_pulse(
                 signals=signals, 
                 decisions=decisions, 
                 market_context=market_context
             )
+
         except Exception as e:
             logger.error(f"Error syncing radar RTDB during init: {e}")
         finally:
             self._is_syncing_radar = False
 
-    # ═══════════════════════════════════════════════════════════════
+    async def _scan_decorrelated_hunters(self) -> list:
+        """
+        [V110.172] DECOR HUNTER MODE - Varre o mercado ativamente buscando pares
+        desgrudados do BTC (Pearson < 0.35) quando o mercado esta lateral (ADX < 25).
+        Esses pares tem movimento proprio e sao as melhores oportunidades em BTC RANGING.
+        """
+        try:
+            btc_adx = getattr(okx_ws_public_service, 'btc_adx', 20.0)
+            if btc_adx >= 25:
+                return []  # Nao ativa em mercado trending
+
+            from config import settings
+            watchlist = getattr(settings, 'RADAR_WATCHLIST', [])
+            if not watchlist:
+                watchlist = [
+                    "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
+                    "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
+                    "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
+                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT",
+                ]
+
+            logger.info(f"[DECOR-HUNTER] BTC ADX={btc_adx:.1f} RANGING. Scan de {len(watchlist)} pares...")
+            decor_signals = []
+
+            for symbol in watchlist[:25]:
+                try:
+                    sym_key = symbol + ".P" if not symbol.endswith(".P") else symbol
+                    d_res = await self.detect_btc_decorrelation(sym_key)
+                    is_decor = d_res.get('is_decorrelated', False)
+                    confidence = d_res.get('confidence', 0)
+                    correlation = d_res.get('correlation', 1.0)
+                    direction = d_res.get('direction', 'Neutral')
+
+                    if is_decor and confidence >= 60:
+                        sym_price = okx_ws_public_service.get_current_price(sym_key)
+                        side = "Buy" if direction in ("Bullish", "Up", "Long") else "Sell"
+                        clean_sym = symbol.replace(".P", "")
+                        decor_signals.append({
+                            "symbol": clean_sym,
+                            "side": side,
+                            "strategy": "DECOR_HUNTER",
+                            "score": min(99, int(confidence)),
+                            "layer": "DECOR",
+                            "price": sym_price,
+                            "currentPrice": sym_price,
+                            "decorrelation": {
+                                "is_active": True,
+                                "score": round(confidence, 1),
+                                "correlation": round(correlation, 3),
+                                "direction": direction,
+                                "signals": d_res.get('signals', [])
+                            },
+                            "unified_confidence": int(confidence),
+                            "fleet_intel": {"macro": 50, "whale": 50, "smc": int(confidence)},
+                            "radar_mode": "DECOR_HUNTER",
+                            "timestamp": time.time()
+                        })
+                        logger.info(f"[DECOR-HUNTER] {clean_sym} DESGRUDADO! Pearson={correlation:.2f} Dir={direction} Conf={confidence:.0f}%")
+                except Exception as e:
+                    logger.debug(f"DECOR-HUNTER error for {symbol}: {e}")
+                    continue
+
+            logger.info(f"[DECOR-HUNTER] Scan concluido: {len(decor_signals)} pares desgrudados encontrados.")
+            return sorted(decor_signals, key=lambda x: x['score'], reverse=True)
+
+        except Exception as e:
+            logger.error(f"Erro no DECOR-HUNTER scan: {e}")
+            return []
+
+    # ===============================================================
     # [V27.0] PHASE 3: MULTI-TIMEFRAME INTELLIGENCE V2
-    # ═══════════════════════════════════════════════════════════════
+    # ===============================================================
 
     async def get_daily_macro_filter(self, symbol: str) -> dict:
         """

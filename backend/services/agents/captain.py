@@ -686,7 +686,17 @@ class CaptainAgent(AIOSAgent):
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
                 # Dynamic max slots based on regime
-                max_total_slots = settings.MAX_SLOTS_TRENDING if (okx_rest_service.execution_mode == "PAPER" or balance >= 10.0) else 2
+                if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
+                    max_total_slots = 2
+                else:
+                    is_ranging_mode = True
+                    try:
+                        from services.okx_ws_public import okx_ws_public_service
+                        adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                        is_ranging_mode = (adx < 25)
+                    except Exception:
+                        pass
+                    max_total_slots = settings.MAX_SLOTS_LATERAL if is_ranging_mode else settings.MAX_SLOTS_TRENDING
                 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
@@ -804,6 +814,20 @@ class CaptainAgent(AIOSAgent):
                 # Check available slots
                 slots = await firebase_service.get_active_slots()
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
+
+                # Dynamic max slots based on regime
+                balance = await bankroll_manager.get_live_operating_equity()
+                if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
+                    max_total_slots = 2
+                else:
+                    is_ranging_mode = True
+                    try:
+                        from services.okx_ws_public import okx_ws_public_service
+                        adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                        is_ranging_mode = (adx < 25)
+                    except Exception:
+                        pass
+                    max_total_slots = settings.MAX_SLOTS_LATERAL if is_ranging_mode else settings.MAX_SLOTS_TRENDING
 
                 if occupied_count < max_total_slots:
                     logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30...")

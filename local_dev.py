@@ -286,6 +286,11 @@ if FRONTEND.exists():
 async def health():
     return {"status": "healthy", "service": "1Crypten Local Dev", "main_app_loaded": MAIN_APP is not None}
 
+@app.get("/sandbox")
+@app.get("/sandbox.html")
+async def serve_sandbox_local():
+    return FileResponse(str(FRONTEND / "sandbox.html"))
+
 
 # 4) Mount do app principal por ultimo. O main.py tem catch-all; se vier antes,
 # ele captura /health e paginas locais.
@@ -310,6 +315,14 @@ async def startup():
         await init_trading_database()
     except Exception as e:
         logger.error(f"❌ Erro ao inicializar trading DB: {e}")
+
+    # 🧪 Inicializar o Sandbox Service no local_dev
+    try:
+        from services.sandbox_service import sandbox_service
+        sandbox_service.start()
+        logger.info("🟢 Sandbox Service iniciado no ambiente local!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar Sandbox Service local: {e}")
 
     if not FULL_TRADING_LOOPS:
         logger.info("LOCAL_DEV_FULL_TRADING=0 - OKX/Radar/Captain loops disabled for responsive local frontend/API testing")

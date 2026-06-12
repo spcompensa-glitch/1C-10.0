@@ -337,7 +337,9 @@ class BankrollGuardian:
         protected_slots: int = 0,
         realized_pnl: float = 0.0,
         secured_open_pnl: float = 0.0,
+        is_ranging_mode: bool = True,
     ) -> Dict[str, Any]:
+        max_regime_slots = 20 if is_ranging_mode else 40
         if base_balance <= 0:
             base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
 
@@ -378,7 +380,7 @@ class BankrollGuardian:
         mode = "ACUMULACAO"
         state_label = "Acumulando"
         min_score = 45.0
-        max_slots = 40
+        max_slots = max_regime_slots
         health = 88
         reasons = ["Banca em condicao operacional."]
 
@@ -418,7 +420,7 @@ class BankrollGuardian:
                 health = 94
             mode = "ACUMULACAO_PROTEGIDA"
             state_label = "Acumulacao protegida"
-            max_slots = 40
+            max_slots = max_regime_slots
             reasons = []
             if profitable_moonbag_active:
                 reasons.append(f"Moonbag lucrativa ativa (${open_moonbags_pnl:.2f}). Mantendo fabrica de slots ligada.")
@@ -462,14 +464,14 @@ class BankrollGuardian:
             mode = "DEFESA"
             state_label = "Defesa"
             min_score = 92.0
-            max_slots = 10  # Escalonado proporcionalmente (1/4 de 40)
+            max_slots = max(1, int(max_regime_slots * 0.25))
             health = 45
             reasons = ["Banca em defesa. Apenas sinais de elite."]
         elif session_roi <= -3.0 or drawdown_from_peak_pct >= 4.0:
             mode = "CAUTELOSO"
             state_label = "Cauteloso"
             min_score = 85.0
-            max_slots = 20  # Escalonado proporcionalmente (1/2 de 40)
+            max_slots = max(2, int(max_regime_slots * 0.50))
             health = 65
             reasons = ["Banca cautelosa. Reduzindo exposicao."]
         elif self.protected_profit_peak > 0:
@@ -477,16 +479,16 @@ class BankrollGuardian:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 88.0
-                max_slots = 40
+                max_slots = max_regime_slots
                 health = 96
             elif profit_multiple >= 1.0:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 80.0
-                max_slots = 40
+                max_slots = max_regime_slots
                 health = 94
             else:
-                health = 92 if active_slots <= 40 else 80
+                health = 92 if active_slots <= max_regime_slots else 80
             reasons = [
                 f"Lucro confirmado por historico/stops. Protegendo ${locked_profit:.2f} "
                 f"de ${self.protected_profit_peak:.2f} assegurados.",
@@ -546,6 +548,15 @@ class BankrollGuardian:
             for position in [*active_slots, *active_moonbags]
         )
 
+        # Detecta regime de mercado dinamicamente pelo ADX do btc
+        is_ranging_mode = True
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+            is_ranging_mode = (adx < 25)
+        except Exception:
+            pass
+
         memory = self._build_symbol_memory(history)
         suspensions = self._symbol_suspensions(memory)
         live_bankroll = self._live_bankroll_snapshot(banca, base_balance, active_slots, active_moonbags, history)
@@ -559,7 +570,10 @@ class BankrollGuardian:
             protected_slots=protected_slots,
             realized_pnl=live_bankroll["realized_pnl"],
             secured_open_pnl=secured_open_pnl,
+            is_ranging_mode=is_ranging_mode,
         )
+
+        max_slots = 20 if is_ranging_mode else 40
 
         report = {
             "agent": self.name,
@@ -599,6 +613,7 @@ class BankrollGuardian:
                 len(active_moonbags),
                 suspensions,
                 protected_slots,
+                max_slots=max_slots,
             ),
             "timestamp": time.time(),
         }
@@ -614,15 +629,16 @@ class BankrollGuardian:
         active_moonbags: int,
         suspensions: Dict[str, Dict[str, Any]],
         protected_slots: int = 0,
+        max_slots: int = 40,
     ) -> str:
         suspended = ", ".join(sorted(suspensions.keys())) if suspensions else "nenhum"
         lines = [
             f"Guardiao da Banca: {health['state_label']}.",
             f"Saude da banca: {health['health_score']}/100.",
             f"Equity atual: ${equity:.2f}. Resultado da sessao: ${health['session_profit']:.2f} ({health['session_roi']:.1f}%).",
-            f"Slots ativos: {active_slots}/40. Moonbags ativas: {active_moonbags}.",
+            f"Slots ativos: {active_slots}/{max_slots}. Moonbags ativas: {active_moonbags}.",
             f"Slots protegidos pelo Flash: {protected_slots}.",
-            f"Modo: {health['mode']}. Score minimo para nova ordem: {health['min_score']:.0f}. Slots permitidos: {health['max_slots']}/40.",
+            f"Modo: {health['mode']}. Score minimo para nova ordem: {health['min_score']:.0f}. Slots permitidos: {health['max_slots']}/{max_slots}.",
             f"Lucro protegido: ${health['locked_profit']:.2f}. Devolucao permitida: ${health['allowed_giveback']:.2f}.",
             f"Pares suspensos: {suspended}.",
         ]

@@ -3676,7 +3676,7 @@
         };
 
         // --- Sub-Component: Positions Table (V111.0 — Ultra-Diversification OKX Style) ---
-        const PositionsTable = ({ slots, tickers, moonbags, onClosePosition, onSelectSlot }) => {
+        const PositionsTable = ({ slots, tickers, moonbags, onClosePosition, onSelectSlot, isRangingMode: propIsRangingMode }) => {
             // Filtra apenas posições ativas (com símbolo e quantidade)
             const activeSlots = (slots || []).filter(s => 
                 s && s.symbol && Number(s.entry_price || 0) > 0
@@ -3688,7 +3688,7 @@
             const totalPnlPct = activeSlots.length > 0 
                 ? activeSlots.reduce((sum, s) => sum + Number(s.pnl_percent || 0), 0) / activeSlots.length 
                 : 0;
-            const isRangingMode = activeSlots.some(s => (s.strategy || '').includes('DECOR'));
+            const isRangingMode = propIsRangingMode !== undefined ? propIsRangingMode : activeSlots.some(s => (s.strategy || '').includes('DECOR'));
             const maxSlots = isRangingMode ? 20 : 40;
             const capacityPct = Math.min(100, (activeSlots.length / maxSlots) * 100);
             const modeLabel = isRangingMode ? 'DECOR_HUNTER' : 'ELITE_40_MATRIX';
@@ -5780,6 +5780,7 @@
                                     slots={slots}
                                     tickers={tickers}
                                     moonbags={moonbags}
+                                    isRangingMode={isRangingMode}
                                     onClosePosition={(s) => { /* integração futura de fechamento */ }}
                                     onSelectSlot={(s) => {
                                         if (s && s.symbol) {
@@ -6144,6 +6145,8 @@
                 return 'LATERAL';
             })();
 
+            const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
+
             const [historyLogs, setHistoryLogs] = useState([]);
             const [loadingHistory, setLoadingHistory] = useState(true);
             const [selectedHistoryLog, setSelectedHistoryLog] = useState(null);
@@ -6371,7 +6374,7 @@
             // [V110.370] Radar Intelligence & Slot Needs
             const { intelligenceMessage, filteredSignals } = useMemo(() => {
                 const activeSlotsCount = slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length;
-                const isRangingMode = slots.some(s => s && (s.strategy || '').includes('DECOR'));
+                const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
                 const maxSlots = isRangingMode ? 20 : 40;
                 const freeSlotsCount = maxSlots - activeSlotsCount;
 
@@ -6387,7 +6390,7 @@
                 const filtered = bestSignals;
 
                 return { intelligenceMessage: msg, filteredSignals: filtered };
-            }, [slots, bestSignals]);
+            }, [slots, bestSignals, unifiedRegime, guardianReport]);
 
             // [V110.641] UI Sanity Audit Hook
             const { issues: sanityIssues, dismissed: sanityDismissed, dismiss: dismissSanity } = useUISanityAudit(slots);
@@ -6476,6 +6479,7 @@
                                     slots={slots}
                                     tickers={tickers}
                                     moonbags={moonbags}
+                                    isRangingMode={isRangingMode}
                                     onClosePosition={(s) => { /* integração futura de fechamento */ }}
                                     onSelectSlot={(s) => {
                                         if (s && s.symbol) {

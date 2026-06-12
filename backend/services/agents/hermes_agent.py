@@ -24,7 +24,9 @@ logger = logging.getLogger("HermesAgent")
 ESCADINHA_DOCS_SSOT = {
     "description": "Escadinha (Trailing Stop) — Sincronizado com order_projection_service.py (ORDER_STOP_LADDER)",
     "phases": [
-        {"name": "RISK_ZERO", "trigger_roi": 80.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
+        {"name": "RISK_ZERO", "trigger_roi": 50.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
+        {"name": "LUCRO_GARANTIDO", "trigger_roi": 100.0, "sl_target_roi": 50.0, "desc": "Garante +50% ROI"},
+        {"name": "SUCESSO_TOTAL", "trigger_roi": 130.0, "sl_target_roi": 110.0, "desc": "Garante +110% ROI"},
         {"name": "EMANCIPATION", "trigger_roi": 150.0, "sl_target_roi": 110.0, "desc": "Emancipação: Slot liberado, vira Moonbag"}
     ],
     "stop_loss_rules": {
@@ -201,8 +203,17 @@ class HermesAgent(AIOSAgent):
             
             doc_phases = {p["name"]: p for p in ESCADINHA_DOCS_SSOT["phases"]}
             
+            # Map code names to doc names
+            name_mapping = {
+                "RISCO_ZERO": "RISK_ZERO",
+                "LUCRO_GARANTIDO": "LUCRO_GARANTIDO",
+                "SUCESSO_TOTAL": "SUCESSO_TOTAL",
+                "EMANCIPADA": "EMANCIPATION"
+            }
+            
             for phase_name, phase_data in code_phases.items():
-                doc_phase = doc_phases.get(phase_name)
+                doc_name = name_mapping.get(phase_name, phase_name)
+                doc_phase = doc_phases.get(doc_name)
                 if not doc_phase:
                     divergencias.append({
                         "area": f"Escadinha - {phase_name}",

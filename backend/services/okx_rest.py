@@ -1202,8 +1202,8 @@ class OKXRest:
                             try:
                                 from services.database_service import database_service
                                 authoritative_stop = 0.0
-                                if slot_id > 0:
-                                    slot_state = await database_service.get_slot(slot_id)
+                                if slot_id_val > 0:
+                                    slot_state = await database_service.get_slot(slot_id_val)
                                     if slot_state and self.normalize_symbol(slot_state.get("symbol", "")) == norm_symbol:
                                         authoritative_stop = float(slot_state.get("current_stop") or 0)
                                 if authoritative_stop <= 0:
@@ -1307,6 +1307,8 @@ class OKXRest:
                                 f"{'🌾 MOONBAG SOBREVIVE com residual!' if is_partial_real else '🛑 Posição totalmente fechada.'}"
                             )
                             
+                            from services.time_utils import get_br_iso_str
+                            
                             trade_data = {
                                 "symbol": symbol,
                                 "side": side_pos,
@@ -1335,7 +1337,6 @@ class OKXRest:
                             await bankroll_manager.register_sniper_trade(trade_data)
                             
                             from services.firebase_service import firebase_service
-                            from services.time_utils import get_br_iso_str
                             
                             if is_partial_real:
                                 # [V110.118] PARCIAL: Moonbag sobrevive — NÃO limpar slot

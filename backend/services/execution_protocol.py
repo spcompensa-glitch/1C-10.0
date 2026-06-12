@@ -235,14 +235,13 @@ class ExecutionProtocol:
             
         roi = price_diff * leverage * 100
         
-        # [V110.12.9] ANTI-MASSACRE: No Paper Mode, não permitimos ROI < -100% (Liquidação total da margem)
-        # Isso evita os "Phantom Losses" de -$240 em ordens de $10.
-        # CAP ABSOLUTO: Perda Máxima = Valor da Margem Alocada.
+        # [V110.12.9] ANTI-MASSACRE: No Paper Mode, não permitimos ROI < -50% (Liquidação total da margem)
+        # Ajustado para limitar o ROI visual e estatístico de perda ao stop atômico fixo em -50%.
         from config import settings
         if getattr(settings, "EXECUTION_MODE", "PAPER") == "PAPER":
-            if roi <= -100.0:
-                roi = -100.0
-                logger.warning(f"💥 [LIQUIDATION PROTECT] {side} ROI capped at -100% (Paper Margin Protection).")
+            if roi <= -50.0:
+                roi = -50.0
+                logger.warning(f"💥 [LIQUIDATION PROTECT] {side} ROI capped at -50% (Atomic Stop Loss Protection).")
         
         # V6.0: ROI Sanity Guard - Cap extreme values to prevent UI breakage
         if roi > 5000: roi = 5000

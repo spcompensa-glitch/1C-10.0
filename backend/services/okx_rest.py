@@ -1381,7 +1381,7 @@ class OKXRest:
                                     self.paper_moonbags.remove(pos)
                                 logger.info(f"🛑 [PAPER-CLOSE] Full Close: {symbol} removido das posições.")
 
-                                is_emancipated = pos.get("status") == "EMANCIPATED" or slot_data.get("status") == "EMANCIPATED"
+                                is_emancipated = pos.get("status") == "EMANCIPATED" or pos.get("slot_type") == "MOONBAG" or pos.get("is_moonbag") is True or slot_id_val == 0
                                 if slot_id_val > 0 and not is_emancipated:
                                     await firebase_service.hard_reset_slot(slot_id_val, reason=f"PAPER_CLOSE_ATOMIC_{reason}", pnl=final_pnl, trade_data=trade_data)
                                     logger.info(f"🧹 [PAPER-SYNC] Slot {slot_id_val} resetado com audit log.")
@@ -1393,6 +1393,27 @@ class OKXRest:
                                         trade_data["timestamp"] = trade_data["closed_at"]
                                     await firebase_service.log_trade(trade_data)
                                     logger.info(f"🧹 [PAPER-SYNC] Moonbag/Orphan trade {symbol} logado no histórico diretamente.")
+                                    
+                                    # [V110.173 FIX] Remover Moonbag do DB e do Firebase
+                                    moon_uuid = pos.get("id") or pos.get("uuid")
+                                    if not moon_uuid:
+                                        # Fallback para buscar o uuid via BD/Firebase por símbolo
+                                        try:
+                                            moons = await firebase_service.get_moonbags()
+                                            target_moon = next((m for m in moons if self.normalize_symbol(m.get("symbol", "")) == norm_symbol), None)
+                                            if target_moon:
+                                                moon_uuid = target_moon.get("id")
+                                        except Exception as search_err:
+                                            logger.warning(f"Failed to find moonbag UUID by symbol: {search_err}")
+                                            
+                                    if moon_uuid:
+                                        await firebase_service.remove_moonbag(moon_uuid, reason=f"PAPER_CLOSE_{reason}")
+                                        try:
+                                            from services.database_service import database_service
+                                            await database_service.remove_moonbag(moon_uuid)
+                                        except Exception as db_remove_err:
+                                            logger.warning(f"Failed to remove moonbag from Postgres: {db_remove_err}")
+                                        logger.info(f"🧹 [PAPER-SYNC] Moonbag {symbol} (UUID: {moon_uuid}) removida do ledger/banco.")
 
                         except Exception as atomic_err:
                             logger.error(f"❌ [PAPER-ATOMIC-FAIL] Critical failure during {'harvest' if is_partial_real else 'closure'} for {symbol}: {atomic_err}")

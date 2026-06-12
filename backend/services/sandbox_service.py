@@ -20,7 +20,19 @@ class SandboxService:
             return
         self.is_running = True
         self._loop_task = asyncio.create_task(self._price_update_loop())
+        # 🧪 Carga inicial de sinais existentes
+        asyncio.create_task(self._load_existing_radar_signals())
         logger.info("🧪 Sandbox Service iniciado com sucesso.")
+
+    async def _load_existing_radar_signals(self):
+        try:
+            await asyncio.sleep(2.0) # Espera DB conectar
+            pulse_data = await database_service.get_radar_pulse()
+            if pulse_data and "signals" in pulse_data:
+                logger.info(f"🧪 [SANDBOX] Carregando {len(pulse_data['signals'])} sinais pré-existentes do Radar no Sandbox.")
+                await self.on_radar_pulse(pulse_data["signals"])
+        except Exception as e:
+            logger.error(f"Erro ao carregar sinais existentes no Sandbox: {e}")
 
     def stop(self):
         self.is_running = False

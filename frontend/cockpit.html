@@ -4225,11 +4225,24 @@
                     // SE existe um slot ativo para este símbolo, ele é a fonte da verdade suprema (DB)
                     const sideUpper = (activeSlot.side || "").toUpperCase().trim();
                     const isLong = ['BUY', 'LONG', 'LONGUSDT', 'B', 'L'].includes(sideUpper);
+                    const entry = parseFloat(activeSlot.entry_price);
+                    const leverage = activeSlot.leverage || 50;
+                    let sl = parseFloat(activeSlot.current_stop || activeSlot.stop_loss || 0);
+                    
+                    const computedRoi = entry > 0 && sl > 0 
+                        ? (isLong ? ((sl / entry) - 1) : (1 - (sl / entry))) * leverage * 100
+                        : -100;
+                    
+                    if (sl <= 0 || computedRoi <= 0) {
+                        const slOffset = 0.5 / leverage;
+                        sl = isLong ? (entry * (1 - slOffset)) : (entry * (1 + slOffset));
+                    }
+                    
                     points = { 
-                        entry: parseFloat(activeSlot.entry_price), 
-                        sl: parseFloat(activeSlot.current_stop || activeSlot.stop_loss), 
+                        entry: entry, 
+                        sl: sl, 
                         side: activeSlot.side, 
-                        leverage: activeSlot.leverage || 50, 
+                        leverage: leverage, 
                         isLong,
                         target_price: activeSlot.target_price,
                         t1: activeSlot.t1, t2: activeSlot.t2, t3: activeSlot.t3, t4: activeSlot.t4, t5: activeSlot.t5,
@@ -4461,10 +4474,6 @@
                                 : -100;
                             
                             if (sl <= 0 || computedRoi <= 0) {
-                                // -50% ROI do preço de entrada:
-                                // ROI = ((SL - Entry)/Entry) * leverage * 100 = -50
-                                // (SL - Entry)/Entry = -0.5 / leverage
-                                // SL = Entry * (1 - 0.5/leverage) para LONG, Entry * (1 + 0.5/leverage) para SHORT
                                 const slOffset = 0.5 / leverage;
                                 sl = isLong ? (entry * (1 - slOffset)) : (entry * (1 + slOffset));
                             }

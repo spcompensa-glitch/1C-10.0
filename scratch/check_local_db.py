@@ -1,41 +1,32 @@
-
 import sqlite3
-import os
+
+db_path = "local_sniper.db"
 
 def check_local_db():
-    db_path = r"c:\Users\spcom\Desktop\10D REAL 5.0\1CRYPTEN_SPACE_V4.0\backend\local_sniper.db"
-    if not os.path.exists(db_path):
-        print("local_sniper.db not found.")
-        return
-        
     try:
         conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
+        cursor = conn.cursor()
         
-        print("--- CHECKING SLOTS (LOCAL) ---")
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='slots';")
-        if not cur.fetchone():
-            print("Table 'slots' not found.")
+        # Check tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        print(f"Tables in SQLite: {tables}")
+        
+        if "trade_history" in tables:
+            print("--- LAST 20 TRADES (SQLite) ---")
+            cursor.execute("SELECT id, symbol, side, pnl, pnl_percent, exit_price, entry_price, close_reason, timestamp FROM trade_history ORDER BY timestamp DESC LIMIT 20")
+            for row in cursor.fetchall():
+                print(f"ID: {row[0]} | Symbol: {row[1]} | Side: {row[2]} | PnL: ${row[3]:.2f} ({row[4]}%) | Entry: {row[6]} | Exit: {row[5]} | Reason: {row[7]} | Time: {row[8]}")
+                
+            print("\n--- ANY TRADES MATCHING 'BAR' ---")
+            cursor.execute("SELECT id, symbol, side, pnl, pnl_percent, exit_price, entry_price, close_reason, timestamp FROM trade_history WHERE symbol LIKE '%BAR%' OR symbol LIKE '%HAR%' OR symbol LIKE '%HAB%'")
+            for row in cursor.fetchall():
+                print(f"ID: {row[0]} | Symbol: {row[1]} | Side: {row[2]} | PnL: ${row[3]:.2f} ({row[4]}%) | Entry: {row[6]} | Exit: {row[5]} | Reason: {row[7]} | Time: {row[8]}")
         else:
-            cur.execute("SELECT id, symbol, status_risco, pnl_percent FROM slots ORDER BY id;")
-            rows = cur.fetchall()
-            for row in rows:
-                print(row)
+            print("trade_history table not found in SQLite.")
             
-        print("\n--- CHECKING BANCA (LOCAL) ---")
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='banca_status';")
-        if not cur.fetchone():
-            print("Table 'banca_status' not found.")
-        else:
-            cur.execute("SELECT id, saldo_total, status FROM banca_status;")
-            rows = cur.fetchall()
-            for row in rows:
-                print(row)
-            
-        cur.close()
-        conn.close()
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error checking local DB: {e}")
 
 if __name__ == "__main__":
     check_local_db()

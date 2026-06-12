@@ -1139,7 +1139,7 @@ class OKXRest:
             return None
 
     @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=False, is_critical=True)
-    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", is_partial: bool = False, username: str = None) -> bool:
+    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", is_partial: bool = False, username: str = None, slot_id: int = None) -> bool:
         """
         [V120] Encerramento Multitenant Soberano.
         """
@@ -1187,7 +1187,7 @@ class OKXRest:
                         leverage = float(pos.get("leverage", 50))
                         side_pos = pos["side"]
                         stop_price = float(pos.get("stopLoss", 0))
-                        slot_id = int(pos.get("slot_id", 0) or 0)
+                        slot_id_val = int(pos.get("slot_id", 0) or slot_id or 0)
                         
                         # [V110.118] Determinar qty real a fechar
                         close_qty = min(float(qty) if qty > 0 else size, size)  # Nunca fechar mais que o size total
@@ -1289,9 +1289,9 @@ class OKXRest:
                             fleet_intel = {}
                             unified_confidence = 50
                             pensamento = ""
-                            if slot_id > 0:
+                            if slot_id_val > 0:
                                 from services.firebase_service import firebase_service
-                                slot_state = await firebase_service.get_slot(slot_id)
+                                slot_state = await firebase_service.get_slot(slot_id_val)
                                 if slot_state:
                                     fleet_intel = slot_state.get("fleet_intel", {})
                                     unified_confidence = slot_state.get("unified_confidence", 50)
@@ -1315,7 +1315,7 @@ class OKXRest:
                                 "qty": close_qty,  # [V110.118] qty da COLHEITA, não do total
                                 "order_id": f"{symbol.replace('.P','')}_{int(pos.get('opened_at', 0) or time.time())}{'_harvest' if is_partial_real else ''}",
                                 "pnl": final_pnl,
-                                "slot_id": slot_id,
+                                "slot_id": slot_id_val,
                                 "slot_type": "MOONBAG" if is_partial_real else "SNIPER",
                                 "close_reason": reason,
                                 "final_roi": harvest_roi,
@@ -1344,7 +1344,7 @@ class OKXRest:
                                     f"| Restante: {remaining_qty:.6f} | PNL Parcial: ${final_pnl:.2f} | ROI: {harvest_roi:.1f}%"
                                 )
                                 # Atualizar Firebase do Moonbag (se aplicável) sem resetar o slot
-                                if slot_id > 0:
+                                if slot_id_val > 0:
                                     from services.firebase_service import firebase_service
                                     # Se é um moonbag (emancipado), atualizar o registro do vault
                                     moonbags_state = await firebase_service.get_moonbags()
@@ -1372,10 +1372,10 @@ class OKXRest:
                                     self.paper_moonbags.remove(pos)
                                 logger.info(f"🛑 [PAPER-CLOSE] Full Close: {symbol} removido das posições.")
 
-                                if slot_id > 0:
+                                if slot_id_val > 0:
                                     from services.firebase_service import firebase_service
-                                    await firebase_service.hard_reset_slot(slot_id, reason=f"PAPER_CLOSE_ATOMIC_{reason}", pnl=final_pnl, trade_data=trade_data)
-                                    logger.info(f"🧹 [PAPER-SYNC] Slot {slot_id} resetado com audit log.")
+                                    await firebase_service.hard_reset_slot(slot_id_val, reason=f"PAPER_CLOSE_ATOMIC_{reason}", pnl=final_pnl, trade_data=trade_data)
+                                    logger.info(f"🧹 [PAPER-SYNC] Slot {slot_id_val} resetado com audit log.")
 
                         except Exception as atomic_err:
                             logger.error(f"❌ [PAPER-ATOMIC-FAIL] Critical failure during {'harvest' if is_partial_real else 'closure'} for {symbol}: {atomic_err}")

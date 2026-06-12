@@ -73,7 +73,7 @@ class CaptainAgent(AIOSAgent):
         
         # [V25.1] Entry Confirmation Protocol: Vacancy Timer Tracking (Kept for telemetry)
         boot_time = time.time()
-        self.slot_vacancy_tracker = {1: boot_time, 2: boot_time, 3: boot_time, 4: boot_time}
+        self.slot_vacancy_tracker = {i: boot_time for i in range(1, 41)}
         # Threshold set to infinity effectively blocks MOMENTUM until they become SNIPER
         self.momentum_vacancy_threshold = float('inf')
         # [V33.0] ANTI-CONCENTRATION:        # V15.7.3: Activity History for Anti-Concentration
@@ -108,7 +108,7 @@ class CaptainAgent(AIOSAgent):
         self.processing_lock.clear()
         self.cooldown_registry.clear()
         self.daily_symbol_trades.clear()
-        self.slot_vacancy_tracker = {1: time.time(), 2: time.time(), 3: time.time(), 4: time.time()}
+        self.slot_vacancy_tracker = {i: time.time() for i in range(1, 41)}
         return snapshot
         
     async def on_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
@@ -676,14 +676,17 @@ class CaptainAgent(AIOSAgent):
 
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
+                # Dynamic max slots based on regime
+                max_total_slots = settings.MAX_SLOTS_TRENDING if (okx_rest_service.execution_mode == "PAPER" or balance >= 10.0) else 2
+                
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
                     balance = await bankroll_manager.get_live_operating_equity()
                     vault_ok, vault_reason = await vault_service.is_trading_allowed()
-                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {okx_rest_service.execution_mode} | Slots: {occupied_count}/4 | LiveEquity: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
+                    logger.info(f"⚓ [HEARTBEAT] Captain Scanning... Mode: {okx_rest_service.execution_mode} | Slots: {occupied_count}/{max_total_slots} | LiveEquity: ${balance:.2f} | Vault: {'✅' if vault_ok else '❌'} ({vault_reason})")
                     self._last_heartbeat = time.time()
                 
-                free_slots = 4 - occupied_count
+                free_slots = max_total_slots - occupied_count
                 
                 # [V92.0] MASS SNIPER: Monitorar até 24 tocaias simultâneas (o limite real é de slots).
                 monitoring_limit = max(24, free_slots * 6)
@@ -793,30 +796,19 @@ class CaptainAgent(AIOSAgent):
                 slots = await firebase_service.get_active_slots()
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # Regra Elite Slot 1: Só escaneia se o Slot 1 estiver livre (ou se houver menos de 4 ordens)
-                # Na verdade, o 'can_open_new_slot' já protege, mas aqui evitamos chamadas de rede desnecessárias.
-                slot_1 = slots[0] if len(slots) > 0 else {}
-                slot_1_busy = slot_1.get("symbol") is not None
-                
-                if not slot_1_busy:
-                    logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30 para o Slot 1 Elite...")
+                if occupied_count < max_total_slots:
+                    logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30...")
                     await blitz_sniper_agent.scan_and_inject(signal_generator.signal_queue)
                 else:
-                    logger.debug("⚡ [BLITZ-SCAN] Slot 1 ocupado. Pulando ciclo de varredura.")
+                    logger.debug("⚡ [BLITZ-SCAN] Todos os slots ocupados. Pulando ciclo de varredura.")
 
                 await asyncio.sleep(BLITZ_SCAN_INTERVAL)
 
                 if not self.is_running:
                     break
 
-                # [V110.137] Verifica se ALGUM slot Blitz esta disponivel (1 ou 2)
-                slot_1 = next((s for s in slots if s.get("id") == 1), {})
-                slot_2 = next((s for s in slots if s.get("id") == 2), {})
-                slot_1_busy = bool(slot_1.get("symbol")) and slot_1.get("status") != "EMANCIPATED"
-                slot_2_busy = bool(slot_2.get("symbol")) and slot_2.get("status") != "EMANCIPATED"
-
-                if slot_1_busy and slot_2_busy:
-                    logger.debug("[BLITZ-LOOP] Slots 1 e 2 ocupados. Aguardando liberacao para novo scan M30.")
+                if occupied_count >= max_total_slots:
+                    logger.debug("[BLITZ-LOOP] Slots ocupados. Aguardando liberação para novo scan M30.")
                     continue
 
                 # 2. Obtém direção do BTC para filtro de tendência

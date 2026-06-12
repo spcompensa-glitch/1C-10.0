@@ -378,7 +378,7 @@ class BankrollGuardian:
         mode = "ACUMULACAO"
         state_label = "Acumulando"
         min_score = 45.0
-        max_slots = 4
+        max_slots = 40
         health = 88
         reasons = ["Banca em condicao operacional."]
 
@@ -418,7 +418,7 @@ class BankrollGuardian:
                 health = 94
             mode = "ACUMULACAO_PROTEGIDA"
             state_label = "Acumulacao protegida"
-            max_slots = 4
+            max_slots = 40
             reasons = []
             if profitable_moonbag_active:
                 reasons.append(f"Moonbag lucrativa ativa (${open_moonbags_pnl:.2f}). Mantendo fabrica de slots ligada.")
@@ -443,7 +443,7 @@ class BankrollGuardian:
                 "protected_floor": round(protected_floor, 4),
                 "reasons": reasons,
             }
-
+ 
         if material_profit_floor and self.protected_profit_peak > 0 and equity <= protected_floor:
             mode = "PRESERVACAO_TOTAL"
             state_label = "Preservacao total"
@@ -462,14 +462,14 @@ class BankrollGuardian:
             mode = "DEFESA"
             state_label = "Defesa"
             min_score = 92.0
-            max_slots = 1
+            max_slots = 10  # Escalonado proporcionalmente (1/4 de 40)
             health = 45
             reasons = ["Banca em defesa. Apenas sinais de elite."]
         elif session_roi <= -3.0 or drawdown_from_peak_pct >= 4.0:
             mode = "CAUTELOSO"
             state_label = "Cauteloso"
             min_score = 85.0
-            max_slots = 2
+            max_slots = 20  # Escalonado proporcionalmente (1/2 de 40)
             health = 65
             reasons = ["Banca cautelosa. Reduzindo exposicao."]
         elif self.protected_profit_peak > 0:
@@ -477,16 +477,16 @@ class BankrollGuardian:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 88.0
-                max_slots = 4
+                max_slots = 40
                 health = 96
             elif profit_multiple >= 1.0:
                 mode = "ACUMULACAO_PROTEGIDA"
                 state_label = "Acumulacao protegida"
                 min_score = 80.0
-                max_slots = 4
+                max_slots = 40
                 health = 94
             else:
-                health = 92 if active_slots <= 4 else 80
+                health = 92 if active_slots <= 40 else 80
             reasons = [
                 f"Lucro confirmado por historico/stops. Protegendo ${locked_profit:.2f} "
                 f"de ${self.protected_profit_peak:.2f} assegurados.",
@@ -620,9 +620,9 @@ class BankrollGuardian:
             f"Guardiao da Banca: {health['state_label']}.",
             f"Saude da banca: {health['health_score']}/100.",
             f"Equity atual: ${equity:.2f}. Resultado da sessao: ${health['session_profit']:.2f} ({health['session_roi']:.1f}%).",
-            f"Slots ativos: {active_slots}/4. Moonbags ativas: {active_moonbags}.",
+            f"Slots ativos: {active_slots}/40. Moonbags ativas: {active_moonbags}.",
             f"Slots protegidos pelo Flash: {protected_slots}.",
-            f"Modo: {health['mode']}. Score minimo para nova ordem: {health['min_score']:.0f}. Slots permitidos: {health['max_slots']}/4.",
+            f"Modo: {health['mode']}. Score minimo para nova ordem: {health['min_score']:.0f}. Slots permitidos: {health['max_slots']}/40.",
             f"Lucro protegido: ${health['locked_profit']:.2f}. Devolucao permitida: ${health['allowed_giveback']:.2f}.",
             f"Pares suspensos: {suspended}.",
         ]
@@ -650,10 +650,10 @@ class BankrollGuardian:
         #     )
         pass
 
-        if report.get("active_slots", 0) >= report.get("max_slots_allowed", 4):
+        if report.get("active_slots", 0) >= report.get("max_slots_allowed", 40):
             approved = False
             reasons.append(
-                f"Exposicao maxima do Guardiao atingida: {report.get('active_slots', 0)}/{report.get('max_slots_allowed', 4)} slots."
+                f"Exposicao maxima do Guardiao atingida: {report.get('active_slots', 0)}/{report.get('max_slots_allowed', 40)} slots."
             )
 
         if score < report["min_score_required"]:

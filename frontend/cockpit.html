@@ -5521,7 +5521,7 @@
         const UnifiedQuantumHUD = ({ 
             btc, realAdx, dominance, realDecorrelation, protocolLabel, 
             oracleStatus, oracleMessage, stabilizationProgress, 
-            unifiedRegime, activeSlotCount, pulseStatus, latency 
+            unifiedRegime, activeSlotCount, pulseStatus, latency, maxSlots 
         }) => {
             const isStabilizing = oracleStatus === 'STABILIZING';
             const isTsunami = (dominance > 55.0) && (Number(realAdx) > 30.0) && (btc?.btc_variation_1h > 0);
@@ -5613,7 +5613,7 @@
                             </div>
                             <div className="flex flex-col items-center">
                                 <span className="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Slots</span>
-                                <span className="text-sm font-black text-white leading-none">{activeSlotCount}/4</span>
+                                <span className="text-sm font-black text-white leading-none">{activeSlotCount}/{maxSlots || 40}</span>
                             </div>
                         </div>
                     </div>
@@ -5693,6 +5693,7 @@
                                 activeSlotCount={activeSlotCount}
                                 pulseStatus={pulseStatus}
                                 latency={latency}
+                                maxSlots={isRangingMode ? 20 : 40}
                             />
                             {/* Hover Panel do Pensamento AI (Sci-Fi Glass) */}
                             {focusedAsset && focusedAsset.pensamento && (

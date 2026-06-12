@@ -519,7 +519,16 @@ class CaptainAgent(AIOSAgent):
                 1 for s in slots
                 if s.get("symbol") and float(s.get("entry_price") or 0) > 0 and float(s.get("qty") or 0) > 0
             )
-            free_slots = 4 - occupied_count
+            # Detecta regime de mercado dinamicamente para calibrar slots livres
+            is_ranging_mode = True
+            try:
+                from services.okx_ws_public import okx_ws_public_service
+                adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                is_ranging_mode = (adx < 25)
+            except Exception:
+                pass
+            max_allowed_slots = 20 if is_ranging_mode else 40
+            free_slots = max_allowed_slots - occupied_count
             required_confidence = 45.0 if free_slots >= 2 else 50.0
             
             if unified_score < required_confidence:
@@ -1065,7 +1074,17 @@ class CaptainAgent(AIOSAgent):
             slots = await firebase_service.get_active_slots(username=username)
             occupied_count = sum(1 for s in slots if s.get("symbol"))
             
-            if occupied_count >= 4:
+            # Detecta regime de mercado dinamicamente para calibrar limite de slots
+            is_ranging_mode = True
+            try:
+                from services.okx_ws_public import okx_ws_public_service
+                adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                is_ranging_mode = (adx < 25)
+            except Exception:
+                pass
+            max_allowed_slots = 20 if is_ranging_mode else 40
+            
+            if occupied_count >= max_allowed_slots:
                 # logger.debug(f"⏭️ [V120] Usuário {username} sem slots disponíveis.")
                 return
 

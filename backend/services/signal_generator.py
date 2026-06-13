@@ -3164,6 +3164,10 @@ class SignalGenerator:
                         strategy_class = "FAS"
                     elif is_mola_play:
                         strategy_class = "MOLA"
+                    elif candidate.get("is_decorrelated", False):
+                        strategy_class = "DECOR"
+                    elif candidate.get("v42_pattern", {}).get("detected", False):
+                        strategy_class = str(candidate.get("v42_pattern", {}).get("type", "RANGING")).upper()
                     else:
                         # Se não for nenhuma das especiais, classificamos como ABCD ou 1-2-3 baseando-se no padrão
                         pat_name = str(candidate.get("indicators", {}).get("pattern", "unknown")).upper()

@@ -497,9 +497,11 @@ class BlitzSniperAgent(AIOSAgent):
                 from services.okx_rest import okx_rest_service
                 from services.agents.oracle_agent import oracle_agent
 
-                # 1. Obtém lista de ativos (Top 100 líquidos com 50x+)
-                symbols = await okx_rest_service.get_elite_50x_pairs()
+                # 1. Obtém lista de ativos oficial da watchlist de 20 pares
+                from config import settings
+                symbols = getattr(settings, "RADAR_WATCHLIST", [])
                 if not symbols:
+                    logger.warning("⚡ [BLITZ-SCAN] RADAR_WATCHLIST nao encontrada no config. settings.")
                     await asyncio.sleep(60)
                     continue
                 

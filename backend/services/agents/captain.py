@@ -187,11 +187,11 @@ class CaptainAgent(AIOSAgent):
             penalty += 20.0
             reasons.append(f"maxLeverage {max_leverage:.0f}x < alvo {target_leverage:.0f}x")
 
-        if tick_roi >= 8.0:
+        if tick_roi >= 15.0:
             block = True
             penalty += 25.0
             reasons.append(f"tick grosso ({tick_roi:.2f}% ROI por tick)")
-        elif tick_roi >= 3.0:
+        elif tick_roi >= 8.0:
             penalty += 8.0
             reasons.append(f"tick sensível ({tick_roi:.2f}% ROI por tick)")
 
@@ -461,31 +461,23 @@ class CaptainAgent(AIOSAgent):
                     unified_score = 0 
                     logger.warning(f"⚠️ [LIBRARIAN-TRAP] {symbol} sinalizado como zona de armadilha. ORDEM ABORTADA.")
             
-            # [BLOCK] Absolute Trap Risk from WhaleTracker (Institutional Divergence)
+            # [V120] ANTI-TRAP RELAXADO — Ordem direta, sem bloqueio por trap
             if trap_risk:
-                approved = False
-                reasons.append(f"🐳🚫 ANTI-TRAP BLOCK: {trap_reason}")
-                unified_score = 10 # Force low score if trap detected
-                logger.warning(f"🛡️ [V110.100] {symbol} {side} BLOCKED by ANTI-TRAP: {trap_reason}")
+                logger.info(f"🔓 [V120 TRAP-PASS] {symbol} {side} | trap_risk={trap_risk} — Ordem direta autorizada.")
 
+            # [V120] RELAXED RISK & SENTIMENT — Ordem direta, sem bloqueio
             if risk_score > 8:
-                approved = False
-                reasons.append(f"High Macro Risk ({risk_score})")
+                logger.info(f"🔓 [V120 RISK-PASS] {symbol} risk_score={risk_score} — Ordem direta autorizada.")
             
             if sent_score < 30:
-                approved = False
-                reasons.append(f"Sentiment Block (Extreme Retail Trapped: {sent_score})")
+                logger.info(f"🔓 [V120 SENTIMENT-PASS] {symbol} sent_score={sent_score} — Ordem direta autorizada.")
             
-            # [V110.27.0] RESTORED TO HARD BLOCK: Whale Bias Divergence
+            # [V120] WHALE DIVERGENCE RELAXADO — Ordem direta, sem bloqueio por whale bias
             wb_upper = whale_bias.upper()
             if side.lower() == "buy" and "DISTRIBUTION" in wb_upper:
-                approved = False
-                reasons.append(f"🐳🚫 FLEET DIVERGENCE: Whale {whale_bias} against LONG")
-                logger.warning(f"🛡️ [V110.137] {symbol} LONG BLOCKED by Whale {whale_bias}")
+                logger.info(f"🔓 [V120 WHALE-PASS] {symbol} LONG | Whale {whale_bias} — Ordem direta autorizada.")
             elif side.lower() == "sell" and "ACCUMULATION" in wb_upper:
-                approved = False
-                reasons.append(f"🐳🚫 FLEET DIVERGENCE: Whale {whale_bias} against SHORT")
-                logger.warning(f"🛡️ [V110.137] {symbol} SHORT BLOCKED by Whale {whale_bias}")
+                logger.info(f"🔓 [V120 WHALE-PASS] {symbol} SHORT | Whale {whale_bias} — Ordem direta autorizada.")
 
             contract_quality = await self._evaluate_contract_quality(signal, symbol)
             contract_penalty = float(contract_quality.get("penalty") or 0.0)
@@ -529,7 +521,7 @@ class CaptainAgent(AIOSAgent):
                 pass
             max_allowed_slots = 20 if is_ranging_mode else 40
             free_slots = max_allowed_slots - occupied_count
-            required_confidence = 45.0 if free_slots >= 2 else 50.0
+            required_confidence = 20.0 if free_slots >= 2 else 30.0
             
             if unified_score < required_confidence:
                 approved = False
@@ -696,7 +688,8 @@ class CaptainAgent(AIOSAgent):
                         is_ranging_mode = (adx < 25)
                     except Exception:
                         pass
-                    max_total_slots = settings.MAX_SLOTS_LATERAL if is_ranging_mode else settings.MAX_SLOTS_TRENDING
+                    from config import settings as loop_settings
+                    max_total_slots = loop_settings.MAX_SLOTS_LATERAL if is_ranging_mode else loop_settings.MAX_SLOTS_TRENDING
                 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
@@ -803,6 +796,7 @@ class CaptainAgent(AIOSAgent):
         """
         from services.agents.blitz_sniper import blitz_sniper_agent
         from services.okx_rest import okx_rest_service
+        from config import settings
 
         BLITZ_SCAN_INTERVAL = 300  # 5 minutos entre ciclos de scan
 
@@ -827,7 +821,8 @@ class CaptainAgent(AIOSAgent):
                         is_ranging_mode = (adx < 25)
                     except Exception:
                         pass
-                    max_total_slots = settings.MAX_SLOTS_LATERAL if is_ranging_mode else settings.MAX_SLOTS_TRENDING
+                    from config import settings as loop_settings
+                    max_total_slots = loop_settings.MAX_SLOTS_LATERAL if is_ranging_mode else loop_settings.MAX_SLOTS_TRENDING
 
                 if occupied_count < max_total_slots:
                     logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30...")
@@ -850,7 +845,6 @@ class CaptainAgent(AIOSAgent):
                 btc_adx = deep_macro.get("adx", 0.0)
 
                 # 3. Obtém a watchlist (pares ativos do radar)
-                from config import settings
                 watchlist = getattr(settings, "RADAR_WATCHLIST", [])
                 if not watchlist:
                     # Fallback: usa os símbolos mais líquidos
@@ -1176,124 +1170,37 @@ class CaptainAgent(AIOSAgent):
             is_blitz = best_signal.get("is_blitz", False) or best_signal.get("timeframe") == "30" or best_signal.get("layer") == "BLITZ"
             is_decorrelated = best_signal.get("decorrelation", {}).get("is_active", False)
 
-            # --- [V110.172] SENTINEL PROTOCOL: LATERAL BLOCK + ELITE NECTAR BYPASS ---
+            # --- [V120] SENTINEL LATERAL BLOCK REMOVIDO — Ordem direta, sem filtro lateral ---
             if btc_dir == "LATERAL":
-                # Busca DNA do ativo para verificar se tem permissão de Elite Bypass
-                lib_dna_lateral = await librarian_agent.get_asset_dna(symbol)
-                nectar_seal_lateral = lib_dna_lateral.get("nectar_seal", "🛡️ VANGUARD")
-                is_elite_nectar = "ELITE" in nectar_seal_lateral or "NECTAR" in nectar_seal_lateral
-                is_elite_score = score >= 95
-                
-                # [V110.128] ADX SLOPE GUARD: Mesmo sinais Elite devem ter "pressão" crescendo
                 adx_slope = current_btc_adx - self.prev_btc_adx
-                self.prev_btc_adx = current_btc_adx # Update for next signal
-                
-                is_warming_up = adx_slope > 0 or current_btc_adx >= 25
-                
-                # [V110.137] Blitz Sniper ignora o ADX Slope Guard em laterais
-                can_bypass_lateral = (is_elite_nectar or is_elite_score) and is_warming_up
-                if is_blitz or is_decorrelated:
-                    can_bypass_lateral = True
-                    logger.info(f"⚡ [BYPASS-LATERAL] {symbol} ({side}) ignorando trava lateral Sentinel (Blitz={is_blitz}, Decor={is_decorrelated}).")
+                self.prev_btc_adx = current_btc_adx
+                logger.info(f"🔓 [V120 LATERAL-PASS] {symbol} ({side}) | BTC LATERAL — Ordem direta autorizada. ADX={current_btc_adx:.1f} Slope={adx_slope:+.2f}")
 
-                if can_bypass_lateral:
-                    bypass_reason = "EliteNectar" if is_elite_nectar else ("EliteScore" if is_elite_score else "Blitz/Decor")
-                    msg = (
-                        f"💎 [V110.172 ELITE-BYPASS] {symbol} ({side}) | BTC LATERAL mas sinal de {bypass_reason}. "
-                        f"ADX-Slope: {adx_slope:+.2f}. Caçada autorizada!"
-                    )
-                    logger.info(msg)
-                    await firebase_service.log_event("SENTINELA", msg, "SUCCESS")
-                else:
-                    if not is_warming_up and (is_elite_nectar or is_elite_score):
-                        block_reason = f"ADX Slope Estagnado ({adx_slope:+.2f}) e ADX Baixo ({current_btc_adx:.1f})"
-                    else:
-                        block_reason = f"Score {score} < 95 ou Seal {nectar_seal_lateral} insuficiente"
-                        
-                    msg = (
-                        f"🛡️ [V110.172 LATERAL-BLOCK] {symbol} ({side}) negado: {block_reason}. "
-                        f"Evitando armadilha de lateralidade sem força."
-                    )
-                    logger.warning(msg)
-                    await firebase_service.log_event("SENTINELA", msg, "WARNING")
-                    await firebase_service.update_signal_outcome(best_signal.get("id"), "LAZY_LATERAL_BLOCK")
-                    self.active_tocaias.discard(symbol)
-                    return
-
-            # --- [V110.100.1] WHALE BYPASS (APENAS SE MERCADO GLOBAL PERMITIR) ---
+            # --- [V120] ADX<18 BLOCK REMOVIDO — Ordem direta, sem filtro lateral ---
             if current_btc_adx < 18:
-                # [V110.136] BLITZ BYPASS: Sinais M30 (Blitz) ignoram o bloqueio de mercado lateral.
-                # is_blitz unified from above
-                
-                active_slots_data = await firebase_service.get_active_slots()
-                if okx_rest_service.execution_mode == "PAPER":
-                    occ_count = len(okx_rest_service.paper_positions)
-                else:
-                    occ_count = sum(1 for s in active_slots_data if s.get("symbol"))
-                
-                local_cvd = okx_ws_public_service.get_cvd_score(symbol)
-                is_whale_strong = abs(local_cvd) >= 15000 or score >= 88
-                
-                if (occ_count < 2 and is_whale_strong) or is_blitz or is_decorrelated or okx_rest_service.execution_mode == "PAPER":
-                    if is_blitz:
-                        msg = f"⚡ [BLITZ-PRIORITY] {symbol} ({side}) ignorando bloqueio ADX lateral (M30 Blitz Mode)."
-                    elif okx_rest_service.execution_mode == "PAPER":
-                        msg = f"💎 [PAPER-BYPASS] ADX {current_btc_adx:.1f} < 18, mas {symbol} ({side}) ignorando bloqueio ADX (Paper mode ativo)."
-                    elif is_decorrelated:
-                        msg = f"💎 [DECOR-BYPASS] ADX {current_btc_adx:.1f} < 18, mas {symbol} ({side}) ignorando bloqueio ADX (Ativo Descorrelacionado)."
-                    else:
-                        msg = f"🐋 [WHALE-BYPASS] ADX {current_btc_adx:.1f} < 18, mas {symbol} ({side}) tem CVD ({local_cvd}) / Score Elite. Slots Livres! Permitindo caçada."
-                    
-                    logger.info(msg)
-                    await firebase_service.log_event("CAPTAIN", msg, "SUCCESS")
-                else:
-                    msg = f"🛡️ [ADX-BLOCK] {symbol} ({side}) | M-ADX={current_btc_adx:.1f}<18 | Sem cota Whale ou CVD baixo."
-                    logger.warning(msg)
-                    await firebase_service.log_event("SENTINELA", msg, "WARNING")
-                    if best_signal.get("id"):
-                        await firebase_service.update_signal_outcome(best_signal.get("id"), "ABSOLUTE_LATERAL_BLOCK")
-                    self.active_tocaias.discard(symbol)
-                    return
+                logger.info(f"🔓 [V120 ADX-PASS] {symbol} ({side}) | M-ADX={current_btc_adx:.1f}<18 — Ordem direta autorizada.")
 
-            # --- [V110.172] MACRO BEAR MARKET SHIELD — Bloqueia LONGs em altcoins em Bear lateral ---
-            # Diagnóstico Sandbox: 0% win rate em LONGs quando dominance > 57% e ADX < 25.
-            # 100% dos ganhos vieram de SHORTs no mesmo período. Filtro obrigatório.
+            # --- [V120] MACRO BEAR SHIELD REMOVIDO — Ordem direta, sem filtro lateral ---
             if side.lower() in ("buy", "long", "b"):
                 try:
                     from services.agents.macro_analyst import macro_analyst
                     btc_dominance_now = getattr(macro_analyst, '_dom_cache', 0.0)
                     if btc_dominance_now <= 0:
-                        btc_dominance_now = 58.0  # fallback conservador
+                        btc_dominance_now = 58.0
                 except Exception:
                     btc_dominance_now = 58.0
 
                 is_bear_lateral = btc_dominance_now > 57.0 and current_btc_adx < 25.0
-                if is_bear_lateral and not is_blitz and not is_decorrelated:
-                    msg = (
-                        f"🛡️ [V110.172 MACRO-BEAR-SHIELD] {symbol} LONG bloqueado. "
-                        f"Dominância BTC={btc_dominance_now:.1f}% (>57%) + ADX={current_btc_adx:.1f} (<25). "
-                        f"Bear lateral — LONGs em altcoins com alta taxa de falha. Abortando."
-                    )
-                    logger.warning(msg)
-                    await firebase_service.log_event("SENTINELA", msg, "WARNING")
-                    if best_signal.get("id"):
-                        await firebase_service.update_signal_outcome(best_signal.get("id"), "MACRO_BEAR_SHIELD")
-                    self.active_tocaias.discard(symbol)
-                    return
-                elif is_bear_lateral and (is_blitz or is_decorrelated):
-                    logger.info(
-                        f"⚡ [MACRO-BEAR-BYPASS] {symbol} LONG | Bear lateral detectado mas Blitz/Decor permite entrada. "
-                        f"Dom={btc_dominance_now:.1f}% ADX={current_btc_adx:.1f}."
-                    )
+                if is_bear_lateral:
+                    logger.info(f"🔓 [V120 BEAR-PASS] {symbol} LONG | Bear lateral detectado mas ordem direta autorizada. Dom={btc_dominance_now:.1f}% ADX={current_btc_adx:.1f}.")
 
             # [LIBRARIAN-EARLY-SYNC] V2.1 - Busca DNA do ativo precocemente para travar o Elite Bypass
             lib_dna = await librarian_agent.get_asset_dna(symbol)
             nectar_seal = lib_dna.get("nectar_seal", "🛡️ VANGUARD")
 
-            # [V110.64.0] VANGUARD QUALITY FILTER (Score >= 80)
-            # is_blitz unified from above
-            if "VANGUARD" in nectar_seal and score < 80 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
-                msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 80. Ativos Vanguard exigem confiança mínima. Abortando."
+            # [V120] VANGUARD QUALITY FILTER RELAXADO — Ordem direta, score mínimo reduzido
+            if "VANGUARD" in nectar_seal and score < 60 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
+                msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 60. Ativos Vanguard exigem confiança mínima. Abortando."
                 logger.warning(msg)
                 await firebase_service.log_event("CAPTAIN", msg, "INFO")
                 if best_signal.get("id"):
@@ -1303,12 +1210,12 @@ class CaptainAgent(AIOSAgent):
             elif is_blitz and "VANGUARD" in nectar_seal:
                 logger.info(f"⚡ [BLITZ-VANGUARD-BYPASS] {symbol} ({score}) permitido apesar de ser Vanguard (Blitz Sniper prioritário).")
 
-            # [V110.38.0] ABSOLUTE TRAP SHIELD - Bloqueia QUALQUER entrada em moedas classificadas como TRAP
+            # [V120] ABSOLUTE TRAP SHIELD RELAXADO — Ordem direta, score mínimo reduzido
             if "TRAP" in nectar_seal:
-                if okx_rest_service.execution_mode == "PAPER" or score >= 95:
-                    logger.info(f"💎 [PAPER-TEST-FIRE] Ignorando TRAP SHIELD para {symbol} ({score}) para forçar disparo (Elite/Paper Bypass).")
+                if okx_rest_service.execution_mode == "PAPER" or score >= 70:
+                    logger.info(f"🔓 [V120 TRAP-PASS] {symbol} ({score}) — TRAP classificado mas ordem direta autorizada.")
                 else:
-                    msg = f"🛡️ [LIBRARIAN-TRAP-BLOCK] {symbol} ({side}) negado: Zona de armadilha pelo Bibliotecário. Abortando caçada."
+                    msg = f"🛡️ [LIBRARIAN-TRAP-BLOCK] {symbol} ({side}) negado: Zona de armadilha pelo Bibliotecário (Score {score} < 70). Abortando caçada."
                     logger.warning(msg)
                     await firebase_service.log_event("CAPTAIN", msg, "WARNING")
                     if best_signal.get("id"):
@@ -1341,37 +1248,10 @@ class CaptainAgent(AIOSAgent):
             is_counter_trend = (btc_dir == "UP" and side.upper() == "SELL") or \
                                (btc_dir == "DOWN" and side.upper() == "BUY")
                 
-            # [V110.12.9] ABSOLUTE DIRECTION SHIELD (Anti-Massacre)
-            # Se BTC está caindo forte ou subindo forte, o bypass de decorrelação é proibido para sinais normais.
-            # Apenas SHADOW STRIKE de Elite (Score 99) pode furar essa trava.
-            btc_variation_15m = deep_macro.get("var_15m", 0)
-            is_violent_trend = abs(btc_variation_15m) >= 0.5
-            
+            # [V120] ABSOLUTE DIRECTION SHIELD REMOVIDO — Ordem direta, sem filtro de tendência ---
             if is_counter_trend:
-                can_bypass = False
-                # [V110.128] CONTRATENDÊNCIA VIOLENTA: Bloqueio total se var_15m > 0.5% (Tornando mais conservador)
-                if abs(btc_variation_15m) >= 0.5:
-                    can_bypass = False
-                    logger.warning(f"🛑 [VIOLENT-TREND-BLOCK] {symbol} {side} contra tendência violenta do BTC ({btc_variation_15m:.2f}% em 15m). Riscos de massacre ignorados.")
-                elif score >= 98: # Apenas permitindo bypass em setups de extrema confiança
-                    can_bypass = True
-                    logger.info(f"💎 [ELITE-BYPASS] {symbol} furando contra-tendência BTC {btc_dir} com Score extremo {score} e selo {nectar_seal}.")
-                else:
-                    can_bypass = False
-                    if score >= 90:
-                        logger.warning(f"🛑 [ABSOLUTE DIRECTION BLOCK] {symbol} {side} negado: Tem Score {score} mas abaixo do limite de bypass extremo (98).")
-                    else:
-                        logger.warning(f"🛑 [ABSOLUTE DIRECTION BLOCK] {symbol} {side} negado: Contra tendência BTC {btc_dir} (Score {score} < 90).")
-                    
-                if not can_bypass:
-                    msg = f"🚫 [MACRO 110.128 BLOCK] Bloqueado {symbol} ({side}) contra a tendência BTC {btc_dir} (ADX={deep_macro['adx']:.1f} | Var15m={btc_variation_15m:.2f}%)."
-                    logger.warning(msg)
-                    await firebase_service.log_event("CAPTAIN", msg, "WARNING")
-                    await firebase_service.update_signal_outcome(best_signal.get("id"), "MACRO_3D_DIRECTION_BLOCK")
-                    self.active_tocaias.discard(symbol)
-                    return
-                else:
-                    logger.info(f"🎯 [V110.128 BYPASS] Permitindo {symbol} ({side}) contra-tendência por critérios de Elite (Score >= 98).")
+                can_bypass = True
+                logger.info(f"🔓 [V120 COUNTER-PASS] {symbol} {side} contra-tendência BTC {btc_dir} — Ordem direta autorizada.")
             else:
                 logger.info(f"✅ [V67.3 TREND] {symbol} {side} a favor da tendência BTC {btc_dir}.")
 
@@ -1401,18 +1281,9 @@ class CaptainAgent(AIOSAgent):
 
                     allow_momentum = False
                     if market_regime == "RANGING":
-                        # [LATERALIZAÇÃO] Reduzindo rigor: Permite Momentum se Score >= 80 para evitar slots vazios
-                        if score >= 90: # [V42.9] No Momentum in Ranging for low score
-                            # [V110.64.0] RANGING MOMENTUM ELITE bloqueado se lateral e não-shadow
-                            if current_btc_adx < 18 and not best_signal.get("is_shadow_strike", False):
-                                allow_momentum = False
-                                logger.info(f"🔒 [RANGING-LATERAL-BLOCK] {symbol} Score Elite {score} bloqueado: ADX {current_btc_adx:.1f} < 18, nao Shadow.")
-                            else:
-                                allow_momentum = True
-                                logger.info(f"🚧 [{symbol}] RANGING MARKET: Permitido via Momentum ELITE {score}")
-                        else:
-                            allow_momentum = False
-                            logger.info(f"⏭️ {symbol} rejeitado: Momentum no RANGING exige Score >= 90.")
+                        # [V120] RANGING MOMENTUM LIBERADO — Ordem direta, sem filtro de score
+                        allow_momentum = True
+                        logger.info(f"🔓 [V120 RANGING-PASS] {symbol} Score={score} — Momentum em RANGING autorizado (ordem direta).")
                     else:
                         allow_momentum = True # Se não for RANGING, Momentum é liberado
                         
@@ -1480,6 +1351,9 @@ class CaptainAgent(AIOSAgent):
                 best_signal["is_reverse_sniper"] = True # Mark for tighter protection in SL logic
                 consensus["approved"] = True # Override approval for the pivot trade
             
+            # [SANDBOX] Bypass Total - Autoriza tudo que chega no radar
+            consensus["approved"] = True
+            
             if not consensus["approved"]:
                 reason = consensus["reason"]
                 logger.info(f"🚫 [FLEET] {symbol} REJEITADO: {reason}")
@@ -1544,12 +1418,9 @@ class CaptainAgent(AIOSAgent):
             local_cvd = best_signal.get("cvd_local", 0)
             is_high_risk = lib_dna.get("status") == "HIGH_RISK"
             
-            should_bypass_ambush = (
-                score >= 92 and
-                abs(local_cvd) >= 30000 and
-                current_btc_adx >= 30 and
-                not is_high_risk
-            )
+            # [SANDBOX] Todas as ordens contornam a Tocaia e entram a mercado
+            should_bypass_ambush = True
+
             
             if should_bypass_ambush:
                 msg = (

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "../AGENTS.md",
+    "../MASTER_ARCHITECTURE.md",
+    "../REQUIREMENTS.md"
+  ],
+  "skills": {
+    "paths": [
+      "../ECC/skills"
+    ]
+  },
+  "agent": {
+    "build": {
+      "description": "Agente principal de desenvolvimento 1Crypten",
+      "mode": "primary",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true,
+        "read": true,
+        "changed-files": true
+      }
+    },
+    "planner": {
+      "description": "Planejador de implementação para features complexas do 1Crypten",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "python-reviewer": {
+      "description": "Reviewer Python especializado em PEP 8, type hints, FastAPI, segurança",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/python-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "security-reviewer": {
+      "description": "Security vulnerability detection - autenticação, API, dados sensíveis",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/security-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "tdd-guide": {
+      "description": "TDD specialist - testes antes da implementação, 80%+ coverage",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/tdd-guide.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "database-reviewer": {
+      "description": "PostgreSQL specialist - schema, queries, performance, migrations",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/database-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "code-reviewer": {
+      "description": "Code review geral - qualidade, manutenibilidade, padrões",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/code-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "refactor-cleaner": {
+      "description": "Dead code cleanup e consolidação de duplicatas",
+      "mode": "subagent",
+      "prompt": "{file:../ECC/.opencode/prompts/agents/refactor-cleaner.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    }
+  }
+}

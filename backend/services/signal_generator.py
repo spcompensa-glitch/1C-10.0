@@ -2900,21 +2900,10 @@ class SignalGenerator:
                             logger.debug(f"🚫 [BLOCKLIST] Ignorando {symbol} (Ativo em blocklist permanente).")
                             return None
 
-                        # [V110.36.2] VANGUARD PRE-QUALIFIER (S1): Alinhado com o Portão do Captain.
-                        # Em vez de bloquear tudo no S1, permite candidatos elite ou descorrelacionados passarem para o Captain decidir.
+                        # [V120] LATERAL-LOCK S1 REMOVIDO — Todos os sinais passam direto para Captain decidir.
+                        # Radar removido: sinais agora viram ordens diretas. Sem filtro lateral no S1.
                         if is_btc_lateral:
-                            # Pré-qualificação: Score alto + CVD positivo (mesmos critérios do Vanguard Bypass)
-                            btc_cvd_total = okx_ws_public_service.get_cvd_score("BTCUSDT")
-                            btc_cvd_5m    = okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300)
-                            has_real_flow = (btc_cvd_total > 0) and (btc_cvd_5m > 0)
-                            is_vanguard_pre = (preliminary_score >= 90) and has_real_flow
-
-                            # [V110.138] Se descorrelacionado (decoupled/gas) ou pré-qualificado Vanguard, passa adiante!
-                            if not is_vanguard_pre and not is_decorrelated:
-                                logger.debug(f"🔒 [LATERAL-LOCK S1] {symbol} negado | Score={preliminary_score:.0f} | CVD={btc_cvd_total/1e6:.2f}M")
-                                return None
-                            else:
-                                logger.info(f"💎 [VANGUARD/DECOR PASS S1] {symbol} Score={preliminary_score:.0f} | Decor={is_decorrelated} | Vanguard={is_vanguard_pre} → Passando para Captain decidir.")
+                            logger.info(f"🔓 [S1-LATERAL-PASS] {symbol} Score={preliminary_score:.0f} | Decor={is_decorrelated} → Passando para Captain (ordem direta).")
                             
                             
                         # [V44.3] Relaxation: Allow entries with lower total CVD if 5m CVD is explosive OR ADX is accelerating
@@ -3532,7 +3521,8 @@ class SignalGenerator:
                         "leverage": max_lev, # [V42.0] Exposing for Radar Badge
                         "side": "Buy" if side_label == "Long" else "Sell",  # [V27.1] Exposing side for Captain
                         "entry_price_signal": current_price_now,
-                        "suggested_sl": dvap_targets["sl"] if (is_dvap_play and dvap_targets) else execution_protocol.calculate_structural_stop(current_price_now, macro_2h.get('pivot_low' if side_label == 'Long' else 'pivot_high', 0), "Buy" if side_label == "Long" else "Sell"),
+                        # [SANDBOX] Stop Loss fixado matematicamente em -50% ROI (5% de recuo no preco para 10x)
+                        "suggested_sl": current_price_now * 0.95 if side_label == "Long" else current_price_now * 1.05,
                         "layer": "SNIPER" if is_dvap_play else signal_layer,  # [V25.1] SNIPER or MOMENTUM
                         "is_shadow_strike": candidate.get('is_shadow_strike', False),
                         "is_trend_surf": trigger_result.get('is_trend_surf', False),

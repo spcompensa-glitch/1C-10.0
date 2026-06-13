@@ -1653,6 +1653,8 @@ class BankrollManager:
                 lib_dna = await librarian_agent.get_asset_dna(symbol)
                 vol_class = lib_dna.get("volatility_class", "STABLE")
                 
+                balance = await self.get_live_operating_equity()
+                
                 dna_leverage_map = {
                     "EXTREME": 30.0,
                     "VOLATILE": 40.0,
@@ -1671,7 +1673,14 @@ class BankrollManager:
                 if qm_leverage > 0:
                     current_leverage = qm_leverage
                     dna_margin_pct = 0.10 * qm_multiplier 
-                    logger.info(f"⚓ [V110.135 QUARTERMASTER-OVERRIDE] {symbol} Leverage={current_leverage}x, Adjusted-Margin={dna_margin_pct*100:.1f}%")
+                    is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
+                        not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+                    )
+                    if is_ranging_mode:
+                        margin = self.margin_lateral      # $2.00
+                    else:
+                        margin = self.margin_trending     # $1.00
+                    logger.info(f"⚓ [V110.135 QUARTERMASTER-OVERRIDE] {symbol} Leverage={current_leverage}x, Margin=${margin:.2f}")
                 else:
                     dna_leverage = dna_leverage_map.get(vol_class, 50.0)
                     dna_margin_pct = dna_margin_map.get(vol_class, 0.10)

@@ -471,19 +471,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.01);
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #ffffff, #64748b);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #ffffff;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 /* [V1.0] Intelligence Flow Timeline */
@@ -782,8 +781,11 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 215, 0, 0.2);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
        /* V4.3.3: LEGIBILIDADE ADAPTATIVA (MOBILE-FIRST) */
 @media (max-width: 1024px) {

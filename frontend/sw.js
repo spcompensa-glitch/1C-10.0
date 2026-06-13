@@ -7,7 +7,7 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.707'; // [V110.707] Adicionado suporte a componentes modularizados
+const CACHE_NAME = '1crypten-sniper-v110.708'; // [V110.708] UI adjustments for Radar and AI Thoughts
 const OFFLINE_URL = '/offline.html';
 
 // Assets que devem estar disponíveis offline (caminhos absolutos baseados na raiz)

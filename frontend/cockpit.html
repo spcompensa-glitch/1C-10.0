@@ -4269,6 +4269,7 @@
                 } catch(e) { return { volume: true, sma: true, adx: true, cvd: true, sentinel: true }; }
             });
             const [showSettings, setShowSettings] = useState(false);
+            const [showThoughts, setShowThoughts] = useState(false);
 
             useEffect(() => {
                 localStorage.setItem('eagle_vision_settings', JSON.stringify(settings));
@@ -5263,13 +5264,23 @@
                                 </div>
 
                                 <div className="flex flex-col gap-1 bg-white/[0.02] border border-white/5 rounded-lg p-2">
-                                    <div className="flex items-center gap-1.5 text-[8px] font-black text-gray-400 uppercase tracking-wider">
-                                        <span className="material-icons-round text-[10px] text-lime-400 animate-pulse">psychology</span>
-                                        Raciocínio IA
+                                    <div 
+                                        className="flex items-center justify-between cursor-pointer"
+                                        onClick={() => setShowThoughts(!showThoughts)}
+                                    >
+                                        <div className="flex items-center gap-1.5 text-[8px] font-black text-gray-400 uppercase tracking-wider">
+                                            <span className="material-icons-round text-[10px] text-lime-400 animate-pulse">psychology</span>
+                                            Raciocínio IA
+                                        </div>
+                                        <span className="material-icons-round text-[12px] text-gray-500">
+                                            {showThoughts ? 'expand_less' : 'expand_more'}
+                                        </span>
                                     </div>
-                                    <p className="text-[9px] text-gray-300 font-medium leading-relaxed italic">
-                                        "{pensamento}"
-                                    </p>
+                                    {showThoughts && (
+                                        <p className="text-[9px] text-gray-300 font-medium leading-relaxed italic mt-1">
+                                            "{pensamento}"
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -6510,10 +6521,10 @@
                             {/* SEÇÃO 4: MOONBAG PROTOCOL (Ghost Battalion) */}
                             <MoonbagVault moonbags={moonbags} tickers={tickers} historyLogs={historyLogs} />
 
-                            {/* SEÇÃO 5: RADAR DE SINAIS ELITE [V110.350] */}
-                            <section className="pt-4">
+                            {/* SEÇÃO 5: RADAR DE SINAIS ELITE [REMOVIDO NO MOBILE A PEDIDO DO COMANDANTE] */}
+                            {/* <section className="pt-4">
                                 <MarketRadarWidget signals={filteredSignals} context={btcCtx} intelligenceMessage={intelligenceMessage} setSelectedHistoryLog={setSelectedHistoryLog} />
-                            </section>
+                            </section> */}
 
                             {/* SEÇÃO 6: REGISTRO DA VAULT (Histórico) */}
                             <section className="glass-card p-4 rounded-2xl border v5-border-subtle bg-black/20 flex flex-col">

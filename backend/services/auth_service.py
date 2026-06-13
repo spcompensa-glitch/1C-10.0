@@ -76,17 +76,25 @@ class AuthService:
         return None
 
     async def get_user(self, username: str) -> Optional[UserInDB]:
-        """Busca usuário no Firestore pelo handle (@nome.10d)"""
-        if not firebase_service.is_active:
-            await firebase_service.initialize()
-
+        """Busca usuário no PostgreSQL"""
+        from database.database_service_secure import SessionLocal
+        from database.models_auth import User as PostgresUser
+        
+        db = SessionLocal()
         try:
-            # Buscamos na coleção 'users' onde o ID é o username (ou um campo handle)
-            user_doc = await asyncio.to_thread(firebase_service.db.collection("users").document(username).get)
-            if user_doc.exists:
-                return UserInDB(**user_doc.to_dict())
+            pg_user = db.query(PostgresUser).filter(PostgresUser.username == username).first()
+            if pg_user:
+                return UserInDB(
+                    username=pg_user.username,
+                    email=pg_user.email,
+                    role=pg_user.role,
+                    active=pg_user.is_active,
+                    hashed_password=pg_user.password_hash
+                )
         except Exception as e:
             logger.error(f"Erro ao buscar usuário {username}: {e}")
+        finally:
+            db.close()
         return None
 
     async def register_user(self, user_data: dict):

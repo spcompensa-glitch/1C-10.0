@@ -129,7 +129,7 @@ async def admin_nuclear_reset(admin: User = Depends(check_admin_role)):
         old_moon_count = len(okx_rest_service.paper_moonbags)
         okx_rest_service.paper_positions = []
         okx_rest_service.paper_moonbags = []
-        okx_rest_service.paper_balance = 20.0  # Resetar para $20
+        okx_rest_service.paper_balance = 100.0  # Resetar para $100
         report.append(f"RAM Limpa: {old_pos_count} posições e {old_moon_count} moonbags removidas da memória.")
         
         # 2. Limpar pending_slots do BankrollManager
@@ -154,7 +154,7 @@ async def admin_nuclear_reset(admin: User = Depends(check_admin_role)):
             clean_state = {
                 "positions": [],
                 "moonbags": [],
-                "balance": 20.0,
+                "balance": 100.0,
                 "history": []
             }
             await firebase_service.update_paper_state(clean_state)
@@ -173,12 +173,20 @@ async def admin_nuclear_reset(admin: User = Depends(check_admin_role)):
         # Sincronizar RTDB e status de sistema
         try:
             await firebase_service.update_system_state("IDLE", 0, "System Reset complete", "Sniper V15.1")
+            if firebase_service.rtdb:
+                firebase_service.rtdb.child("active_slots").delete()
+                firebase_service.rtdb.child("vault_history").delete()
+                firebase_service.rtdb.child("banca").update({
+                    "configured_balance": 100.0,
+                    "pnl_realized": 0.0
+                })
+                report.append("Firebase RTDB (Slots/Vault/Banca) zerado para $100.00.")
         except Exception as e:
             logger.warning(f"Erro ao atualizar status RTDB: {e}")
             
         return {
             "status": "SUCCESS",
-            "message": "Sistema resetado com sucesso (Banca de $20.00).",
+            "message": "Sistema resetado com sucesso (Banca de $100.00).",
             "report": report
         }
     except Exception as e:

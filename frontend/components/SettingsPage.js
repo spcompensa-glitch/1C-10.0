@@ -471,11 +471,11 @@
                                 Resetar Motor Paper & Banca
                             </h2>
                             <p className="text-[10px] text-gray-400 leading-relaxed uppercase tracking-wider">
-                                Esta ação limpa todos os slots ativos (LIVRE), remove ordens Moonbag, limpa o histórico de trades e reinicia o saldo Paper do Sniper para o valor inicial de $20.00.
+                                Esta ação limpa todos os slots ativos (LIVRE), remove ordens Moonbag, limpa o histórico de trades e reinicia o saldo Paper do Sniper para o valor inicial de $100.00.
                             </p>
                             <button
                                 onClick={async () => {
-                                    if (!confirm("⚠️ ATENÇÃO: Deseja realmente resetar todas as ordens, slots e a banca para $20.00? Esta ação não pode ser desfeita!")) return;
+                                    if (!confirm("⚠️ ATENÇÃO: Deseja realmente resetar todas as ordens, slots e a banca para $100.00? Esta ação não pode ser desfeita!")) return;
                                     try {
                                         const res = await fetch(`${API_BASE}/api/admin/reset-system`, {
                                             method: 'POST',
@@ -495,7 +495,7 @@
                                 className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 hover:border-red-500/40 text-red-400 font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                                 <span className="material-icons-round text-sm">settings_backup_restore</span>
-                                Resetar Completo (Banca $20.00)
+                                Resetar Completo (Banca $100.00)
                             </button>
                         </div>
                     )}

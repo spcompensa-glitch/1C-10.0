@@ -195,6 +195,19 @@ async def nuclear_reset():
             report.append("✅ Postgres slots/moonbags/histórico zerado.")
         except Exception as e:
             report.append(f"⚠️ Postgres reset parcial: {e}")
+            
+        # 5. Limpar Firebase RTDB (Interface Antiga/Híbrida)
+        try:
+            if firebase_service.rtdb:
+                firebase_service.rtdb.child("active_slots").delete()
+                firebase_service.rtdb.child("vault_history").delete()
+                firebase_service.rtdb.child("banca").update({
+                    "configured_balance": 100.0,
+                    "pnl_realized": 0.0
+                })
+                report.append("✅ Firebase RTDB (Slots/Vault/Banca) zerado.")
+        except Exception as e:
+            report.append(f"⚠️ Firebase RTDB reset parcial: {e}")
         
         logger.warning("🚨 [NUCLEAR-RESET] Estado paper zerado por admin. Todas as posições fantasma eliminadas.")
         return {

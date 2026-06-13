@@ -1145,10 +1145,7 @@ class CaptainAgent(AIOSAgent):
             else:
                 score = best_signal["score"]
 
-            strategy = "SWING"
-            
-            # [V110.20.0] Shadow Strike Desativado
-            strategy = "SWING"
+            strategy = best_signal.get("strategy_class") if best_signal and best_signal.get("strategy_class") else "SWING"
 
             
             try:
@@ -1638,7 +1635,7 @@ class CaptainAgent(AIOSAgent):
                 # [HERMES TELEGRAM] Alerta de Nova Ordem
                 try:
                     from services.telegram_service import telegram_service
-                    await telegram_service.send_message(f"🎯 <b>NOVA ORDEM ABERTA</b>\nPar: {symbol}\nEstratégia: {slot_type}")
+                    await telegram_service.send_message(f"🎯 <b>NOVA ORDEM ABERTA</b>\nPar: {symbol}\nEstratégia: {strategy}")
                 except:
                     pass
             else:

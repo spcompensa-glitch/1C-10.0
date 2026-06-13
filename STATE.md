@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.903)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.950)
 
 ## Resumo Executivo
-* **Versão:** `V110.903: Sincronização Escadinha Simplificada`
-* **Data:** 2026-06-11
+* **Versão:** `V110.950: Protocolo Unificado DVAP M30 + SMA 2H (20 Pares)`
+* **Data:** 2026-06-13
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Sincronização e consolidação da lógica de 4 degraus da Escadinha de Elite (50% ROI -> SL +15% / 100% ROI -> SL +50% / 130% ROI -> SL +110% / 150% ROI -> Moonbag SL +110%) em toda a frota (Backend, Frontend Cockpit, Projeção e Hermes compliance). E login/registro de usuários sob processo FastAPI na porta principal.
+* **Escopo:** Transição para o novo protocolo operacional unificado operando exclusivamente a estratégia **DVAP no timeframe de 30M após o cruzamento da SMA de 2H** em uma matriz de **20 pares**. A margem por ordem é fixada em **$2.00**, e a emancipação física para moonbags foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo diretamente dentro dos slots ativos de ordens. O layout da UI do Cockpit foi limpo de menções a "Moonbags".
 
 ---
 
@@ -15,13 +15,16 @@
 * **CaptainAgent:** Despachante de sinais puro e orquestrador central de consenso de frota (threshold de consenso tático de 60%).
 * **OKX Master Bypass:** Se `OKX_API_KEY_MASTER` estiver no `.env`, o Capitão força a execução cirúrgica global na conta Master ("master") ignorando a Bybit.
 
-### 2. Sniper & Trailing Stop Progressivo (Escadinha)
+### 2. Sniper & Trailing Stop Progressivo (Escadinha Integrada)
 * Monitoramento de altíssima frequência (ciclo de **0.2 segundos**) para capturar pavios rápidos de mercado.
-* **Gatilhos de ROI da Escadinha (Elite Ladder):**
+* **Gatilhos de ROI da Escadinha Unificada (Sem Emancipação Física):**
   * **T1 (Risk-Zero):** 50% ROI → Stop Loss movido para +15% ROI (Fôlego/Taxas)
   * **T2 (Lucro Garantido):** 100% ROI → Stop Loss movido para +50% ROI
   * **T3 (Sucesso Total):** 130% ROI → Stop Loss movido para +110% ROI
-  * **T4 (Emancipação / Moonbags):** 150% ROI → Stop Loss movido para +110% ROI (Promovido para Moonbag)
+  * **T4 (Alvo Emancipada):** 150% ROI → Stop Loss movido para +110% ROI
+  * **T5 (Wave):** 200% ROI → Stop Loss movido para +150% ROI (Direto no Slot)
+  * **T6 (Rocket):** 300% ROI → Stop Loss movido para +220% ROI (Direto no Slot)
+  * **Níveis subsequentes:** Segue o trailing de moonbag integrado (STAR, CROWN, SUPERNOVA, GOD_MODE, etc.) até o APEX de 1200% e além.
 
 ### 3. Portfolio Guardian & Algoritmo Knife-Drop
 * Máquina de estados atômica unificada monitorando o ROI consolidado da conta Master.

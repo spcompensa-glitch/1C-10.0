@@ -781,7 +781,7 @@ class SignalGenerator:
                     "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
                     "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
                     "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT",
+                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT",
                 ]
 
             logger.info(f"[DECOR-HUNTER] BTC ADX={btc_adx:.1f} RANGING. Scan de {len(watchlist)} pares...")
@@ -2716,11 +2716,11 @@ class SignalGenerator:
                                     "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
                                     "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
                                     "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-                                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT",
+                                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT",
                                 ]
                             top_90 = [sym if sym.endswith('.P') else sym + '.P' for sym in watchlist]
                             if "BTCUSDT.P" not in top_90: top_90.insert(0, "BTCUSDT.P")
-                            logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC RANGING! Locking WebSocket to 19 Decorrelated Pairs (DECOR_HUNTER MODE).")
+                            logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC RANGING! Locking WebSocket to 20 Decorrelated Pairs (DECOR_HUNTER MODE).")
                             
                         await okx_ws_public_service.sync_topics(top_90)
                         self._last_ws_rebalance = now
@@ -3039,13 +3039,25 @@ class SignalGenerator:
                     except Exception as dv_err:
                         logger.error(f"Erro ao avaliar setup DVAP para {symbol}: {dv_err}")
 
-                    # 🛡️ [MODO PRESERVAÇÃO DE CAPITAL] - Desativado para permitir a operação de todos os sinais (Mola, ABCD, 1-2-3, etc) em mercados laterais.
-                    # m_adx_check = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    # if m_adx_check > 0 and m_adx_check < 22.0 and not is_dvap_play:
-                    #     reason = f"MODO PRESERVAÇÃO DE CAPITAL: M-ADX ({m_adx_check:.1f} < 22) indica Mercado Morto. Apenas sinais DVAP são permitidos."
-                    #     logger.warning(f"🚫 [PRESERVAÇÃO-REJECT] {symbol} rejeitado: {reason}")
-                    #     self.recent_rejections.append({"symbol": symbol, "reason": "MERCADO_MORTO_PRESERVAÇÃO", "timestamp": time.time()})
-                    #     return None
+                    # [V128] Regra de Ouro do Usuário: APENAS sinais DVAP no TF 30M e após o cruzamento da SMA de 2H
+                    trend_2h = macro_2h.get('trend', 'NEUTRAL')
+                    is_sma_2h_aligned = False
+                    if side_label == "Long" and trend_2h == "BULLISH_ARMED":
+                        is_sma_2h_aligned = True
+                    elif side_label == "Short" and trend_2h == "BEARISH_ARMED":
+                        is_sma_2h_aligned = True
+
+                    if not is_dvap_play:
+                        reason = f"DVAP ONLY: Apenas setups DVAP 30M sao permitidos."
+                        logger.info(f"🚫 [DVAP-ONLY-REJECT] {symbol} rejeitado: {reason}")
+                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                        return None
+
+                    if not is_sma_2h_aligned:
+                        reason = f"SMA 2H ALIGN: Setup DVAP 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"
+                        logger.info(f"🚫 [DVAP-SMA2H-ALIGN-REJECT] {symbol} rejeitado: {reason}")
+                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                        return None
 
                     # [V127] PROTOCOLO ALT BIAS ONLY (AltForceDirection Guard)
                     # O viés direcional macro de 2H é lei absoluta para moedas desgrudadas (is_decorrelated = True)

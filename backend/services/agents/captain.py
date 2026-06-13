@@ -1360,14 +1360,14 @@ class CaptainAgent(AIOSAgent):
                         "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
                         "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
                         "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-                        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT"
+                        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
                     ]
                 
                 clean_sym = symbol.replace(".P", "").upper()
                 if clean_sym not in whitelist:
                     consensus["approved"] = False
                     consensus["reason"] = "SANDBOX_LATERAL_RESTRICTED"
-                    logger.info(f"🚫 [SANDBOX] {symbol} rejeitado em RANGING. Apenas Elite 19 pares permitidos.")
+                    logger.info(f"🚫 [SANDBOX] {symbol} rejeitado em RANGING. Apenas Elite 20 pares permitidos.")
                 else:
                     consensus["approved"] = True
             else:

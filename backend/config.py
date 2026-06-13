@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     MAX_SLOTS_LATERAL: int = 20    # [V111.0] DECOR_HUNTER mode: up to 20 pairs (ranging market)
     MAX_SLOTS_TRENDING: int = 40   # [V111.0] ELITE_40_MATRIX mode: up to 40 pairs (trending market)
     MARGIN_PER_TRADE_LATERAL: float = 2.0   # [V111.0] $2.00 per pair in ranging (20 x $2 = $40 = 40% banca)
-    MARGIN_PER_TRADE_TRENDING: float = 1.0  # [V111.0] $1.00 per pair in trending (40 x $1 = $40 = 40% banca)
+    MARGIN_PER_TRADE_TRENDING: float = 2.0  # [V111.0] $2.00 per pair in trending (20 x $2 = $40 = 40% banca)
     RISK_CAP_PERCENT: float = 0.40  # 40% da banca alocada no total (invariante)
     LEVERAGE: int = 50
     LEVERAGE_RANGING: int = 50    # [V111.0] 50x em todos os cenários (margem pequena)
@@ -137,6 +137,14 @@ class Settings(BaseSettings):
         "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT", 
         "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
+    ]
+    
+    # [V128] OFFICIAL 20 DVAP WATCHLIST (19 antigos + SUIUSDT)
+    RADAR_WATCHLIST: list = [
+        "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
+        "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
+        "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
+        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
     ]
     
     # [V110.400] MASTER CONTEXT

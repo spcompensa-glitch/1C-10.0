@@ -2281,7 +2281,7 @@
             const seriesRef = useRef();
             const linesRef = useRef([]);
             const [lastPrice, setLastPrice] = useState(null);
-            const [tf, setTf] = useState('15'); // Default 15m
+            const [tf, setTf] = useState('30'); // Default 30m
             const isMounted = useRef(true);
 
             // V9.0 Trend Data State
@@ -4249,7 +4249,7 @@
             const chartInstance = useRef(null);
             const candlestickSeries = useRef(null);
             const [localSymbol, setLocalSymbol] = useState(symbol || "BTCUSDT");
-            const [localTimeframe, setLocalTimeframe] = useState("15");
+            const [localTimeframe, setLocalTimeframe] = useState("30");
             const [historicalData, setHistoricalData] = useState({ candles: [], volumes: [] });
             const [studyData, setStudyData] = useState(null);
             const extraLinesRef = useRef([]);
@@ -5899,10 +5899,9 @@
                                 </div>
                             </section>
 
-                            {/* 2. MOONBAG VAULT */}
-                            <section>
+                            {/* 2. MOONBAG VAULT [REMOVIDO A PEDIDO DO USUÁRIO] */}
+                            {/* <section>
                                 <div onClick={(e) => {
-                                    // [V110.700] Clique cirúrgico na Moonbag → abre gráfico com trajetória completa
                                     const target = e.target.closest('.moonbag-item');
                                     if(target) {
                                        const sym = target.getAttribute('data-symbol');
@@ -5911,7 +5910,6 @@
                                        const side = target.getAttribute('data-side') || 'Buy';
                                        const leverage = parseFloat(target.getAttribute('data-leverage') || 50);
                                        if(sym) {
-                                           // Normaliza o símbolo para XYZUSDT format para o gráfico
                                            const cleanSym = sym.replace('.P','').replace('.p','').replace('USDT','').toUpperCase() + 'USDT';
                                            setFocusedAsset({
                                                type: 'moonbag',
@@ -5928,7 +5926,7 @@
                                 }}>
                                     <MoonbagVault moonbags={moonbags} tickers={tickers} />
                                 </div>
-                            </section>
+                            </section> */}
 
                             {/* 3. HISTÓRICO DA VAULT (Mover da coluna esquerda) */}
                             <section className="pt-2 border-t border-white/5 flex flex-col">
@@ -6518,8 +6516,8 @@
                                 />
                             </section>
 
-                            {/* SEÇÃO 4: MOONBAG PROTOCOL (Ghost Battalion) */}
-                            <MoonbagVault moonbags={moonbags} tickers={tickers} historyLogs={historyLogs} />
+                            {/* SEÇÃO 4: MOONBAG PROTOCOL (Ghost Battalion) [REMOVIDO A PEDIDO DO USUÁRIO] */}
+                            {/* <MoonbagVault moonbags={moonbags} tickers={tickers} historyLogs={historyLogs} /> */}
 
                             {/* SEÇÃO 5: RADAR DE SINAIS ELITE [REMOVIDO NO MOBILE A PEDIDO DO COMANDANTE] */}
                             {/* <section className="pt-4">

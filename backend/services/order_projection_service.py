@@ -29,17 +29,17 @@ ORDER_STOP_LADDER: List[StopLevel] = [
     StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 15.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 50.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
-    StopLevel("EMANCIPACAO", "EMANCIPADA", 150.0, 110.0, "PROFIT_LOCK"),
-    StopLevel("MOONBAG", "WAVE", 200.0, 150.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "ROCKET", 300.0, 220.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "STAR", 400.0, 280.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "CROWN", 500.0, 350.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "SUPERNOVA", 600.0, 420.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "GOD_MODE", 700.0, 500.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "CHOKE_PREP", 750.0, 600.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "CHOKE", 800.0, 650.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "HYPER", 1000.0, 800.0, "MOONBAG_TRAIL"),
-    StopLevel("MOONBAG", "APEX", 1200.0, 1000.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "EMANCIPADA", 150.0, 110.0, "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "WAVE", 200.0, 150.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "ROCKET", 300.0, 220.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "STAR", 400.0, 280.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CROWN", 500.0, 350.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "SUPERNOVA", 600.0, 420.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "GOD_MODE", 700.0, 500.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CHOKE_PREP", 750.0, 600.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CHOKE", 800.0, 650.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "HYPER", 1000.0, 800.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "APEX", 1200.0, 1000.0, "MOONBAG_TRAIL"),
 ]
 
 POST_APEX_STEP_ROI = 200.0
@@ -116,7 +116,7 @@ class OrderProjectionService:
         while trigger_roi <= target_ceiling + 1e-9:
             ladder.append(
                 StopLevel(
-                    "MOONBAG",
+                    "ESCADINHA",
                     f"ULTRA_{int(trigger_roi)}",
                     trigger_roi,
                     max(trigger_roi - POST_APEX_STOP_OFFSET_ROI, 0.0),
@@ -145,11 +145,6 @@ class OrderProjectionService:
         return None
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None) -> str:
-        hint = str(phase_hint or "").upper()
-        if hint == "MOONBAG":
-            return "MOONBAG"
-        if roi_percent >= 150.0:
-            return "EMANCIPACAO"
         if roi_percent >= 30.0:
             return "ESCADINHA"
         return "SLOT"
@@ -276,7 +271,7 @@ class OrderProjectionService:
                 ),
                 "status_risco": next_level.status_risco,
             } if next_level else None,
-            "should_emancipate": phase == "EMANCIPACAO" and str(phase_hint or "").upper() != "MOONBAG",
+            "should_emancipate": False,
             "levels": levels,
             "contract": contract,
             "notional_usd": self.notional_usd(qty, current_price or entry_price, contract["ct_val"]),

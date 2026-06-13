@@ -3039,7 +3039,8 @@ class SignalGenerator:
                     except Exception as dv_err:
                         logger.error(f"Erro ao avaliar setup DVAP para {symbol}: {dv_err}")
 
-                    # [V128] Regra de Ouro do Usuário: APENAS sinais DVAP no TF 30M e após o cruzamento da SMA de 2H
+                    # [V128] Regra de Ouro do Usuário: Híbrido Consensual (DVAP, MOLA, ABCD, 1-2-3)
+                    # 1. Determina as Flags de Setup
                     trend_2h = macro_2h.get('trend', 'NEUTRAL')
                     is_sma_2h_aligned = False
                     if side_label == "Long" and trend_2h == "BULLISH_ARMED":
@@ -3047,17 +3048,44 @@ class SignalGenerator:
                     elif side_label == "Short" and trend_2h == "BEARISH_ARMED":
                         is_sma_2h_aligned = True
 
-                    if not is_dvap_play:
-                        reason = f"DVAP ONLY: Apenas setups DVAP 30M sao permitidos."
-                        logger.info(f"🚫 [DVAP-ONLY-REJECT] {symbol} rejeitado: {reason}")
-                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                        return None
+                    # Detecta MOLA (Squeeze de Volatilidade)
+                    is_mola_play = False
+                    try:
+                        squeeze_res = await self.detect_squeeze(symbol, bb_width=3.5)
+                        is_mola_play = squeeze_res.get("is_squeeze", False)
+                    except Exception as sq_err:
+                        logger.error(f"Erro ao avaliar setup MOLA para {symbol}: {sq_err}")
 
-                    if not is_sma_2h_aligned:
-                        reason = f"SMA 2H ALIGN: Setup DVAP 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"
-                        logger.info(f"🚫 [DVAP-SMA2H-ALIGN-REJECT] {symbol} rejeitado: {reason}")
-                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                        return None
+                    # Classifica a estratégia do sinal
+                    strategy_class = "SWING"
+                    if is_dvap_play:
+                        strategy_class = "DVAP"
+                    elif is_mola_play:
+                        strategy_class = "MOLA"
+                    else:
+                        # Se não for DVAP nem MOLA, classificamos como ABCD ou 1-2-3 baseando-se no padrão
+                        pat_name = str(candidate.get("indicators", {}).get("pattern", "unknown")).upper()
+                        if "ABCD" in pat_name:
+                            strategy_class = "ABCD"
+                        elif "123" in pat_name:
+                            strategy_class = "1-2-3"
+                        else:
+                            strategy_class = "TREND"
+
+                    # 2. Executa Filtros Rígidos de Consenso por Estratégia
+                    if strategy_class in ("DVAP", "ABCD", "1-2-3", "TREND"):
+                        if not is_sma_2h_aligned:
+                            reason = f"SMA 2H ALIGN: Setup {strategy_class} 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"
+                            logger.info(f"🚫 [SMA2H-ALIGN-REJECT] {symbol} rejeitado: {reason}")
+                            self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                            return None
+                    elif strategy_class == "MOLA":
+                        asset_adx = market_regime.get("adx", 20.0)
+                        if asset_adx < 25.0:
+                            reason = f"MOLA ADX SHIELD: Setup MOLA 30M rejeitado por ADX muito baixo ({asset_adx:.1f} < 25)"
+                            logger.info(f"🚫 [MOLA-ADX-REJECT] {symbol} rejeitado: {reason}")
+                            self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                            return None
 
                     # [V127] PROTOCOLO ALT BIAS ONLY (AltForceDirection Guard)
                     # O viés direcional macro de 2H é lei absoluta para moedas desgrudadas (is_decorrelated = True)
@@ -3523,15 +3551,15 @@ class SignalGenerator:
                         "entry_price_signal": current_price_now,
                         # [SANDBOX] Stop Loss fixado matematicamente em -50% ROI (5% de recuo no preco para 10x)
                         "suggested_sl": current_price_now * 0.95 if side_label == "Long" else current_price_now * 1.05,
-                        "layer": "SNIPER" if is_dvap_play else signal_layer,  # [V25.1] SNIPER or MOMENTUM
+                        "layer": "SNIPER" if (is_dvap_play or is_mola_play) else signal_layer,  # [V25.1] SNIPER or MOMENTUM
                         "is_shadow_strike": candidate.get('is_shadow_strike', False),
                         "is_trend_surf": trigger_result.get('is_trend_surf', False),
                         "market_environment": "Bullish" if cvd_val > 0 else "Bearish",
                         "market_regime": market_regime.get('regime', 'TRANSITION'),
                         "execution_style": "ATTACK" if market_regime.get("adx", 20) >= 28 else "AMBUSH",
                         "current_adx": market_regime.get("adx", 20),
-                        "strategy_class": "DVAP" if is_dvap_play else self._classify_strategy(move_room_pct, entry_pattern, candidate.get('trend', 'sideways'), macro_2h.get('trend', 'sideways'), abs(cvd_val), market_regime.get('regime', 'TRANSITION')),
-                        "is_elite": True if is_dvap_play else (signal_layer == "SNIPER"),
+                        "strategy_class": strategy_class,
+                        "is_elite": True if (is_dvap_play or is_mola_play) else (signal_layer == "SNIPER"),
                         "reasoning": (
                             f"{'💎 DVAP REVERSAL | ' if is_dvap_play else ''}"
                             f"{'🦇 SHADOW STRIKE | ' if candidate.get('is_shadow_strike') else ''}"
@@ -3565,7 +3593,7 @@ class SignalGenerator:
                             "scanned_at": datetime.now(timezone.utc).isoformat(),
                             "is_shadow_needle": is_stretched,
                             "stretch_pct": round(stretch_val, 2),
-                            "strategy_type": "DVAP" if is_dvap_play else self._classify_strategy(move_room_pct, entry_pattern, candidate.get('trend', 'sideways'), macro_2h.get('trend', 'sideways'), abs(cvd_val), market_regime.get('regime', 'TRANSITION')),
+                            "strategy_type": strategy_class,
                             "atr": okx_ws_public_service.atr_cache.get(symbol, 0),
                             "structural_target": round(structural_target, 8),
                             "target_extended": round(target_extended, 8),
@@ -3585,7 +3613,7 @@ class SignalGenerator:
                             "decorrelation_data": candidate.get('decorrelation_data')
                         },
                         # [V39.0] Swing Macro flag — TOCAIA uses this to extend patience to 60min
-                        "is_swing_macro": True if is_dvap_play else candidate.get('is_swing_macro', False),
+                        "is_swing_macro": True if (is_dvap_play or is_mola_play) else candidate.get('is_swing_macro', False),
                         # [V20.4 FIX] Informações detalhadas do contrato para cálculo correto de PnL
                         "contract_info": {
                             "ctVal": ct_val,

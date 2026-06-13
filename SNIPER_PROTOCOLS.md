@@ -1,4 +1,4 @@
-# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE SOBERANIA (V110.950)
+# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE SOBERANIA (V110.960)
 
 ## 🎯 Arquitetura da Escadinha (Trailing Stop Progressivo)
 
@@ -33,15 +33,18 @@ python backend/scratch/reset_nuclear_v172.py
 ```
 *Ação: Cancela ordens, limpa slots, reseta banca para $100 e apaga histórico.*
 
-### 5. DVAP 30M + SMA 2H Crossover System (V110.950+)
-Todas as operações ativas agora entram exclusivamente pela estratégia **DVAP no timeframe de 30M**, sob a condição de que a direção do sinal esteja alinhada com o cruzamento da SMA de 2H:
-- **Filtro de Gatilho**: Setup de divergência IFR 30M e volume clímax com gatilho CHoCH.
+### 5. Consenso Híbrido Estratégico (V110.960+)
+Todas as operações ativas entram por estratégias consensuais operando em 30M na matriz de 20 pares:
+- **DVAP (Reversão Principal)**: Setup de divergência IFR 30M e volume clímax com gatilho CHoCH. Exige alinhamento com SMA de 2H.
+- **MOLA (Breakout de Volatilidade)**: Setup de squeeze de volatilidade Bollinger. Exige estritamente ADX >= 25 do ativo para evitar rompimentos falsos.
+- **ABCD & 1-2-3 (Seguidores de Tendência)**: Padrões harmônicos e pivôs clássicos. Exigem alinhamento estrito com a tendência da SMA de 2H.
 - **Confluência de Médias (SMA 2H)**: Apenas Long se a tendência 2H for de alta (`BULLISH_ARMED`), e apenas Short se a tendência 2H for de baixa (`BEARISH_ARMED`).
 - **Sizing Fixo**: $2.00 por ordem em toda a matriz de 20 pares ativos.
 
-### 6. Atualizações de Interface (V110.950+)
+### 6. Atualizações de Interface (V110.960+)
 - **Remoção de Moonbags**: Ocultação total do Moonbag Vault no modo mobile e desktop.
 - **Timeframe 30M Principal**: Os gráficos do cockpit e os gráficos de ordem iniciam com o intervalo de 30 minutos por padrão.
+- **Estratégia Dinâmica nos Cards**: O cockpit exibe a estratégia real disparada pelo sinal (DVAP, MOLA, ABCD, 1-2-3, TREND) de forma nativa e dinâmica.
 
 ---
-**Status: ESTÁVEL | Versão: V110.950**
+**Status: ESTÁVEL | Versão: V110.960**

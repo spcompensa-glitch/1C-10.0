@@ -1,14 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.950 "Protocolo Unificado DVAP M30 + SMA 2H (20 Pares)"
+# MASTER_ARCHITECTURE.md — V110.960 "Consenso Híbrido Estratégico (DVAP + MOLA + ABCD + 1-2-3)"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
-*   **V110.950: PROTOCOLO UNIFICADO DVAP M30 + SMA 2H (20 PARES) [JUN 13]**
-    *   **Estratégia Única DVAP 30M**: Restrição total de sinais para a estratégia DVAP no timeframe de 30 minutos. Sinais das estratégias legadas (ABCD, MOLA, 1-2-3) são ignorados nos 20 pares ativos.
-    *   **Alinhamento com Cruzamento SMA 2H**: Novo filtro direcional estrito em `stage3_validate`. Um sinal DVAP 30M só é aprovado se a tendência no gráfico de 2H (`trend_2h`) estiver alinhada: cruzamento de alta (`BULLISH_ARMED`) para posições Long e cruzamento de baixa (`BEARISH_ARMED`) para posições Short.
+*   **V110.960: CONSENSO HÍBRIDO ESTRATÉGICO (DVAP + MOLA + ABCD + 1-2-3) [JUN 13]**
+    *   **Estratégias Híbridas Ativas**: Priorização consensual das estratégias. DVAP 30M atua como reversão principal. MOLA 30M atua em breakouts de volatilidade apenas se ADX >= 25. ABCD, 1-2-3 e TREND operam seguindo a tendência local.
+    *   **Alinhamento com Cruzamento SMA 2H**: Filtro direcional estrito em `stage3_validate` para DVAP, ABCD, 1-2-3 e TREND. Os sinais correspondentes só são aprovados se a tendência no gráfico de 2H (`trend_2h`) estiver alinhada: cruzamento de alta (`BULLISH_ARMED`) para posições Long e cruzamento de baixa (`BEARISH_ARMED`) para posições Short.
     *   **Sizing de Margem Fixo ($2.00)**: Margem fixa por ordem definida em $2.00 independente das condições de volatilidade ou regime de mercado (lateral/tendência) em toda a matriz de 20 pares.
     *   **Desativação de Emancipação de Moonbags**: A emancipação física foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo de stop progressivo diretamente no próprio slot ativo da ordem, sem transição para a tabela `moonbags`.
-    *   **Limpeza na UI (Cockpit)**: Remoção visual de menções a "Moonbags" nos layouts Desktop e Mobile, e definição do timeframe inicial do gráfico principal e de ordens para 30M.
+    *   **Limpeza na UI (Cockpit)**: Remoção visual de menções a "Moonbags" nos layouts Desktop e Mobile, e definição do timeframe inicial do gráfico principal e de ordens para 30M. Badges de estratégia passam a ser exibidas de forma dinâmica conforme a estratégia executada.
 
 *   **V110.904: REAL-WORLD ECC MATURITY [JUN 11]**
     *   **Infraestrutura de Fila OKX (Anti-429):** Implementado o `OKXCommandQueue` ([okx_queue.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/services/okx_queue.py)) que utiliza `asyncio.Queue` e loop em background para agrupar comandos privados (como atualizações de Stop Loss em lote via `amend-algos`), eliminando erros 429 de Rate Limit.

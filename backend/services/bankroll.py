@@ -17,10 +17,9 @@ logger = logging.getLogger("BankrollManager")
 
 def get_slot_type(slot_id: int) -> str:
     """
-    [V110.802.6 ALL-BLITZ] Todos os 4 slots sao BLITZ_30M:
-    - Extração rápida em 30M, sem distinção SWING.
+    [V110.950] Retorna a estrategia padrao ou tipo.
     """
-    return "BLITZ_30M"
+    return "DVAP"
 
 class BankrollManager:
     def __init__(self):
@@ -2037,8 +2036,8 @@ class BankrollManager:
 
                     # [V110.137 GENESIS] Gera o RG unico da ordem (passaporte do trade)
                     import uuid as _uuid
-                    strategy_type = "BLITZ_30M" if slot_type == "BLITZ_30M" else "SWING"
-                    strategy_prefix = "BLZ" if strategy_type == "BLITZ_30M" else "SWG"
+                    strategy_type = signal_data.get("strategy_class") if signal_data and signal_data.get("strategy_class") else ("BLITZ_30M" if slot_type == "BLITZ_30M" else "SWING")
+                    strategy_prefix = "DVAP" if strategy_type == "DVAP" else ("MOL" if strategy_type == "MOLA" else "SWG")
                     genesis_id = f"{strategy_prefix}-{int(time.time())}-{norm_symbol[:4]}-{_uuid.uuid4().hex[:6].upper()}"
                     opened_ts = time.time()
 
@@ -2055,6 +2054,8 @@ class BankrollManager:
                         "target_price": final_tp,
                         "leverage": current_leverage,
                         "slot_type": slot_type,
+                        "strategy": strategy_type, # Adicionando propriedade de estratégia dinâmica para a UI
+                        "strategy_label": strategy_type,
                         "status_risco": "ATIVO",
                         "pnl_percent": 0.0,
                         "pensamento": pensamento,

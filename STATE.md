@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.950)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.960)
 
 ## Resumo Executivo
-* **Versão:** `V110.950: Protocolo Unificado DVAP M30 + SMA 2H (20 Pares)`
+* **Versão:** `V110.960: Consenso Híbrido Estratégico (DVAP + MOLA + ABCD + 1-2-3)`
 * **Data:** 2026-06-13
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Transição para o novo protocolo operacional unificado operando exclusivamente a estratégia **DVAP no timeframe de 30M após o cruzamento da SMA de 2H** em uma matriz de **20 pares**. A margem por ordem é fixada em **$2.00**, e a emancipação física para moonbags foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo diretamente dentro dos slots ativos de ordens. O layout da UI do Cockpit foi limpo de menções a "Moonbags".
+* **Escopo:** Transição para o novo protocolo operacional de **Consenso Híbrido** operando uma matriz de **20 pares**. A prioridade principal de reversão é a estratégia **DVAP no timeframe de 30M** após o cruzamento da SMA de 2H. Também estão ativos setups de momentum: **M.Mola** (condicionado a ADX >= 25), **ABCD**, **1-2-3** e **TREND** (todos alinhados com o viés direcional da SMA de 2H). A margem por ordem é fixada em **$2.00**, e a emancipação física para moonbags foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo diretamente dentro dos slots ativos de ordens. O layout da UI do Cockpit foi limpo de menções a "Moonbags".
 
 ---
 

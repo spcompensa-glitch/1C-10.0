@@ -2706,33 +2706,21 @@ class SignalGenerator:
                             top_90 = ELITE_50_PAIRS
                             logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC TRENDING! Locking WebSocket to ELITE 50 Majors.")
                         else:
-                            # 1. Fetch Tickers for ALL symbols to identify laggards/leaders vs BTC
-                            ticker_resp = await okx_rest_service.get_tickers()
-                            tickers = ticker_resp.get("result", {}).get("list", [])
-                            
-                            btc_ticker = next((t for t in tickers if t.get("symbol") == "BTCUSDT"), {})
-                            btc_change = float(btc_ticker.get("price24hPcnt", 0)) if btc_ticker else 0
-                            
-                            scored_symbols = []
-                            for t in tickers:
-                                sym = f"{t.get('symbol')}.P"
-                                if sym not in all_liquid_symbols: continue
-                                
-                                change = float(t.get("price24hPcnt", 0))
-                                # Descorrelation Score: How much it differs from BTC
-                                decor_score = abs(change - btc_change)
-                                # Plus some volume weight to prefer liquid ones
-                                turnover = float(t.get("turnover24h", 0))
-                                final_rank_score = decor_score * 0.7 + (math.log10(turnover) if turnover > 0 else 0) * 0.3
-                                
-                                scored_symbols.append({"symbol": sym, "score": final_rank_score})
-                            
-                            scored_symbols.sort(key=lambda x: x["score"], reverse=True)
-                            top_90 = [x["symbol"] for x in scored_symbols[:90]]
-                            
-                            # Ensure BTC is always there
+                            # [V127] LOCK LATERAL MARKET TO DECOR_HUNTER 19 PAIRS ONLY
+                            # The user explicitly requested that the "Arrastao" bypass should ONLY allow the 19 shielded pairs
+                            # instead of scanning the top 40 or 90.
+                            from config import settings
+                            watchlist = getattr(settings, 'RADAR_WATCHLIST', [])
+                            if not watchlist:
+                                watchlist = [
+                                    "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
+                                    "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
+                                    "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
+                                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT",
+                                ]
+                            top_90 = [sym if sym.endswith('.P') else sym + '.P' for sym in watchlist]
                             if "BTCUSDT.P" not in top_90: top_90.insert(0, "BTCUSDT.P")
-                            logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC RANGING! Rebalanced WebSocket with Top 90 Descorrelated Assets (SCAVENGER MODE).")
+                            logger.info(f"📡 [V71.0 DYNAMIC RADAR] BTC RANGING! Locking WebSocket to 19 Decorrelated Pairs (DECOR_HUNTER MODE).")
                             
                         await okx_ws_public_service.sync_topics(top_90)
                         self._last_ws_rebalance = now

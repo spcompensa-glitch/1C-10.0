@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.970)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.980)
 
 ## Resumo Executivo
-* **Versão:** `V110.970: Hierarquia de Consenso Híbrido (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3)`
+* **Versão:** `V110.980: BlitzSniper Restringido & Identificação de Estratégias (20 Pares)`
 * **Data:** 2026-06-13
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Transição para a arquitetura de **Consenso Híbrido com Hierarquia de Prioridades** operando nos **20 pares**. A execução de ordens avalia primeiro sinais baseados em Liquidez e Sentimento (**LRT** e **FAS**), seguidos por reversões estruturais (**DVAP**), compressão de volatilidade (**MOLA** com ADX >= 25) e padrões seguidores de tendência (**ABCD** e **1-2-3**). Apenas FAS é isento de alinhamento com a SMA de 2H. A margem por ordem é fixada em **$2.00**, sem emancipação física de moonbags. O cockpit foi enriquecido com badges dinâmicos de cores customizadas para FAS (laranja) e LRT (roxo).
+* **Escopo:** Transição para a arquitetura de **Consenso Híbrido com Hierarquia de Prioridades** e **BlitzSniper** operando exclusivamente nos **20 pares oficiais** (`RADAR_WATCHLIST`), blindando o sistema contra ativos não homologados. Adicionalmente, implementamos o mapeamento preciso das estratégias geradoras de sinais no Cockpit (`DECOR`, `V-RECOVERY`, `BOX-BREAKOUT`) para evitar rotulações genéricas como `TREND`, bem como um design sutil e profissional para as barras de rolagem (scrollbars). A margem por ordem segue em **$2.00** fixos.
 
 ---
 

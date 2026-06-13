@@ -1,7 +1,12 @@
-# MASTER_ARCHITECTURE.md — V110.970 "Hierarquia de Consenso Híbrido (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3)"
+# MASTER_ARCHITECTURE.md — V110.980 "BlitzSniper Restringido & Identificação de Estratégias (20 Pares)"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+
+*   **V110.980: BLITZSNIPER RESTRINGIDO & IDENTIFICAÇÃO DE ESTRATÉGIAS [JUN 13]**
+    *   **Restrição de Ativos no BlitzSniper**: O loop de varredura e injeção automática de sinais M30 do agente `BlitzSniper` agora roda estritamente nos 20 pares da `RADAR_WATCHLIST` configurada. O scan global e dinâmico de todos os pares do top 100 de alavancagem 50x da OKX foi removido, blindando o robô de operar ativos não homologados (ex: `TRUMP/USDT`).
+    *   **Mapeamento Dinâmico de Estratégia**: Refinamento de `strategy_class` e prefixo de `genesis_id` para rotular especificamente a estratégia geradora do sinal no Cockpit (`DECOR`, `V-RECOVERY`, `BOX-BREAKOUT`) em vez de agrupar todos os sinais táticos não-especiais sob o fallback genérico `TREND`.
+    *   **Design Minimalista de Scrollbars**: Atualizado o visual das barras de rolagem no desktop, retirando gradientes brancos, sombras de luz e brilhos excessivos, adotando um estilo sutil, translúcido e profissional.
 
 *   **V110.970: HIERARQUIA DE CONSENSO HÍBRIDO (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3) [JUN 13]**
     *   **Ordem de Busca e Priorização**: Na validação de sinais de stage 3, o radar varre primeiro setups de liquidez de alta frequência (**LRT**), seguidos de reversões de exaustão (**DVAP**), squeezes de derivativos (**FAS**), breakouts de volatilidade (**MOLA**) e tendências geométricas (**ABCD / 1-2-3 / TREND**).

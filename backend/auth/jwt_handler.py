@@ -30,7 +30,8 @@ class JWTManager:
         # Configurações de JWT
         self.secret_key = self._get_jwt_secret_key()
         self.algorithm = "HS256"
-        self.access_token_expire = timedelta(hours=1)
+        from config import settings
+        self.access_token_expire = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         self.refresh_token_expire = timedelta(days=7)
         
     def _get_jwt_secret_key(self) -> str:

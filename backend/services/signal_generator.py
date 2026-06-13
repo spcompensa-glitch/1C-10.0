@@ -1177,6 +1177,85 @@ class SignalGenerator:
         except Exception:
             return {"detected": False}
 
+    async def detect_lrt_setup(self, symbol: str, zones_15m: dict) -> dict:
+        """
+        [V110.960 LRT] Detects Liquidity Sweep / Varredura de Liquidez.
+        Checks if the last candles swept the 2H macro support/resistance and rejected quickly
+        with a massive wick (>= 60% of total candle size) and climactic volume.
+        """
+        try:
+            klines_15m = await okx_rest_service.get_klines(symbol=symbol, interval="15", limit=15)
+            if not klines_15m or len(klines_15m) < 10:
+                return {"detected": False}
+            
+            candles = klines_15m[::-1]
+            closes = [float(c[4]) for c in candles]
+            highs = [float(c[2]) for c in candles]
+            lows = [float(c[3]) for c in candles]
+            opens = [float(c[1]) for c in candles]
+            volumes = [float(c[5]) for c in candles]
+            
+            last_low = lows[-1]
+            last_high = highs[-1]
+            last_close = closes[-1]
+            last_open = opens[-1]
+            last_volume = volumes[-1]
+            
+            support = zones_15m.get('support', 0)
+            resistance = zones_15m.get('resistance', 0)
+            
+            # 1. Volume confirmation (2.0x above average of previous 10 candles)
+            avg_vol_10 = sum(volumes[-11:-1]) / 10 if len(volumes) >= 11 else 1
+            if last_volume < (avg_vol_10 * 2.0):
+                return {"detected": False}
+                
+            total_range = last_high - last_low
+            if total_range <= 0:
+                return {"detected": False}
+                
+            body_top = max(last_close, last_open)
+            body_bottom = min(last_close, last_open)
+            
+            # 2. Rejection Sweep Check (Wick >= 60%)
+            # LONG Sweep (Touch support and wick up)
+            if support > 0 and abs(last_low - support) / support < 0.005:
+                lower_wick = body_bottom - last_low
+                if (lower_wick / total_range) >= 0.60 and last_close > last_open:
+                    return {"detected": True, "side": "Long", "type": "LRT_SUPPORT_SWEEP"}
+                    
+            # SHORT Sweep (Touch resistance and wick down)
+            if resistance > 0 and abs(last_high - resistance) / resistance < 0.005:
+                upper_wick = last_high - body_top
+                if (upper_wick / total_range) >= 0.60 and last_close < last_open:
+                    return {"detected": True, "side": "Short", "type": "LRT_RESISTANCE_SWEEP"}
+                    
+            return {"detected": False}
+        except Exception as err:
+            logger.error(f"Erro ao detectar setup LRT para {symbol}: {err}")
+            return {"detected": False}
+
+    async def detect_fas_setup(self, symbol: str) -> dict:
+        """
+        [V110.960 FAS] Detects Funding Squeeze setup.
+        Checks for extreme funding rates matching CVD flow indicators.
+        """
+        try:
+            funding_rate = await okx_rest_service.get_funding_rate(symbol)
+            cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300)
+            
+            # Extreme Negative Funding Squeeze (Long opportunity)
+            if funding_rate < -0.0010 and cvd_5m > 50000:
+                return {"detected": True, "side": "Long", "type": "FAS_LONG_SQUEEZE", "rate": funding_rate}
+                
+            # Extreme Positive Funding Squeeze (Short opportunity)
+            if funding_rate > 0.0015 and cvd_5m < -50000:
+                return {"detected": True, "side": "Short", "type": "FAS_SHORT_SQUEEZE", "rate": funding_rate}
+                
+            return {"detected": False}
+        except Exception as err:
+            logger.error(f"Erro ao detectar setup FAS para {symbol}: {err}")
+            return {"detected": False}
+
 
     # ═══════════════════════════════════════════════════════════════
     # [V42.0] RANGING SNIPER ALGORITHMS (V-Recovery & Box Breakout)
@@ -3039,14 +3118,25 @@ class SignalGenerator:
                     except Exception as dv_err:
                         logger.error(f"Erro ao avaliar setup DVAP para {symbol}: {dv_err}")
 
-                    # [V128] Regra de Ouro do Usuário: Híbrido Consensual (DVAP, MOLA, ABCD, 1-2-3)
-                    # 1. Determina as Flags de Setup
-                    trend_2h = macro_2h.get('trend', 'NEUTRAL')
-                    is_sma_2h_aligned = False
-                    if side_label == "Long" and trend_2h == "BULLISH_ARMED":
-                        is_sma_2h_aligned = True
-                    elif side_label == "Short" and trend_2h == "BEARISH_ARMED":
-                        is_sma_2h_aligned = True
+                    # [V110.960 LRT] Detecta Liquidity Sweep
+                    is_lrt_play = False
+                    try:
+                        lrt_res = await self.detect_lrt_setup(symbol, zones_15m)
+                        if lrt_res.get("detected") and lrt_res.get("side") == side_label:
+                            is_lrt_play = True
+                            logger.info(f"🦇 [LRT STRATEGY TRIGGERED] {symbol} {side_label} via {lrt_res.get('type')}")
+                    except Exception as lrt_err:
+                        logger.error(f"Erro ao avaliar setup LRT para {symbol}: {lrt_err}")
+
+                    # [V110.960 FAS] Detecta Funding Squeeze
+                    is_fas_play = False
+                    try:
+                        fas_res = await self.detect_fas_setup(symbol)
+                        if fas_res.get("detected") and fas_res.get("side") == side_label:
+                            is_fas_play = True
+                            logger.info(f"🔥 [FAS STRATEGY TRIGGERED] {symbol} {side_label} via {fas_res.get('type')} (Rate={fas_res.get('rate')})")
+                    except Exception as fas_err:
+                        logger.error(f"Erro ao avaliar setup FAS para {symbol}: {fas_err}")
 
                     # Detecta MOLA (Squeeze de Volatilidade)
                     is_mola_play = False
@@ -3056,14 +3146,18 @@ class SignalGenerator:
                     except Exception as sq_err:
                         logger.error(f"Erro ao avaliar setup MOLA para {symbol}: {sq_err}")
 
-                    # Classifica a estratégia do sinal
+                    # [V110.960] Classifica a estratégia do sinal seguindo a Hierarquia Consensual
                     strategy_class = "SWING"
-                    if is_dvap_play:
+                    if is_lrt_play:
+                        strategy_class = "LRT"
+                    elif is_dvap_play:
                         strategy_class = "DVAP"
+                    elif is_fas_play:
+                        strategy_class = "FAS"
                     elif is_mola_play:
                         strategy_class = "MOLA"
                     else:
-                        # Se não for DVAP nem MOLA, classificamos como ABCD ou 1-2-3 baseando-se no padrão
+                        # Se não for nenhuma das especiais, classificamos como ABCD ou 1-2-3 baseando-se no padrão
                         pat_name = str(candidate.get("indicators", {}).get("pattern", "unknown")).upper()
                         if "ABCD" in pat_name:
                             strategy_class = "ABCD"
@@ -3073,19 +3167,24 @@ class SignalGenerator:
                             strategy_class = "TREND"
 
                     # 2. Executa Filtros Rígidos de Consenso por Estratégia
-                    if strategy_class in ("DVAP", "ABCD", "1-2-3", "TREND"):
+                    if strategy_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND"):
+                        # LRT, DVAP, ABCD, 1-2-3 e TREND exigem alinhamento direcional com a SMA de 2H
                         if not is_sma_2h_aligned:
                             reason = f"SMA 2H ALIGN: Setup {strategy_class} 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"
                             logger.info(f"🚫 [SMA2H-ALIGN-REJECT] {symbol} rejeitado: {reason}")
                             self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             return None
                     elif strategy_class == "MOLA":
+                        # MOLA exige ADX >= 25 para evitar falsos rompimentos em lateralização
                         asset_adx = market_regime.get("adx", 20.0)
                         if asset_adx < 25.0:
                             reason = f"MOLA ADX SHIELD: Setup MOLA 30M rejeitado por ADX muito baixo ({asset_adx:.1f} < 25)"
                             logger.info(f"🚫 [MOLA-ADX-REJECT] {symbol} rejeitado: {reason}")
                             self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             return None
+                    elif strategy_class == "FAS":
+                        # FAS (Funding Squeeze) é isento de alinhamento com a SMA de 2H por ser puramente contra-tendência
+                        logger.info(f"⚡ [FAS EXEMPTION] {symbol} {side_label} isento de alinhamento SMA 2H devido a Funding Extremo.")
 
                     # [V127] PROTOCOLO ALT BIAS ONLY (AltForceDirection Guard)
                     # O viés direcional macro de 2H é lei absoluta para moedas desgrudadas (is_decorrelated = True)
@@ -3363,9 +3462,9 @@ class SignalGenerator:
                     elif 14 <= hour_utc < 21:  # Sessão US — maior volume, melhores tendências
                         final_score += 5
                     final_score = max(10, min(99, final_score))
-                    if is_dvap_play:
+                    if is_dvap_play or is_lrt_play or is_fas_play:
                         final_score = 98
-                        logger.info(f"💎 [DVAP SCORE BOOST] final_score forcado para {final_score} para garantir execucao imediata!")
+                        logger.info(f"💎 [PRIORITY STRATEGY BOOST] final_score forcado para {final_score} ({strategy_class}) para garantir execucao imediata!")
                     
                     # Shadow Needle Detection (uses 1m klines)
                     current_price_ws = okx_ws_public_service.get_current_price(symbol)

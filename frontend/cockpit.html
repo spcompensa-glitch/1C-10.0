@@ -3895,7 +3895,17 @@
 
                                         {/* Col 7: Estratégia */}
                                         <div>
-                                            <span style={{ fontSize: '8px', fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                                            <span style={{ 
+                                                fontSize: '8px', 
+                                                fontWeight: 900, 
+                                                color: stratLabel === 'LRT' ? '#8b5cf6' : (stratLabel === 'FAS' ? '#f59e0b' : 'rgba(255,255,255,0.45)'), 
+                                                letterSpacing: '0.5px', 
+                                                textTransform: 'uppercase',
+                                                background: stratLabel === 'LRT' ? 'rgba(139,92,246,0.15)' : (stratLabel === 'FAS' ? 'rgba(245,158,11,0.15)' : 'transparent'),
+                                                border: stratLabel === 'LRT' ? '1px solid rgba(139,92,246,0.3)' : (stratLabel === 'FAS' ? '1px solid rgba(245,158,11,0.3)' : 'none'),
+                                                padding: (stratLabel === 'LRT' || stratLabel === 'FAS') ? '1px 5px' : '0px',
+                                                borderRadius: '4px'
+                                            }}>
                                                 {stratLabel.length > 14 ? stratLabel.substring(0, 14) + '…' : stratLabel}
                                             </span>
                                         </div>
@@ -4087,8 +4097,11 @@
                     ${isSelected ? 'scale-[1.02] border-white shadow-white/10' : ''}`}
                 >
                     {/* [V110.669] Strategy Badge - Dynamic Injection */}
-                    <div className="strategy-badge-elite !rounded-bl-3xl bg-white">
-                        <span className="px-1 text-black font-black">
+                    <div className={`strategy-badge-elite !rounded-bl-3xl ${
+                        strategyBadge === 'FAS' ? 'bg-amber-500 text-white' :
+                        strategyBadge === 'LRT' ? 'bg-violet-600 text-white font-extrabold' : 'bg-white text-black'
+                    }`}>
+                        <span className="px-1 font-black">
                             {strategyBadge}
                         </span>
                     </div>

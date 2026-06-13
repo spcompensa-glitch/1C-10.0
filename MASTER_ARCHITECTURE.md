@@ -1,14 +1,14 @@
-# MASTER_ARCHITECTURE.md — V110.960 "Consenso Híbrido Estratégico (DVAP + MOLA + ABCD + 1-2-3)"
+# MASTER_ARCHITECTURE.md — V110.970 "Hierarquia de Consenso Híbrido (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3)"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
 
-*   **V110.960: CONSENSO HÍBRIDO ESTRATÉGICO (DVAP + MOLA + ABCD + 1-2-3) [JUN 13]**
-    *   **Estratégias Híbridas Ativas**: Priorização consensual das estratégias. DVAP 30M atua como reversão principal. MOLA 30M atua em breakouts de volatilidade apenas se ADX >= 25. ABCD, 1-2-3 e TREND operam seguindo a tendência local.
-    *   **Alinhamento com Cruzamento SMA 2H**: Filtro direcional estrito em `stage3_validate` para DVAP, ABCD, 1-2-3 e TREND. Os sinais correspondentes só são aprovados se a tendência no gráfico de 2H (`trend_2h`) estiver alinhada: cruzamento de alta (`BULLISH_ARMED`) para posições Long e cruzamento de baixa (`BEARISH_ARMED`) para posições Short.
-    *   **Sizing de Margem Fixo ($2.00)**: Margem fixa por ordem definida em $2.00 independente das condições de volatilidade ou regime de mercado (lateral/tendência) em toda a matriz de 20 pares.
-    *   **Desativação de Emancipação de Moonbags**: A emancipação física foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo de stop progressivo diretamente no próprio slot ativo da ordem, sem transição para a tabela `moonbags`.
-    *   **Limpeza na UI (Cockpit)**: Remoção visual de menções a "Moonbags" nos layouts Desktop e Mobile, e definição do timeframe inicial do gráfico principal e de ordens para 30M. Badges de estratégia passam a ser exibidas de forma dinâmica conforme a estratégia executada.
+*   **V110.970: HIERARQUIA DE CONSENSO HÍBRIDO (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3) [JUN 13]**
+    *   **Ordem de Busca e Priorização**: Na validação de sinais de stage 3, o radar varre primeiro setups de liquidez de alta frequência (**LRT**), seguidos de reversões de exaustão (**DVAP**), squeezes de derivativos (**FAS**), breakouts de volatilidade (**MOLA**) e tendências geométricas (**ABCD / 1-2-3 / TREND**).
+    *   **Isenção de Tendência do FAS**: A estratégia FAS (Funding Squeeze) é isenta do alinhamento direcional obrigatório com a SMA de 2H, atuando puramente sob pânico e desequilíbrios do mercado. LRT, DVAP, ABCD, 1-2-3 e TREND mantêm a regra estrita de confluência com o cruzamento da SMA de 2H.
+    *   **Destaque Visual no Cockpit**: Adicionadas cores vibrantes personalizadas para as badges de card e coluna de slots ativas no Cockpit UI para destacar LRT (roxo) e FAS (laranja).
+    *   **Sizing de Margem Fixo ($2.00)**: Mantido em $2.00 por ordem para até 20 posições ativas simultâneas.
+    *   **Desativação de Emancipação de Moonbags**: Unificação de alvos e trailing diretamente no slot.
 
 *   **V110.904: REAL-WORLD ECC MATURITY [JUN 11]**
     *   **Infraestrutura de Fila OKX (Anti-429):** Implementado o `OKXCommandQueue` ([okx_queue.py](file:///c:/Users/spcom/Desktop/1C-7.0/backend/services/okx_queue.py)) que utiliza `asyncio.Queue` e loop em background para agrupar comandos privados (como atualizações de Stop Loss em lote via `amend-algos`), eliminando erros 429 de Rate Limit.

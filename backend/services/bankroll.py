@@ -2037,7 +2037,7 @@ class BankrollManager:
                     # [V110.137 GENESIS] Gera o RG unico da ordem (passaporte do trade)
                     import uuid as _uuid
                     strategy_type = signal_data.get("strategy_class") if signal_data and signal_data.get("strategy_class") else ("BLITZ_30M" if slot_type == "BLITZ_30M" else "SWING")
-                    strategy_prefix = "DVAP" if strategy_type == "DVAP" else ("MOL" if strategy_type == "MOLA" else "SWG")
+                    strategy_prefix = "DVAP" if strategy_type == "DVAP" else ("LRT" if strategy_type == "LRT" else ("FAS" if strategy_type == "FAS" else ("MOL" if strategy_type == "MOLA" else "SWG")))
                     genesis_id = f"{strategy_prefix}-{int(time.time())}-{norm_symbol[:4]}-{_uuid.uuid4().hex[:6].upper()}"
                     opened_ts = time.time()
 

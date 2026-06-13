@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.960)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.970)
 
 ## Resumo Executivo
-* **Versão:** `V110.960: Consenso Híbrido Estratégico (DVAP + MOLA + ABCD + 1-2-3)`
+* **Versão:** `V110.970: Hierarquia de Consenso Híbrido (LRT + DVAP + FAS + MOLA + ABCD + 1-2-3)`
 * **Data:** 2026-06-13
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Transição para o novo protocolo operacional de **Consenso Híbrido** operando uma matriz de **20 pares**. A prioridade principal de reversão é a estratégia **DVAP no timeframe de 30M** após o cruzamento da SMA de 2H. Também estão ativos setups de momentum: **M.Mola** (condicionado a ADX >= 25), **ABCD**, **1-2-3** e **TREND** (todos alinhados com o viés direcional da SMA de 2H). A margem por ordem é fixada em **$2.00**, e a emancipação física para moonbags foi desativada, unificando a Escadinha de Elite e o Trailing Stop subsequente em um único fluxo contínuo diretamente dentro dos slots ativos de ordens. O layout da UI do Cockpit foi limpo de menções a "Moonbags".
+* **Escopo:** Transição para a arquitetura de **Consenso Híbrido com Hierarquia de Prioridades** operando nos **20 pares**. A execução de ordens avalia primeiro sinais baseados em Liquidez e Sentimento (**LRT** e **FAS**), seguidos por reversões estruturais (**DVAP**), compressão de volatilidade (**MOLA** com ADX >= 25) e padrões seguidores de tendência (**ABCD** e **1-2-3**). Apenas FAS é isento de alinhamento com a SMA de 2H. A margem por ordem é fixada em **$2.00**, sem emancipação física de moonbags. O cockpit foi enriquecido com badges dinâmicos de cores customizadas para FAS (laranja) e LRT (roxo).
 
 ---
 

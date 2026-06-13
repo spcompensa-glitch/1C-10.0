@@ -148,8 +148,6 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
             return SOVEREIGN_USER
             
     # PRODUÇÃO: Fluxo de autenticação obrigatório
-    logger.warning(f"🚫 [PRODUCTION] Tentativa de acesso sem token em produção: {token[:10] if token else 'None'}")
-    raise credentials_exception
 
     # Standard Production Auth Flow
     try:

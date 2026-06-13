@@ -3063,7 +3063,7 @@ class SignalGenerator:
                         # [DEBUG] Audit Stage 3 Entry
                         # logger.info(f"🔍 [STAGE3] Starting validation for {symbol}...")
                     
-                        # V27.0: Full Multi-Timeframe Analysis (2H + 4H + 15m + Daily + Regime + BTC Direction)
+                    # V27.0: Full Multi-Timeframe Analysis (2H + 4H + 15m + Daily + Regime + BTC Direction)
                         macro_2h, trend_4h, zones_15m, daily_macro, market_regime, btc_dir, btc_regime_data = await asyncio.gather(
                             self.get_2h_macro_analysis(symbol),
                             self.get_4h_trend_analysis(symbol),
@@ -3074,6 +3074,14 @@ class SignalGenerator:
                             self.detect_market_regime("BTCUSDT.P") # [V42.9] RANGING BTC Guard
                         )
                     
+                    # [V110.960] Determina alinhamento com a tendência da SMA de 2H
+                    trend_2h = macro_2h.get('trend', 'NEUTRAL')
+                    is_sma_2h_aligned = False
+                    if side_label == "Long" and trend_2h == "BULLISH_ARMED":
+                        is_sma_2h_aligned = True
+                    elif side_label == "Short" and trend_2h == "BEARISH_ARMED":
+                        is_sma_2h_aligned = True
+
                     # 🆕 [V110.999] ZONE NEUTRA DE FLEXIBILIZAÇÃO (FLEX_MODE) & DVAP STRATEGY DETECTOR
                     rsi_2h = macro_2h.get('rsi_2h', 50.0)
                     is_flex_mode = (43.0 <= rsi_2h <= 57.0)

@@ -747,10 +747,11 @@ if settings.SERVE_STATIC_FRONTEND:
 # =================================================================
 # ROUTES & MODULARIZATION (V110.25.0)
 # =================================================================
-from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens, sandbox
+from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens, sandbox, admin
 
 # Include Modulated Routers
 app.include_router(auth.router, prefix="/api/auth")
+app.include_router(admin.router)
 app.include_router(trading.router)
 app.include_router(system.router)
 app.include_router(dashboard.router)

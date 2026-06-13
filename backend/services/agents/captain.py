@@ -1351,8 +1351,27 @@ class CaptainAgent(AIOSAgent):
                 best_signal["is_reverse_sniper"] = True # Mark for tighter protection in SL logic
                 consensus["approved"] = True # Override approval for the pivot trade
             
-            # [SANDBOX] Bypass Total - Autoriza tudo que chega no radar
-            consensus["approved"] = True
+            # [SANDBOX] Bypass Total - Autoriza tudo, MAS com filtro em Ranging
+            if is_market_ranging:
+                from config import settings as temp_settings
+                whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
+                if not whitelist:
+                    whitelist = [
+                        "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
+                        "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
+                        "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
+                        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT"
+                    ]
+                
+                clean_sym = symbol.replace(".P", "").upper()
+                if clean_sym not in whitelist:
+                    consensus["approved"] = False
+                    consensus["reason"] = "SANDBOX_LATERAL_RESTRICTED"
+                    logger.info(f"🚫 [SANDBOX] {symbol} rejeitado em RANGING. Apenas Elite 19 pares permitidos.")
+                else:
+                    consensus["approved"] = True
+            else:
+                consensus["approved"] = True
             
             if not consensus["approved"]:
                 reason = consensus["reason"]

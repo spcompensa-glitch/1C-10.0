@@ -446,20 +446,38 @@ class BankrollGuardian:
                 "reasons": reasons,
             }
  
+        is_paper = getattr(settings, "OKX_EXECUTION_MODE", "REAL") == "PAPER"
+
         if material_profit_floor and self.protected_profit_peak > 0 and equity <= protected_floor:
-            mode = "PRESERVACAO_TOTAL"
-            state_label = "Preservacao total"
-            min_score = 999.0
-            max_slots = 0
-            health = 20
-            reasons = [f"Piso protegido atingido (${protected_floor:.2f}). Novas entradas pausadas para nao devolver lucro."]
+            if is_paper:
+                mode = "CAUTELOSO"
+                state_label = "Cauteloso (Simulado)"
+                min_score = 75.0
+                max_slots = max_regime_slots
+                health = 65
+                reasons = [f"[PAPER-BYPASS] Piso protegido atingido (${protected_floor:.2f}). Trava atenuada em simulado."]
+            else:
+                mode = "PRESERVACAO_TOTAL"
+                state_label = "Preservacao total"
+                min_score = 999.0
+                max_slots = 0
+                health = 20
+                reasons = [f"Piso protegido atingido (${protected_floor:.2f}). Novas entradas pausadas para nao devolver lucro."]
         elif session_roi <= -8.0 or drawdown_from_peak_pct >= 10.0:
-            mode = "PRESERVACAO_TOTAL"
-            state_label = "Preservacao total"
-            min_score = 999.0
-            max_slots = 0
-            health = 25
-            reasons = ["Perda/drawdown critico. Novas entradas pausadas."]
+            if is_paper:
+                mode = "CAUTELOSO"
+                state_label = "Cauteloso (Simulado)"
+                min_score = 75.0
+                max_slots = max_regime_slots
+                health = 60
+                reasons = ["[PAPER-BYPASS] Perda/drawdown critico. Trava atenuada em simulado para permitir cacada."]
+            else:
+                mode = "PRESERVACAO_TOTAL"
+                state_label = "Preservacao total"
+                min_score = 999.0
+                max_slots = 0
+                health = 25
+                reasons = ["Perda/drawdown critico. Novas entradas pausadas."]
         elif session_roi <= -5.0 or drawdown_from_peak_pct >= 7.0:
             mode = "DEFESA"
             state_label = "Defesa"

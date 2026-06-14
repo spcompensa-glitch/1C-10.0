@@ -1348,25 +1348,26 @@ class CaptainAgent(AIOSAgent):
                 best_signal["is_reverse_sniper"] = True # Mark for tighter protection in SL logic
                 consensus["approved"] = True # Override approval for the pivot trade
             
-            # [SANDBOX] Bypass Total - Autoriza tudo, MAS com filtro em Ranging
-            if is_market_ranging:
-                from config import settings as temp_settings
-                whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
-                if not whitelist:
-                    whitelist = [
-                        "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
-                        "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
-                        "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-                        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
-                    ]
-                
-                clean_sym = symbol.replace(".P", "").upper()
-                if clean_sym not in whitelist:
-                    consensus["approved"] = False
-                    consensus["reason"] = "SANDBOX_LATERAL_RESTRICTED"
-                    logger.info(f"🚫 [SANDBOX] {symbol} rejeitado em RANGING. Apenas Elite 20 pares permitidos.")
-                else:
-                    consensus["approved"] = True
+            # [SANDBOX] Whitelist Global de 20 Pares & Filtro de Regime Lateral
+            from config import settings as temp_settings
+            whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
+            if not whitelist:
+                whitelist = [
+                    "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
+                    "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
+                    "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
+                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
+                ]
+            
+            clean_sym = symbol.replace(".P", "").upper()
+            if clean_sym not in whitelist:
+                consensus["approved"] = False
+                consensus["reason"] = "WATCHLIST_RESTRICTED"
+                logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na RADAR_WATCHLIST.")
+            elif is_market_ranging and strategy != "DECOR":
+                consensus["approved"] = False
+                consensus["reason"] = "LATERAL_ONLY_DECOR"
+                logger.info(f"🚫 [FLEET-GUARD] {symbol} ({strategy}) rejeitado em RANGING. Apenas a estrategia DECOR (desgrudados) e permitida em mercado lateral.")
             else:
                 consensus["approved"] = True
             

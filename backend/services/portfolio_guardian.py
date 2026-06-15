@@ -34,12 +34,18 @@ class PortfolioGuardian:
         logger.info(f"🛡️ [GUARDIAN] Inicializado. Gatilho de Ativação: {self.activation_trigger}% | Margem de Recuo: {self.trailing_margin}%")
 
     def start(self):
-        """Registra o callback no WebSocket da OKX para receber atualizações automáticas."""
-        okx_ws_service.register_callback(self.evaluate_master_state)
-        logger.info("🛡️ [GUARDIAN] Escuta ativada no WebSocket privado da OKX Master.")
-        # [V124] Inicia loop REST como fallback para garantir avaliação mesmo sem WS ativo
-        asyncio.create_task(self._rest_fallback_loop())
-        logger.info("🛡️ [GUARDIAN] Loop REST-Fallback iniciado (polling a cada 30s como redundância).")
+        """[DESATIVADO - V2.0] Desativado em favor da ultra-diversificação de 40 slots."""
+        logger.info("🛡️ [GUARDIAN] PORTFOLIO GUARDIAN (FACÃO GLOBAL) ESTÁ DESATIVADO. FlashAgent controla individualmente.")
+        # Criamos apenas uma task mínima de heartbeat para manter o sentinel_auditor feliz
+        async def heartbeat_only_loop():
+            from services.sentinel_auditor import sentinel_auditor
+            while True:
+                try:
+                    sentinel_auditor.record_heartbeat("portfolio_guardian")
+                except:
+                    pass
+                await asyncio.sleep(15)
+        asyncio.create_task(heartbeat_only_loop())
 
     async def _rest_fallback_loop(self):
         """[V124] Loop de segurança: avalia posições via REST a cada 30s se o WS estiver silencioso ou em PAPER mode."""

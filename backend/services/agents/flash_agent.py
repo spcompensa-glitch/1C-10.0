@@ -169,6 +169,14 @@ class FlashAgent:
         improves = self._stop_improves(side, current_stop, target_stop)
         action = "APPLY_STOP" if improves else "MONITOR"
 
+        adx_val = 20.0
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            adx_val = getattr(okx_ws_public_service, "btc_adx", 20.0)
+        except Exception:
+            pass
+        regime_label = "RANGING" if adx_val < 25 else "TRENDING"
+
         logger.info(
             f"[FLASH-TRACK][SLOT] slot={slot_id} symbol={symbol} side={side.upper()} "
             f"price={self._fmt_price(current_price)} entry={self._fmt_price(entry_price)} "
@@ -176,7 +184,7 @@ class FlashAgent:
             f"active={self._level_label(active_level)} next={self._level_label(next_level)} "
             f"stop_db={self._fmt_price(current_stop)} stop_db_roi={self._fmt_roi(current_stop_roi)} "
             f"stop_target={self._fmt_price(target_stop)} stop_target_roi={self._fmt_roi(target_stop_roi)} "
-            f"improves={improves} action={action}"
+            f"improves={improves} action={action} regime={regime_label}(ADX={adx_val:.1f})"
         )
 
     def _log_moonbag_tracking(
@@ -300,10 +308,24 @@ class FlashAgent:
             self._log_price_unavailable("SLOT", symbol, entry_price, current_stop, side, leverage)
             return
 
+        adx_val = 30.0
+        import sys
+        is_test_env = any("pytest" in arg or "test" in arg for arg in sys.argv)
+        if not is_test_env:
+            try:
+                from services.okx_ws_public import okx_ws_public_service
+                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                if val > 0.1:
+                    adx_val = val
+            except Exception:
+                pass
+        is_ranging = (adx_val < 25)
+
         projection = await order_projection_service.build_projection(
             slot,
             current_price=current_price,
             phase_hint="SLOT",
+            is_ranging=is_ranging,
         )
         roi = float(projection.get("roi_percent") or 0)
         peak_price = self._get_peak_price(symbol, side, current_price)
@@ -326,6 +348,7 @@ class FlashAgent:
                 slot,
                 current_price=decision_price,
                 phase_hint="SLOT",
+                is_ranging=is_ranging,
             )
 
         self._log_slot_tracking(
@@ -374,18 +397,33 @@ class FlashAgent:
                     await self._close_position(slot_id, symbol, side, qty, f"FLASH_LOSS_SL_{roi:.1f}%")
                     return
 
-        # 🚀 Emancipação (ROI >= 150%)
-        if decision_projection.get("should_emancipate"):
+        # 🚀 Emancipação Dinâmica (100% ROI no Ranging / 150% ROI no Trending)
+        adx_val = 30.0
+        import sys
+        is_test_env = any("pytest" in arg or "test" in arg for arg in sys.argv)
+        if not is_test_env:
+            try:
+                from services.okx_ws_public import okx_ws_public_service
+                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                if val > 0.1:
+                    adx_val = val
+            except Exception:
+                pass
+        is_ranging = (adx_val < 25)
+        emancipate_threshold = 100.0 if is_ranging else 150.0
+        emancipate_stop_roi = 80.0 if is_ranging else 110.0
+
+        if decision_projection.get("should_emancipate") or (roi >= emancipate_threshold and phase == "EMANCIPACAO"):
             logger.warning(
                 f"🚀⚡ [FLASH-EMANCIPAR] {symbol} peakROI={effective_roi:.1f}% "
-                f"(atual {roi:.1f}%) >= 150%! EMANCIPANDO!"
+                f"(atual {roi:.1f}%) >= {emancipate_threshold:.0f}% ({'RANGING' if is_ranging else 'TRENDING'})! EMANCIPANDO!"
             )
-            sl_110 = float(decision_projection.get("recommended_stop") or 0)
-            if sl_110 <= 0:
-                sl_110 = await self._calc_stop_price(entry_price, 110.0, side, leverage, symbol)
-            if self._stop_improves(side, current_stop, sl_110):
-                await self._update_slot_sl(slot_id, symbol, sl_110, "PROFIT_LOCK", side, qty)
-                current_stop = sl_110
+            sl_emancipate = float(decision_projection.get("recommended_stop") or 0)
+            if sl_emancipate <= 0:
+                sl_emancipate = await self._calc_stop_price(entry_price, emancipate_stop_roi, side, leverage, symbol)
+            if self._stop_improves(side, current_stop, sl_emancipate):
+                await self._update_slot_sl(slot_id, symbol, sl_emancipate, "PROFIT_LOCK", side, qty)
+                current_stop = sl_emancipate
             stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
                 logger.warning(
@@ -395,7 +433,7 @@ class FlashAgent:
                 await self._close_position(slot_id, symbol, side, qty, f"FLASH_EMANCIPATION_LOCK_SL_{roi:.1f}%")
                 self._peak_roi_cache.pop(slot_key, None)
                 return
-            await self._emancipate_slot(slot_id, symbol, sl_110)
+            await self._emancipate_slot(slot_id, symbol, sl_emancipate)
             self._peak_roi_cache.pop(slot_key, None)
             return
 

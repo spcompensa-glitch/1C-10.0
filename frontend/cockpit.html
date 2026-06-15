@@ -3908,6 +3908,26 @@
                                                     STOP: ${Number(s.projection.recommended_stop).toFixed(Number(s.projection.recommended_stop) < 1 ? 5 : Number(s.projection.recommended_stop) < 100 ? 3 : 2)}
                                                 </span>
                                             )}
+                                            <span style={{
+                                                fontSize: '6px',
+                                                fontWeight: 900,
+                                                padding: '0.5px 3px',
+                                                borderRadius: '3px',
+                                                width: 'fit-content',
+                                                marginTop: '1px',
+                                                fontFamily: 'sans-serif',
+                                                background: (s.projection?.levels && s.projection.levels.some(l => l.name === 'SL_0')) 
+                                                    ? 'rgba(249,115,22,0.15)' 
+                                                    : 'rgba(59,130,246,0.15)',
+                                                color: (s.projection?.levels && s.projection.levels.some(l => l.name === 'SL_0')) 
+                                                    ? '#fb923c' 
+                                                    : '#60a5fa',
+                                                border: (s.projection?.levels && s.projection.levels.some(l => l.name === 'SL_0')) 
+                                                    ? '1px solid rgba(249,115,22,0.3)' 
+                                                    : '1px solid rgba(59,130,246,0.3)'
+                                            }}>
+                                                {(s.projection?.levels && s.projection.levels.some(l => l.name === 'SL_0')) ? '⚡ RANGING' : '🚀 TRENDING'}
+                                            </span>
                                         </div>
 
                                         {/* Col 7: Estratégia */}

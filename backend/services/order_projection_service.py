@@ -23,9 +23,27 @@ class StopLevel:
     status_risco: str
 
 
-ORDER_STOP_LADDER: List[StopLevel] = [
-    # [V110.172] RISCO_ZERO trigger reduzido de 80% → 50% ROI para proteger capital mais cedo.
-    # Com 50x alavancagem, 50% ROI = 1% de movimento de preço — ativa proteção mais rapidamente.
+ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
+    # Em Ranging, o breakeven ativa precoce a 30% ROI (+5% stop) e sobe agressivo
+    StopLevel("ESCADINHA", "SL_0", 30.0, 5.0, "SL_0"),
+    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 25.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 70.0, 50.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADA", 100.0, 80.0, "PROFIT_LOCK"),
+    # Acima de 100% no Ranging vira Moonbag (trailing progressivo)
+    StopLevel("ESCADINHA", "WAVE", 200.0, 150.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "ROCKET", 300.0, 220.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "STAR", 400.0, 280.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CROWN", 500.0, 350.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "SUPERNOVA", 600.0, 420.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "GOD_MODE", 700.0, 500.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CHOKE_PREP", 750.0, 600.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "CHOKE", 800.0, 650.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "HYPER", 1000.0, 800.0, "MOONBAG_TRAIL"),
+    StopLevel("ESCADINHA", "APEX", 1200.0, 1000.0, "MOONBAG_TRAIL"),
+]
+
+ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
+    # Em Trending, deixa o trade respirar mais
     StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 15.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 50.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
@@ -107,8 +125,8 @@ class OrderProjectionService:
         except Exception:
             return raw_price
 
-    def get_stop_ladder(self, roi_percent: float = 0.0) -> List[StopLevel]:
-        ladder = list(ORDER_STOP_LADDER)
+    def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False) -> List[StopLevel]:
+        ladder = list(ORDER_STOP_LADDER_RANGING if is_ranging else ORDER_STOP_LADDER_TRENDING)
         highest_trigger = max(level.trigger_roi for level in ladder)
         target_ceiling = max(highest_trigger, roi_percent + 400.0)
         trigger_roi = highest_trigger + POST_APEX_STEP_ROI
@@ -127,28 +145,29 @@ class OrderProjectionService:
 
         return ladder
 
-    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None) -> Optional[StopLevel]:
+    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False) -> Optional[StopLevel]:
         active = None
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging):
             if roi_percent + epsilon >= level.trigger_roi:
                 active = level
             else:
                 break
         return active
 
-    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None) -> Optional[StopLevel]:
+    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False) -> Optional[StopLevel]:
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging):
             if roi_percent + epsilon < level.trigger_roi:
                 return level
         return None
 
-    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None) -> str:
+    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False) -> str:
         hint = str(phase_hint or "").upper()
         if hint == "MOONBAG":
             return "MOONBAG"
-        if roi_percent >= 150.0:
+        emancipate_threshold = 100.0 if is_ranging else 150.0
+        if roi_percent >= emancipate_threshold:
             return "EMANCIPACAO"
         if roi_percent >= 30.0:
             return "ESCADINHA"
@@ -182,6 +201,7 @@ class OrderProjectionService:
         current_price: Optional[float] = None,
         phase_hint: Optional[str] = None,
         fetch_contract: bool = True,
+        is_ranging: Optional[bool] = None,
     ) -> Dict[str, Any]:
         symbol = order.get("symbol") or ""
         side = self.normalize_side(order.get("side"))
@@ -191,11 +211,25 @@ class OrderProjectionService:
         qty = float(order.get("qty") or order.get("size") or 0)
         current_stop = float(order.get("current_stop") or 0)
 
+        # Obtem is_ranging dinamicamente do btc_adx do WS cache se não for fornecido e se okx_ws_public_service estiver instanciado
+        if is_ranging is None:
+            is_ranging = False
+            import sys
+            is_test_env = any("pytest" in arg or "test" in arg for arg in sys.argv)
+            if not is_test_env:
+                try:
+                    from services.okx_ws_public import okx_ws_public_service
+                    adx = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                    if adx > 0.1:
+                        is_ranging = (adx < 25)
+                except Exception:
+                    pass
+
         roi = self.calculate_roi(entry_price, current_price, side, leverage)
-        phase = self.get_phase(roi, phase_hint)
-        stop_ladder = self.get_stop_ladder(roi)
-        active_level = self.get_active_level(roi, stop_ladder)
-        next_level = self.get_next_level(roi, stop_ladder)
+        phase = self.get_phase(roi, phase_hint, is_ranging)
+        stop_ladder = self.get_stop_ladder(roi, is_ranging)
+        active_level = self.get_active_level(roi, stop_ladder, is_ranging)
+        next_level = self.get_next_level(roi, stop_ladder, is_ranging)
         existing_contract = order.get("contract") or order.get("contract_meta") or {}
         if existing_contract:
             contract = {

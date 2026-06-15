@@ -228,7 +228,6 @@ async def lifespan(app: FastAPI):
                 from services.agents.onchain_whale_watcher import on_chain_whale_watcher
                 from services.agents.sentiment_specialist import sentiment_specialist
                 from services.agents.librarian import librarian_agent
-                from services.agents.harvester import harvester_agent
                 from services.agents.blitz_sniper import blitz_sniper_agent # [V110.137] Blitz Active
 
                 # 🆕 [V4.0 DECENTRALIZATION] Slot Operator Agents (The New Core)
@@ -266,8 +265,8 @@ async def lifespan(app: FastAPI):
                 
                 await kernel.register_agent(librarian_agent)
                 
-                await kernel.register_agent(harvester_agent)
-                await harvester_agent.start() # [V110.656] Inicia Monitoramento de Moonbags
+                # Harvester Ceifeiro consolidated into FlashAgent
+                pass
                 
                 # 🔥 [V5.4.0] HeatMonitor Agent - Ignition & Flow Intelligence
                 try:

@@ -60,7 +60,10 @@ class PortfolioGuardian:
                             "instId": pos.get("symbol", ""),
                             "upl": pos.get("unrealisedPnl", 0.0),
                             "margin": pos.get("entry_margin", pos.get("positionValue", 0.0)),
-                            "mgnVal": pos.get("entry_margin", pos.get("positionValue", 0.0))
+                            "mgnVal": pos.get("entry_margin", pos.get("positionValue", 0.0)),
+                            "posSide": "long" if pos.get("side", "Buy").lower() in ("buy", "long") else "short",
+                            "pos": float(pos.get("size", 0.0)),
+                            "avgPx": float(pos.get("avgPrice", 0.0))
                         })
                     # Em paper mode, roda avaliação REST sem precisar de WS lag check
                     await self._process_evaluation(positions)
@@ -250,7 +253,7 @@ class PortfolioGuardian:
                     try:
                         inst_id = pos.get("instId", "")
                         # Converte OKX (AVAX-USDT-SWAP) para padrão interno (AVAXUSDT)
-                        norm_symbol = inst_id.upper().replace("-USDT-SWAP", "USDT").replace("-USDC-SWAP", "USDC").replace("-", "")
+                        norm_symbol = inst_id.upper().replace("-USDT-SWAP", "USDT").replace("-USDC-SWAP", "USDC").replace(".P", "").replace("-", "")
 
                         # Encontra o slot correspondente no Firebase
                         matched_slot = None

@@ -145,6 +145,11 @@ class OrderProjectionService:
         return None
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None) -> str:
+        hint = str(phase_hint or "").upper()
+        if hint == "MOONBAG":
+            return "MOONBAG"
+        if roi_percent >= 150.0:
+            return "EMANCIPACAO"
         if roi_percent >= 30.0:
             return "ESCADINHA"
         return "SLOT"
@@ -216,7 +221,7 @@ class OrderProjectionService:
             raw_target_price = self.raw_price_from_roi(entry_price, level.trigger_roi, side, leverage)
             target_price = self.round_to_tick(raw_target_price, contract["tick_size"])
             levels.append({
-                "phase": level.phase,
+                "phase": "MOONBAG" if phase_hint == "MOONBAG" else level.phase,
                 "name": level.name,
                 "trigger_roi": level.trigger_roi,
                 "stop_roi": level.stop_roi,
@@ -250,14 +255,14 @@ class OrderProjectionService:
             "current_stop": current_stop,
             "recommended_stop": recommended_stop,
             "active_level": {
-                "phase": active_level.phase,
+                "phase": "MOONBAG" if phase_hint == "MOONBAG" else active_level.phase,
                 "name": active_level.name,
                 "trigger_roi": active_level.trigger_roi,
                 "stop_roi": active_level.stop_roi,
                 "status_risco": active_level.status_risco,
             } if active_level else None,
             "next_level": {
-                "phase": next_level.phase,
+                "phase": "MOONBAG" if phase_hint == "MOONBAG" else next_level.phase,
                 "name": next_level.name,
                 "trigger_roi": next_level.trigger_roi,
                 "stop_roi": next_level.stop_roi,
@@ -271,7 +276,7 @@ class OrderProjectionService:
                 ),
                 "status_risco": next_level.status_risco,
             } if next_level else None,
-            "should_emancipate": False,
+            "should_emancipate": phase == "EMANCIPACAO" and str(phase_hint or "").upper() != "MOONBAG",
             "levels": levels,
             "contract": contract,
             "notional_usd": self.notional_usd(qty, current_price or entry_price, contract["ct_val"]),

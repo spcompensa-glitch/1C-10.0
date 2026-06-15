@@ -414,48 +414,8 @@ class ExecutionProtocol:
 
 
 
-        # --- [V110.113] HARVESTER AGENT ("CEIFEIRO") UPGRADED ---
-        # DUPLA RESPONSABILIDADE:
-        # 1. Colheita parcial em resistências Fibonacci (colheitas em fases)
-        # 2. Trailing Stop progressivo para proteger lucros de Moonbags
-        
-        if is_emancipated:
-            try:
-                from services.agents.harvester import harvester_agent
-                
-                # 1️⃣ TRAILING STOP PARA MOONBAGS
-                # Calcula se o SL deve subir baseado no ROI atual
-                trailing_res = harvester_agent.calculate_trailing_stop(
-                    symbol, slot_data.get("side", "Buy"), entry, current_price, current_sl
-                )
-                
-                if trailing_res.get("action") == "UPDATE_SL":
-                    new_trailing_sl = trailing_res["new_stop"]
-                    # Arredonda o preço antes de retornar
-                    from services.okx_rest import okx_rest_service
-                    new_trailing_sl = await okx_rest_service.round_price(symbol, new_trailing_sl)
-                    
-                    logger.info(
-                        f"🛡️ [MOONBAG-TRAIL] {symbol} SL atualizado para "
-                        f"${new_trailing_sl:.4f} [{trailing_res['icon']} {trailing_res['label']}]"
-                    )
-                    return False, f"MOONBAG_TRAILING_{trailing_res['label']}", new_trailing_sl
-                
-                # 2️⃣ COLHEITA PARCIAL EM FASES
-                harvest_res = await harvester_agent.check_harvest_opportunity(
-                    symbol, slot_data.get("side", "Buy"), entry, current_price
-                )
-
-                if harvest_res.get("action") == "PARTIAL_HARVEST":
-                    logger.info(
-                        f"🌾 [HARVESTER-TRIGGER] {symbol} pronto para {harvest_res.get('phase', 'COLHEITA')} "
-                        f"de {harvest_res['proportion']*100:.0f}%. ROI: {harvest_res['current_roi']:.1f}%"
-                    )
-                    # Retorna ação especial para ser tratada pelo executor (okx_rest)
-                    return False, "PARTIAL_HARVEST", harvest_res
-                    
-            except Exception as e:
-                logger.error(f"❌ [HARVESTER-ERROR] {symbol}: {e}")
+        # Trailing stop and exit for emancipated positions/moonbags are handled by FlashAgent.
+        pass
 
 
         # ⚡ [V110.137 BLITZ DOUTRINA DAS 10] — Slots 1 e 2 Exclusivos

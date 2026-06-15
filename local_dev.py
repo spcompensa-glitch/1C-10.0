@@ -188,17 +188,143 @@ try:
 except Exception as e:
     logger.warning(f"⚠️ captain_agent não importou: {e}")
 
+
+
+def init_database():
+    """Cria tabelas e garante usuário admin/admin123."""
+    engine = get_engine()
+    Base.metadata.create_all(bind=engine)
+
+    with engine.connect() as conn:
+        existing = conn.execute(
+            text("SELECT id FROM users WHERE username = :u"),
+            {"u": "admin"},
+        ).scalar()
+
+        if not existing:
+            pwd_hash = password_handler.hash_password("admin123", rounds=12)
+            now = datetime.utcnow()
+            conn.execute(
+                text("""
+                    INSERT INTO users (username, email, password_hash, is_active, role, created_at, updated_at)
+                    VALUES (:username, :email, :password_hash, :is_active, :role, :created_at, :updated_at)
+                """),
+                {
+                    "username": "admin",
+                    "email": "admin@1crypten.com",
+                    "password_hash": pwd_hash,
+                    "is_active": True,
+                    "role": "admin",
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+            conn.commit()
+            logger.info("✅ Usuário admin/admin123 criado")
+        else:
+            logger.info("✅ Usuário admin já existe")
+
+
+async def init_trading_database():
+    """Inicializa o DB de trading (slots, radar_pulse, banca_status, etc.) e faz seed."""
+    from services.database_service import database_service, Slot, BancaStatus
+    from sqlalchemy import select
+
+    try:
+        await database_service.initialize()
+        logger.info("✅ Trading DB tables inicializadas (slots/radar_pulse/banca_status/etc)")
+    except Exception as e:
+        logger.error(f"❌ Falha ao inicializar trading DB: {e}")
+        return
+
+    try:
+        async with database_service.AsyncSessionLocal() as session:
+            existing_slots = (await session.execute(select(Slot))).scalars().all()
+            if not existing_slots:
+                for i in range(1, 5):
+                    session.add(Slot(id=i, status_risco="LIVRE", leverage=50.0))
+                await session.commit()
+                logger.info("✅ 4 slots vazios criados (id=1..4)")
+            else:
+                logger.info(f"✅ {len(existing_slots)} slots já existentes")
+
+            banca = await session.get(BancaStatus, 1)
+            if not banca:
+                session.add(BancaStatus(
+                    id=1,
+                    saldo_total=100.0,
+                    risco_real_percent=0.0,
+                    slots_disponiveis=4,
+                    status="IDLE",
+                ))
+                await session.commit()
+                logger.info("✅ BancaStatus inicial criada ($100.00, 4 slots)")
+            else:
+                logger.info(f"✅ BancaStatus já existe (saldo=${banca.saldo_total})")
+
+            # Seed dummy trade in history if empty to allow visual testing
+            from services.database_service import TradeHistory
+            existing_history = (await session.execute(select(TradeHistory))).scalars().all()
+            if not existing_history:
+                session.add(TradeHistory(
+                    order_id="dummy_1780596241984",
+                    genesis_id="PEPEUSDT_1780596241984",
+                    symbol="PEPEUSDT",
+                    side="SELL",
+                    pnl=-0.08,
+                    pnl_percent=-4.0,
+                    entry_price=0.00001550,
+                    exit_price=0.00001612,
+                    strategy="SNIPER",
+                    close_reason="STOP_LOSS",
+                    timestamp=datetime.utcnow(),
+                    data={
+                        "symbol": "PEPEUSDT",
+                        "side": "SELL",
+                        "pnl": -0.08,
+                        "pnl_percent": -4.0,
+                        "entry_price": 0.00001550,
+                        "exit_price": 0.00001612,
+                        "strategy": "SNIPER",
+                        "close_reason": "STOP_LOSS",
+                        "leverage": 50,
+                        "margin": 2.0
+                    }
+                ))
+                await session.commit()
+                logger.info("✅ Trade dummy de teste inserido no histórico local")
+    except Exception as e:
+        logger.error(f"❌ Falha ao fazer seed de slots/banca/histórico: {e}")
+
+
+# Importa o app principal (cockpit data, websocket, hermes, etc.)
+# Importamos DEPOIS de garantir sys.path e env carregados.
+try:
+    import main as main_module
+    MAIN_APP = main_module.app
+    logger.info("✅ main.py importado — rotas de cockpit/banca/slots OK")
+except Exception as e:
+    logger.warning(f"⚠️ Não foi possível importar main.py: {e}")
+    MAIN_APP = None
+
+
+# Agentes/loops de trading (captain + signal generator) — só inicializamos aqui
+# porque o main.py da raiz não chama monitor_signals() no startup.
+_captain_agent = None
+_sig_gen = None
+try:
+    from services.agents.captain import captain_agent as _captain_agent  # type: ignore
+    logger.info("✅ captain_agent importado")
+except Exception as e:
+    logger.warning(f"⚠️ captain_agent não importou: {e}")
+
 try:
     from services.signal_generator import signal_generator as _sig_gen  # type: ignore
     logger.info("✅ signal_generator importado")
 except Exception as e:
     logger.warning(f"⚠️ signal_generator não importou: {e}")
 
-try:
-    from services.agents.harvester import harvester_agent as _harvester_agent  # type: ignore
-    logger.info("✅ harvester_agent importado")
-except Exception as e:
-    logger.warning(f"⚠️ harvester_agent não importou: {e}")
+# harvester_agent consolidated into FlashAgent
 
 
 # Cria app FastAPI próprio
@@ -358,12 +484,8 @@ async def startup():
             logger.info("🟢 captain_agent.monitor_signals() iniciado — radar→slots ativo")
         except Exception as e:
             logger.warning(f"⚠️ Falha iniciando captain.monitor_signals: {e}")
-    if _harvester_agent is not None:
-        try:
-            await _harvester_agent.start()
-            logger.info("🟢 harvester_agent.start() chamado — monitoramento de moonbags ativo")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha iniciando harvester.start: {e}")
+    # harvester consolidated into FlashAgent
+    pass
 
     logger.info(f"✅ Frontend: {FRONTEND}")
     logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")

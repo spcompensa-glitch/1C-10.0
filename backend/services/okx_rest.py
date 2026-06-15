@@ -2471,6 +2471,12 @@ class OKXRest:
 
                         from services.execution_protocol import execution_protocol
                         roi = execution_protocol.calculate_roi(slot_data["entry_price"], current_price, slot_data["side"])
+                        
+                        # Calculate and update unrealised PnL dynamically so Portfolio Guardian can see it
+                        price_delta = current_price - slot_data["entry_price"] if slot_data["side"].lower() == "buy" else slot_data["entry_price"] - current_price
+                        ct_val = float(pos.get("ctVal", 1.0))
+                        unrealised_pnl = float(pos.get("size", 0.0)) * ct_val * price_delta
+                        pos["unrealisedPnl"] = str(unrealised_pnl)
                         should_close, reason, new_sl = await execution_protocol.process_order_logic(slot_data, current_price)
                         # [V110.100.2] ABSOLUTE ORDER (Sem saida parcial)
                         # A ordem inteira será conduzida até a emancipação completa.

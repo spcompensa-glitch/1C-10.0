@@ -3779,13 +3779,13 @@
                         {/* Cabeçalho da tabela */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 1fr 36px',
+                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 120px 1fr 36px',
                             gap: '4px',
                             padding: '8px 12px',
                             background: 'rgba(255,255,255,0.03)',
                             borderBottom: '1px solid rgba(255,255,255,0.05)'
                         }}>
-                            {['ATIVO', 'PNL %', 'DEGRAU', 'ENTR.', 'ATUAL', 'STOP', 'ESTRATÉGIA', ''].map((h, i) => (
+                            {['ATIVO', 'PNL %', 'DEGRAU', 'ENTR.', 'ATUAL', 'STOP', 'FLASH STATUS', 'ESTRATÉGIA', ''].map((h, i) => (
                                 <div key={i} style={{ fontSize: '7px', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
                             ))}
                         </div>
@@ -3811,7 +3811,7 @@
                                         onClick={() => onSelectSlot && onSelectSlot(s)}
                                         style={{
                                             display: 'grid',
-                                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 1fr 36px',
+                                            gridTemplateColumns: '120px 70px 80px 60px 80px 65px 120px 1fr 36px',
                                             gap: '4px',
                                             padding: '9px 12px',
                                             background: isEven ? 'rgba(255,255,255,0.01)' : 'transparent',
@@ -3891,6 +3891,23 @@
                                             <span style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,165,0,0.8)', fontFamily: 'JetBrains Mono, monospace' }}>
                                                 {currentStop > 0 ? currentStop.toFixed(currentStop < 1 ? 5 : currentStop < 100 ? 3 : 2) : '—'}
                                             </span>
+                                        </div>
+
+                                        {/* Col 6.5: Flash Status */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                            <span style={{
+                                                fontSize: '9px', fontWeight: 800,
+                                                color: '#22d3ee',
+                                                textTransform: 'uppercase',
+                                                fontFamily: 'JetBrains Mono, monospace'
+                                            }}>
+                                                {s.projection?.active_level?.name || s.flash_last_action || 'BUSCANDO...'}
+                                            </span>
+                                            {s.projection?.recommended_stop > 0 && (
+                                                <span style={{ fontSize: '7px', color: '#34d399', fontWeight: 600 }}>
+                                                    STOP: ${Number(s.projection.recommended_stop).toFixed(Number(s.projection.recommended_stop) < 1 ? 5 : Number(s.projection.recommended_stop) < 100 ? 3 : 2)}
+                                                </span>
+                                            )}
                                         </div>
 
                                         {/* Col 7: Estratégia */}

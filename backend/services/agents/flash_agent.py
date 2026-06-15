@@ -563,7 +563,7 @@ class FlashAgent:
             return
 
         logger.info(
-            f"ðŸŒ™âš¡ [FLASH-MOON-TRAIL] {symbol} ROI={roi:.1f}% â†’ SL +{sl_roi:.0f}% "
+            f"🌙⚡ [FLASH-MOON-TRAIL] {symbol} ROI={roi:.1f}% → SL +{sl_roi:.0f}% "
             f"(${new_stop:.4f}) [{icon} {label}]"
         )
         await self._update_moonbag_sl(moon_uuid, symbol, new_stop, roi, label, sl_roi)
@@ -576,52 +576,6 @@ class FlashAgent:
             asyncio.create_task(self._close_moonbag(moon_uuid, symbol, side, qty, f"MOONBAG_TRAIL_SL_{roi:.1f}%"))
             self._peak_roi_cache.pop(moon_key, None)
         return
-
-        if roi < 160:
-            return
-
-        # Encontra o nível de trailing ativo
-        active_level = None
-        for level in MOONBAG_TRAILING_LEVELS:
-            if roi >= level["roi_threshold"]:
-                active_level = level
-                break
-
-        if not active_level:
-            # Abaixo de 200%: usa trailing start de 160%
-            sl_roi = 130.0  # SL em +130% ROI para ROIs entre 160-200%
-            icon, label = "🌊", "TRAILING_START"
-        else:
-            sl_roi = active_level["sl_roi"]
-            icon, label = active_level["icon"], active_level["label"]
-
-        # Calcula novo preço do stop
-        price_offset_pct = sl_roi / (self.leverage * 100)
-        if side == "buy":
-            new_stop = entry_price * (1 + price_offset_pct)
-        else:
-            new_stop = entry_price * (1 - price_offset_pct)
-
-        # Arredonda
-        try:
-            from services.okx_rest import okx_rest_service
-            new_stop = await okx_rest_service.round_price(symbol, new_stop)
-        except Exception:
-            pass
-
-        if new_stop <= 0:
-            return
-
-        # Só atualiza se melhorou
-        stop_improved = self._stop_improves(side, current_stop, new_stop)
-        if not stop_improved:
-            return
-
-        logger.info(
-            f"🌙⚡ [FLASH-MOON-TRAIL] {symbol} ROI={roi:.1f}% → SL +{sl_roi:.0f}% "
-            f"(${new_stop:.4f}) [{icon} {label}]"
-        )
-        asyncio.create_task(self._update_moonbag_sl(moon_uuid, symbol, new_stop, roi))
 
     # ==================== HELPERS ====================
 

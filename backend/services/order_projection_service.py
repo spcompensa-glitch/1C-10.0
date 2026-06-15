@@ -270,6 +270,18 @@ class OrderProjectionService:
             raw_stop = self.raw_price_from_roi(entry_price, active_level.stop_roi, side, leverage)
             recommended_stop = self.round_stop_to_tick(raw_stop, contract["tick_size"], side, active_level.stop_roi)
 
+        # Calcular Preço de Liquidação teórico (100% da margem perdida)
+        # Em 50x, isso ocorre com variação de 2% (1 / 50 = 0.02)
+        liq_price = 0.0
+        if entry_price > 0 and leverage > 0:
+            margin_loss_ratio = 1.0 / leverage
+            if side == "buy":
+                raw_liq = entry_price * (1.0 - margin_loss_ratio)
+                liq_price = self.round_stop_to_tick(raw_liq, contract["tick_size"], side, -100.0)
+            else:
+                raw_liq = entry_price * (1.0 + margin_loss_ratio)
+                liq_price = self.round_stop_to_tick(raw_liq, contract["tick_size"], side, -100.0)
+
         pnl_usd = 0.0
         if entry_price > 0 and current_price > 0 and qty > 0:
             price_delta = current_price - entry_price if side == "buy" else entry_price - current_price
@@ -288,6 +300,7 @@ class OrderProjectionService:
             "phase": phase,
             "current_stop": current_stop,
             "recommended_stop": recommended_stop,
+            "liq_price": liq_price,
             "active_level": {
                 "phase": "MOONBAG" if phase_hint == "MOONBAG" else active_level.phase,
                 "name": active_level.name,

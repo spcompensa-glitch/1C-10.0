@@ -120,6 +120,8 @@ async def get_slots():
                         projection["roi_percent"] = roi
                         slot["pnl_percent"] = round(roi, 1)
                         slot["projection"] = projection
+                        if "liq_price" in projection:
+                            slot["liq_price"] = projection["liq_price"]
                     
                     roi = slot.get("pnl_percent", 0)
                     phase_info = execution_protocol.get_sl_phase_info(roi, slot_data=slot)

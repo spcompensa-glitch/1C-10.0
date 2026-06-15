@@ -1,13 +1,18 @@
-# MASTER_ARCHITECTURE.md — V110.999 / V2.0 "Desativação do Facão Global (Portfolio Guardian) & 40 Slots Dinâmicos"
+# MASTER_ARCHITECTURE.md — V110.999 / V2.0 "Moonbag Deprecated & Dead Code Purge"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
-> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+> **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo reflete o estado arquitetural na data de publicação de cada versão. Para a arquitetura atual e consolidada, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento.
 
-*   **V110.999 / V2.0: DESATIVAÇÃO DO FACÃO GLOBAL (PORTFOLIO GUARDIAN) [JUN 15]**
-    *   **Desativação do Portfolio Guardian (Facão)**: O mecanismo de corte global do PnL (Knife-Drop) que monitorava a carteira inteira consolidada e fechava em bloco as ordens foi completamente desativado. Em seu lugar, o **FlashAgent** assume 100% o controle de stops e alvos de forma descentralizada por par nos 40 slots operacionais, evitando que oscilações abruptas em uma única altcoin forcem a liquidação de posições saudáveis em andamento.
-    *   **Loop de Heartbeat Silencioso**: O módulo `PortfolioGuardian` foi mantido apenas como transmissor de heartbeat silencioso ao `SentinelAuditor` para evitar degradação de telemetria no dashboard de microsserviços.
+*   **V110.999 / V2.0: MOONBAG DEPRECATED & DEAD CODE PURGE [JUN 15]**
+    *   **Remoção total da entidade Moonbag do runtime:** A ordem nunca mais sai do slot. O ciclo de vida completo (`ORDER → ESCADINHA → TRAILING`) ocorre dentro do mesmo container, sem promoção para entidade separada.
+    *   **Purga de código morto:** Removidas ~580 linhas de `flash_agent.py` (métodos `_scan_all_moonbags`, `_process_moonbag`, `_update_moonbag_sl`, `_emancipate_slot`, `_close_moonbag`, `_forensic_close_paper_moonbag`, `_process_sentinel_stop`, `_check_gas_favorable_simple`) e ~90 linhas de `slot_operator.py` (`_calculate_escadinha_stop`, `_get_status_risco`, bloco de emancipação).
+    *   **Constantes obsoletas removidas:** `ESCADINHA_DEGRAUS`, `ESCADINHA_BLITZ`, `MOONBAG_TRAILING_LEVELS`.
+    *   **FlashAgent V2.0:** Agora exclusivamente focado em slots ativos. Cache de moonbags e sentinel eliminados. `_flash_loop()` chama apenas `_scan_all_slots()`.
+    *   **SlotOperator simplificado:** Reduzido a observador/failsafe. FlashAgent é o escritor único de stops.
+    *   **Correção de 3 bugs críticos:** `margin` UnboundLocalError no QM override, `balance` UnboundLocalError em `open_position`, `settings` scoping no BLITZ-LOOP.
+    *   **`should_emancipate`** em `order_projection_service.py` é sempre `False`.
 
-*   **V110.980: BLITZSNIPER RESTRINGIDO & IDENTIFICAÇÃO DE ESTRATÉGIAS [JUN 13]**
+*   **V110.980: BLITZSNIPER RESTRINGIDO [JUN 13]**
     *   **Restrição de Ativos no BlitzSniper**: O loop de varredura e injeção automática de sinais M30 do agente `BlitzSniper` agora roda estritamente nos 20 pares da `RADAR_WATCHLIST` configurada. O scan global e dinâmico de todos os pares do top 100 de alavancagem 50x da OKX foi removido, blindando o robô de operar ativos não homologados (ex: `TRUMP/USDT`).
     *   **Mapeamento Dinâmico de Estratégia**: Refinamento de `strategy_class` e prefixo de `genesis_id` para rotular especificamente a estratégia geradora do sinal no Cockpit (`DECOR`, `V-RECOVERY`, `BOX-BREAKOUT`) em vez de agrupar todos os sinais táticos não-especiais sob o fallback genérico `TREND`.
     *   **Design Minimalista de Scrollbars**: Atualizado o visual das barras de rolagem no desktop, retirando gradientes brancos, sombras de luz e brilhos excessivos, adotando um estilo sutil, translúcido e profissional.
@@ -810,15 +815,13 @@
 
 ### 3. Camada de Execução (Actor Model)
 - **OrderProjectionService:** fonte única de verdade para ROI, stop price, fase operacional, linhas do gráfico, `tickSize`, `ctVal`, margem e PnL estimado. O frontend não recalcula alvos quando `projection.levels` existe.
-- **⚡ FlashAgent (V1.2):** motor principal de Escadinha, Emancipação e Moonbags. Monitora **todos os slots + moonbags a cada 1 segundo** e consome `OrderProjectionService` para decidir. A regra de melhoria/violação de stop é única para LONG/SHORT e coberta por testes de invariantes:
-  - **Slots Táticos:** Escadinha oficial (50%→15% ROI, 100%→50% ROI, 130%→110% ROI, 150%→110% ROI + Moonbag)
-  - **Emancipação:** ao bater 150% ROI, promove a mesma ordem para Moonbag preservando identidade e metadados
-  - **Moonbags:** trailing progressivo (200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%, depois `ULTRA_*` a cada 200% com stop 200% ROI abaixo do alvo)
-  - **Moonbag peak trail:** moonbags tambem usam maior ROI recente (`peakROI`) para promover stops de alvos rompidos; se o preco volta apos tocar um alvo, o Flash atualiza o stop conquistado e confirma violacao imediatamente.
-  - **Stress test temporal:** suite cobre 100 moonbags simultaneas com LONG/SHORT, contratos OKX variados, rompimentos rapidos por `peakROI`, promocao de stop, sequencia temporal multi-ciclo e fechamento quando o pullback toca o stop conquistado.
-  - **Cache:** slots e moonbags em cache com refresh a cada 3s para reduzir queries no banco
-  - **Stops de lucro:** confirma??o com pre?o REST fresco da OKX quando o WebSocket/cache n?o confirma viola??o, e fechamento s?ncrono por `FLASH_PROFIT_SL`.
-  - **Telemetria de stop:** cada slot e moonbag processado emite `[FLASH-TRACK]` nos logs do backend com stop persistido, ROI travado, stop alvo, nível ativo, próximo nível e ação do ciclo; falhas paralelas aparecem como `[FLASH-ERROR]` por símbolo. Slots táticos usam preço REST fresco da OKX para confirmar stops quando o WS/cache está atrasado; stops de perda acionam o Sentinel com auditoria `[GAS-AUDIT-FLASH]` de CVD 5m, threshold e direção favorável antes de fechar ou dar respiro.
+- **FlashAgent (V1.3):** motor principal de Escadinha continua por ordem. Monitora todos os slots ativos a cada 1 segundo e consome `OrderProjectionService` para decidir. Nao existe promocao para Moonbag: todo alvo rompido apenas promove o stop da propria ordem.
+  - **Stop inicial inteligente:** na abertura, o `BankrollManager` calcula o stop por invalidacao tecnica do sinal (`adaptive_sl`, fundo/topo, sweep, suporte/resistencia ou zona rompida) com buffer de ATR/volatilidade. Se o stop estrutural explicito exigir risco acima do limite do regime, a entrada e bloqueada em vez de aceitar -50%/-100% fixo.
+  - **Regime LATERAL:** protege cedo por causa de falsos rompimentos: 30%->5%, 50%->25%, 70%->50%, 100%->80%, 150%->110%, depois trailing progressivo.
+  - **Regime TENDENCIA:** da mais respiro: 50%->15%, 100%->50%, 130%->110%, 150%->110%, depois trailing progressivo.
+  - **Trailing sem teto:** 200%->150%, 300%->220%, 400%->280%, 500%->350%, 600%->420%, 700%->500%, 750%->600%, 800%->650%, 1000%->800%, 1200%->1000%; acima disso `ULTRA_*` continua a cada 200% ROI com stop 200% ROI abaixo do alvo rompido.
+  - **Peak trail:** a decisao usa o maior ROI entre preco atual, extremo recente do WebSocket, cache de pico e PnL persistido; se o preco toca um alvo e volta rapido, o Flash promove o stop conquistado e confirma violacao imediatamente.
+  - **Telemetria de stop:** cada ordem emite `[FLASH-TRACK][SLOT]` com stop persistido, ROI travado, stop alvo, nivel ativo, proximo nivel, regime e acao do ciclo.
 - **4 × SlotOperatorAgent:** instâncias independentes por slot, agora como observadores/failsafe de slot. Não são mais escritores primários de escadinha ou emancipação; esta autoridade pertence ao Flash.
 - **CaptainAgent / BankrollManager:** despachante puro de sinais com quality gate backend-first. Lê slots reais via `get_active_slots()`, considera ocupados apenas slots com ordem válida, usa thresholds 45%/50% conforme ocupação, não permite que o modo PAPER aprove sinais bloqueados artificialmente, aplica `contract_quality` para penalizar/bloquear contratos ruins e expõe/resetta travas voláteis (`active_tocaias`, `processing_lock`, `cooldown_registry`, `daily_symbol_trades`) no fluxo administrativo. Em PAPER, o Postgres e a tabela `slots` são a SSOT de capacidade; `paper_positions` não pode lotar artificialmente slots vazios quando carregar posições antigas, duplicadas ou já emancipadas para moonbag. O sync de banca separa `saldo_total`/`configured_balance` como base operacional contida e `paper_equity`/`calculated_equity` como patrimônio vivo. Antes de enviar qualquer ordem, o `ExecutionCapacityGate` valida spread, slippage estimado, profundidade visível, fill ratio, uso do book, `ctVal`, notional real e `max_safe_qty`; PAPER tolera book ausente com aviso, REAL bloqueia.
 - **Guardião da Banca:** autoridade preventiva acima do Capitão. Avalia saúde da banca, drawdown, lucro protegido, exposição por slots/moonbags, histórico por símbolo e suspensões de pares antes de liberar uma nova ordem. O score mínimo da banca usa o Radar Score (`score`/`score_radar`) como métrica principal; `unified_confidence` fica como contexto de auditoria. Em `ACUMULACAO_PROTEGIDA`, ele eleva o score mínimo e mantém 4/4 slots disponíveis; moonbags lucrativas e slots com stop em break-even/lucro são tratados como acumulação protegida pelo Flash, não como motivo para desligar a fábrica. Limita slots apenas em `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL` sem lucro vivo protegido. Expõe relatório em PT-BR por `/api/bankroll/guardian-report`.
@@ -830,8 +833,8 @@
 - **Execution Capacity Gate:** barreira pre-trade L2 que mede se a ordem cabe no book atual da OKX antes da execução atomica. Thresholds configuraveis por ambiente: `EXEC_CAPACITY_MAX_SPREAD_BPS`, `EXEC_CAPACITY_MAX_SLIPPAGE_BPS`, `EXEC_CAPACITY_MAX_BOOK_USAGE_PCT`, `EXEC_CAPACITY_MIN_FILL_RATIO` e `EXEC_CAPACITY_ORDERBOOK_LIMIT`.
 - **Execution Audit Ledger:** camada pos-ordem que registra fill ratio, preco medio, slippage real, latencia, notional, margem, taxa taker estimada, funding estimado e delta contra a simulacao pre-trade. Thresholds configuraveis por ambiente: `EXEC_AUDIT_MAX_SLIPPAGE_BPS`, `EXEC_AUDIT_MAX_LATENCY_MS`, `EXEC_AUDIT_MIN_FILL_RATIO` e `OKX_TAKER_FEE_RATE`.
 - **OKX Public Rate Gate:** chamadas públicas críticas de candles/OI e Rubik LS Ratio passam por pacing global, concorrência limitada, cooldown em `429` e cache compartilhado por chave (`symbol+interval` ou `ccy+period`), impedindo que o Radar sature a exchange durante ciclos frios. O Rubik usa `OKX_RUBIK_MIN_INTERVAL_SECONDS` para respeitar limite mais sensível.
-- **Escadinha oficial:** 50%→15% ROI, 100%→50% ROI, 130%→110% ROI, 150%→110% ROI + emancipação.
-- **Moonbag oficial:** hard-lock mínimo de emancipação em `+110%` ROI, depois 200%→150%, 300%→220%, 400%→280%, 500%→350%, 600%→420%, 700%→500%, 750%→600%, 800%→650%, 1000%→800%, 1200%→1000%; acima disso, níveis `ULTRA_*` continuam a cada 200% ROI com stop 200% abaixo do alvo rompido. A decisao do Flash usa `peakROI` recente para nao perder rompimentos rapidos; exemplo: pico `ULTRA_1400` aplica stop `+1200%`, e pico `ULTRA_1600` aplica stop `+1400%`.
+- **Escadinha oficial sem Moonbag:** toda ordem permanece no slot. Lateral: 30%->5%, 50%->25%, 70%->50%, 100%->80%, 150%->110%. Tendencia: 50%->15%, 100%->50%, 130%->110%, 150%->110%.
+- **Trailing oficial:** depois dos primeiros alvos, a mesma ordem continua em WAVE/ROCKET/STAR/CROWN/SUPERNOVA/GOD_MODE/CHOKE/HYPER/APEX e `ULTRA_*`; cada alvo rompido fixa o stop correspondente, sem criar entidade Moonbag.
 - **Contratos OKX:** `ctVal` não altera o preço do stop; ele é usado para notional, margem, quantidade de contratos e PnL USD.
 - **Margem Dinâmica para Banca Pequena:** Força margem mínima de $3.00 USD por slot quando a banca for inferior a $50.00 USD para viabilizar execução de contratos OKX.
 - **Saúde da Banca:** `BankrollGuardian` classifica o ciclo em `ACUMULACAO`, `ACUMULACAO_PROTEGIDA`, `CAUTELOSO`, `DEFESA` ou `PRESERVACAO_TOTAL`. A equity operacional vem de `base_balance + PnL realizado + PnL aberto dos slots + PnL aberto das moonbags`; o `BankrollManager` usa a mesma conta em PAPER para publicar `paper_equity`, sem aumentar automaticamente a base de sizing. Em lucro forte, moonbag lucrativa ou escadinha já protegida, protege o pico da banca e aumenta o score mínimo mantendo 4 slots; em cautela/defesa/preservação sem lucro protegido, reduz ou pausa novas entradas.
@@ -893,16 +896,17 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 ---
 
 *Documento atualizado em: 2026-06-15 (V110.999 / V2.0) Sincronizado*
-*Este documento reflete a desativação total do Facão Global (Portfolio Guardian) e o redirecionamento da gestão de risco e stops unicamente para o FlashAgent individualizado por par, além da remoção do bloqueio at_risk_count no Capitão e no Guardião, expansão total dos limites operacionais de 4 para até 40 slots simultâneos na banca principal sob a doutrina ELITE_40_MATRIX, redução drástica do cooldown de símbolo após perdas/stops para o patamar ágil de 15 minutos, compatibilidade SQLite no script de reset nuclear do banco local, e testes/auditorias das novas ordens.*
+*Este documento reflete a remoção total da entidade Moonbag do runtime, a purga de código morto (~580 linhas), a simplificação do FlashAgent para escaneamento exclusivo de slots, e a arquitetura de ordem única que permanece no slot durante todo o ciclo de vida sem emancipação para container separado.*
 
 ---
 
-## 🚀 EXPANSÃO OPERACIONAL DE SLOTS, COOLDOWN & RISCO INDIVIDUAL (V110.999 / V2.0)
+## 🚀 EXPANSÃO OPERACIONAL DE SLOTS, COOLDOWN & MOONBAG DEPRECATION (V110.999 / V2.0)
 
 O motor operacional principal foi adaptado para operar em escala total de diversificação com os seguintes refinamentos:
-1. **Desativação da Trava de Espera Risk-Free:** Removido o bloqueio `at_risk_count` no `BankrollManager`. O robô não precisa mais aguardar que as ordens anteriores tenham stops movidos para o breakeven para disparar novos setups qualificados. A diversificação atua como protetor matemático principal.
-2. **Capacidade Máxima Estendida para 40 Slots:** `BankrollGuardian` e `CaptainAgent` agora utilizam a capacidade total da matriz de slots (`max_slots_allowed = 40`) de forma flexível. Modos de Defesa e Cuidado foram escalonados proporcionalmente para 10 e 20 slots permitidos.
-3. **Cooldown Ágil (15m):** Reduzido o bloqueio de quarentena de re-entrada do Guardião em pares stopados de até 24 horas para no máximo **15 minutos** para capturar rápidas reversões da tendência.
-4. **Desativação do Facão Global (Portfolio Guardian / Knife-Drop):** Removido o monitoramento do ROI agregado de carteira e o acionamento de corte coletivo em lote das posições ativas. A blindagem e a movimentação progressiva de stops (Escadinha e Moonbag Trailing) agora são geridas integralmente e de forma individualizada no nível de cada slot operacional pelo `FlashAgent`.
-5. **Resiliência do Script de Reset:** Atualizado o script `reset_nuclear_v172.py` para ignorar tabelas ausentes e tratar a assinatura de colunas SQLite local de forma limpa.
+1. **Desativação da Trava de Espera Risk-Free:** Removido o bloqueio `at_risk_count` no `BankrollManager`.
+2. **Capacidade Máxima Estendida para 40 Slots:** `BankrollGuardian` e `CaptainAgent` utilizam `max_slots_allowed = 40`.
+3. **Cooldown Ágil (15m):** Quarentena de re-entrada reduzida para 15 minutos.
+4. **Desativação do Facão Global:** Removido o monitoramento de ROI agregado. Stops gerenciados individualmente pelo FlashAgent.
+5. **Moonbag Deprecated:** Entidade Moonbag completamente removida do runtime. A ordem permanece no slot durante todo o ciclo de vida (`ORDER → ESCADINHA → TRAILING`). ~580 linhas de código morto eliminadas. FlashAgent V2.0 escaneia exclusivamente slots.
+6. **Resiliência do Script de Reset:** Atualizado para ignorar tabelas ausentes e tratar SQLite local.
 

@@ -13,14 +13,14 @@ logger = logging.getLogger("SlotOperator")
 
 class SlotOperatorAgent(AIOSAgent):
     """
-    Agente Autônomo responsável pela gestão do ciclo de vida de UM slot tático.
-    Implementa a lógica de Stop Loss dinâmico (Escadinha) e emancipação para Moonbag.
+    Agente de observacao e failsafe de slot.
+    FlashAgent e o escritor primario de stops e progressao.
     """
     def __init__(self, slot_id: int):
         super().__init__(
             agent_id=f"slot_operator_{slot_id}",
             role="slot_operator",
-            capabilities=["slot_lifecycle_management", "stop_loss_escalation", "emancipation"]
+            capabilities=["slot_observation", "failsafe"]
         )
         self.slot_id = slot_id
         self.okx_rest = OKXRest()
@@ -132,69 +132,9 @@ class SlotOperatorAgent(AIOSAgent):
         if abs((slot.get("pnl_percent") or 0) - roi_percent) > 1.0:
              await database_service.update_slot(self.slot_id, {"pnl_percent": roi_percent})
 
-        # Flash is now the single writer for stop progression and emancipation.
+        # Flash is now the single writer for stop progression.
         # SlotOperator keeps slot observation/failsafe behavior only.
         return
-
-        # 4. Escadinha de Stop Loss (Smart SL)
-        new_stop_roi = self._calculate_escadinha_stop(roi_percent)
-
-        # [V123] Mapeamento de status_risco para a UI (badge do card)
-        status_risco = self._get_status_risco(roi_percent)
-
-        if new_stop_roi is not None:
-            # Calcular novo preço de stop
-            price_offset_pct = new_stop_roi / (leverage * 100)
-            if side.upper() == "BUY":
-                new_stop_price = entry_price * (1 + price_offset_pct)
-            else:
-                new_stop_price = entry_price * (1 - price_offset_pct)
-
-            # Formatar precisão (evitar erro de API OKX)
-            new_stop_price = await self.okx_rest.format_precision(symbol, new_stop_price)
-
-            # Só atualiza se o stop melhorou
-            should_update = False
-            if side.upper() == "BUY" and (current_stop == 0 or new_stop_price > current_stop):
-                should_update = True
-            elif side.upper() == "SELL" and (current_stop == 0 or new_stop_price < current_stop):
-                should_update = True
-
-            if should_update:
-                logger.info(f"🛡️ [SlotOperator-{self.slot_id}] {symbol} ROI={roi_percent:.1f}% -> SL: +{new_stop_roi}% (${new_stop_price:.4f}) | Status: {status_risco}")
-                await self._update_stop_loss(symbol, side, new_stop_price, self.slot_id, qty)
-                # [V123] Atualiza current_stop + status_risco juntos (Postgres + Firebase)
-                update_payload = {"current_stop": new_stop_price, "status_risco": status_risco}
-                await database_service.update_slot(self.slot_id, update_payload)
-                try:
-                    from services.firebase_service import firebase_service
-                    slot_state = await firebase_service.get_slot(self.slot_id)
-                    if slot_state and slot_state.get("symbol"):
-                        await firebase_service.update_slot(self.slot_id, {"current_stop": new_stop_price, "status_risco": status_risco})
-                except Exception as fb_err:
-                    logger.warning(f"⚠️ [SlotOperator-{self.slot_id}] Firebase update falhou (não crítico): {fb_err}")
-        else:
-            # Mesmo sem avanço de escadinha, sincroniza o status_risco se necessário
-            current_status = slot.get("status_risco", "MONITORANDO")
-            if current_status != status_risco and status_risco == "MONITORANDO":
-                pass  # Não regride o status se já avançou
-
-        # 5. Verificação de Emancipação para Moonbag (ROI >= 150%)
-        if roi_percent >= 150.0:
-            logger.warning(f"🚀 [SlotOperator-{self.slot_id}] {symbol} EMANCIPADO! ROI atingiu {roi_percent:.1f}%. Movendo para Moonbag...")
-            try:
-                # Disparar evidência visual (se disponível)
-                from services.agents.vision_agent import vision_agent
-                if vision_agent:
-                    asyncio.create_task(vision_agent.capture_evidence(symbol, "EMANCIPATION", f"ROI: {roi_percent:.1f}%"))
-            except Exception as e:
-                logger.warning(f"⚠️ [SlotOperator-{self.slot_id}] Erro no vision_agent: {e}")
-                
-            # Promover para Moonbag e liberar o slot
-            await database_service.promote_to_moonbag(self.slot_id)
-            await database_service.update_slot(self.slot_id, {
-                "symbol": None, "entry_price": 0, "current_stop": 0, "qty": 0, "pnl_percent": 0
-            })
 
     async def _get_current_price(self, symbol: str) -> float:
         """Obtém o preço do WS, com fallback para REST."""
@@ -213,38 +153,6 @@ class SlotOperatorAgent(AIOSAgent):
         except Exception as e:
             logger.error(f"Erro obtendo preço REST para {symbol}: {e}")
         return 0.0
-
-    def _calculate_escadinha_stop(self, roi: float) -> Optional[float]:
-        """
-        Calcula o novo nível de Stop Loss em ROI% baseado na Escadinha.
-        - ROI >= 30% -> SL movido para +6% (Break-Even)
-        - ROI >= 50% -> SL movido para +25% (Profit Bridge)
-        - ROI >= 70% -> SL movido para +45% (Risk Zero)
-        - ROI >= 110% -> SL movido para +80% (Profit Lock)
-        - ROI >= 130% -> SL movido para +105% (Pré-Emancipação)
-        - ROI >= 150% -> Emancipação
-        """
-        if roi >= 130.0: return 105.0
-        if roi >= 110.0: return 80.0
-        if roi >= 70.0: return 45.0
-        if roi >= 50.0: return 25.0
-        if roi >= 30.0: return 6.0
-        return None
-
-    def _get_status_risco(self, roi: float) -> str:
-        """
-        [V123] Mapeia o ROI atual ao status_risco exibido no badge da UI.
-        Alinhado com a lógica do cockpit.html linha 5200-5207:
-        - PROFIT_LOCK  -> badge 'LUCRO TRAVADO'  (âmbar)
-        - RISCO_ZERO   -> badge 'RISCO ZERO'      (verde)
-        - SL_0         -> badge 'SENTINELA ATIVO' (ciano)
-        - MONITORANDO  -> badge 'STOP INICIAL'    (azul)
-        """
-        if roi >= 110.0: return "PROFIT_LOCK"        # SL em +80% → lucro garantido
-        if roi >= 70.0:  return "RISCO_ZERO"         # SL em +45% → sem risco de perda
-        if roi >= 50.0:  return "SL_0"               # SL em +25% → sentinela/break-even avançado
-        if roi >= 30.0:  return "SL_0"               # SL em +6%  → sentinela break-even básico
-        return "MONITORANDO"                         # Ainda no stop inicial
 
     async def _update_stop_loss(self, symbol: str, side: str, sl_price: float, slot_id: int, qty: float):
         """Atualiza o Stop Loss na OKX (Real) ou na memória (Paper)."""

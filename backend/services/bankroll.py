@@ -202,6 +202,124 @@ class BankrollManager:
         except (TypeError, ValueError):
             return default
 
+    def _candidate_stop_from_signal(
+        self,
+        signal_data: Optional[Dict[str, Any]],
+        indicators: Dict[str, Any],
+        side: str,
+        current_price: float,
+    ) -> Tuple[float, str]:
+        payload = signal_data or {}
+        side_norm = str(side or "Buy").lower()
+        direct_keys = (
+            "adaptive_sl", "sl_price", "stop_loss", "stop_price",
+            "initial_stop", "invalidation_price", "invalid_price",
+        )
+        for key in direct_keys:
+            value = self._safe_float(payload.get(key), 0.0)
+            if value > 0:
+                return value, key
+
+        if side_norm == "buy":
+            structural_keys = (
+                "liquidity_sweep_low", "sweep_low", "last_swing_low",
+                "swing_low", "recent_low", "support", "zone_low",
+                "breakout_level",
+            )
+        else:
+            structural_keys = (
+                "liquidity_sweep_high", "sweep_high", "last_swing_high",
+                "swing_high", "recent_high", "resistance", "zone_high",
+                "breakout_level",
+            )
+
+        for key in structural_keys:
+            value = self._safe_float(indicators.get(key) or payload.get(key), 0.0)
+            if value > 0 and value != current_price:
+                return value, key
+        return 0.0, "volatility_fallback"
+
+    def _calibrate_initial_stop(
+        self,
+        symbol: str,
+        side: str,
+        current_price: float,
+        leverage: float,
+        signal_data: Optional[Dict[str, Any]],
+        indicators: Dict[str, Any],
+        is_ranging_mode: bool,
+        is_swing_macro: bool,
+    ) -> Dict[str, Any]:
+        side_norm = str(side or "Buy").lower()
+        atr = self._safe_float(indicators.get("atr"), 0.0)
+        avg_range_pct = self._safe_float(
+            indicators.get("avg_range_pct")
+            or indicators.get("range_pct")
+            or indicators.get("volatility_pct"),
+            0.0,
+        )
+        if avg_range_pct > 1.0:
+            avg_range_pct /= 100.0
+        atr_pct = (atr / current_price) if current_price > 0 and atr > 0 else 0.0
+        volatility_pct = max(atr_pct, avg_range_pct, 0.002)
+
+        if is_ranging_mode:
+            min_risk_pct = 0.003
+            max_risk_pct = 0.018
+            fallback_risk_pct = min(max(volatility_pct * 1.15, min_risk_pct), max_risk_pct)
+            regime = "RANGING"
+        else:
+            min_risk_pct = 0.006
+            max_risk_pct = 0.050 if is_swing_macro else 0.035
+            fallback_risk_pct = min(max(volatility_pct * 1.75, min_risk_pct), max_risk_pct)
+            regime = "TRENDING"
+
+        structural_stop, source = self._candidate_stop_from_signal(
+            signal_data, indicators, side, current_price
+        )
+        explicit_structural = structural_stop > 0 and source != "volatility_fallback"
+        valid_side = (
+            structural_stop < current_price if side_norm == "buy"
+            else structural_stop > current_price
+        )
+
+        if explicit_structural and valid_side:
+            raw_risk_pct = abs(current_price - structural_stop) / current_price
+            buffered_risk_pct = raw_risk_pct + min(max(volatility_pct * 0.25, 0.001), 0.006)
+            if buffered_risk_pct > max_risk_pct * 1.35:
+                return {
+                    "approved": False,
+                    "reason": (
+                        f"Stop estrutural de {source} exige risco de "
+                        f"{buffered_risk_pct * 100:.2f}% em preço "
+                        f"({buffered_risk_pct * leverage * 100:.0f}% ROI), acima do limite "
+                        f"{max_risk_pct * 100:.2f}% para {regime}."
+                    ),
+                    "source": source,
+                    "regime": regime,
+                }
+            risk_pct = min(max(buffered_risk_pct, min_risk_pct), max_risk_pct)
+        else:
+            risk_pct = fallback_risk_pct
+            source = "atr_volatility" if volatility_pct > 0.002 else "minimum_buffer"
+
+        stop_price = (
+            current_price * (1 - risk_pct)
+            if side_norm == "buy"
+            else current_price * (1 + risk_pct)
+        )
+        return {
+            "approved": True,
+            "stop_price": stop_price,
+            "risk_pct": risk_pct,
+            "risk_roi": risk_pct * leverage * 100.0,
+            "source": source,
+            "regime": regime,
+            "atr_pct": atr_pct,
+            "volatility_pct": volatility_pct,
+            "max_risk_pct": max_risk_pct,
+        }
+
     def _position_pnl_usd(self, position: Dict[str, Any]) -> float:
         projection = position.get("projection")
         if isinstance(projection, dict):
@@ -1842,71 +1960,36 @@ class BankrollManager:
                     logger.warning(f"⚠️ [SLIPPAGE-L2] Falha ao verificar slippage para {symbol}: {slip_err}")
 
                 # -----------------------------------------------------
-                # [V24.0] 10D STRICT LOGIC (10% Banca, 50x, 2% TP)
-                # -----------------------------------------------------
-                # Risk/Reward Ratio enforced natively. SL max 1% (50% ROI), TP EXACTLY 2% (100% ROI).
-                
-
-                # [V12.1.2] Extract Indicator Data (V33.1 HARDENED)
+                # Initial stop intelligence: technical invalidation first, volatility fallback second.
                 indicators = (signal_data or {}).get("indicators", {}) or {}
-                try:
-                    atr = float(indicators.get("atr", 0) or 0)
-                except (ValueError, TypeError):
-                    atr = 0.0
-                
-                # [V33.0] PULLBACK HUNTER: Tenta usar o Stop Dinâmico da armadilha se existir
-                adaptive_sl = signal_data.get("adaptive_sl", 0) if signal_data else 0
                 is_swing_macro = signal_data.get("is_swing_macro", False) if signal_data else False
-                
-                # [V34.0] All-SWING Transition: Removed SCALP constraints
-                # [V41.0] RANGING CALIBRATION: Reduz o risco inicial em mercados laterais
-                # Se o alvo é curto (1%), o stop deve ser no máximo 1% para manter R:R 1:1.
                 is_market_ranging = signal_data.get("is_market_ranging", False) if signal_data else False
-                
-                is_blitz_slot = (slot_type == "BLITZ_30M")
-                
-                if is_blitz_slot:
-                    max_risk = 0.010  # 1.0% de preço (50% ROI SL com alavancagem 50x)
-                    logger.info(f"⚡ [BLITZ_30M] Risco definido para {max_risk*100:.1f}% para alinhar com o stop de -50% ROI da estratégia.")
-                elif is_market_ranging:
-                    # [V42.5] Volatility-Aware Ranging Cap:
-                    # If asset volatility (ATR/Price) is > 0.8%, relax the cap to allow standard SWING protection.
-                    asset_volatility = (atr / current_price) if current_price > 0 else 0
-                    if asset_volatility > 0.008:
-                        max_risk = 0.035 # [V87.0] 3.5% (Swing Respirável para Alts)
-                        logger.info(f"🚀 [V87.0] High Volatility Swing: Max_risk expanded to {max_risk*100:.1f}%")
-                    else:
-                        max_risk = 0.010 # 1.0% preço (50% ROI SL)
-                        logger.info(f"🛡️ [V41.0 RANGING] Risco reduzido para {max_risk*100:.1f}% para alinhar com alvo lateral.")
-                else:
-                    # [V43.2] Zero Tolerance for Low Balance: Cap risk at 2% (100% ROI) if balance < $10
-                    if balance < 10.0:
-                        max_risk = 0.020
-                        logger.info(f"🛡️ [V43.2] Low Balance SL Cap: Risk capped at {max_risk*100:.1f}% (100% ROI) to protect account.")
-                    else:
-                        max_risk = 0.050 if is_swing_macro else 0.035 # [V87.0] 3.5% a 5% de respiração
 
-                if is_blitz_slot:
-                    sl_percent = max_risk  # Garante exatamente o stop da estratégia de -50% ROI (1.0% preço)
-                    logger.info(f"🛡️ [BLITZ_30M SL] Forçando SL fixo de {sl_percent*100:.2f}% (50% ROI com alavancagem 50x)")
-                    final_sl = current_price * (1 - sl_percent) if side == "Buy" else current_price * (1 + sl_percent)
-                elif adaptive_sl > 0:
-                    final_sl = adaptive_sl
-                    # Calcula o percentual de risco real desse SL cirúrgico para logs
-                    sl_percent = abs((current_price - final_sl) / current_price)
-                    logger.info(f"🛡️ [V33.0 PULLBACK HUNTER] Usando Stop Dinâmico Cirúrgico: {final_sl:.6f} ({sl_percent*100:.2f}% Risco)")
-                else:
-                    # Fallback: Cálculo Estrutural por ATR ou Max Risk (Ancoramento e antigas lógicas)
-                    if atr > 0:
-                        sl_percent = min(max_risk, (atr * 1.5) / current_price)
-                    else:
-                        sl_percent = max_risk
-                    logger.info(f"🛡️ [V41.0] SL Enforcement/Fallback: {sl_percent*100:.2f}% (Cap: {max_risk*100:.1f}%)")
-                    final_sl = current_price * (1 - sl_percent) if side == "Buy" else current_price * (1 + sl_percent)
+                stop_plan = self._calibrate_initial_stop(
+                    symbol=symbol,
+                    side=side,
+                    current_price=current_price,
+                    leverage=current_leverage,
+                    signal_data=signal_data,
+                    indicators=indicators,
+                    is_ranging_mode=is_market_ranging,
+                    is_swing_macro=is_swing_macro,
+                )
+                if not stop_plan.get("approved", False):
+                    reason = stop_plan.get("reason", "Stop inicial tecnico rejeitado.")
+                    logger.warning(f"[INITIAL-STOP-GATE] {symbol} bloqueado: {reason}")
+                    await firebase_service.log_event("Captain", f"[INITIAL-STOP-GATE] {symbol}: {reason}", "WARNING")
+                    return None
 
-                # [V33.0] Market Ranging Check para Alvo Curto
-                is_market_ranging = signal_data.get("is_market_ranging", False) if signal_data else False
-                
+                final_sl = float(stop_plan["stop_price"])
+                sl_percent = float(stop_plan["risk_pct"])
+                logger.info(
+                    f"[INITIAL-STOP] {symbol} {side} regime={stop_plan['regime']} "
+                    f"source={stop_plan['source']} stop={final_sl:.8f} "
+                    f"risk_price={sl_percent * 100:.2f}% risk_roi={stop_plan['risk_roi']:.0f}% "
+                    f"atr={stop_plan['atr_pct'] * 100:.2f}% cap={stop_plan['max_risk_pct'] * 100:.2f}%"
+                )
+
                 # [V110.136] BLITZ R:R GUARANTEE: Para sinais BLITZ_30M, o TP é derivado
                 # da distância real do SL estrutural, garantindo R:R ≥ 2:1.
                 # Fórmula: TP_dist = max(2 × SL_dist, 2% preço mínimo doutrina)
@@ -2081,7 +2164,10 @@ class BankrollManager:
                         "move_room_pct": move_room_pct,
                         "pattern": pattern,
                         "unified_confidence": signal_data.get("unified_confidence", 50) if signal_data else 50,
-                        "fleet_intel": signal_data.get("fleet_intel", {}) if signal_data else {},
+                        "fleet_intel": {
+                            **(signal_data.get("fleet_intel", {}) if signal_data else {}),
+                            "initial_stop_plan": stop_plan,
+                        },
                         "is_reverse_sniper": is_reverse_sniper,
                         "market_regime": "RANGING" if is_market_ranging else "TRENDING",
                         "rescue_activated": False,
@@ -2089,6 +2175,7 @@ class BankrollManager:
                         "is_shadow_strike": signal_data.get("is_shadow_strike", False) if signal_data else False,
                         "score": signal_data.get("score", 0) if signal_data else 0,
                         "execution_audit": execution_audit,
+                        "initial_stop_plan": stop_plan,
                         "timestamp_last_update": opened_ts
                     })
 
@@ -2108,6 +2195,7 @@ class BankrollManager:
                         "margin_usd": round(actual_margin_usd, 4),
                         "execution_capacity": signal_data.get("execution_capacity", {}) if signal_data else {},
                         "execution_audit": execution_audit,
+                        "initial_stop_plan": stop_plan,
                         "signal_score": signal_data.get("score", 0) if signal_data else 0,
                         "signal_timestamp": signal_data.get("timestamp", opened_ts) if signal_data else opened_ts,
                         "opened_at": opened_ts,

@@ -1,7 +1,11 @@
-# MASTER_ARCHITECTURE.md — V110.980 "BlitzSniper Restringido & Identificação de Estratégias (20 Pares)"
+# MASTER_ARCHITECTURE.md — V110.999 / V2.0 "Desativação do Facão Global (Portfolio Guardian) & 40 Slots Dinâmicos"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo (entradas V5.x, V110.4xx, V110.5xx, V110.6xx, V110.7xx, V110.8xx, V110.9xx) reflete o estado arquitetural **na data de publicação de cada versão**, como snapshot histórico. Para a arquitetura **atual e consolidada**, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento. Entradas individuais não devem ser usadas como referência de comportamento vigente — a seção consolidada é a fonte de verdade.
+
+*   **V110.999 / V2.0: DESATIVAÇÃO DO FACÃO GLOBAL (PORTFOLIO GUARDIAN) [JUN 15]**
+    *   **Desativação do Portfolio Guardian (Facão)**: O mecanismo de corte global do PnL (Knife-Drop) que monitorava a carteira inteira consolidada e fechava em bloco as ordens foi completamente desativado. Em seu lugar, o **FlashAgent** assume 100% o controle de stops e alvos de forma descentralizada por par nos 40 slots operacionais, evitando que oscilações abruptas em uma única altcoin forcem a liquidação de posições saudáveis em andamento.
+    *   **Loop de Heartbeat Silencioso**: O módulo `PortfolioGuardian` foi mantido apenas como transmissor de heartbeat silencioso ao `SentinelAuditor` para evitar degradação de telemetria no dashboard de microsserviços.
 
 *   **V110.980: BLITZSNIPER RESTRINGIDO & IDENTIFICAÇÃO DE ESTRATÉGIAS [JUN 13]**
     *   **Restrição de Ativos no BlitzSniper**: O loop de varredura e injeção automática de sinais M30 do agente `BlitzSniper` agora roda estritamente nos 20 pares da `RADAR_WATCHLIST` configurada. O scan global e dinâmico de todos os pares do top 100 de alavancagem 50x da OKX foi removido, blindando o robô de operar ativos não homologados (ex: `TRUMP/USDT`).
@@ -888,16 +892,17 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-12 (V125.0) Sincronizado*
-*Este documento reflete a remoção do bloqueio at_risk_count no Capitão e no Guardião, expansão total dos limites operacionais de 4 para até 40 slots simultâneos na banca principal sob a doutrina ELITE_40_MATRIX, redução drástica do cooldown de símbolo após perdas/stops para o patamar ágil de 15 minutos, compatibilidade SQLite no script de reset nuclear do banco local, e testes/auditorias das novas ordens.*
+*Documento atualizado em: 2026-06-15 (V110.999 / V2.0) Sincronizado*
+*Este documento reflete a desativação total do Facão Global (Portfolio Guardian) e o redirecionamento da gestão de risco e stops unicamente para o FlashAgent individualizado por par, além da remoção do bloqueio at_risk_count no Capitão e no Guardião, expansão total dos limites operacionais de 4 para até 40 slots simultâneos na banca principal sob a doutrina ELITE_40_MATRIX, redução drástica do cooldown de símbolo após perdas/stops para o patamar ágil de 15 minutos, compatibilidade SQLite no script de reset nuclear do banco local, e testes/auditorias das novas ordens.*
 
 ---
 
-## 🚀 EXPANSÃO OPERACIONAL DE SLOTS & COOLDOWN (V125.0)
+## 🚀 EXPANSÃO OPERACIONAL DE SLOTS, COOLDOWN & RISCO INDIVIDUAL (V110.999 / V2.0)
 
 O motor operacional principal foi adaptado para operar em escala total de diversificação com os seguintes refinamentos:
 1. **Desativação da Trava de Espera Risk-Free:** Removido o bloqueio `at_risk_count` no `BankrollManager`. O robô não precisa mais aguardar que as ordens anteriores tenham stops movidos para o breakeven para disparar novos setups qualificados. A diversificação atua como protetor matemático principal.
 2. **Capacidade Máxima Estendida para 40 Slots:** `BankrollGuardian` e `CaptainAgent` agora utilizam a capacidade total da matriz de slots (`max_slots_allowed = 40`) de forma flexível. Modos de Defesa e Cuidado foram escalonados proporcionalmente para 10 e 20 slots permitidos.
 3. **Cooldown Ágil (15m):** Reduzido o bloqueio de quarentena de re-entrada do Guardião em pares stopados de até 24 horas para no máximo **15 minutos** para capturar rápidas reversões da tendência.
-4. **Resiliência do Script de Reset:** Atualizado o script `reset_nuclear_v172.py` para ignorar tabelas ausentes e tratar a assinatura de colunas SQLite local de forma limpa.
+4. **Desativação do Facão Global (Portfolio Guardian / Knife-Drop):** Removido o monitoramento do ROI agregado de carteira e o acionamento de corte coletivo em lote das posições ativas. A blindagem e a movimentação progressiva de stops (Escadinha e Moonbag Trailing) agora são geridas integralmente e de forma individualizada no nível de cada slot operacional pelo `FlashAgent`.
+5. **Resiliência do Script de Reset:** Atualizado o script `reset_nuclear_v172.py` para ignorar tabelas ausentes e tratar a assinatura de colunas SQLite local de forma limpa.
 

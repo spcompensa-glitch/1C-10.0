@@ -26,10 +26,10 @@
   * **T6 (Rocket):** 300% ROI → Stop Loss movido para +220% ROI (Direto no Slot)
   * **Níveis subsequentes:** Segue o trailing de moonbag integrado (STAR, CROWN, SUPERNOVA, GOD_MODE, etc.) até o APEX de 1200% e além.
 
-### 3. Portfolio Guardian & Algoritmo Knife-Drop
-* Máquina de estados atômica unificada monitorando o ROI consolidado da conta Master.
-* **Knife-Drop ("O Facão"):** Dispara pânico global e fecha em lote ordens ativas via API OKX batch-orders caso haja recuo de 15% a partir do pico de ROI (gatilho em 70% ROI).
-* **Moonbag Shield:** Posições marcadas como emancipada (T5) são blindadas no `portfolio_guardian.py` e excluídas do cálculo do Facão, evitando encerramentos prematuros.
+### 3. Portfolio Guardian & Algoritmo Knife-Drop (DESATIVADO ❌)
+* **Desativado em Produção (V2.0):** Em favor da arquitetura de ultra-diversificação de até 40 slots paralelos, o monitoramento de ROI consolidado e o botão de pânico global "Knife-Drop" (Facão) foram desativados para evitar o encerramento indevido de posições saudáveis devido à variação de outros pares.
+* **Heartbeat de Integridade:** O `PortfolioGuardian` mantém apenas um loop minimalista de pulso (heartbeat) para o `SentinelAuditor` validar que o módulo está ativo e operacional no ecossistema de microsserviços.
+* **Gerenciamento Descentralizado:** O controle de stops, alvos e o mecanismo "Flash Risco Zero" agora são executados de forma 100% descentralizada e cirúrgica pelo **FlashAgent** diretamente nos slots operacionais.
 
 ### 4. Camada de Dados e Sincronização
 * **PostgreSQL (SSOT / Railway):** Banco de dados primário guardando banca, slots, histórico de ordens (`trade_history`) e estado de persistência do Radar Pulse (`radar_pulse`).

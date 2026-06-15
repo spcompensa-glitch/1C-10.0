@@ -28,6 +28,41 @@ async def main():
     
     print("PostgreSQL slots apagados com sucesso!")
 
+    # Forçar a inicialização manual e ativação do Firebase para o reset
+    print("Inicializando credenciais do Firebase de Produção...")
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, db, firestore
+        # Carrega credenciais do settings (.env) se disponíveis
+        cred_path = getattr(settings, "FIREBASE_CREDENTIALS_PATH", None) or os.getenv("FIREBASE_CREDENTIALS_PATH")
+        if cred_path and os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': settings.FIREBASE_DATABASE_URL
+                })
+            firebase_service.db = firestore.client()
+            firebase_service.rtdb = db.reference()
+            firebase_service.is_active = True
+            print("🔥 Firebase SDK ativado com sucesso para reset de produção!")
+    except Exception as fe:
+        print(f"Aviso ao inicializar SDK Firebase (pode usar fallbacks): {fe}")
+
+    # Reset do Firestore (Amnesia-Guard & paper_engine)
+    if firebase_service.is_active:
+        print("Limpando estado do paper_engine no Firestore...")
+        try:
+            clean_state = {
+                "positions": [],
+                "moonbags": [],
+                "balance": 100.0,
+                "history": []
+            }
+            await firebase_service.update_paper_state(clean_state)
+            print("✅ Firestore 'paper_engine' zerado!")
+        except Exception as e:
+            print(f"Erro ao zerar paper_engine no Firestore: {e}")
+
     print("Conectando ao Firebase RTDB...")
     if firebase_service.rtdb:
         try:

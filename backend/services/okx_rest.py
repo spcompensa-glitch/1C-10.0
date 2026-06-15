@@ -118,12 +118,23 @@ class OKXRest:
             return 0.0
 
     async def _load_paper_state(self):
-        """[V110.23.5] Global Loader - loads paper positions and balance from Firestore. Resilient to Cloud Run restarts."""
+        """[V110.23.5] Global + Local Hybrid Loader - loads paper positions and balance from Firestore/JSON file."""
         if self.execution_mode != "PAPER": return
         try:
+            data = None
             from services.firebase_service import firebase_service
-            data = await firebase_service.get_paper_state()
+            if firebase_service.is_active:
+                data = await firebase_service.get_paper_state()
             
+            # Fallback Local JSON file
+            if not data and os.path.exists(self.PAPER_STORAGE_FILE):
+                try:
+                    with open(self.PAPER_STORAGE_FILE, "r") as f:
+                        data = json.load(f)
+                    logger.info(f"📂 [PAPER-LOCAL-FALLBACK] State loaded from {self.PAPER_STORAGE_FILE}")
+                except Exception as file_err:
+                    logger.error(f"❌ [PAPER] Failed to load local storage file: {file_err}")
+
             if data:
                 self.paper_positions = data.get("positions", [])
                 # [V125 Sem BTC] Purga qualquer resíduo de BTCUSDT da memória Paper
@@ -139,7 +150,7 @@ class OKXRest:
 
                 # [V110.28.5] Auto-Healing: Sincronia ativa com o Vault Real (Firestore)
                 # Garante que se uma Moonbag existe no Vault mas não na RAM, ela seja adotada.
-                if hasattr(firebase_service, "get_all_moonbags"):
+                if firebase_service.is_active and hasattr(firebase_service, "get_all_moonbags"):
                     vault_moons = await firebase_service.get_all_moonbags()
                     if vault_moons:
                         ram_symbols = {m.get("symbol") for m in self.paper_moonbags}
@@ -166,41 +177,42 @@ class OKXRest:
                 # [V110.61] AMNESIA-GUARD: Auto-Recovery de Slots Tativos (PAPER)
                 # Se existem ordens nos slots ativos do Firestore que NÃO estão na memória local,
                 # nós as restauramos para evitar a purga prematura pelo Ghostbuster.
-                try:
-                    firestore_slots = await firebase_service.get_active_slots(force_refresh=True)
-                    if firestore_slots:
-                        local_symbols = {p.get("symbol") for p in self.paper_positions}
-                        for f_slot in firestore_slots:
-                            symbol = f_slot.get("symbol")
-                            entry_price = float(f_slot.get("entry_price", 0))
-                            # [V124 FIX] Removida condição is_paper — em PAPER mode, todo slot ativo
-                            # no Firestore é de paper. A condição antiga bloqueava toda recuperação
-                            # porque is_paper nunca era gravado, causando sumiço de ordens no restart.
-                            if symbol and symbol not in local_symbols and entry_price > 0:
-                                logger.warning(f"🚑 [V124 AMNESIA-GUARD] Recuperando ordem do Firestore após restart: {symbol} @ ${entry_price}")
-                                # Reconstuir objeto de posição Paper compatível com Bybit v5 Schema Fake
-                                recovered_pos = {
-                                    "symbol": symbol,
-                                    "side": f_slot.get("side", "Buy"),
-                                    "size": str(f_slot.get("qty", 0)),
-                                    "avgPrice": str(f_slot.get("entry_price", 0)),
-                                    "leverage": str(f_slot.get("leverage", 50)),
-                                    "status": "RECOVERED",
-                                    "stopLoss": str(f_slot.get("current_stop", 0)),
-                                    "takeProfit": str(f_slot.get("target_price", 0)),
-                                    "opened_at": f_slot.get("opened_at", time.time()),
-                                    "is_paper": True,
-                                    "slot_id": f_slot.get("id", 0),
-                                    "entry_margin": f_slot.get("entry_margin", 0),
-                                    "genesis_id": f_slot.get("genesis_id", ""),
-                                    "score": f_slot.get("score", 0),
-                                    "fleet_intel": f_slot.get("fleet_intel", {}),
-                                    "pensamento": f_slot.get("pensamento", ""),
-                                    "slot_type": f_slot.get("slot_type", "SNIPER"),
-                                }
-                                self.paper_positions.append(recovered_pos)
-                except Exception as recovery_error:
-                    logger.error(f"⚠️ [V110.61] Falha no Amnesia-Guard: {recovery_error}")
+                if firebase_service.is_active:
+                    try:
+                        firestore_slots = await firebase_service.get_active_slots(force_refresh=True)
+                        if firestore_slots:
+                            local_symbols = {p.get("symbol") for p in self.paper_positions}
+                            for f_slot in firestore_slots:
+                                symbol = f_slot.get("symbol")
+                                entry_price = float(f_slot.get("entry_price", 0))
+                                # [V124 FIX] Removida condição is_paper — em PAPER mode, todo slot ativo
+                                # no Firestore é de paper. A condição antiga bloqueava toda recuperação
+                                # porque is_paper nunca era gravado, causando sumiço de ordens no restart.
+                                if symbol and symbol not in local_symbols and entry_price > 0:
+                                    logger.warning(f"🚑 [V124 AMNESIA-GUARD] Recuperando ordem do Firestore após restart: {symbol} @ ${entry_price}")
+                                    # Reconstuir objeto de posição Paper compatível com Bybit v5 Schema Fake
+                                    recovered_pos = {
+                                        "symbol": symbol,
+                                        "side": f_slot.get("side", "Buy"),
+                                        "size": str(f_slot.get("qty", 0)),
+                                        "avgPrice": str(f_slot.get("entry_price", 0)),
+                                        "leverage": str(f_slot.get("leverage", 50)),
+                                        "status": "RECOVERED",
+                                        "stopLoss": str(f_slot.get("current_stop", 0)),
+                                        "takeProfit": str(f_slot.get("target_price", 0)),
+                                        "opened_at": f_slot.get("opened_at", time.time()),
+                                        "is_paper": True,
+                                        "slot_id": f_slot.get("id", 0),
+                                        "entry_margin": f_slot.get("entry_margin", 0),
+                                        "genesis_id": f_slot.get("genesis_id", ""),
+                                        "score": f_slot.get("score", 0),
+                                        "fleet_intel": f_slot.get("fleet_intel", {}),
+                                        "pensamento": f_slot.get("pensamento", ""),
+                                        "slot_type": f_slot.get("slot_type", "SNIPER"),
+                                    }
+                                    self.paper_positions.append(recovered_pos)
+                    except Exception as recovery_error:
+                        logger.error(f"⚠️ [V110.61] Falha no Amnesia-Guard: {recovery_error}")
 
 
             else:
@@ -271,19 +283,27 @@ class OKXRest:
             logger.error(f"❌ [PAPER] Failed to load global state: {e}")
 
     async def _save_paper_state(self):
-        """[V110.23.5] Saves paper positions and balance to Firestore for global persistence."""
+        """[V110.23.5] Saves paper positions and balance to Firestore and local JSON for global persistence."""
         if self.execution_mode != "PAPER": return
         async with self._paper_save_lock:
             try:
-                from services.firebase_service import firebase_service
                 data = {
                     "positions": self.paper_positions,
                     "moonbags": self.paper_moonbags,
                     "balance": self.paper_balance,
                     "history": self.paper_orders_history[-50:] # Keep last 50 only
                 }
-                await firebase_service.update_paper_state(data)
-                # logger.debug("💾 [V110.23.5 PAPER] Global State saved to Firestore.")
+                
+                # Save locally first
+                try:
+                    with open(self.PAPER_STORAGE_FILE, "w") as f:
+                        json.dump(data, f, indent=4)
+                except Exception as file_err:
+                    logger.error(f"❌ [PAPER] Failed to save state locally: {file_err}")
+
+                from services.firebase_service import firebase_service
+                if firebase_service.is_active:
+                    await firebase_service.update_paper_state(data)
             except Exception as e:
                 logger.error(f"❌ [PAPER] Failed to save global state: {e}")
 

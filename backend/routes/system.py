@@ -337,6 +337,15 @@ async def calibrate_bankroll(payload: dict):
                     "bankroll_balance": target_val
                 }
             )
+            # Calibra o ciclo do Vault para ajustar a integridade na UI
+            await asyncio.to_thread(
+                firebase_service.db.collection("vault_management").document("current_cycle").update,
+                {
+                    "cycle_start_bankroll": target_val,
+                    "cycle_bankroll": target_val,
+                    "next_entry_value": target_val * 0.10
+                }
+            )
             report.append("✅ Firestore calibrado.")
     except Exception as e:
         report.append(f"⚠️ Firestore: {e}")

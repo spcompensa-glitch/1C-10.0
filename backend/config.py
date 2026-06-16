@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 # V110.42.1: Robust .env loading
 env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-load_dotenv(env_path, override=True)
+load_dotenv(env_path, override=False)
 
 class Settings(BaseSettings):
     # Firebase (Google)

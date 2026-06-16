@@ -2040,25 +2040,33 @@ class BankrollManager:
                         f"[{blitz_tp_pct*current_leverage*100:.0f}% ROI] | R:R={rr_ratio:.1f}:1"
                     )
 
-                elif is_market_ranging:
-                    tp_percent = 0.02  # [V88.0] 2.0% preço (100% ROI @ 50x) - Alvo Ideal Almirante
-                    expected_desc = "2.0% (100% ROI @ 50x) - RANGING"
-                    final_tp = current_price * (1 + tp_percent) if side == "Buy" else current_price * (1 - tp_percent)
-                    move_room_pct = tp_percent * 100
-
-                elif is_swing_macro:
-                    # [V87.0] BIG SWING DO ALMIRANTE: Busca alvos de 23% conforme imagem
-                    tp_percent = 0.235  # 23.5% price
-                    expected_desc = "23.5% (470% ROI @ 20x) - BIG SWING"
-                    final_tp = current_price * (1 + tp_percent) if side == "Buy" else current_price * (1 - tp_percent)
-                    move_room_pct = tp_percent * 100
-
                 else:
-                    # [V88.2] Trend Surge: Alvo de 10% para aproveitar ADX > 25
-                    tp_percent = 0.10  # 10.0% preço (500% ROI @ 50x)
-                    expected_desc = "10.0% (500% ROI) - TREND SURGE"
+                    # [V111.3] ALVOS DINÂMICOS POR ADX REAL
+                    # Em vez de usar flags fixos (is_market_ranging / is_swing_macro),
+                    # calcula o alvo baseado no ADX real do BTC.
+                    from services.okx_ws_public import okx_ws_public_service
+                    btc_adx = getattr(okx_ws_public_service, 'btc_adx', 20)
+
+                    # Fallback para is_market_ranging via ADX baixo
+                    if is_market_ranging or btc_adx < 22:
+                        tp_percent = 0.015  # 1.5% preço (75% ROI @ 50x) — alvo realista
+                        expected_desc = f"1.5% (75% ROI @ 50x) - RANGING (ADX {btc_adx:.1f})"
+                    elif btc_adx < 25:
+                        tp_percent = 0.020  # 2.0% preço (100% ROI @ 50x) — transição
+                        expected_desc = f"2.0% (100% ROI @ 50x) - TRANSITION (ADX {btc_adx:.1f})"
+                    elif btc_adx < 30:
+                        tp_percent = 0.035  # 3.5% preço (175% ROI @ 50x) — tendência fraca
+                        expected_desc = f"3.5% (175% ROI @ 50x) - WEAK TREND (ADX {btc_adx:.1f})"
+                    elif btc_adx < 40:
+                        tp_percent = 0.065  # 6.5% preço (325% ROI @ 50x) — tendência
+                        expected_desc = f"6.5% (325% ROI @ 50x) - TREND (ADX {btc_adx:.1f})"
+                    else:
+                        tp_percent = min(0.10 + (btc_adx - 40) * 0.015, 0.235)  # escala até 23.5%
+                        expected_desc = f"{tp_percent*100:.1f}% ({tp_percent*50*100:.0f}% ROI @ 50x) - BIG SWING (ADX {btc_adx:.1f})"
+
                     final_tp = current_price * (1 + tp_percent) if side == "Buy" else current_price * (1 - tp_percent)
                     move_room_pct = tp_percent * 100
+                    logger.info(f"[V111.3-ADX-TARGET] {symbol} ADX={btc_adx:.1f} target={tp_percent*100:.2f}% price ({tp_percent*current_leverage*100:.0f}% ROI) final_tp={final_tp:.6f}")
 
                 # Maintain variables for DB logging parity
                 structural_target = final_tp

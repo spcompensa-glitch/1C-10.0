@@ -17,7 +17,7 @@ fi
 
 # 3. Configurar variáveis
 echo "🔧 Configurando variáveis ambiente..."
-railway variables set RAILWAY_TOKEN=baab061ec-2bcf-436b-bbb2-1c6b8616046b
+railway variables set RAILWAY_TOKEN=da49f7fa-ccc6-405c-9b41-4af1429e93b7
 railway variables set ADMIN_API_KEY=1crypten-admin-key-2026-production
 railway variables set TELEGRAM_BOT_TOKEN=8656832302:AAHARDZZe-bltJte6QR-e-KcBiNkNDrvx7I
 railway variables set TELEGRAM_CHAT_ID=1249100206

@@ -28,10 +28,20 @@ class VaultService:
     async def get_cycle_status(self) -> dict:
         """
         Retorna o status atual do ciclo de 10 trades Sniper.
+        [V111.3] Adicionado fallback para Postgres quando Firebase está offline.
         Returns: {sniper_wins, cycle_number, cycle_profit, in_admiral_rest, rest_until}
         """
         try:
             if not firebase_service.is_active or not firebase_service.db:
+                # [V111.3] Fallback: ler do Postgres
+                try:
+                    from services.database_service import database_service
+                    pg_data = await database_service.get_vault_cycle()
+                    if pg_data:
+                        logger.info("📦 [VAULT] Cycle status loaded from Postgres fallback.")
+                        return pg_data
+                except Exception as pg_err:
+                    logger.warning(f"⚠️ [VAULT] Postgres fallback failed: {pg_err}")
                 return self._default_cycle()
             
             def _get():
@@ -64,6 +74,13 @@ class VaultService:
                     # Auto-exit rest mode
                     await self.deactivate_admiral_rest()
                     data["in_admiral_rest"] = False
+            
+            # [V111.3] Sync to Postgres for resilience
+            try:
+                from services.database_service import database_service
+                asyncio.create_task(database_service.save_vault_cycle(data))
+            except Exception:
+                pass
                     
             return data
             
@@ -307,11 +324,91 @@ class VaultService:
         [V11.0] SNIPER TRADE: Registra um trade no ciclo.
         - Contador 1/10: Só conta como WIN se ROI >= 100%
         - Contador 1/100: Mega ciclo também incrementa com ROI >= 100%
+        [V111.3] Adicionado fallback para Postgres quando Firebase está offline.
         """
         try:
             from config import settings
             
             if not firebase_service.is_active or not firebase_service.db:
+                # [V111.3] Fallback: atualizar ciclo no Postgres
+                try:
+                    from services.database_service import database_service
+                    current = await self.get_cycle_status()
+                    pnl = trade_data.get("pnl", 0)
+                    roi = trade_data.get("pnl_percent", 0)
+                    slot_id = trade_data.get("slot_id")
+                    is_trend_slot = slot_id in [3, 4]
+                    
+                    # [V111.3] Idempotency Check (Ledger)
+                    order_id = trade_data.get("order_id")
+                    processed_ids = current.get("order_ids_processed", [])
+                    if order_id and order_id in processed_ids:
+                        logger.warning(f"🛡️ [VAULT-PG IDEMPOTENCY] Order {order_id} already processed. Skipping.")
+                        return current
+                    
+                    if order_id:
+                        processed_ids.append(order_id)
+                        if len(processed_ids) > 20:
+                            processed_ids = processed_ids[-20:]
+                    
+                    # ROI fallback calculation
+                    if roi == 0 and trade_data.get("entry_price") and trade_data.get("exit_price"):
+                        from services.execution_protocol import execution_protocol
+                        roi = execution_protocol.calculate_roi(
+                            trade_data["entry_price"],
+                            trade_data["exit_price"],
+                            trade_data.get("side", "Buy")
+                        )
+                    
+                    new_total = current.get("total_trades_cycle", 0)
+                    new_wins = current.get("cycle_gains_count", 0)
+                    new_losses = current.get("cycle_losses_count", 0)
+                    new_profit = current.get("cycle_profit", 0) + pnl
+                    mega_wins = current.get("mega_cycle_wins", 0)
+                    mega_total = current.get("mega_cycle_total", 0)
+                    mega_profit = current.get("mega_cycle_profit", 0) + pnl
+                    mega_number = current.get("mega_cycle_number", 1)
+                    
+                    is_pnl_positive = (pnl or 0) > 0
+                    win_threshold = getattr(settings, 'WIN_ROI_THRESHOLD', 80.0)
+                    is_high_roi_win = (roi or 0) >= win_threshold
+                    
+                    if is_trend_slot:
+                        new_total += 1
+                        if is_pnl_positive:
+                            new_wins += 1
+                        else:
+                            new_losses += 1
+                    
+                    if is_high_roi_win:
+                        mega_wins += 1
+                        mega_total += 1
+                        new_wins += 1
+                    
+                    updated_data = {
+                        **current,
+                        "cycle_gains_count": new_wins,
+                        "cycle_losses_count": new_losses,
+                        "cycle_profit": new_profit,
+                        "total_trades_cycle": new_total,
+                        "mega_cycle_wins": mega_wins,
+                        "mega_cycle_total": mega_total,
+                        "mega_cycle_profit": mega_profit,
+                        "mega_cycle_number": mega_number,
+                        "order_ids_processed": processed_ids,
+                        "updated_at": int(time.time() * 1000),
+                    }
+                    
+                    await database_service.save_vault_cycle(updated_data)
+                    logger.info(f"📦 [VAULT-PG] Trade {trade_data.get('symbol')} registered in Postgres fallback.")
+                    
+                    # V15.6: Symbol lock on loss
+                    if trade_data.get("symbol"):
+                        await self.add_symbol_to_cycle(trade_data.get("symbol"), pnl=pnl)
+                    
+                    return updated_data
+                except Exception as pg_err:
+                    logger.error(f"❌ [VAULT-PG] Postgres fallback failed: {pg_err}")
                 return self._default_cycle()
             
             current = await self.get_cycle_status()

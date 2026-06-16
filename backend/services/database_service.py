@@ -135,6 +135,12 @@ class RadarPulse(Base):
     id = Column(Integer, primary_key=True)
     data = Column(JSON)
 
+class VaultCycle(Base):
+    __tablename__ = "vault_cycles"
+    id = Column(Integer, primary_key=True)
+    data = Column(JSON)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class DatabaseService:
     def __init__(self):
         # Em Railway, DATABASE_URL é provido automaticamente (postgres://...)
@@ -223,7 +229,8 @@ class DatabaseService:
                         ("banca_status", "configured_balance", "DOUBLE PRECISION"),
                         ("banca_status", "saldo_real_okx", "DOUBLE PRECISION"),
                         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
-                        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
+                        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION"),
+                        ("vault_cycles", "updated_at", "TIMESTAMP")
                     ]
                     for table, col, col_type in migrations:
                         try:
@@ -514,8 +521,34 @@ class DatabaseService:
                 logger.error(f"Erro ao deletar Moonbag do Postgres: {e}")
                 return False
 
+    async def save_vault_cycle(self, data: dict):
+        """[V111.3] Salva o estado do ciclo do vault no Postgres."""
+        try:
+            async with self.AsyncSessionLocal() as session:
+                obj = await session.get(VaultCycle, 1)
+                if not obj:
+                    obj = VaultCycle(id=1, data=data)
+                    session.add(obj)
+                else:
+                    obj.data = data
+                    obj.updated_at = datetime.utcnow()
+                await session.commit()
+                logger.info("✅ Vault cycle saved in Postgres.")
+                return True
+        except Exception as e:
+            logger.error(f"Error saving vault cycle: {e}")
+            return False
+
     async def get_vault_cycle(self):
-        return {}
+        """[V111.3] Recupera o estado do ciclo do vault do Postgres."""
+        try:
+            async with self.AsyncSessionLocal() as session:
+                obj = await session.get(VaultCycle, 1)
+                if obj and obj.data:
+                    return obj.data
+        except Exception as e:
+            logger.error(f"Error getting vault cycle: {e}")
+        return None
 
     async def reset_system_data(self):
         """Purga total: limpa slots, moonbags, trade_history, order_genesis, banca=$100."""

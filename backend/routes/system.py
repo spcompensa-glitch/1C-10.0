@@ -281,3 +281,76 @@ async def get_system_settings():
         "testnet": settings.OKX_TESTNET,
         "server_time": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
+
+@router.post("/system/calibrate-bankroll", dependencies=[Depends(verify_api_key)])
+async def calibrate_bankroll(payload: dict):
+    """
+    Força a banca configurada (configured_balance) e o saldo atual para recalibrar
+    a integridade e a saúde do robô para 100% no modo REAL ou PAPER.
+    """
+    target = payload.get("balance")
+    if not target:
+        raise HTTPException(status_code=400, detail="Parâmetro 'balance' é obrigatório.")
+    
+    firebase_service, okx_rest_service, _, bankroll_manager, _ = get_services()
+    from services.database_service import database_service
+    
+    target_val = float(target)
+    report = []
+    
+    try:
+        await database_service.update_banca_status({
+            "configured_balance": target_val,
+            "saldo_total": target_val,
+            "lucro_total_acumulado": 0.0,
+            "risco_real_percent": 0.0
+        })
+        report.append("✅ Postgres calibrado.")
+    except Exception as e:
+        report.append(f"⚠️ Postgres: {e}")
+        
+    try:
+        if firebase_service.rtdb:
+            firebase_service.rtdb.child("banca").update({
+                "configured_balance": target_val,
+                "saldo_total": target_val,
+                "pnl_realized": 0.0
+            })
+            report.append("✅ Firebase RTDB calibrado.")
+    except Exception as e:
+        report.append(f"⚠️ Firebase RTDB: {e}")
+        
+    try:
+        if firebase_service.is_active:
+            await asyncio.to_thread(
+                firebase_service.db.collection("banca_status").document("status").update,
+                {
+                    "configured_balance": target_val,
+                    "saldo_total": target_val,
+                    "lucro_total_acumulado": 0.0,
+                    "risco_real_percent": 0.0
+                }
+            )
+            await asyncio.to_thread(
+                firebase_service.db.collection("users").document("admin").update,
+                {
+                    "bankroll_balance": target_val
+                }
+            )
+            report.append("✅ Firestore calibrado.")
+    except Exception as e:
+        report.append(f"⚠️ Firestore: {e}")
+        
+    okx_rest_service.paper_balance = target_val
+    
+    try:
+        await bankroll_manager.update_banca_status()
+        report.append("✅ BankrollManager atualizado.")
+    except Exception as e:
+        report.append(f"⚠️ BankrollManager: {e}")
+        
+    return {
+        "status": "SUCCESS",
+        "message": f"Banca calibrada para ${target_val:.2f}.",
+        "report": report
+    }

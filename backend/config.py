@@ -107,11 +107,11 @@ class Settings(BaseSettings):
 
     # [V110.550] Anti-Slippage Engine (Random Jitter)
     ANTI_SLIPPAGE_MAX_JITTER_MS: int = int(os.getenv("ANTI_SLIPPAGE_MAX_JITTER_MS", 350))
-    MAX_SLOTS: int = 40            # [V111.0] Ultra-Diversification: up to 40 concurrent trades
-    MAX_SLOTS_LATERAL: int = 20    # [V111.0] DECOR_HUNTER mode: up to 20 pairs (ranging market)
-    MAX_SLOTS_TRENDING: int = 40   # [V111.0] ELITE_40_MATRIX mode: up to 40 pairs (trending market)
-    MARGIN_PER_TRADE_LATERAL: float = 2.0   # [V111.0] $2.00 per pair in ranging (20 x $2 = $40 = 40% banca)
-    MARGIN_PER_TRADE_TRENDING: float = 2.0  # [V111.0] $2.00 per pair in trending (20 x $2 = $40 = 40% banca)
+    MAX_SLOTS: int = 15            # [V111.0] Reduzido para banca real de $20.00
+    MAX_SLOTS_LATERAL: int = 10    # [V111.0] Reduzido para banca real de $20.00
+    MAX_SLOTS_TRENDING: int = 15   # [V111.0] Reduzido para banca real de $20.00
+    MARGIN_PER_TRADE_LATERAL: float = 0.50   # [V111.0] $0.50 por par para banca de $20.00
+    MARGIN_PER_TRADE_TRENDING: float = 0.50  # [V111.0] $0.50 por par para banca de $20.00
     RISK_CAP_PERCENT: float = 0.40  # 40% da banca alocada no total (invariante)
     LEVERAGE: int = 50
     LEVERAGE_RANGING: int = 50    # [V111.0] 50x em todos os cenários (margem pequena)

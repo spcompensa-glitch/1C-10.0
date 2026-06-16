@@ -19,8 +19,21 @@ class Settings(BaseSettings):
     OKX_API_SECRET: Optional[str] = None
     OKX_INST_TYPE: str = "SWAP" # OKX API: SPOT / MARGIN / SWAP / FUTURES
     OKX_EXECUTION_MODE: str = os.getenv("OKX_EXECUTION_MODE", "PAPER") # "PAPER" = Simulated Execution
-    OKX_SIMULATED_BALANCE: float = float(os.getenv("OKX_SIMULATED_BALANCE", 100.0)) # Banca padrão Sniper de $100.00
+    OKX_SIMULATED_BALANCE: float = 100.0 # Padrão
     FACTORY_RESET_V110: bool = False # [V110.29.0] Reset atômico do sistema
+
+    @field_validator('OKX_SIMULATED_BALANCE', mode='before')
+    @classmethod
+    def parse_simulated_balance(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            if v_clean in ('false', 'none', 'null', ''):
+                return 100.0
+            try:
+                return float(v_clean)
+            except ValueError:
+                return 100.0
+        return float(v or 100.0)
 
     # [V28.3] Strip whitespace from critical env vars to prevent 'PAPER ' != 'PAPER' bugs
     @field_validator('OKX_EXECUTION_MODE', mode='before')

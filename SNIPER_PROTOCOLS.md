@@ -1,51 +1,77 @@
-# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE SOBERANIA (V110.960)
+# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE STOPS E ALVOS (V111.2)
 
-## 🎯 Arquitetura da Escadinha (Trailing Stop Progressivo)
+## Arquitetura Atual: Ordem Unica, Escadinha Continua
 
-O sistema opera sob o conceito de **Single Source of Truth (SSOT)** centralizado no `OrderProjectionService` com a nova arquitetura de Escadinha Unificada (sem a promoção física para moonbags).
+O sistema usa o `OrderProjectionService` como fonte oficial de alvos, stops, ROI e linhas do grafico. Nao existe mais promocao de ordem para Moonbag: todos os sinais aprovados viram ordens, e cada ordem continua buscando alvos sucessivos. Quando um alvo e rompido, o `FlashAgent` fixa/promove o stop da propria ordem.
 
-### 1. Gatilhos de ROI e Proteção (Escadinha Integrada)
-| Fase / Nível | Gatilho (ROI %) | Proteção SL (ROI %) | Status UI |
-| :--- | :--- | :--- | :--- |
-| **T1: Risk-Zero** | 50% | 15% | `RISK_ZERO` |
-| **T2: Lucro Garantido** | 100% | 50% | `RISK_ZERO` |
-| **T3: Sucesso Total** | 130% | 110% | `PROFIT_LOCK` |
-| **T4: Alvo Emancipada** | 150% | 110% | `PROFIT_LOCK` |
-| **T5: Wave** | 200% | 150% | `MOONBAG_TRAIL` |
-| **T6: Rocket** | 300% | 220% | `MOONBAG_TRAIL` |
-| **T7: Star** | 400% | 280% | `MOONBAG_TRAIL` |
-| *Níveis adicionais* | Até 1200% ROI (Apex) | Trailing progressivo | `MOONBAG_TRAIL` |
+## Filtro de Regime de Mercado (V111.2)
 
-### 2. Simetria Operacional (Long vs Short)
-O sistema é 100% simétrico.
-- **LONG (Buy)**: O Stop Loss é movido para **CIMA** conforme o preço sobe.
-- **SHORT (Sell)**: O Stop Loss é movido para **BAIXO** conforme o preço desce.
-- **ROI**: Calculado de forma absoluta. `+150%` em Short significa que o preço caiu o suficiente para atingir o alvo alavancado.
+O BankrollGuardian agora bloqueia entradas com base no ADX e direcao do BTC:
 
-### 3. Performance de Monitoramento
-- **Frequência**: O loop de monitoramento (`SlotOperatorAgent` e `FlashAgent`) roda a cada **0.2 a 1.0 segundos**.
-- **Garantia**: Alta reatividade para capturar pavios rápidos e disparar o trailing stop protetivo direto nos slots.
+| Condicao | Acao |
+| :--- | :--- |
+| **ADX < 22** (Mercado Morto) | Nenhuma entrada permitida. Volatilidade insuficiente. |
+| **ADX 22-25** (Transicao) | Apenas trades a favor da direcao do BTC (LONG se UP, SHORT se DOWN). |
+| **ADX ≥ 25** (Tendencia) | Bloqueio absoluto de contra-tendencia. SHORTs bloqueados em bull market. LONGs bloqueados em bear market. |
+| **ADX ≥ 30** (Tendencia Forte) | Reforco do bloqueio contra-tendencia com threshold mais alto. |
 
-### 4. Protocolo de Reset Nuclear
-Para limpar o sistema e iniciar um novo ciclo de testes:
-```powershell
-python backend/scratch/reset_nuclear_v172.py
-```
-*Ação: Cancela ordens, limpa slots, reseta banca para $100 e apaga histórico.*
+A direcao do BTC e determinada por confluencia de variacao 15m + 1h:
+- Ambas positivas => `UP`
+- Ambas negativas => `DOWN`
+- Divergencia => `LATERAL` (não bloqueia, pois não há direcao clara)
 
-### 5. Consenso Híbrido Estratégico (V110.970+)
-Todas as operações ativas entram por estratégias consensuais sob uma hierarquia de prioridades operando na matriz de 20 pares:
-- **LRT (Varredura de Liquidez - Prioridade 1)**: Agulhada de pavio rápido (wick >= 60%) com volume climático em suportes/resistências macros de 2H. Exige alinhamento com a SMA de 2H.
-- **DVAP (Reversão Clássica - Prioridade 2)**: Setup de divergência IFR 30M e volume clímax com gatilho CHoCH. Exige alinhamento com a SMA de 2H.
-- **FAS (Funding Squeeze - Prioridade 3)**: Desequilibrio severo de Funding Rate com fluxo de CVD. Isento de alinhamento direcional com a SMA de 2H por ser contra-tendência baseado em liquidações.
-- **MOLA (Breakout de Volatilidade - Prioridade 4)**: Setup de squeeze de volatilidade Bollinger. Exige ADX >= 25 do ativo.
-- **ABCD & 1-2-3 (Tendência - Prioridade 5)**: Padrões de continuação e pivôs geométricos. Exigem alinhamento com a SMA de 2H.
-- **Sizing Fixo**: $2.00 por ordem em toda a matriz de 20 pares ativos.
+## Stop Inicial Inteligente
 
-### 6. Atualizações de Interface (V110.970+)
-- **Remoção de Moonbags**: Ocultação total do Moonbag Vault no modo mobile e desktop.
-- **Timeframe 30M Principal**: Os gráficos do cockpit e os gráficos de ordem iniciam com o intervalo de 30 minutos por padrão.
-- **Estratégia Dinâmica nos Cards**: O cockpit exibe a estratégia real disparada pelo sinal (LRT, DVAP, FAS, MOLA, ABCD, 1-2-3) com badges coloridas personalizadas: LRT (roxo violeta), FAS (laranja/âmbar) e demais (branco clássico).
+Na abertura, o stop inicial nao e mais fixo em -50% ou -100% ROI. O `BankrollManager` calcula um plano de stop inicial:
 
----
-**Status: ESTÁVEL | Versão: V110.970**
+- LONG: stop abaixo da invalidacao tecnica do setup, como fundo, sweep, suporte ou zona rompida.
+- SHORT: stop acima da invalidacao tecnica do setup, como topo, sweep, resistencia ou zona rompida.
+- Se o sinal trouxer `adaptive_sl`, `sl_price`, `stop_loss`, `invalidation_price` ou campos estruturais equivalentes, essa informacao tem prioridade.
+- Se nao houver stop estrutural, o fallback usa ATR/range/volatilidade recente.
+- Se o stop estrutural explicito ficar longe demais para o regime, a entrada e bloqueada em vez de aceitar risco fixo gigante.
+
+### Teto de Stop Inicial (V111.2)
+
+Para proteger banca pequena, o ROI do stop inicial **nunca ultrapassa 30%** (`MAX_INITIAL_STOP_ROI`).
+- Se ATR/estrutura indicar stop com risco > 30% ROI, o stop e reposicionado para o teto.
+- Block de entrada (approved=False) ainda pode ocorrer se o stop estrutural ficar alem de `max_risk_pct * 1.35`.
+- Logs `[STOP-CAP]` registram quando o cap e aplicado.
+
+## Escadinha em Lateral
+
+Mercado lateral protege cedo porque falso rompimento e comum.
+
+| Alvo rompido (ROI) | Stop fixado (ROI) | Status |
+| ---: | ---: | --- |
+| 30% | 5% | `SL_0` |
+| 50% | 25% | `RISCO_ZERO` |
+| 70% | 50% | `RISCO_ZERO` |
+| 100% | 80% | `PROFIT_LOCK` |
+| 150% | 110% | `PROFIT_LOCK` |
+| 200% | 150% | `TRAIL_LOCK` |
+| 300% | 220% | `TRAIL_LOCK` |
+
+## Escadinha em Tendencia
+
+Mercado em tendencia da mais respiro para sobreviver a pullbacks saudaveis.
+
+| Alvo rompido (ROI) | Stop fixado (ROI) | Status |
+| ---: | ---: | --- |
+| 50% | 15% | `RISCO_ZERO` |
+| 100% | 50% | `RISCO_ZERO` |
+| 130% | 110% | `PROFIT_LOCK` |
+| 150% | 110% | `PROFIT_LOCK` |
+| 200% | 150% | `TRAIL_LOCK` |
+| 300% | 220% | `TRAIL_LOCK` |
+| 400% | 280% | `TRAIL_LOCK` |
+
+## Continuidade Pos-APEX
+
+A partir de 1200% ROI, o sistema continua criando niveis `ULTRA_*` a cada 200% ROI. O stop fica 200% ROI atras do alvo rompido: `ULTRA_1400 -> stop +1200%`, `ULTRA_1600 -> stop +1400%`, e assim por diante.
+
+## Simetria LONG/SHORT
+
+- LONG: o stop sobe conforme os alvos sao rompidos.
+- SHORT: o stop desce conforme os alvos sao rompidos.
+- O ROI e sempre alavancado: o preco real do stop depende de entrada, lado e leverage.
+

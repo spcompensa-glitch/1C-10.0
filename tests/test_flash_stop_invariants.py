@@ -450,10 +450,9 @@ async def test_moonbag_uses_recent_peak_to_apply_broken_post_apex_stop(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatch):
+async def test_slot_uses_recent_peak_roi_to_promote_stop_after_pullback(monkeypatch):
     flash = FlashAgent()
     updated = []
-    emancipated = []
 
     slot = {
         "id": 3,
@@ -479,7 +478,7 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
     def fake_get_peak_price(symbol, side, current_price):
         assert symbol == "ZECUSDT"
         assert side == "buy"
-        return 437.64  # ~180% ROI: emancipation was touched recently
+        return 437.64  # ~180% ROI: ALVO_150 was touched recently
 
     checked_stops = []
 
@@ -490,22 +489,17 @@ async def test_slot_uses_recent_peak_roi_to_emancipate_after_pullback(monkeypatc
     async def fake_update_slot_sl(slot_id, symbol, sl_price, status_risco, side, qty):
         updated.append((slot_id, symbol, sl_price, status_risco, side, qty))
 
-    async def fake_emancipate_slot(slot_id, symbol, sl_price):
-        emancipated.append((slot_id, symbol, sl_price))
-
     monkeypatch.setattr(flash, "_get_current_price", fake_get_current_price)
     monkeypatch.setattr(flash, "_get_rest_price", fake_get_rest_price)
     monkeypatch.setattr(flash, "_get_peak_price", fake_get_peak_price)
     monkeypatch.setattr(flash, "_check_stop_hit", fake_check_stop_hit)
     monkeypatch.setattr(flash, "_update_slot_sl", fake_update_slot_sl)
-    monkeypatch.setattr(flash, "_emancipate_slot", fake_emancipate_slot)
     monkeypatch.setattr(flash, "_update_pnl", lambda *args, **kwargs: None)
 
     await flash._process_slot(slot)
 
     assert checked_stops == [pytest.approx(426.24), pytest.approx(431.74)]
     assert updated == [(3, "ZECUSDT", pytest.approx(431.74), "PROFIT_LOCK", "buy", 35.0)]
-    assert emancipated == [(3, "ZECUSDT", pytest.approx(431.74))]
 
 
 @pytest.mark.asyncio

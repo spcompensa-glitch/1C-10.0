@@ -52,6 +52,40 @@ class BankrollGuardian:
         self.last_report_at = 0.0
         return snapshot
 
+    async def _get_market_data(self) -> Dict[str, Any]:
+        """
+        [V111.2] Obtém regime de mercado (ADX e direção do BTC)
+        para aplicar filtros de entrada.
+        Retorna: { adx, direction, is_ranging, is_trending, is_strong_trend }
+        """
+        result = {
+            "adx": 0.0,
+            "direction": "LATERAL",
+            "is_ranging": True,
+            "is_trending": False,
+            "is_strong_trend": False,
+        }
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            adx = getattr(okx_ws_public_service, 'btc_adx', 0.0)
+            var_1h = getattr(okx_ws_public_service, 'btc_variation_1h', 0.0)
+            var_15m = getattr(okx_ws_public_service, 'btc_variation_15m', 0.0)
+
+            result["adx"] = adx
+            result["is_ranging"] = (adx < settings.ADX_TRENDING_THRESHOLD)
+            result["is_trending"] = (adx >= settings.ADX_TRENDING_THRESHOLD)
+            result["is_strong_trend"] = (adx >= settings.ADX_STRONG_TREND_THRESHOLD)
+
+            # Determinar direção do BTC com confluência 15m + 1h
+            if adx >= 22:
+                if var_15m > 0 and var_1h > 0:
+                    result["direction"] = "UP"
+                elif var_15m < 0 and var_1h < 0:
+                    result["direction"] = "DOWN"
+        except Exception:
+            pass
+        return result
+
     async def _get_banca_status(self) -> Dict[str, Any]:
         try:
             from services.firebase_service import firebase_service
@@ -674,22 +708,57 @@ class BankrollGuardian:
         radar_score = _safe_float(signal.get("score") or signal.get("score_radar"), 0.0)
         unified_confidence = _safe_float(signal.get("unified_confidence"), 0.0)
         score = radar_score or unified_confidence
+        signal_side = str(signal.get("side") or signal.get("direction") or "Buy").lower()
 
         approved = True
         reasons: List[str] = []
+
+        # [V111.2] FILTRO DE REGIME DE MERCADO
+        # So abrir ordens em tendencia, nunca em mercado lateral/morto.
+        market = await self._get_market_data()
+        report["market_data"] = market
+
+        if market["adx"] < settings.ADX_MIN_ENTRY:
+            approved = False
+            reasons.append(
+                f"MERCADO MORTO: ADX={market['adx']:.1f} < {settings.ADX_MIN_ENTRY:.0f}. "
+                "Novas entradas bloqueadas em regime de baixa volatilidade."
+            )
+        elif market["is_strong_trend"] or market["is_trending"]:
+            # Em tendencia, bloquear trades contra a direcao dominante
+            is_long = signal_side in ("buy", "long")
+            if market["direction"] == "UP" and not is_long:
+                approved = False
+                reasons.append(
+                    f"CONTRA-TENDENCIA: BTC em BULL (ADX={market['adx']:.1f}), "
+                    f"mas sinal e {signal_side.upper()}. Apenas LONGs permitidos."
+                )
+            elif market["direction"] == "DOWN" and is_long:
+                approved = False
+                reasons.append(
+                    f"CONTRA-TENDENCIA: BTC em BEAR (ADX={market['adx']:.1f}), "
+                    f"mas sinal e {signal_side.upper()}. Apenas SHORTs permitidos."
+                )
+        elif market["adx"] >= settings.ADX_MIN_ENTRY and market["adx"] < settings.ADX_TRENDING_THRESHOLD:
+            # Zona de transicao: permitir apenas trades a favor da direcao
+            is_long = signal_side in ("buy", "long")
+            if market["direction"] == "UP" and not is_long:
+                approved = False
+                reasons.append(
+                    f"ZONA DE TRANSICAO: BTC em BULL leve (ADX={market['adx']:.1f}), "
+                    f"apenas LONGs permitidos ate confirmacao de tendencia."
+                )
+            elif market["direction"] == "DOWN" and is_long:
+                approved = False
+                reasons.append(
+                    f"ZONA DE TRANSICAO: BTC em BEAR leve (ADX={market['adx']:.1f}), "
+                    f"apenas SHORTs permitidos ate confirmacao de tendencia."
+                )
 
         if report["mode"] == "PRESERVACAO_TOTAL":
             approved = False
             reasons.append("Modo Preservacao Total ativo. Novas entradas pausadas.")
         
-        # [V15.0] Exposição Progressiva: Removido conforme solicitação direta do usuário para liberar os 4 slots simultâneos livremente.
-        # if report.get("active_slots", 0) > 0 and report.get("unprotected_slots", 0) > 0:
-        #     approved = False
-        #     reasons.append(
-        #         f"Exposicao progressiva ativada: {report.get('unprotected_slots', 0)} slot(s) ativo(s) ainda sem protecao de Stop Loss."
-        #     )
-        pass
-
         if report.get("active_slots", 0) >= report.get("max_slots_allowed", 40):
             approved = False
             reasons.append(
@@ -718,14 +787,19 @@ class BankrollGuardian:
             "unified_confidence": round(unified_confidence, 1),
             "mode": report["mode"],
             "health_score": report["health_score"],
+            "market_data": {
+                "adx": round(market["adx"], 1),
+                "direction": market["direction"],
+                "is_trending": market["is_trending"],
+            },
             "reasons": reasons or ["Banca liberou a entrada."],
             "report": report,
         }
 
         if approved:
-            logger.info(f"[BANKROLL-GUARDIAN] {symbol} liberado. Saude {report['health_score']}/100 | modo {report['mode']}.")
+            logger.info(f"[BANKROLL-GUARDIAN] {symbol} {signal_side.upper()} liberado. ADX={market['adx']:.1f} Dir={market['direction']} | Saude {report['health_score']}/100.")
         else:
-            logger.warning(f"[BANKROLL-GUARDIAN] {symbol} bloqueado: {' | '.join(reasons)}")
+            logger.warning(f"[BANKROLL-GUARDIAN] {symbol} {signal_side.upper()} bloqueado: {' | '.join(reasons)}")
         return decision
 
 

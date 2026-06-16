@@ -1,7 +1,7 @@
 # Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.1)
 
 ## Resumo Executivo
-* **Versão:** `V111.1: REAL Mode Operacional — BankrollGuardian Fix + Watchlist 41 Pares`
+* **Versão:** `V111.2: Filtro de Regime de Mercado — Stop Cap + Direção`
 * **Data:** 2026-06-16
 * **Estado:** `OPERATIONAL REAL ✅`
 * **Escopo:** Correção crítica do `BankrollGuardian` que impedia abertura de ordens em REAL mode: o `base_balance` usava o valor simulado (`$100`) em vez do equity real da exchange (~$20), causando `PRESERVACAO_TOTAL` com `min_score = 999.0` e bloqueando 100% dos sinais. Agora `base_balance = equity` em REAL mode. Watchlist expandida para 41 pares (ELITE_40_MATRIX + SOLUSDT). SOLUSDT removido do `ASSET_BLOCKLIST`. Remoção da restrição `LATERAL_ONLY_DECOR`. Escudo de correlação elevado para 0.95. Reset Nuclear integrado com Redis FLUSHDB. Sistema operacional com 8 posições ativas simultâneas no modo REAL da OKX.
@@ -70,7 +70,19 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 
 ---
 
-## Melhorias e Atualizações (Jun 16 - V111.1)
+## Melhorias e Atualizações (Jun 16)
+
+### V111.2: Filtro de Regime, Stop Cap e Bloqueio de Contra-Tendência
+
+* **Filtro de Regime de Mercado (BankrollGuardian):** Implementado `_get_market_data()` que lê ADX e direção do BTC (15m + 1h). Três zonas de decisão:
+  - **Mercado Morto (ADX < 22):** Nenhuma entrada permitida — volatilidade insuficiente para operar.
+  - **Zona de Transição (ADX 22-25):** Apenas trades a favor da direção do BTC (LONG se UP, SHORT se DOWN).
+  - **Tendência Confirmada (ADX ≥ 25):** Bloqueio absoluto de contra-tendência (SHORT em bull, LONG em bear).
+* **Stop Inicial com Teto Máximo (BankrollManager):** `_calibrate_initial_stop()` agora limita o ROI do stop a **30% máximo**. Se ATR/estrutura indicar um stop mais largo, o stop é reposicionado automaticamente. Logs `[STOP-CAP]` para debug.
+* **Arquivos alterados:**
+  - `backend/config.py` — novas constantes `ADX_MIN_ENTRY=22`, `ADX_TRENDING_THRESHOLD=25`, `ADX_STRONG_TREND_THRESHOLD=30`, `MAX_INITIAL_STOP_ROI=30`.
+  - `backend/services/agents/bankroll_guardian.py` — `_get_market_data()` + filtro de regime em `authorize_new_trade()`.
+  - `backend/services/bankroll.py` — cap de stop em `_calibrate_initial_stop()`.
 
 ### V111.1: REAL Mode Fix
 * **Correção do BankrollGuardian:** `base_balance` agora usa o equity real da exchange em REAL mode, resolvendo o falso `PRESERVACAO_TOTAL` que bloqueava todas as ordens.

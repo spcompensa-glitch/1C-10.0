@@ -308,6 +308,28 @@ class BankrollManager:
             if side_norm == "buy"
             else current_price * (1 + risk_pct)
         )
+
+        # [V111.2] STOP INICIAL CAP (Protecao de Banca Pequena)
+        # Limita o ROI maximo do stop inicial para evitar perdas catastroficas
+        # em banca real pequena. Acima de MAX_INITIAL_STOP_ROI, o stop e
+        # reposicionado para respeitar o limite.
+        raw_risk_roi = risk_pct * leverage * 100.0
+        max_stop_roi = getattr(settings, 'MAX_INITIAL_STOP_ROI', 30.0)
+        if raw_risk_roi > max_stop_roi:
+            capped_risk_pct = max_stop_roi / max(leverage, 1.0) / 100.0
+            stop_price = (
+                current_price * (1 - capped_risk_pct)
+                if side_norm == "buy"
+                else current_price * (1 + capped_risk_pct)
+            )
+            risk_pct = capped_risk_pct
+            source = f"{source}_capped_{max_stop_roi:.0f}pct_roi"
+            logger.info(
+                f"[STOP-CAP] {symbol} {side_norm} ROI do stop {raw_risk_roi:.1f}% > "
+                f"limite {max_stop_roi:.0f}%. Stop reposicionado de "
+                f"{current_price:.4f} -> {stop_price:.4f} (risco {risk_pct*100:.2f}%)."
+            )
+
         return {
             "approved": True,
             "stop_price": stop_price,

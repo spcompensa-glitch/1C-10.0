@@ -120,7 +120,8 @@ class Settings(BaseSettings):
 
     # [V110.550] Anti-Slippage Engine (Random Jitter)
     ANTI_SLIPPAGE_MAX_JITTER_MS: int = int(os.getenv("ANTI_SLIPPAGE_MAX_JITTER_MS", 350))
-    MAX_SLOTS: int = 15            # [V111.0] Reduzido para banca real de $20.00
+    # [V111.2] Máximo de posições simultâneas
+    MAX_SLOTS: int = 15
     MAX_SLOTS_LATERAL: int = 10    # [V111.0] Reduzido para banca real de $20.00
     MAX_SLOTS_TRENDING: int = 15   # [V111.0] Reduzido para banca real de $20.00
     MARGIN_PER_TRADE_LATERAL: float = 0.50   # [V111.0] $0.50 por par para banca de $20.00
@@ -132,6 +133,16 @@ class Settings(BaseSettings):
     INITIAL_SLOTS: int = 1
     BREAKEVEN_TRIGGER_PERCENT: float = 5.0 # Increased to 5% ROI to avoid premature exits
     WIN_ROI_THRESHOLD: float = 80.0 # V11.0: ROI mínimo para contar como WIN no ciclo 1/10
+    
+    # [V111.2] MARKET REGIME FILTER — Filtro de Regime e Direção
+    # ADX mínimo para permitir novas entradas (mercado morto = bloqueio total)
+    ADX_MIN_ENTRY: float = 22.0
+    # ADX mínimo para considerar mercado em tendência (entradas liberadas)
+    ADX_TRENDING_THRESHOLD: float = 25.0
+    # ADX mínimo para bloquear trades contra-tendência (proteção de SHORTs em bull markets)
+    ADX_STRONG_TREND_THRESHOLD: float = 30.0
+    # ROI máximo permitido para stop inicial (proteção de banca pequena)
+    MAX_INITIAL_STOP_ROI: float = 30.0
     
     # Redis
     REDIS_HOST: str = os.getenv("REDISHOST", "localhost")

@@ -579,6 +579,12 @@ class BankrollGuardian:
         suspensions = self._symbol_suspensions(memory)
         live_bankroll = self._live_bankroll_snapshot(banca, base_balance, active_slots, active_moonbags, history)
         equity = live_bankroll["equity"]
+
+        # [V111 FIX] Em modo REAL, a base_balance deve refletir o equity real da exchange.
+        # Senao, com simulated_balance=$100 e equity real=$20, o Guardian ve -80% de
+        # drawdown e entra em PRESERVACAO_TOTAL (min_score=999) bloqueando TUDO.
+        if settings.OKX_EXECUTION_MODE != "PAPER":
+            base_balance = equity
         health = self._health_mode(
             equity,
             base_balance,

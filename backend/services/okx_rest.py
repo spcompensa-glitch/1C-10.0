@@ -1006,7 +1006,8 @@ class OKXRest:
         """
         if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
-            logger.info(f"🔌 [OKX] Direcionando Ordem Atômica: {side} {qty} {symbol} para OKX Testnet...")
+            mode_str = "Testnet" if okx_service.testnet else "Mainnet"
+            logger.info(f"🔌 [OKX] Direcionando Ordem Atômica: {side} {qty} {symbol} para OKX {mode_str}...")
             res = await okx_service.place_atomic_order(symbol, side, qty, sl_price, tp_price, slot_id, leverage, username, **kwargs)
             if res and res.get("code") == "0":
                 ord_info = res["data"][0]
@@ -1165,7 +1166,8 @@ class OKXRest:
         """
         if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
-            logger.info(f"🔌 [OKX] Direcionando Fechamento de Posição de {symbol} para OKX Testnet...")
+            mode_str = "Testnet" if okx_service.testnet else "Mainnet"
+            logger.info(f"🔌 [OKX] Direcionando Fechamento de Posição de {symbol} para OKX {mode_str}...")
             success = await okx_service.close_position(symbol, side, qty, reason, username)
             return success
 
@@ -2173,50 +2175,21 @@ class OKXRest:
                             else: await firebase_service.update_slot(slot["id"], upd)
                             continue
 
-                        # [V110.6] EMANCIPATION TRIGGER (Real Mode)
+                        # [V111] Continuous ladder: old EMANCIPATE_SLOT now only promotes the stop.
                         if reason == "EMANCIPATE_SLOT" and not is_moonbag:
-                            if symbol in self.emancipating_symbols:
-                                logger.info(f"🛡️ [V110.4] {symbol} já está em processo de emancipação. Aguardando...")
-                                continue
-                            
-                            self.emancipating_symbols.add(symbol)
-                            try:
-                                # [V110.6] ACQUISITION LOCK: Update Exchange BEFORE liberating slot in Firebase
-                                logger.info(f"🚀 [V110.6 EMANCIPATE-SYNC] Iniciando atualização na Bybit para {symbol}...")
-                                
-                                # 1. Limpa TakeProfit (Surf Mode)
-                                tp_clear = await self.set_trading_stop(symbol, takeProfit="0")
-                                
-                                # 2. Define StopLoss Progressivo
-                                success = True
-                                rounded_sl = 0
-                                if new_sl:
-                                    rounded_sl = await self.round_price(symbol, new_sl)
-                                    sl_result = await self.set_trading_stop(
-                                        category="linear", symbol=symbol,
-                                        stopLoss=str(rounded_sl), side=slot_data["side"]
-                                    )
-                                    if sl_result.get("retCode") != 0:
-                                        ret_code = sl_result.get("retCode")
-                                        ret_msg = str(sl_result.get("retMsg", "")).lower()
-                                        if ret_code in (10001, 130024, 130073, 140024, 130074) or "not modified" in ret_msg or "same" in ret_msg:
-                                            logger.info(f"✅ [REAL] SL de {symbol} já está posicionado em +110% (Code {ret_code}). Avançando com Emancipação.")
-                                        else:
-                                            logger.error(f"❌ [V110.6] Falha ao definir SL de emancipação para {symbol}: {sl_result}")
-                                            success = False
-                                
-                                # 3. SOMENTE se a Bybit confirmar, promove no Firebase
-                                if success:
-                                    new_moon_uuid = await firebase_service.promote_to_moonbag(slot.get("id"))
-                                    if new_moon_uuid:
-                                        logger.info(f"✅ [V110.6] {symbol} promovido para Moonbag após confirmação da Bybit.")
-                                        if rounded_sl > 0:
-                                            await firebase_service.update_moonbag(new_moon_uuid, {"current_stop": rounded_sl, "timestamp_last_update": time.time()})
-                                else:
-                                    logger.warning(f"⚠️ [V110.6] Emancipação abortada para {symbol} devido a falha na corretora. O slot permanece tático.")
-                            finally:
-                                # Remove o guard após um pequeno delay para sincronização
-                                asyncio.create_task(self._release_emancipation_guard(symbol))
+                            if new_sl:
+                                rounded_sl = await self.round_price(symbol, new_sl)
+                                sl_result = await self.set_trading_stop(
+                                    category="linear", symbol=symbol,
+                                    stopLoss=str(rounded_sl), side=slot_data["side"]
+                                )
+                                if sl_result.get("retCode") == 0:
+                                    await firebase_service.update_slot(slot["id"], {
+                                        "current_stop": rounded_sl,
+                                        "status_risco": "PROFIT_LOCK",
+                                        "timestamp_last_update": time.time(),
+                                    })
+                                    logger.info(f"[ORDER-LADDER] {symbol} alvo rompido; stop promovido no proprio slot.")
                             continue
 
                         # 5a. Handle SL Update
@@ -2549,55 +2522,18 @@ class OKXRest:
                                     "sl_phase": current_phase
                                 })
 
-                        # [V110.6] EMANCIPATION TRIGGER (Paper Mode)
+                        # [V111] Continuous ladder: old EMANCIPATE_SLOT now only promotes the stop.
                         if reason == "EMANCIPATE_SLOT" and not is_moonbag:
-                            if symbol in self.emancipating_symbols:
-                                logger.info(f"🛡️ [V110.4 PAPER] {symbol} já está em processo de emancipação. Aguardando...")
-                                continue
-
-                            # [V110.28.2] PERPETUAL SURF: Mover 100% da ordem (Cheia) para o Vault.
-                            # Liberar slot tático sem reduzir o tamanho da posição.
-                            logger.info(f"🚀 [V110.28.2 PAPER-SYNC] Iniciando emancipação de ORDEM CHEIA para {symbol}...")
-                            self.emancipating_symbols.add(symbol)
-                            try:
-                                # 1. Atualiza o estado local (Simulando a corretora)
-                                pos["status"] = "EMANCIPATED"
-                                pos["takeProfit"] = "0"
-                                if new_sl: pos["stopLoss"] = str(new_sl)
-                                
-                                # Move para moonbags na memória
-                                if pos in self.paper_positions:
-                                    self.paper_positions.remove(pos)
-                                if pos not in self.paper_moonbags:
-                                    self.paper_moonbags.append(pos)
-                                
+                            if new_sl:
+                                pos["stopLoss"] = str(new_sl)
                                 await self._save_paper_state()
-                                
-                                # 2. Promove no Firebase (Liberação da vaga tática)
-                                # Somente após o estado local estar salvo
-                                moon_uuid = await firebase_service.promote_to_moonbag(slot["id"]) if slot else None
-                                if moon_uuid:
-                                    pos["moon_uuid"] = moon_uuid # [V110.128.1] Persist ID for atomic closure
-                                    if new_sl:
-                                        await firebase_service.update_moonbag(moon_uuid, {"current_stop": new_sl, "timestamp_last_update": time.time()})
-                                    logger.info(f"[V110.6 PAPER] {symbol} promovido com sucesso no Firebase (ID: {moon_uuid}).")
-                                else:
-                                    # [V110.136.2 F1] EMANCIPATION RETRY GUARD
-                                    # promote_to_moonbag falhou (retornou None). O slot do Firebase nao foi liberado.
-                                    # Revertemos o estado em memoria para que o proximo ciclo tente novamente.
-                                    logger.error(
-                                        f"[V110.136.2 EMANCIPATION-FAIL] promote_to_moonbag falhou para {symbol}. "
-                                        f"Revertendo estado em memoria — proximo ciclo tentara novamente."
-                                    )
-                                    pos["status"] = None
-                                    pos["takeProfit"] = str(slot.get("target_price", "0")) if slot else "0"
-                                    if pos in self.paper_moonbags:
-                                        self.paper_moonbags.remove(pos)
-                                    if pos not in self.paper_positions:
-                                        self.paper_positions.append(pos)
-                                    await self._save_paper_state()
-                            finally:
-                                asyncio.create_task(self._release_emancipation_guard(symbol))
+                                if slot:
+                                    await firebase_service.update_slot(slot["id"], {
+                                        "current_stop": new_sl,
+                                        "status_risco": "PROFIT_LOCK",
+                                        "timestamp_last_update": time.time(),
+                                    })
+                                logger.info(f"[ORDER-LADDER PAPER] {symbol} alvo rompido; stop promovido no proprio slot.")
                             continue
 
                         # 4a. Update SL

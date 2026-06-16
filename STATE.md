@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.0)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.1)
 
 ## Resumo Executivo
-* **Versão:** `V111.0: Watchlist 41 Pares, Sem Lateral Decor, Correlação 0.95 & Reset Redis`
+* **Versão:** `V111.1: REAL Mode Operacional — BankrollGuardian Fix + Watchlist 41 Pares`
 * **Data:** 2026-06-16
-* **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Expansão da `RADAR_WATCHLIST` para 41 pares unificada à `ELITE_40_MATRIX` + `SOLUSDT`. Remoção da restrição de tendência para estratégias laterais (`LATERAL_ONLY_DECOR`). Implementação de escudo dinâmico de correlação (`CORRELATION_SHIELD = 0.95`) para proteção de margem. Atualização do Reset Nuclear integrado limpando banco, Firestore e caches do Redis. Preservada a remoção total da entidade Moonbag do runtime e purga de ~580 linhas de código morto. FlashAgent V2.0 é o escritor único de stops operando 40 slots sob gestão de risco descentralizada. Margem fixa de $2.00 por slot.
+* **Estado:** `OPERATIONAL REAL ✅`
+* **Escopo:** Correção crítica do `BankrollGuardian` que impedia abertura de ordens em REAL mode: o `base_balance` usava o valor simulado (`$100`) em vez do equity real da exchange (~$20), causando `PRESERVACAO_TOTAL` com `min_score = 999.0` e bloqueando 100% dos sinais. Agora `base_balance = equity` em REAL mode. Watchlist expandida para 41 pares (ELITE_40_MATRIX + SOLUSDT). SOLUSDT removido do `ASSET_BLOCKLIST`. Remoção da restrição `LATERAL_ONLY_DECOR`. Escudo de correlação elevado para 0.95. Reset Nuclear integrado com Redis FLUSHDB. Sistema operacional com 8 posições ativas simultâneas no modo REAL da OKX.
 
 ---
 
@@ -66,14 +66,23 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 | **Cockpit UI** | Interface unificada Desktop/Mobile | `-` | `OPERATIONAL ✅` |
 | **PostgreSQL** | SSOT Railway | `5432` | `ONLINE ✅` |
 | **Firebase RTDB** | Sincronizador UI | `-` | `ONLINE ✅` |
-| **OKX Testnet** | PAPER mode | `-` | `PAPER ✅` |
+| **OKX** | Exchange real (Portfolio Margin) | `-` | `REAL ✅` |
 
 ---
 
-## Melhorias e Atualizações (Jun 16 - V111.0)
+## Melhorias e Atualizações (Jun 16 - V111.1)
+
+### V111.1: REAL Mode Fix
+* **Correção do BankrollGuardian:** `base_balance` agora usa o equity real da exchange em REAL mode, resolvendo o falso `PRESERVACAO_TOTAL` que bloqueava todas as ordens.
+* **Resultado:** Sistema passou de 0 para 8 posições ativas com PnL médio de +4.4% imediatamente após o deploy.
+* **Arquivo alterado:** `backend/services/agents/bankroll_guardian.py` — após computar o equity, seta `base_balance = equity` quando `OKX_EXECUTION_MODE != "PAPER"`.
+
+### V111.0: Watchlist, LATERAL_ONLY_DECOR, CORRELATION_SHIELD & Redis
 * **Watchlist Ampliada:** Expansão para 41 ativos unificados (`ELITE_40_MATRIX` + `SOLUSDT`).
+* **SOLUSDT liberado:** Removido do `ASSET_BLOCKLIST` que o mantinha como "monitoring only".
 * **Regime de Mercado Flexível:** Remoção de travas de tendência para mercado lateral (`LATERAL_ONLY_DECOR`), permitindo operações mais ágeis.
-* **Escudo de Correlação:** Implementação do `CORRELATION_SHIELD = 0.95` para mitigar o risco de sobreposição direcional em ativos correlacionados.
+* **Escudo de Correlação:** Implementação do `CORRELATION_SHIELD = 0.95` (elevado de 0.85) para mitigar o risco de sobreposição direcional em ativos correlacionados.
+* **DECOR_HUNTER Mode:** BankrollManager opera com max 10 slots, margem $2.00/par, usando live equity como referência.
 * **Sincronia Total de Reset:** Implementação de flush profundo nos caches e filas do Redis unificado com resets PostgreSQL e Firebase.
 
 ## Código e Componentes Removidos / Depreciados

@@ -23,6 +23,36 @@ Este documento lista os requisitos necessários para execução, hospedagem e mo
 
 ---
 
+## 🌐 Configuração de Modo de Execução (REAL vs PAPER)
+
+### Variáveis de Ambiente Essenciais
+
+| Variável | Descrição | Valores | Default |
+|:---------|:-----------|:--------|:--------|
+| `OKX_EXECUTION_MODE` | Modo de operação do sistema | `PAPER` ou `REAL` | `PAPER` |
+| `OKX_SIMULATED_BALANCE` | Banca simulada (usada apenas em PAPER) | número (USD) | `100.0` |
+| `OKX_API_KEY` | Chave pública da OKX | string | — |
+| `OKX_API_SECRET` | Chave secreta da OKX | string | — |
+| `OKX_API_PASSPHRASE` | Senha da API OKX | string | — |
+
+### Exemplo de Configuração REAL no Railway
+```
+OKX_EXECUTION_MODE=REAL
+OKX_API_KEY=seu-api-key-aqui
+OKX_API_SECRET=seu-api-secret-aqui
+OKX_API_PASSPHRASE=sua-passphrase-aqui
+```
+
+> ⚠️ **IMPORTANTE:** Em REAL mode, o `BankrollGuardian` usa o **equity real da exchange** como `base_balance`, não o `OKX_SIMULATED_BALANCE`. Isso evita o falso drawdown de -80% que ativava `PRESERVACAO_TOTAL` e bloqueava todas as ordens (bug V111.1 corrigido).
+
+### Fluxo de Detecção
+1. Se `OKX_EXECUTION_MODE=REAL` e chaves OKX válidas → sistema opera na conta real
+2. Se `OKX_EXECUTION_MODE=PAPER` ou chaves ausentes → sistema opera em simulação com `OKX_SIMULATED_BALANCE`
+
+---
+
 ## 🛡️ Segurança e Robustez
 * **Modo de Operação Failsafe:** O sistema detecta automaticamente a ausência de chaves de API reais e migra instantaneamente para o **modo PAPER (simulação)** com saldo inicial injetado.
+* **Proteção de Drawdown em REAL mode:** O BankrollGuardian detecta drawdown real a partir do peak_equity da exchange, protegendo a banca mesmo sem referência de banca simulada.
 * **Autenticação:** JWT Token ativo no backend e controle Fortress Bypass com a senha de acesso padrão administrador configurada em ambiente seguro.
+* **Isolamento de Chaves:** As chaves da OKX são lidas exclusivamente de variáveis de ambiente, nunca armazenadas em código ou arquivos .env versionados.

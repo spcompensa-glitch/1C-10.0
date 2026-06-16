@@ -17,6 +17,7 @@ class BancaStatus(Base):
     __tablename__ = "banca_status"
     id = Column(Integer, primary_key=True)
     saldo_total = Column(Float, default=0.0)
+    saldo_real_okx = Column(Float, default=0.0)  # [V111.3] Saldo real da OKX em REAL mode
     risco_real_percent = Column(Float, default=0.0)
     slots_disponiveis = Column(Integer, default=4)
     configured_balance = Column(Float, default=100.0)
@@ -220,6 +221,7 @@ class DatabaseService:
                         ("moonbags", "flash_last_action", "TEXT"),
                         ("moonbags", "flash_last_stop_roi", "DOUBLE PRECISION"),
                         ("banca_status", "configured_balance", "DOUBLE PRECISION"),
+                        ("banca_status", "saldo_real_okx", "DOUBLE PRECISION"),
                         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
                         ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
                     ]

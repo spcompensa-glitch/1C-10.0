@@ -55,7 +55,7 @@ class FirebaseService:
         self.rtdb = DummyRTDB()
         self.log_buffer = deque(maxlen=100)
         self.signal_buffer = deque(maxlen=100)
-        self.slots_cache = [{"id": i, "symbol": None, "entry_price": 0, "current_stop": 0, "status_risco": "LIVRE", "pnl_percent": 0} for i in range(1, 5)]
+        self.slots_cache = [{"id": i, "symbol": None, "entry_price": 0, "current_stop": 0, "status_risco": "LIVRE", "pnl_percent": 0} for i in range(1, 41)]
         self.radar_pulse_cache = {"signals": [], "decisions": [], "updated_at": 0}
         self._reconnect_task = None
         self._consecutive_failures = 0
@@ -591,10 +591,13 @@ class FirebaseService:
             from services.database_service import database_service
             slots = await database_service.get_active_slots()
             full_slots = []
-            for i in range(1, 5):
+            max_slots = getattr(settings, "MAX_SLOTS", 40)
+            for i in range(1, max_slots + 1):
                 existing = next((s for s in slots if s.get("id") == i), None)
-                if existing: full_slots.append(existing)
-                else: full_slots.append({"id": i, "symbol": None, "entry_price": 0, "current_stop": 0, "status_risco": "LIVRE", "pnl_percent": 0})
+                if existing: 
+                    full_slots.append(existing)
+                else: 
+                    full_slots.append({"id": i, "symbol": None, "entry_price": 0, "current_stop": 0, "status_risco": "LIVRE", "pnl_percent": 0})
             self.slots_cache = full_slots
             return self.slots_cache
         except Exception as e:

@@ -43,7 +43,7 @@ async def reset_postgres(database_service) -> list:
         await database_service.initialize()
         success = await database_service.reset_system_data()
         if success:
-            report.append("✅ PostgreSQL: trade_history, moonbags, slots zerados. Banca resetada para $100.")
+            report.append("✅ PostgreSQL: trade_history, moonbags, slots zerados.")
         else:
             report.append("⚠️ PostgreSQL: reset_system_data() retornou False.")
     except Exception as e:

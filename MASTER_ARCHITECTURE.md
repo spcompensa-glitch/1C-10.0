@@ -1,11 +1,17 @@
-# MASTER_ARCHITECTURE.md — V110.999 / V2.0 "Moonbag Deprecated & Dead Code Purge"
+# MASTER_ARCHITECTURE.md — V111.0 / V2.1 "Watchlist Expandida (41 Pares) & Correlação Avançada & Redis Cache Reset"
 # Fonte da Verdade Arquitetural — Sincronizado com RULES.md
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo reflete o estado arquitetural na data de publicação de cada versão. Para a arquitetura atual e consolidada, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento.
 
+*   **V111.0 / V2.1: WATCHLIST EXPANDIDA (41 PARES), REMOÇÃO DE LATERAL_ONLY_DECOR, CORRELATION_SHIELD & REDIS CLEANUP [JUN 16]**
+    *   **Watchlist Unificada de 41 Pares**: A `RADAR_WATCHLIST` foi expandida e unificada com a `ELITE_40_MATRIX`, adicionando `SOLUSDT` (41 ativos monitorados e operados no total).
+    *   **Remoção da restrição LATERAL_ONLY_DECOR**: O robô agora executa livremente estratégias de tendência em regimes de mercado lateral quando os setups são validados pelos filtros técnicos.
+    *   **Correlation Shield 0.95**: Implementado escudo dinâmico de correlação (`CORRELATION_SHIELD = 0.95`) para evitar a exposição excessiva da banca a ativos com altíssimo acoplamento direcional, otimizando a diversificação em 40 slots.
+    *   **Reset Nuclear com Redis**: O endpoint e script de reset de sistema `/system/nuclear-reset` agora inclui a limpeza profunda e o flush completo do cache do Redis (tickers, CVD, OI, LS Ratios e locks voláteis), garantindo sincronia total e eliminando "dados fantasma" de execuções anteriores.
+
 *   **V110.999 / V2.0: MOONBAG DEPRECATED & DEAD CODE PURGE [JUN 15]**
     *   **Remoção total da entidade Moonbag do runtime:** A ordem nunca mais sai do slot. O ciclo de vida completo (`ORDER → ESCADINHA → TRAILING`) ocorre dentro do mesmo container, sem promoção para entidade separada.
-    *   **Purga de código morto:** Removidas ~580 linhas de `flash_agent.py` (métodos `_scan_all_moonbags`, `_process_moonbag`, `_update_moonbag_sl`, `_emancipate_slot`, `_close_moonbag`, `_forensic_close_paper_moonbag`, `_process_sentinel_stop`, `_check_gas_favorable_simple`) e ~90 linhas de `slot_operator.py` (`_calculate_escadinha_stop`, `_get_status_risco`, bloco de emancipação).
+    *   **Purga de código morto:** Removidas ~580 linhas de `flash_agent.py` e ~90 linhas de `slot_operator.py`.
     *   **Constantes obsoletas removidas:** `ESCADINHA_DEGRAUS`, `ESCADINHA_BLITZ`, `MOONBAG_TRAILING_LEVELS`.
     *   **FlashAgent V2.0:** Agora exclusivamente focado em slots ativos. Cache de moonbags e sentinel eliminados. `_flash_loop()` chama apenas `_scan_all_slots()`.
     *   **SlotOperator simplificado:** Reduzido a observador/failsafe. FlashAgent é o escritor único de stops.
@@ -895,18 +901,22 @@ Para sanar a complexidade do monolítico de 9.100 linhas originais no frontend, 
 
 ---
 
-*Documento atualizado em: 2026-06-15 (V110.999 / V2.0) Sincronizado*
-*Este documento reflete a remoção total da entidade Moonbag do runtime, a purga de código morto (~580 linhas), a simplificação do FlashAgent para escaneamento exclusivo de slots, e a arquitetura de ordem única que permanece no slot durante todo o ciclo de vida sem emancipação para container separado.*
+*Documento atualizado em: 2026-06-16 (V111.0 / V2.1) Sincronizado*
+*Este documento reflete a expansão da watchlist oficial para 41 pares, a remoção da restrição LATERAL_ONLY_DECOR, o escudo dinâmico de correlação CORRELATION_SHIELD de 0.95, a inclusão do flush do Redis no fluxo do reset nuclear, a remoção total da entidade Moonbag do runtime com purga de código morto, e o monitoramento dinâmico e descentralizado de stops individuais por slot.*
 
 ---
 
-## 🚀 EXPANSÃO OPERACIONAL DE SLOTS, COOLDOWN & MOONBAG DEPRECATION (V110.999 / V2.0)
+## 🚀 EXPANSÃO OPERACIONAL DE SLOTS, COOLDOWN & MOONBAG DEPRECATION (V111.0 / V2.1)
 
 O motor operacional principal foi adaptado para operar em escala total de diversificação com os seguintes refinamentos:
 1. **Desativação da Trava de Espera Risk-Free:** Removido o bloqueio `at_risk_count` no `BankrollManager`.
 2. **Capacidade Máxima Estendida para 40 Slots:** `BankrollGuardian` e `CaptainAgent` utilizam `max_slots_allowed = 40`.
-3. **Cooldown Ágil (15m):** Quarentena de re-entrada reduzida para 15 minutos.
-4. **Desativação do Facão Global:** Removido o monitoramento de ROI agregado. Stops gerenciados individualmente pelo FlashAgent.
-5. **Moonbag Deprecated:** Entidade Moonbag completamente removida do runtime. A ordem permanece no slot durante todo o ciclo de vida (`ORDER → ESCADINHA → TRAILING`). ~580 linhas de código morto eliminadas. FlashAgent V2.0 escaneia exclusivamente slots.
-6. **Resiliência do Script de Reset:** Atualizado para ignorar tabelas ausentes e tratar SQLite local.
+3. **Cooldown Ágil (15m):** Quarentena de re-entrada de pares stopados reduzida para no máximo 15 minutos.
+4. **Desativação do Facão Global:** Removido o monitoramento de ROI agregado do portfólio. Stops são movimentados e aplicados individualmente por par sob controle do `FlashAgent`.
+5. **Moonbag Deprecated:** Entidade Moonbag completamente removida do runtime. A ordem permanece no slot do início ao fim (`ORDER → ESCADINHA → TRAILING`). ~580 linhas de código morto eliminadas.
+6. **Watchlist Ampliada (41 Pares):** `RADAR_WATCHLIST` agora conta com 41 pares integrando a matriz `ELITE_40_MATRIX` + `SOLUSDT` de altíssima liquidez.
+7. **Remoção de LATERAL_ONLY_DECOR:** Sinais de tendência operam livremente em cenários laterais.
+8. **Escudo de Correlação (0.95):** Bloqueia entradas concorrentes altamente correlacionadas para proteger a integridade patrimonial na diversificação.
+9. **Reset Nuclear com Redis Flush:** O endpoint `/system/nuclear-reset` e script `nuclear_reset_complete.py` executam a limpeza profunda e flush de caches do banco de dados, Firestore e Redis de forma unificada.
+10. **Resiliência do Script de Reset:** Atualizado para ignorar tabelas ausentes e tratar SQLite local.
 

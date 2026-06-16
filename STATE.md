@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V110.999)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.0)
 
 ## Resumo Executivo
-* **Versão:** `V110.999: Moonbag Deprecated & Dead Code Purge`
-* **Data:** 2026-06-15
+* **Versão:** `V111.0: Watchlist 41 Pares, Sem Lateral Decor, Correlação 0.95 & Reset Redis`
+* **Data:** 2026-06-16
 * **Estado:** `OPERATIONAL ✅`
-* **Escopo:** Remoção total da entidade Moonbag do runtime e purga de ~580 linhas de código morto (moonbags, sentinel, escadinhas antigas). A ordem permanece no slot durante todo o ciclo de vida: `ORDER → ESCADINHA → TRAILING` sem emancipação para container separado. FlashAgent V2.0 é o escritor único de stops. Sistema opera com até 40 slots simultâneos, sem Facão Global, com gestão de risco 100% descentralizada por par. Correção de 3 bugs críticos que bloqueavam abertura de ordens (`margin`, `balance`, `settings`). Margem fixa de $2.00 por slot.
+* **Escopo:** Expansão da `RADAR_WATCHLIST` para 41 pares unificada à `ELITE_40_MATRIX` + `SOLUSDT`. Remoção da restrição de tendência para estratégias laterais (`LATERAL_ONLY_DECOR`). Implementação de escudo dinâmico de correlação (`CORRELATION_SHIELD = 0.95`) para proteção de margem. Atualização do Reset Nuclear integrado limpando banco, Firestore e caches do Redis. Preservada a remoção total da entidade Moonbag do runtime e purga de ~580 linhas de código morto. FlashAgent V2.0 é o escritor único de stops operando 40 slots sob gestão de risco descentralizada. Margem fixa de $2.00 por slot.
 
 ---
 
@@ -70,14 +70,14 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 
 ---
 
-## Bugs Corrigidos (Jun 15)
-| Bug | Causa | Arquivo |
-|---|---|---|
-| `margin` UnboundLocalError | QM override não setava `margin` | `bankroll.py` |
-| `balance` UnboundLocalError | `balance` nunca definido em `open_position` | `bankroll.py` |
-| `settings` scoping BLITZ-LOOP | Import de `settings` abaixo do uso | `captain.py` |
+## Melhorias e Atualizações (Jun 16 - V111.0)
+* **Watchlist Ampliada:** Expansão para 41 ativos unificados (`ELITE_40_MATRIX` + `SOLUSDT`).
+* **Regime de Mercado Flexível:** Remoção de travas de tendência para mercado lateral (`LATERAL_ONLY_DECOR`), permitindo operações mais ágeis.
+* **Escudo de Correlação:** Implementação do `CORRELATION_SHIELD = 0.95` para mitigar o risco de sobreposição direcional em ativos correlacionados.
+* **Sincronia Total de Reset:** Implementação de flush profundo nos caches e filas do Redis unificado com resets PostgreSQL e Firebase.
 
-## Código Removido (Jun 15)
-- `flash_agent.py`: −480 linhas (moonbags, sentinel, constantes antigas)
-- `slot_operator.py`: −90 linhas (escadinha antiga, emancipação)
+## Código e Componentes Removidos / Depreciados
+- `flash_agent.py`: −480 linhas (removido tratamento de moonbags e sentinel)
+- `slot_operator.py`: −90 linhas (removidas referências de escadinha antiga e emancipação)
 - `order_projection_service.py`: `should_emancipate` sempre `False`
+- `portfolio_guardian.py`: Desativado o Knife-Drop ativo, reduzido a liveness heartbeat apenas.

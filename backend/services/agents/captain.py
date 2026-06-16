@@ -519,18 +519,6 @@ class CaptainAgent(AIOSAgent):
                 is_ranging_mode = (adx < 25)
             except Exception:
                 pass
-            max_allowed_slots = 20 if is_ranging_mode else 40
-            free_slots = max_allowed_slots - occupied_count
-            required_confidence = 20.0 if free_slots >= 2 else 30.0
-            
-            if unified_score < required_confidence:
-                approved = False
-                reasons.append(f"LOW_FLEET_CONFIDENCE: {unified_score:.1f}% < {required_confidence:.1f}% (Slots Livres: {free_slots})")
-                logger.warning(f"🛡️ [V110.100] {symbol} {side} BLOCKED by Low Confidence ({unified_score:.1f}%, Slots: {free_slots})")
-            else:
-                if free_slots >= 2:
-                    logger.info(f"💪 [CAPTAIN-BOOST] {symbol} aprovado com {unified_score:.1f}% (Slots vazios: {free_slots})")
-                
             from services.okx_rest import okx_rest_service
             if okx_rest_service.execution_mode == "PAPER":
                 if not approved:
@@ -677,20 +665,28 @@ class CaptainAgent(AIOSAgent):
 
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # Dynamic max slots based on regime
+                # [V111.3 TREND_FOCUS] Em LATERAL pausa tudo. Em TENDENCIA, max 20 slots.
+                is_ranging_mode = True
+                try:
+                    from services.okx_ws_public import okx_ws_public_service
+                    adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                    is_ranging_mode = (adx < 25)
+                except Exception:
+                    pass
+
+                # [V111.3] Se mercado LATERAL, pausa processamento de sinais
+                if is_ranging_mode:
+                    if not hasattr(self, "_last_lateral_log") or (time.time() - self._last_lateral_log) > 60:
+                        logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado aguardando tendencia.")
+                        self._last_lateral_log = time.time()
+                    await asyncio.sleep(10)
+                    continue
+
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2
                 else:
-                    is_ranging_mode = True
-                    try:
-                        from services.okx_ws_public import okx_ws_public_service
-                        adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                        is_ranging_mode = (adx < 25)
-                    except Exception:
-                        pass
-                    from config import settings as loop_settings
-                    max_total_slots = loop_settings.MAX_SLOTS_LATERAL if is_ranging_mode else loop_settings.MAX_SLOTS_TRENDING
-                
+                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
+
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
                     balance = await bankroll_manager.get_live_operating_equity()
@@ -809,20 +805,26 @@ class CaptainAgent(AIOSAgent):
                 slots = await firebase_service.get_active_slots()
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # Dynamic max slots based on regime
+                # [V111.3 TREND_FOCUS] Em LATERAL pausa tudo. Em TENDENCIA, max 20 slots.
+                is_ranging_mode = True
+                try:
+                    from services.okx_ws_public import okx_ws_public_service
+                    adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                    is_ranging_mode = (adx < 25)
+                except Exception:
+                    pass
+
+                # [V111.3] Se mercado LATERAL, bloqueia scan
+                if is_ranging_mode:
+                    logger.debug("[BLITZ-LOOP] Mercado LATERAL. Scan pausado.")
+                    await asyncio.sleep(BLITZ_SCAN_INTERVAL)
+                    continue
+
                 balance = await bankroll_manager.get_live_operating_equity()
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2
                 else:
-                    is_ranging_mode = True
-                    try:
-                        from services.okx_ws_public import okx_ws_public_service
-                        adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                        is_ranging_mode = (adx < 25)
-                    except Exception:
-                        pass
-                    from config import settings as loop_settings
-                    max_total_slots = loop_settings.MAX_SLOTS_LATERAL if is_ranging_mode else loop_settings.MAX_SLOTS_TRENDING
+                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
 
                 if occupied_count < max_total_slots:
                     logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30...")
@@ -1092,7 +1094,7 @@ class CaptainAgent(AIOSAgent):
             slots = await firebase_service.get_active_slots(username=username)
             occupied_count = sum(1 for s in slots if s.get("symbol"))
             
-            # Detecta regime de mercado dinamicamente para calibrar limite de slots
+            # [V111.3 TREND_FOCUS] Em LATERAL bloqueia execucao. Em TENDENCIA, max 20 slots.
             is_ranging_mode = True
             try:
                 from services.okx_ws_public import okx_ws_public_service
@@ -1100,7 +1102,17 @@ class CaptainAgent(AIOSAgent):
                 is_ranging_mode = (adx < 25)
             except Exception:
                 pass
-            max_allowed_slots = 20 if is_ranging_mode else 40
+
+            # [V111.3] Se LATERAL, bloqueia execucao
+            if is_ranging_mode:
+                msg = f"[V111.3 TREND_FOCUS] {symbol} ({side}) bloqueado. Mercado LATERAL (ADX < 25). Sistema pausado."
+                logger.info(msg)
+                await firebase_service.log_event("TREND_FOCUS", msg, "INFO")
+                await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")
+                self.active_tocaias.discard(symbol)
+                return
+
+            max_allowed_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
             
             if occupied_count >= max_allowed_slots:
                 # logger.debug(f"⏭️ [V120] Usuário {username} sem slots disponíveis.")
@@ -1364,10 +1376,14 @@ class CaptainAgent(AIOSAgent):
                 consensus["approved"] = False
                 consensus["reason"] = "WATCHLIST_RESTRICTED"
                 logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na RADAR_WATCHLIST.")
-            elif is_market_ranging and strategy != "DECOR":
+            elif is_market_ranging:
                 consensus["approved"] = False
-                consensus["reason"] = "LATERAL_ONLY_DECOR"
-                logger.info(f"🚫 [FLEET-GUARD] {symbol} ({strategy}) rejeitado em RANGING. Apenas a estrategia DECOR (desgrudados) e permitida em mercado lateral.")
+                consensus["reason"] = "MERCADO_LATERAL_PAUSADO"
+                logger.info(f"[V111.3 TREND_FOCUS] {symbol} ({strategy}) rejeitado. Mercado LATERAL - sistema pausado aguardando tendencia.")
+            elif strategy == "DECOR":
+                consensus["approved"] = False
+                consensus["reason"] = "DECOR_SUSPENSO"
+                logger.info(f"[V111.3 TREND_FOCUS] {symbol} ({strategy}) rejeitado. Pares DECOR/desgrudados suspensos. So operamos pares seguindo BTC.")
             else:
                 consensus["approved"] = True
             

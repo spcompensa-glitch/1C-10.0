@@ -3689,9 +3689,9 @@
                 ? activeSlots.reduce((sum, s) => sum + Number(s.pnl_percent || 0), 0) / activeSlots.length 
                 : 0;
             const isRangingMode = propIsRangingMode !== undefined ? propIsRangingMode : activeSlots.some(s => (s.strategy || '').includes('DECOR'));
-            const maxSlots = isRangingMode ? 20 : 40;
+            const maxSlots = isRangingMode ? 0 : 20;
             const capacityPct = Math.min(100, (activeSlots.length / maxSlots) * 100);
-            const modeLabel = isRangingMode ? 'DECOR_HUNTER' : 'ELITE_40_MATRIX';
+            const modeLabel = isRangingMode ? 'PAUSADO' : 'ELITE_40_MATRIX';
             const modeColor = isRangingMode ? '#22d3ee' : '#a78bfa';
 
             // Determina degrau ativo da Escadinha de Elite
@@ -5964,8 +5964,8 @@
                                         </div>
                                         <div className="flex items-center gap-1.5 mt-2 text-[9px] font-black bg-white/5 border border-white/10 rounded px-2.5 py-1 w-fit">
                                             <span className="text-gray-500 uppercase tracking-wider">Regime:</span>
-                                            <span className={isRangingMode ? "text-cyan-400" : "text-violet-400"}>
-                                                {isRangingMode ? "LATERAL (20 PARES)" : "TENDÊNCIA (40 PARES)"}
+                                            <span className={isRangingMode ? "text-amber-400" : "text-violet-400"}>
+                                                {isRangingMode ? "LATERAL (SISTEMA PAUSADO)" : "TENDÊNCIA (20/40 PARES)"}
                                             </span>
                                         </div>
                                     </div>
@@ -6512,7 +6512,7 @@
             const { intelligenceMessage, filteredSignals } = useMemo(() => {
                 const activeSlotsCount = slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length;
                 const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
-                const maxSlots = isRangingMode ? 20 : 40;
+                const maxSlots = isRangingMode ? 0 : 20;
                 const freeSlotsCount = maxSlots - activeSlotsCount;
 
                 let msg = "";

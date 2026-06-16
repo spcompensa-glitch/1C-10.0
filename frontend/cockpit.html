@@ -6437,9 +6437,9 @@
             // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX
             const isRealMode = banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0;
             const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 100));
-            const liveEquity = hasGuardianEquity
-                ? guardianEquity
-                : (isRealMode ? (banca.saldo_real_okx || banca.saldo_total) : (baseEquity + liveTotalPnL));
+            const liveEquity = isRealMode
+                ? (banca.saldo_real_okx || banca.saldo_total)
+                : (hasGuardianEquity ? guardianEquity : (baseEquity + liveTotalPnL));
 
             // Map Best Signals
             const signalsArray = Array.isArray(radarSignals) ? radarSignals : [];

@@ -490,14 +490,37 @@ class FlashAgent:
         await self._sync_firebase_slot(slot_id, update_payload)
 
     async def _close_position(self, slot_id: int, symbol: str, side: str, qty: float, reason: str):
-        """🛑 Fecha posição tática por SL."""
+        """🛑 Fecha posição tática por SL.
+        [V111.3] Agora registra o trade no histórico via hard_reset_slot.
+        """
         try:
             from services.okx_rest import okx_rest_service
+            
+            # [V111.3] Busca estado atual do slot ANTES de fechar para capturar dados do trade
+            current_slot = await database_service.get_slot(slot_id)
+            
             await okx_rest_service.close_position(symbol, side, qty, reason=reason)
-            await database_service.update_slot(slot_id, {
-                "symbol": None, "entry_price": 0, "current_stop": 0,
-                "qty": 0, "pnl_percent": 0, "status_risco": "LIVRE"
-            })
+            
+            # [V111.3] Registra o trade no histórico via hard_reset_slot
+            if current_slot and current_slot.get("symbol"):
+                try:
+                    from services.firebase_service import firebase_service
+                    # hard_reset_slot já chama log_trade internamente
+                    await firebase_service.hard_reset_slot(
+                        slot_id, 
+                        reason=reason,
+                        pnl=0.0,  # Auto-calculado pelo _hard_reset_slot_full
+                        trade_data=current_slot
+                    )
+                except Exception as log_err:
+                    logger.error(f"⚡ [FLASH] Erro ao registrar trade no histórico: {log_err}")
+            else:
+                # Fallback: reset direto no banco
+                await database_service.update_slot(slot_id, {
+                    "symbol": None, "entry_price": 0, "current_stop": 0,
+                    "qty": 0, "pnl_percent": 0, "status_risco": "LIVRE"
+                })
+            
             logger.warning(f"🛑⚡ [FLASH] {symbol} FECHADO por SL. Motivo: {reason}")
         except Exception as e:
             logger.error(f"⚡ [FLASH] Erro ao fechar {symbol}: {e}")

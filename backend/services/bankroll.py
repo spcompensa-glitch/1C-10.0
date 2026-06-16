@@ -309,12 +309,26 @@ class BankrollManager:
             else current_price * (1 + risk_pct)
         )
 
-        # [V111.2] STOP INICIAL CAP (Protecao de Banca Pequena)
-        # Limita o ROI maximo do stop inicial para evitar perdas catastroficas
-        # em banca real pequena. Acima de MAX_INITIAL_STOP_ROI, o stop e
-        # reposicionado para respeitar o limite.
+        # [V111.3] STOP INICIAL DINAMICO POR ADX
+        # Em mercado fraco (ADX < 25), o stop precisa ser MAIS LARGO.
+        # Em tendencia forte (ADX 30+), podemos apertar.
         raw_risk_roi = risk_pct * leverage * 100.0
-        max_stop_roi = getattr(settings, 'MAX_INITIAL_STOP_ROI', 30.0)
+
+        # [V111.3] ADX-dynamic max_stop_roi
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            btc_adx = float(getattr(okx_ws_public_service, 'btc_adx', 0) or 0)
+        except Exception:
+            btc_adx = 0.0
+
+        if btc_adx < 22:
+            max_stop_roi = 80.0  # Lateral extremo: 1.6%% de preco a 50x
+        elif btc_adx < 25:
+            max_stop_roi = 60.0  # Transicao: 1.2%% de preco a 50x
+        elif btc_adx < 30:
+            max_stop_roi = 45.0  # Tendencia fraca: 0.9%% de preco
+        else:
+            max_stop_roi = getattr(settings, 'MAX_INITIAL_STOP_ROI', 30.0)  # Tendencia: 0.6%%
         if raw_risk_roi > max_stop_roi:
             capped_risk_pct = max_stop_roi / max(leverage, 1.0) / 100.0
             stop_price = (

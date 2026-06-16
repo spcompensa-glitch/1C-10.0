@@ -134,12 +134,13 @@ async def trigger_re_sync():
 @router.post("/system/nuclear-reset", dependencies=[Depends(verify_api_key)])
 async def nuclear_reset():
     """
-    [V110.RESET] Limpa IMEDIATAMENTE o estado Paper em memória (paper_positions, paper_moonbags)
-    e persiste o estado zerado no Firestore e Postgres.
+    [V111.RESET] Limpa IMEDIATAMENTE o estado Paper em memória (paper_positions, paper_moonbags)
+    e persiste o estado zerado no Firestore, Postgres e Redis.
     Resolve posições fantasma (ZECUSDT, OPNUSDT etc.) que bloqueiam novos slots.
     """
     firebase_service, okx_rest_service, _, bankroll_manager, _ = get_services()
     from services.database_service import database_service
+    from services.redis_service import redis_service
     
     report = []
     try:
@@ -208,6 +209,21 @@ async def nuclear_reset():
                 report.append("✅ Firebase RTDB (Slots/Vault/Banca) zerado.")
         except Exception as e:
             report.append(f"⚠️ Firebase RTDB reset parcial: {e}")
+        
+        # 6. [V111] Limpar Redis (cache de tickers, CVD, OI, LS ratios, locks)
+        try:
+            redis_client = redis_service.client
+            if hasattr(redis_client, 'flushdb') and callable(redis_client.flushdb):
+                await redis_client.flushdb()
+                report.append("✅ Redis FLUSHDB executado — todos os caches limpos.")
+            else:
+                # MockRedis fallback — limpar caches manuais
+                from services.redis_service import _LOCAL_CACHE, _LOCAL_EXPIRY
+                _LOCAL_CACHE.clear()
+                _LOCAL_EXPIRY.clear()
+                report.append("✅ Redis (Mock/In-Memory) caches limpos.")
+        except Exception as e:
+            report.append(f"⚠️ Redis reset parcial: {e}")
         
         logger.warning("🚨 [NUCLEAR-RESET] Estado paper zerado por admin. Todas as posições fantasma eliminadas.")
         return {

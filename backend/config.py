@@ -139,20 +139,31 @@ class Settings(BaseSettings):
         "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
     ]
     
-    # [V128] OFFICIAL 20 DVAP WATCHLIST (19 antigos + SUIUSDT)
+    # [V111] RADAR WATCHLIST UNIFICADA (41 pares = ELITE_40_MATRIX + SOLUSDT)
+    # Unificada com a ELITE_40_MATRIX para que todos os 40 pares monitorados
+    # possam gerar ordens, mais SOLUSDT (par de alta liquidez da watchlist original).
+    # Filtros de qualidade (Fleet Consensus, BankrollGuardian, Quartermaster)
+    # continuam protegendo a banca.
     RADAR_WATCHLIST: list = [
-        "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
-        "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
-        "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-        "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
+        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
+        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
+        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
+        "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
+        "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
+        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT",
+        "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
+        "SOLUSDT"
     ]
     
     # [V110.400] MASTER CONTEXT
     MASTER_CONTEXT_ASSETS: list = ["BTCUSDT", "ETHUSDT"]
     
-    # [V110.20.1] Official Asset Blocklist - Memecoins & Low Liquidity
+    # [V111] Official Asset Blocklist - Memecoins & Low Liquidity
+    # BTCUSDT e ETHUSDT sao apenas monitorados (Master Context), nao operados.
+    # SOLUSDT foi removido — esta na RADAR_WATCHLIST e pode ser operado.
     ASSET_BLOCKLIST: set = {
-        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', # Master Context Assets (Monitoring only)
+        'BTCUSDT', 'ETHUSDT',  # Master Context Assets (Monitoring only)
         'PAXGUSDT', 'XAUTUSDT', 'TAOUSDT', 
         'PIPPINUSDT', '1000PEPEUSDT', '1000LUNCUSDT',
         'DOGEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'BONKUSDT', 'WIFUSDT', 

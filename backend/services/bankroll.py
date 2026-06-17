@@ -1315,26 +1315,34 @@ class BankrollManager:
                 await firebase_service.log_event("Bankroll", f"🛑 CRITICAL: Zero Equity Shield Active (${balance:.2f}). System Paused.", "CRITICAL")
                 return None
 
-            # [V111.0] ULTRA-DIVERSIFICATION: slots e margem dinâmicos por regime de mercado
-            # O regime é determinado pelo campo market_regime do slot_type ou pelo sinal
-            is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
-                not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
-            )
-            if self.strict_single_order_mode:
-                max_total_slots = 1
-                max_at_risk_slots = 1
-            elif balance < 10.0:
-                max_total_slots = 2  # [V110.802.6] Banca crítica: máx 2 slots
-                max_at_risk_slots = 2
-                logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
-            elif is_ranging_mode:
-                # [V111.3 TREND_FOCUS] Mercado LATERAL - nao abrir nada
-                logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado. LiveEquity=${balance:.2f}")
-                return None
+            # [DECOR_HUNTER 2.0] Slot dedicado — bypass do regime LATERAL, limite próprio de 8 slots
+            if slot_type == "DECOR_HUNTER":
+                decor_count = sum(1 for s in active_slots_data if s.get("slot_type") == "DECOR_HUNTER")
+                if decor_count >= settings.DECOR_HUNTER_MAX_SLOTS:
+                    logger.info(f"[DECOR-HUNTER 2.0] Limite de {settings.DECOR_HUNTER_MAX_SLOTS} slots atingido ({decor_count}).")
+                    return None
+                max_total_slots = settings.DECOR_HUNTER_MAX_SLOTS
+                max_at_risk_slots = settings.DECOR_HUNTER_MAX_SLOTS
             else:
-                max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
-                max_at_risk_slots = 20
-                logger.info(f"🛡️ [V111.3] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | 40% Banca | LiveEquity=${balance:.2f}")
+                # [V111.0] ULTRA-DIVERSIFICATION: slots e margem dinâmicos por regime de mercado
+                is_ranging_mode = slot_type in ("RANGING",) or (
+                    not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+                )
+                if self.strict_single_order_mode:
+                    max_total_slots = 1
+                    max_at_risk_slots = 1
+                elif balance < 10.0:
+                    max_total_slots = 2  # [V110.802.6] Banca crítica: máx 2 slots
+                    max_at_risk_slots = 2
+                    logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
+                elif is_ranging_mode:
+                    # [V111.3 TREND_FOCUS] Mercado LATERAL - nao abrir nada
+                    logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado. LiveEquity=${balance:.2f}")
+                    return None
+                else:
+                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
+                    max_at_risk_slots = 20
+                    logger.info(f"🛡️ [V111.3] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | 40% Banca | LiveEquity=${balance:.2f}")
 
             # [V125] Desativado bloqueio por posições sem stop para permitir preenchimento em escala de até 40 slots
             # if at_risk_count >= max_at_risk_slots:

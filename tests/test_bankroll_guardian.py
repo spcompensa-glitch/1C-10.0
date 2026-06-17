@@ -9,6 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from services.agents.bankroll_guardian import BankrollGuardian
 
 
+async def _trending_market():
+    """Retorna dados de mercado em tendência para que os testes
+    de autorização passem pelo filtro MERCADO MORTO."""
+    return {
+        "adx": 27.0,
+        "direction": "UP",
+        "is_ranging": False,
+        "is_trending": True,
+        "is_strong_trend": False,
+    }
+
 def _guardian_report(min_score=80.0, active_slots=1, max_slots=4):
     return {
         "mode": "ACUMULACAO_PROTEGIDA",
@@ -162,6 +173,7 @@ async def test_guardian_uses_radar_score_not_unified_confidence_for_minimum(monk
         return _guardian_report(min_score=80.0)
 
     monkeypatch.setattr(guardian, "evaluate_bank_health", fake_health)
+    monkeypatch.setattr(guardian, "_get_market_data", _trending_market)
 
     decision = await guardian.authorize_new_trade({
         "symbol": "TIAUSDT",
@@ -183,6 +195,7 @@ async def test_guardian_still_blocks_low_radar_score(monkeypatch):
         return _guardian_report(min_score=80.0)
 
     monkeypatch.setattr(guardian, "evaluate_bank_health", fake_health)
+    monkeypatch.setattr(guardian, "_get_market_data", _trending_market)
 
     decision = await guardian.authorize_new_trade({
         "symbol": "AVAXUSDT",

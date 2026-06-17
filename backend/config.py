@@ -143,6 +143,14 @@ class Settings(BaseSettings):
     ADX_STRONG_TREND_THRESHOLD: float = 30.0
     # ROI máximo permitido para stop inicial (proteção de banca pequena)
     MAX_INITIAL_STOP_ROI: float = 30.0
+
+    # [DECOR_HUNTER 2.0] Configuração do sistema de pares desgrudados do BTC
+    # Número máximo de slots dedicados exclusivamente a sinais DECOR_HUNTER
+    DECOR_HUNTER_MAX_SLOTS: int = 8
+    # Confiança mínima para um par desgrudado ser considerado com "gás" real
+    DECOR_HUNTER_MIN_CONFIDENCE: float = 70.0
+    # Intervalo entre varreduras da watchlist (em segundos)
+    DECOR_HUNTER_SCAN_INTERVAL: int = 30
     
     # Redis
     REDIS_HOST: str = os.getenv("REDISHOST", "localhost")
@@ -180,6 +188,36 @@ class Settings(BaseSettings):
         "SOLUSDT"
     ]
     
+    # [DECOR_HUNTER 2.0] WATCHLIST EXPANDIDA (100 pares)
+    # Usada exclusivamente pelo DECOR_HUNTER para scan de pares desgrudados do BTC.
+    # Inclui os 41 da RADAR_WATCHLIST + 59 mid-caps com potencial de desgrude.
+    # O scan é feito em batches de 25 para não sobrecarregar a API.
+    DECOR_WATCHLIST: list = [
+        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
+        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
+        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
+        "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
+        "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
+        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT",
+        "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
+        "SOLUSDT",
+        "UNIUSDT", "SUSHIUSDT", "CAKEUSDT", "COMPUSDT", "MKRUSDT",
+        "SNXUSDT", "RUNEUSDT", "DODOUSDT", "GMXUSDT", "WOOUSDT",
+        "PERPUSDT", "FXSUSDT", "BALUSDT",
+        "EOSUSDT", "HBARUSDT", "MINAUSDT", "KAVAUSDT", "OSMOUSDT",
+        "CFXUSDT", "ZILUSDT", "WAVESUSDT", "NEOUSDT", "IOSTUSDT",
+        "CELOUSDT", "SKLUSDT", "METISUSDT", "BOBAUSDT",
+        "AGIXUSDT", "OCEANUSDT", "LPTUSDT", "BANDUSDT", "API3USDT",
+        "TRBUSDT", "AKTUSDT", "NKNUSDT",
+        "ARUSDT", "STRKUSDT", "ZROUSDT", "ENAUSDT", "ETHFIUSDT",
+        "ALTUSDT", "ZETAUSDT", "WUSDT", "PENDLEUSDT",
+        "MANAUSDT", "AXSUSDT", "ENJUSDT", "CHZUSDT",
+        "ANKRUSDT", "STORJUSDT", "CVCUSDT", "BATUSDT",
+        "KNCUSDT", "ZRXUSDT", "UMAUSDT", "RLCUSDT",
+        "BADGERUSDT", "ALPACAUSDT", "CVXUSDT",
+    ]
+
     # [V110.400] MASTER CONTEXT
     MASTER_CONTEXT_ASSETS: list = ["BTCUSDT", "ETHUSDT"]
     

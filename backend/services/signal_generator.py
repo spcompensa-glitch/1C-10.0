@@ -739,18 +739,18 @@ class SignalGenerator:
                 "radar_mode": self.current_radar_mode
             }
 
-            # [V110.172] DECOR HUNTER: Em mercado lateral (ADX < 25), complementa o radar
-            # com pares que estao se movendo independentemente do BTC.
-            if inferred_regime == "RANGING" and m_adx_radar < 25:
-                try:
-                    decor_hits = await self._scan_decorrelated_hunters()
-                    if decor_hits:
-                        # Inject no topo da lista (prioridade maxima em mercado lateral)
-                        signals = decor_hits + [s for s in signals if s.get("symbol") not in {d["symbol"] for d in decor_hits}]
-                        market_context["radar_mode"] = "DECOR_HUNTER"
-                        logger.info(f"[DECOR-HUNTER] {len(decor_hits)} pares desgrudados injetados no Radar como prioridade.")
-                except Exception as dh_err:
-                    logger.warning(f"DECOR-HUNTER injection error: {dh_err}")
+            # [DECOR_HUNTER 2.0] Varredura de pares desgrudados do BTC em QUALQUER regime.
+            # Diferente da V1 que só ativava em RANGING, agora o DECOR_HUNTER 2.0
+            # monitora 100 pares continuamente e só aprova sinais com gás legítimo
+            # (Pearson < 0.35 + CVD forte + ratio > 2.0 + confidence >= 70).
+            try:
+                decor_hits = await self._scan_decorrelated_hunters()
+                if decor_hits:
+                    signals = decor_hits + [s for s in signals if s.get("symbol") not in {d["symbol"] for d in decor_hits}]
+                    market_context["radar_mode"] = "DECOR_HUNTER"
+                    logger.info(f"[DECOR-HUNTER 2.0] {len(decor_hits)} pares desgrudados com gas injetados no Radar.")
+            except Exception as dh_err:
+                logger.warning(f"DECOR-HUNTER 2.0 injection error: {dh_err}")
 
             await firebase_service.update_radar_pulse(
                 signals=signals, 
@@ -765,42 +765,56 @@ class SignalGenerator:
 
     async def _scan_decorrelated_hunters(self) -> list:
         """
-        [V110.172] DECOR HUNTER MODE - Varre o mercado ativamente buscando pares
-        desgrudados do BTC (Pearson < 0.35) quando o mercado esta lateral (ADX < 25).
-        Esses pares tem movimento proprio e sao as melhores oportunidades em BTC RANGING.
+        [DECOR_HUNTER 2.0] Varre a DECOR_WATCHLIST (100 pares) em busca de pares
+        genuinamente desgrudados do BTC com GÁS real.
+        Opera em QUALQUER regime de mercado (RANGING, TRANSITION, TRENDING).
+        Critérios de aprovação (gate):
+          - Pearson < 0.35 (15h) OU corr_short < 0.25 (4h)
+          - confidence >= 70
+          - CVD mínimo de 20k na direção do movimento
+          - decorrelation_ratio > 2.0 (alt move 2x+ mais que BTC)
+          - OI em alta (desejável mas não mandatório)
         """
         try:
-            btc_adx = getattr(okx_ws_public_service, 'btc_adx', 20.0)
-            if btc_adx >= 25:
-                return []  # Nao ativa em mercado trending
-
             from config import settings
-            watchlist = getattr(settings, 'RADAR_WATCHLIST', [])
+            watchlist = getattr(settings, 'DECOR_WATCHLIST', [])
             if not watchlist:
-                watchlist = [
-                    "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
-                    "INJUSDT", "APTUSDT", "ARBUSDT", "ATOMUSDT", "LTCUSDT",
-                    "ETCUSDT", "AAVEUSDT", "UNIUSDT", "SANDUSDT", "CHZUSDT",
-                    "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT",
-                ]
+                return []
 
-            logger.info(f"[DECOR-HUNTER] BTC ADX={btc_adx:.1f} RANGING. Scan de {len(watchlist)} pares...")
+            logger.info(f"[DECOR-HUNTER 2.0] Scan de {len(watchlist)} pares em busca de desgrudados com gas...")
             decor_signals = []
+            sem = asyncio.Semaphore(10)
 
-            for symbol in watchlist[:25]:
-                try:
-                    sym_key = symbol + ".P" if not symbol.endswith(".P") else symbol
-                    d_res = await self.detect_btc_decorrelation(sym_key)
-                    is_decor = d_res.get('is_decorrelated', False)
-                    confidence = d_res.get('confidence', 0)
-                    correlation = d_res.get('correlation', 1.0)
-                    direction = d_res.get('direction', 'Neutral')
+            async def _check_pair(symbol):
+                async with sem:
+                    try:
+                        sym_key = symbol + ".P" if not symbol.endswith(".P") else symbol
+                        d_res = await self.detect_btc_decorrelation(sym_key)
+                        is_decor = d_res.get('is_decorrelated', False)
+                        confidence = d_res.get('confidence', 0)
+                        correlation = d_res.get('correlation', 1.0)
+                        direction = d_res.get('direction', 'Neutral')
+                        signals = d_res.get('signals', [])
 
-                    if is_decor and confidence >= 60:
+                        # GATE: confiança mínima
+                        if not is_decor or confidence < 70:
+                            return None
+
+                        # GATE: CVD (gás real, não apenas ruído)
+                        has_cvd = any('CVD' in s for s in signals)
+                        if not has_cvd:
+                            return None
+
+                        # GATE: decorrelation_ratio - alt move pelo menos 2x mais que BTC
+                        has_ratio = any('RATIO' in s for s in signals)
+                        if not has_ratio:
+                            return None
+
                         sym_price = okx_ws_public_service.get_current_price(sym_key)
                         side = "Buy" if direction in ("Bullish", "Up", "Long") else "Sell"
                         clean_sym = symbol.replace(".P", "")
-                        decor_signals.append({
+                        logger.info(f"[DECOR-HUNTER 2.0] {clean_sym} GAS! Pearson={correlation:.2f} Dir={direction} Conf={confidence:.0f}%")
+                        return {
                             "symbol": clean_sym,
                             "side": side,
                             "strategy": "DECOR_HUNTER",
@@ -813,23 +827,25 @@ class SignalGenerator:
                                 "score": round(confidence, 1),
                                 "correlation": round(correlation, 3),
                                 "direction": direction,
-                                "signals": d_res.get('signals', [])
+                                "signals": signals
                             },
                             "unified_confidence": int(confidence),
                             "fleet_intel": {"macro": 50, "whale": 50, "smc": int(confidence)},
                             "radar_mode": "DECOR_HUNTER",
                             "timestamp": time.time()
-                        })
-                        logger.info(f"[DECOR-HUNTER] {clean_sym} DESGRUDADO! Pearson={correlation:.2f} Dir={direction} Conf={confidence:.0f}%")
-                except Exception as e:
-                    logger.debug(f"DECOR-HUNTER error for {symbol}: {e}")
-                    continue
+                        }
+                    except Exception:
+                        return None
 
-            logger.info(f"[DECOR-HUNTER] Scan concluido: {len(decor_signals)} pares desgrudados encontrados.")
+            tasks = [_check_pair(sym) for sym in watchlist]
+            results = await asyncio.gather(*tasks)
+            decor_signals = [r for r in results if r is not None]
+
+            logger.info(f"[DECOR-HUNTER 2.0] Scan concluido: {len(decor_signals)} pares com gas encontrados de {len(watchlist)}.")
             return sorted(decor_signals, key=lambda x: x['score'], reverse=True)
 
         except Exception as e:
-            logger.error(f"Erro no DECOR-HUNTER scan: {e}")
+            logger.error(f"Erro no DECOR-HUNTER 2.0 scan: {e}")
             return []
 
     # ===============================================================
@@ -1552,19 +1568,22 @@ class SignalGenerator:
             if alt_ls_ratio > 1.6 or alt_ls_ratio < 0.7:
                 confidence += 30
                 signals.append(f"LS_TRAP({alt_ls_ratio:.2f})")
-            
+
             abs_alt_cvd = abs(alt_cvd)
-            if abs_alt_cvd > 20000 and (btc_is_lateral or decorrelation_mode == "ANTICORRELATION"):
+            if abs_alt_cvd > 20000:
                 confidence += 25
                 signals.append(f"CVD_DIR({alt_cvd/1000:.0f}k)")
-            
+
             if oi_status == "RISING":
                 confidence += 15
                 signals.append("SMART_ENTRY(OI+)")
-            
-            # More tolerant decorrelation ratios
-            if decorrelation_ratio > 2.0: confidence += 25
-            elif decorrelation_ratio > 1.2: confidence += 15
+
+            if decorrelation_ratio > 2.0:
+                confidence += 25
+                signals.append(f"RATIO({decorrelation_ratio:.1f})")
+            elif decorrelation_ratio > 1.2:
+                confidence += 15
+                signals.append(f"RATIO({decorrelation_ratio:.1f})")
             
             is_decorrelated = confidence >= 45 or (correlation_data["is_decorrelated"] and confidence >= 30)
             

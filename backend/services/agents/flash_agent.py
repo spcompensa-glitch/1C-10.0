@@ -41,6 +41,10 @@ class FlashAgent:
         self._last_price_cache = {}
         self._peak_roi_cache = {}
 
+        # [DECOR_HUNTER 2.0] Cache de re-correlação: symbol -> timestamp da última verificação
+        self._last_decor_check: Dict[str, float] = {}
+        self._decor_check_interval = 60.0  # verificar a cada 60s por slot
+
     def _stop_improves(self, side: str, current_stop: float, candidate_stop: float) -> bool:
         if candidate_stop <= 0:
             return False
@@ -295,6 +299,39 @@ class FlashAgent:
                     logger.warning(f"🛑⚡ [FLASH-SL-LOSS-IMMEDIATE] {symbol} SL de perda atingido! Fechando imediatamente sem Sentinel. ROI={roi:.1f}%")
                     await self._close_position(slot_id, symbol, side, qty, f"FLASH_LOSS_SL_{roi:.1f}%")
                     return
+
+        # [DECOR_HUNTER 2.0] Re-correlação: se pearson > 0.5, tese quebrada → trailing stop
+        slot_type = slot.get("slot_type", "")
+        if slot_type == "DECOR_HUNTER":
+            now = time.time()
+            last_check = self._last_decor_check.get(symbol, 0.0)
+            if now - last_check >= self._decor_check_interval:
+                self._last_decor_check[symbol] = now
+                try:
+                    corr = okx_ws_public_service.get_correlation(symbol, "BTCUSDT")
+                    if abs(corr) > 0.5:
+                        trailing_margin_pct = 0.05  # 5% de margem de trail
+                        if side == "buy":
+                            tight_stop = current_price * (1 - trailing_margin_pct)
+                        else:
+                            tight_stop = current_price * (1 + trailing_margin_pct)
+                        if self._stop_improves(side, current_stop, tight_stop):
+                            logger.warning(
+                                f"[DECOR-HUNTER 2.0] {symbol} re-correlacionado (r={corr:.2f}). "
+                                f"Tese quebrada → trailing stop a {trailing_margin_pct*100:.0f}% "
+                                f"(${tight_stop:.4f})"
+                            )
+                            await self._update_slot_sl(
+                                slot_id, symbol, tight_stop, "MONITORANDO", side, qty
+                            )
+                            from services.firebase_service import firebase_service
+                            await firebase_service.log_event(
+                                "DECOR_HUNTER",
+                                f"{symbol} re-correlacionado (r={corr:.2f}) → trailing stop ${tight_stop:.4f}",
+                                "WARNING"
+                            )
+                except Exception:
+                    pass
 
         active_level = decision_projection.get("active_level")
         if not active_level or active_level.get("phase") not in ("ESCADINHA", "TRAILING"):

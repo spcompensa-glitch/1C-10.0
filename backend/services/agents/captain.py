@@ -91,6 +91,7 @@ class CaptainAgent(AIOSAgent):
         self.active_tocaias = set()  # [V36.4] CONCURRENT TOCAIA TRACKER
         self.last_onchain_refresh = 0 # [V56.0]
         self.last_decorrelation_swap = 0 # [V57.0]
+        self.last_btc_rug_pull_check = 0 # [DECOR_HUNTER 2.0]
         self.librarian_rankings = {} # [LIBRARIAN]
         self.last_librarian_sync = 0
         self.last_lateral_at = 0 # [V110.30.2] Cooldown pós-Lateral
@@ -665,7 +666,7 @@ class CaptainAgent(AIOSAgent):
 
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # [V111.3 TREND_FOCUS] Em LATERAL pausa tudo. Em TENDENCIA, max 20 slots.
+                # [DECOR_HUNTER 2.0] Detectar regime de mercado
                 is_ranging_mode = True
                 try:
                     from services.okx_ws_public import okx_ws_public_service
@@ -674,12 +675,45 @@ class CaptainAgent(AIOSAgent):
                 except Exception:
                     pass
 
-                # [V111.3] Se mercado LATERAL, pausa processamento de sinais
                 if is_ranging_mode:
-                    if not hasattr(self, "_last_lateral_log") or (time.time() - self._last_lateral_log) > 60:
-                        logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado aguardando tendencia.")
-                        self._last_lateral_log = time.time()
-                    await asyncio.sleep(10)
+                    # [DECOR_HUNTER 2.0] Em LATERAL, tenta capturar sinais DECOR_HUNTER.
+                    # Sinais comuns continuam bloqueados, mas pares desgrudados com gás passam.
+                    decor_signal = None
+                    try:
+                        _p, _c, candidate = await asyncio.wait_for(signal_generator.signal_queue.get(), timeout=2.0)
+                        if candidate.get("radar_mode") == "DECOR_HUNTER":
+                            decor_signal = candidate
+                            logger.info(f"[DECOR-HUNTER 2.0] Sinal capturado em modo LATERAL: {candidate.get('symbol')}")
+                        else:
+                            await signal_generator.signal_queue.put((_p, _c, candidate))
+                    except asyncio.TimeoutError:
+                        pass
+
+                    if decor_signal is None:
+                        if not hasattr(self, "_last_lateral_log") or (time.time() - self._last_lateral_log) > 60:
+                            logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado aguardando tendencia.")
+                            self._last_lateral_log = time.time()
+                        await asyncio.sleep(10)
+                        continue
+
+                    # DECOR_HUNTER encontrado: verificar duplicidade e executar
+                    sym = decor_signal.get("symbol")
+                    if sym in self.active_tocaias:
+                        logger.debug(f"[DECOR-HUNTER] {sym} já em Tocaia. Ignorando.")
+                        continue
+                    if okx_rest_service.execution_mode == "PAPER":
+                        if any(p.get("symbol") == sym for p in okx_rest_service.paper_positions):
+                            continue
+                    else:
+                        active_slots = await firebase_service.get_active_slots()
+                        if any(s.get("symbol") == sym for s in active_slots):
+                            continue
+
+                    self.active_tocaias.add(sym)
+                    score = decor_signal.get("score", 0)
+                    logger.info(f"[DECOR-HUNTER 2.0] Executando {sym} Score={score} em modo LATERAL.")
+                    asyncio.create_task(self._process_single_signal(decor_signal))
+                    await asyncio.sleep(0.1)
                     continue
 
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
@@ -1094,23 +1128,32 @@ class CaptainAgent(AIOSAgent):
             slots = await firebase_service.get_active_slots(username=username)
             occupied_count = sum(1 for s in slots if s.get("symbol"))
             
-            # [V111.3 TREND_FOCUS] Em LATERAL bloqueia execucao. Em TENDENCIA, max 20 slots.
-            is_ranging_mode = True
-            try:
-                from services.okx_ws_public import okx_ws_public_service
-                adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                is_ranging_mode = (adx < 25)
-            except Exception:
-                pass
+            # [DECOR_HUNTER 2.0] Sinal DECOR_HUNTER é isento do filtro LATERAL
+            is_decor_hunter = best_signal.get("radar_mode") == "DECOR_HUNTER"
+            if is_decor_hunter:
+                logger.info(
+                    f"[DECOR-HUNTER 2.0] {symbol} bypass B2 (_run_user_execution_logic). "
+                    f"Score={score} Side={side}"
+                )
 
-            # [V111.3] Se LATERAL, bloqueia execucao
-            if is_ranging_mode:
-                msg = f"[V111.3 TREND_FOCUS] {symbol} ({side}) bloqueado. Mercado LATERAL (ADX < 25). Sistema pausado."
-                logger.info(msg)
-                await firebase_service.log_event("TREND_FOCUS", msg, "INFO")
-                await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")
-                self.active_tocaias.discard(symbol)
-                return
+            if not is_decor_hunter:
+                # [V111.3 TREND_FOCUS] Em LATERAL bloqueia execucao. Em TENDENCIA, max 20 slots.
+                is_ranging_mode = True
+                try:
+                    from services.okx_ws_public import okx_ws_public_service
+                    adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+                    is_ranging_mode = (adx < 25)
+                except Exception:
+                    pass
+
+                # [V111.3] Se LATERAL, bloqueia execucao
+                if is_ranging_mode:
+                    msg = f"[V111.3 TREND_FOCUS] {symbol} ({side}) bloqueado. Mercado LATERAL (ADX < 25). Sistema pausado."
+                    logger.info(msg)
+                    await firebase_service.log_event("TREND_FOCUS", msg, "INFO")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")
+                    self.active_tocaias.discard(symbol)
+                    return
 
             max_allowed_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
             
@@ -1647,6 +1690,16 @@ class CaptainAgent(AIOSAgent):
                 if sym_trades['first_trade_at'] == 0:
                     sym_trades['first_trade_at'] = time.time()
                 self.daily_symbol_trades[norm_symbol_ac] = sym_trades
+                if is_decor_hunter:
+                    logger.info(
+                        f"[DECOR-HUNTER 2.0] Posicao aberta: {symbol} Slot {slot_id} "
+                        f"Score={score}"
+                    )
+                    await firebase_service.log_event(
+                        "DECOR_HUNTER",
+                        f"Posicao aberta {symbol} Slot {slot_id} Score={score}",
+                        "INFO"
+                    )
                 logger.info(f"✅ SNIPER SHOT DEPLOYED: {symbol} (Slot {slot_id})")
                 
                 # [HERMES TELEGRAM] Alerta de Nova Ordem
@@ -1708,6 +1761,11 @@ class CaptainAgent(AIOSAgent):
                 if (time.time() - self.last_decorrelation_swap) > 30:
                     await self._decorrelation_swap_check()
                     self.last_decorrelation_swap = time.time()
+                
+                # [DECOR_HUNTER 2.0] BTC Rug Pull Protection (every 2 min)
+                if (time.time() - self.last_btc_rug_pull_check) > 120:
+                    await self._btc_rug_pull_check()
+                    self.last_btc_rug_pull_check = time.time()
                 
                 await asyncio.sleep(30) # Reduced from 60s for faster reactivity in V57.0
             except Exception as e:
@@ -1840,6 +1898,69 @@ class CaptainAgent(AIOSAgent):
         except Exception as e:
             logger.error(f"Error during decorrelation swap check: {e}")
             traceback.print_exc()
+
+    async def _btc_rug_pull_check(self):
+        """
+        [DECOR_HUNTER 2.0] BTC Rug Pull Protection.
+        Se BTC mover >1% em 15min, aperta stops de todas posicoes DECOR_HUNTER
+        para evitar arraste sistemico em pânico de mercado.
+        """
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            btc_var_15m = getattr(okx_ws_public_service, 'btc_variation_15m', 0.0)
+            if abs(btc_var_15m) <= 1.0:
+                return
+
+            from services.firebase_service import firebase_service
+            slots = await firebase_service.get_active_slots()
+            decor_slots = [
+                s for s in slots
+                if s.get("symbol") and s.get("slot_type") == "DECOR_HUNTER"
+            ]
+            if not decor_slots:
+                return
+
+            logger.warning(
+                f"[DECOR-HUNTER 2.0] BTC rug pull detectado ({btc_var_15m:+.2f}% em 15m). "
+                f"Apertando stops de {len(decor_slots)} posicoes DECOR_HUNTER."
+            )
+            await firebase_service.log_event(
+                "DECOR_HUNTER",
+                f"BTC rug pull ({btc_var_15m:+.2f}%): apertando stops de {len(decor_slots)} posicoes",
+                "WARNING"
+            )
+
+            from services.database_service import database_service
+            for s in decor_slots:
+                slot_id = s.get("id")
+                symbol = s["symbol"]
+                side = (s.get("side") or "buy").lower()
+                entry_price = float(s.get("entry_price", 0))
+                current_price = okx_ws_public_service.get_current_price(symbol)
+                if current_price <= 0:
+                    continue
+
+                current_stop = float(s.get("current_stop", 0))
+                tight_margin = 0.02  # 2% de margem em vez de 5%
+                if side == "buy":
+                    tight_stop = current_price * (1 - tight_margin)
+                else:
+                    tight_stop = current_price * (1 + tight_margin)
+
+                # So atualiza se melhorar o stop atual
+                if current_stop > 0:
+                    if side == "buy" and tight_stop <= current_stop:
+                        continue
+                    if side == "sell" and tight_stop >= current_stop:
+                        continue
+
+                await database_service.update_slot(slot_id, {"current_stop": tight_stop})
+                logger.info(
+                    f"[DECOR-HUNTER 2.0] {symbol} stop apertado de "
+                    f"${current_stop:.4f} → ${tight_stop:.4f} (rug pull {btc_var_15m:+.2f}%)"
+                )
+        except Exception:
+            pass
 
     async def _wait_for_needle_flip(self, symbol: str, side: str, max_wait: int = 15, signal_data: dict = None) -> bool:
         """

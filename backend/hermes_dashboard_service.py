@@ -71,7 +71,7 @@ class HermesDashboardService:
                 return False
 
             # Constrói comando completo
-            full_cmd = cmd + ["dashboard", "--port", str(self._port), "--host", self._host]
+            full_cmd = cmd + ["dashboard", "--port", str(self._port), "--host", self._host, "--skip-build"]
 
             logger.info(f"Comando: {' '.join(full_cmd)}")
 

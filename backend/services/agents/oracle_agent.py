@@ -4,6 +4,7 @@ import time
 from typing import Dict, Any, List
 from services.agents.aios_adapter import AIOSAgent
 from services.firebase_service import firebase_service
+from config import settings
 
 logger = logging.getLogger("OracleAgent")
 
@@ -46,8 +47,18 @@ class OracleAgent(AIOSAgent):
                 # Update metrics
                 self.market_context.update({
                     k: v for k, v in lkg_context.items() 
-                    if k in ["regime", "btc_direction", "btc_adx", "btc_price", "btc_variation_1h", "btc_variation_24h", "dominance"]
+                    if k in [
+                        "regime",
+                        "btc_direction",
+                        "btc_adx",
+                        "btc_price",
+                        "btc_variation_1h",
+                        "btc_variation_15m",
+                        "btc_variation_24h",
+                        "dominance",
+                    ]
                 })
+                self._refresh_market_labels()
                 
                 # ⚡ [V110.50] Amnesia Fast-Pass: If LKG is robust (>15 ADX), reduce stabilization wait to 15s
                 if lkg_adx > 15:
@@ -73,6 +84,7 @@ class OracleAgent(AIOSAgent):
         """Returns the validated context with security rigor check (2-3 min wait)."""
         now = time.time()
         uptime = now - self.boot_time
+        self._refresh_market_labels()
         
         # 🛡️ Rigor de Segurança: 2-3 min de espera após boot
         if uptime < self.stabilization_period:
@@ -92,8 +104,34 @@ class OracleAgent(AIOSAgent):
             else:
                 self.market_context["status"] = "SECURE"
                 self.market_context["is_stale"] = False
-                
+        
+        self.market_context["boot_time"] = self.boot_time
         return self.market_context
+
+    def _refresh_market_labels(self):
+        """Deriva regime e direção do BTC usando a mesma grade do guardian."""
+        adx = float(self.market_context.get("btc_adx", 0.0) or 0.0)
+        var_1h = float(self.market_context.get("btc_variation_1h", 0.0) or 0.0)
+        var_15m = float(self.market_context.get("btc_variation_15m", 0.0) or 0.0)
+
+        if adx >= settings.ADX_STRONG_TREND_THRESHOLD:
+            regime = "ROARING"
+        elif adx >= settings.ADX_TRENDING_THRESHOLD:
+            regime = "TRENDING"
+        elif adx >= settings.ADX_MIN_ENTRY:
+            regime = "TRANSITION"
+        else:
+            regime = "RANGING"
+
+        direction = "LATERAL"
+        if adx >= settings.ADX_MIN_ENTRY:
+            if var_15m > 0 and var_1h > 0:
+                direction = "UP"
+            elif var_15m < 0 and var_1h < 0:
+                direction = "DOWN"
+
+        self.market_context["regime"] = regime
+        self.market_context["btc_direction"] = direction
 
     async def update_market_data(self, source: str, data: dict):
         """Receives data from sources (BybitWS, SignalGenerator, MacroAnalyst)."""
@@ -116,6 +154,7 @@ class OracleAgent(AIOSAgent):
         for k, v in data.items():
             if k in self.market_context:
                 self.market_context[k] = v
+        self._refresh_market_labels()
         
         self.market_context["last_updated"] = now
         self.market_context["last_source"] = source

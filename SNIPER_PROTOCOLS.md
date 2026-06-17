@@ -1,4 +1,4 @@
-# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE STOPS E ALVOS (V111.2)
+# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE STOPS E ALVOS (V111.3)
 
 ## Arquitetura Atual: Ordem Unica, Escadinha Continua
 
@@ -19,6 +19,10 @@ A direcao do BTC e determinada por confluencia de variacao 15m + 1h:
 - Ambas positivas => `UP`
 - Ambas negativas => `DOWN`
 - Divergencia => `LATERAL` (não bloqueia, pois não há direcao clara)
+
+O `OracleAgent` agora e a SSOT desse contexto macro: recebe `btc_adx`, `btc_variation_1h` e `btc_variation_15m` do fluxo OKX, deriva `regime` na grade `22/25/30` e persiste o snapshot validado para recovery via LKG.
+
+Para recalibrar essa grade com estudo historico do BTC na OKX, use `backend/scratch/study_oracle_btc_regime.py`.
 
 ## Stop Inicial Inteligente
 
@@ -74,4 +78,3 @@ A partir de 1200% ROI, o sistema continua criando niveis `ULTRA_*` a cada 200% R
 - LONG: o stop sobe conforme os alvos sao rompidos.
 - SHORT: o stop desce conforme os alvos sao rompidos.
 - O ROI e sempre alavancado: o preco real do stop depende de entrada, lado e leverage.
-

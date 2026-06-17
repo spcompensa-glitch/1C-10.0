@@ -3,6 +3,12 @@
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo reflete o estado arquitetural na data de publicação de cada versão. Para a arquitetura atual e consolidada, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento.
 
+*   **V111.3: ORACLE BTC REGIME SSOT & 15M DIRECTION FIX [JUN 17]**
+    *   **Oracle alinhado à grade oficial `22/25/30`**: O `OracleAgent` agora deriva `regime` pela mesma escala operacional do `BankrollGuardian`: `RANGING` (`ADX < 22`), `TRANSITION` (`22-25`), `TRENDING` (`>= 25`) e `ROARING` (`>= 30`).
+    *   **Direção do BTC por confluência real**: O Oracle fecha `btc_direction` como `UP`, `DOWN` ou `LATERAL` usando a confluência de variação `15m + 1h`, evitando depender de fragments espalhados pelo runtime.
+    *   **Sync corrigido do `btc_variation_15m`**: O feed `okx_ws_public` voltou a enviar a variação de 15 minutos para o Oracle, fechando a leitura macro do BTC e evitando diagnóstico parcial durante produção e recovery via LKG.
+    *   **Estudo histórico reaproveitável**: Adicionado `backend/scratch/study_oracle_btc_regime.py` para reavaliar o comportamento do M-ADX do BTC na OKX e validar se os thresholds `22/25/30` continuam adequados.
+
 *   **V111.0 / V2.1: WATCHLIST EXPANDIDA (41 PARES), REMOÇÃO DE LATERAL_ONLY_DECOR, CORRELATION_SHIELD & REDIS CLEANUP [JUN 16]**
     *   **Watchlist Unificada de 41 Pares**: A `RADAR_WATCHLIST` foi expandida e unificada com a `ELITE_40_MATRIX`, adicionando `SOLUSDT` (41 ativos monitorados e operados no total).
     *   **Remoção da restrição LATERAL_ONLY_DECOR**: O robô agora executa livremente estratégias de tendência em regimes de mercado lateral quando os setups são validados pelos filtros técnicos.
@@ -834,7 +840,7 @@
 - **Harvester (Ceifeiro Infinito):** níveis WAVE→APEX e continuação `ULTRA_*` pós-1200%, mantendo colheitas parciais e trailing sem teto fixo.
 - **Portfolio Guardian:** atomic state machine, Knife-Drop em -15% do peak ROI (gatilho 70%), Moonbag Shield (emancipadas imunes ao Facão).
 - **SignalGenerator (Radar):** Sieve 3-camadas (T1 Scanner → T2 Tape Reading → T3 Elite 40 Matrix) + Vision Cascade (Gemma 3 / Gemini Flash fallback).
-- **Oracle:** SSOT de regime de mercado (ALTA/BAIXA/LATERAL com threshold ADX>30), validação e FleetAudit pós-trade.
+- **Oracle:** SSOT do contexto macro do BTC. Saneia M-ADX, restaura LKG, valida quedas suspeitas de ADX, deriva `regime` (`RANGING`/`TRANSITION`/`TRENDING`/`ROARING`) pela grade `22/25/30` e fecha a direção (`UP`/`DOWN`/`LATERAL`) por confluência `15m + 1h`, antes de persistir o snapshot para o restante da frota.
 - **Anti-Slippage Engine:** Greedy Snake Sharding em 4 cohorts balanceados com Random Jitter 0-350ms para pulverizar ordens no book.
 - **Execution Capacity Gate:** barreira pre-trade L2 que mede se a ordem cabe no book atual da OKX antes da execução atomica. Thresholds configuraveis por ambiente: `EXEC_CAPACITY_MAX_SPREAD_BPS`, `EXEC_CAPACITY_MAX_SLIPPAGE_BPS`, `EXEC_CAPACITY_MAX_BOOK_USAGE_PCT`, `EXEC_CAPACITY_MIN_FILL_RATIO` e `EXEC_CAPACITY_ORDERBOOK_LIMIT`.
 - **Execution Audit Ledger:** camada pos-ordem que registra fill ratio, preco medio, slippage real, latencia, notional, margem, taxa taker estimada, funding estimado e delta contra a simulacao pre-trade. Thresholds configuraveis por ambiente: `EXEC_AUDIT_MAX_SLIPPAGE_BPS`, `EXEC_AUDIT_MAX_LATENCY_MS`, `EXEC_AUDIT_MIN_FILL_RATIO` e `OKX_TAKER_FEE_RATE`.

@@ -1,8 +1,8 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.1)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.3)
 
 ## Resumo Executivo
-* **Versão:** `V111.2: Filtro de Regime de Mercado — Stop Cap + Direção`
-* **Data:** 2026-06-16
+* **Versão:** `V111.3: Oracle BTC Regime SSOT — ADX 22/25/30 + Confluência 15m/1h`
+* **Data:** 2026-06-17
 * **Estado:** `OPERATIONAL REAL ✅`
 * **Escopo:** Correção crítica do `BankrollGuardian` que impedia abertura de ordens em REAL mode: o `base_balance` usava o valor simulado (`$100`) em vez do equity real da exchange (~$20), causando `PRESERVACAO_TOTAL` com `min_score = 999.0` e bloqueando 100% dos sinais. Agora `base_balance = equity` em REAL mode. Watchlist expandida para 41 pares (ELITE_40_MATRIX + SOLUSDT). SOLUSDT removido do `ASSET_BLOCKLIST`. Remoção da restrição `LATERAL_ONLY_DECOR`. Escudo de correlação elevado para 0.95. Reset Nuclear integrado com Redis FLUSHDB. Sistema operacional com 8 posições ativas simultâneas no modo REAL da OKX.
 
@@ -71,6 +71,14 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 ---
 
 ## Melhorias e Atualizações (Jun 16)
+
+### V111.3: Oracle BTC Regime SSOT
+
+* **Oracle alinhado à grade oficial `22/25/30`:** O `OracleAgent` agora deriva `regime` com a mesma tabela operacional do `BankrollGuardian`: `RANGING` (`ADX < 22`), `TRANSITION` (`22-25`), `TRENDING` (`>= 25`) e `ROARING` (`>= 30`).
+* **Direção real do BTC dentro do Oracle:** `btc_direction` passa a ser fechado no próprio Oracle por confluência `15m + 1h`, retornando `UP`, `DOWN` ou `LATERAL`.
+* **Sync corrigido do `btc_variation_15m`:** O `okx_ws_public` voltou a enviar a variação de 15 minutos ao Oracle, o que corrige snapshots parciais durante produção, reboot e recovery via LKG.
+* **Persistência mais fiel no LKG:** O Oracle agora restaura também `btc_variation_15m` ao recuperar o último contexto válido do Firestore.
+* **Estudo histórico para recalibragem:** Adicionado `backend/scratch/study_oracle_btc_regime.py` para estudar o M-ADX do BTC na OKX e revalidar a grade `22/25/30` quando necessário.
 
 ### V111.2: Filtro de Regime, Stop Cap e Bloqueio de Contra-Tendência
 

@@ -434,6 +434,7 @@ class OKXWSPublic:
                 await oracle_agent.update_market_data("okx_ws_public", {
                     "btc_price": self.btc_price,
                     "btc_variation_1h": self.btc_variation_1h,
+                    "btc_variation_15m": self.btc_variation_15m,
                     "btc_variation_24h": self.btc_variation_24h,
                     "btc_adx": self.btc_adx
                 })

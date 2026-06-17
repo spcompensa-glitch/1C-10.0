@@ -27,7 +27,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 # Hermes Dashboard — web extra inclui FastAPI/Uvicorn e assets do dashboard
-RUN pip install --no-cache-dir "hermes-agent[web]>=0.16.0"
+# --no-deps bypasses hermes-agent's strict pydantic==2.13.4 pin (not yet on PyPI)
+RUN pip install --no-cache-dir --no-deps "hermes-agent[web]>=0.16.0"
 
 # Install Playwright browser dependencies (Chromium)
 RUN playwright install --with-deps chromium

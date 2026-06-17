@@ -28,8 +28,8 @@ multidict>=6.0.5
 yarl>=1.9.4
 aiohttp>=3.9.3
 idna>=3.7
-# [HERMES] Hermes Agent v0.16.0 - Web Dashboard & AI Agent (requires Python >=3.11)
-hermes-agent[web]>=0.16.0
+# [HERMES] Hermes Agent v0.16.0 - installed via Dockerfile with --no-deps (pydantic pin workaround)
+# hermes-agent[web]>=0.16.0
 certifi>=2024.2.2
 h11>=0.14.0
 httpcore>=0.17.3

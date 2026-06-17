@@ -29,16 +29,21 @@ def get_engine():
     """Retorna engine de banco de dados (cria se necessário)"""
     global engine, SessionLocal
     if engine is None:
+        db_url = settings.DATABASE_URL
+        # Ignorar placeholders inválidos do Windows
+        if db_url and "<sua_url_do_postgres>" in db_url:
+            logger.warning(f"DATABASE_URL contém placeholder inválido. Usando SQLite local.")
+            db_url = "sqlite:///./auth.db"
         # Configurar engine baseado no tipo de banco de dados
-        if settings.DATABASE_URL.startswith('sqlite'):
+        if db_url.startswith('sqlite'):
             engine = create_engine(
-                settings.DATABASE_URL,
+                db_url,
                 connect_args={"check_same_thread": False},
                 echo=settings.DEBUG
             )
         else:
             engine = create_engine(
-                settings.DATABASE_URL,
+                db_url,
                 pool_pre_ping=True,
                 pool_recycle=300,
                 echo=settings.DEBUG

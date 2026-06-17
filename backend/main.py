@@ -111,6 +111,10 @@ logger = logging.getLogger("1CRYPTEN-MAIN")
 logger.info(f"BASE_DIR: {BASE_DIR}")
 logger.info(f"FRONTEND_DIR: {FRONTEND_DIR}")
 
+# [HERMES DASHBOARD V2] Serviço do Hermes Web Dashboard
+hermes_dashboard_service = None
+HERMES_DASHBOARD_ENABLED = os.getenv("HERMES_DASHBOARD_ENABLED", "true").lower() in ("true", "1", "t", "yes")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # V5.2.0: Stability Staggering
@@ -602,6 +606,22 @@ async def lifespan(app: FastAPI):
             except Exception as saas_init_err:
                 logger.error(f"❌ [SaaS] Falha ao iniciar serviços OKX/Hermes: {saas_init_err}", exc_info=True)
                 
+            # 🆕 [HERMES DASHBOARD v2] Inicia o Hermes Web Dashboard como serviço paralelo
+            if HERMES_DASHBOARD_ENABLED:
+                try:
+                    from hermes_dashboard_service import hermes_dashboard as _hd
+                    global hermes_dashboard_service
+                    hermes_dashboard_service = _hd
+                    _started = await _hd.start()
+                    if _started:
+                        logger.info(f"🪶 [HERMES DASHBOARD v2] Hermes Dashboard ONLINE em {_hd.base_url}")
+                    else:
+                        logger.warning("⚠️ [HERMES DASHBOARD v2] Falha ao iniciar - continuando sem dashboard.")
+                except Exception as hd_err:
+                    logger.warning(f"⚠️ [HERMES DASHBOARD v2] Erro ao iniciar: {hd_err}")
+            else:
+                logger.info("⏭️ [HERMES DASHBOARD v2] Desabilitado via HERMES_DASHBOARD_ENABLED=false")
+
             logger.info("✅ All background services started successfully!")
         except Exception as e:
             logger.error(f"FATAL Startup Error: {e}", exc_info=True)
@@ -640,7 +660,14 @@ async def lifespan(app: FastAPI):
             logger.info("✅ [SaaS] Serviços desativados com sucesso.")
         except Exception as saas_err:
             logger.error(f"Erro ao desligar serviços SaaS: {saas_err}")
-            
+        
+        # [HERMES DASHBOARD v2] Desliga o Hermes Dashboard (dentro do try principal)
+        if HERMES_DASHBOARD_ENABLED and hermes_dashboard_service:
+            try:
+                await hermes_dashboard_service.stop()
+                logger.info("🪶 [HERMES DASHBOARD v2] Hermes Dashboard desligado.")
+            except Exception as hd_stop_err:
+                logger.warning(f"⚠️ [HERMES DASHBOARD v2] Erro ao desligar: {hd_stop_err}")
     except Exception as shutdown_err:
         logger.error(f"Error during shutdown: {shutdown_err}")
     
@@ -851,17 +878,199 @@ if settings.SERVE_STATIC_FRONTEND:
 
     @app.get("/kanban", response_class=HTMLResponse)
     async def serve_kanban_page():
-        path = os.path.join(FRONTEND_DIR, "kanban.html")
+        # [HERMES DASHBOARD v2] Kanban agora redireciona para Hermes Dashboard
+        return RedirectResponse(url="/hermes")
+
+    @app.get("/neural-chat", response_class=HTMLResponse)
+    async def serve_neural_chat_redirect():
+        # [HERMES DASHBOARD v2] Neural Chat agora redireciona para Hermes Dashboard
+        return RedirectResponse(url="/hermes")
+
+    @app.get("/hermes", response_class=HTMLResponse)
+    @app.get("/hermes/", response_class=HTMLResponse)
+    async def serve_hermes_dashboard_page():
+        """[HERMES DASHBOARD v2] Proxy da página inicial do Hermes Dashboard.
+        Em vez de redirecionar (quebraria pois o dashboard roda em 127.0.0.1:9119),
+        fazemos um proxy reverso mantendo o mesmo domínio."""
+        # Tenta conectar no Hermes (via service ou direto na porta)
+        hermes_url = None
+        if hermes_dashboard_service and hermes_dashboard_service.is_running:
+            hermes_url = hermes_dashboard_service.base_url
+        else:
+            hermes_url = "http://127.0.0.1:9119"
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"{hermes_url}/")
+                if resp.status_code == 200:
+                    content_type = resp.headers.get("content-type", "text/html")
+                    html = resp.text
+                    html = html.replace('src="/assets/', 'src="/hermes/assets/')
+                    html = html.replace('href="/assets/', 'href="/hermes/assets/')
+                    html = html.replace('href="/favicon.ico"', 'href="/hermes/favicon.ico"')
+                    html = html.replace('__HERMES_BASE_PATH__=""', '__HERMES_BASE_PATH__="/hermes"')
+                    if "<head>" in html:
+                        html = html.replace(
+                            "<head>",
+                            "<head><base href=\"/hermes/\">",
+                            1
+                        )
+                    return HTMLResponse(
+                        content=html,
+                        status_code=resp.status_code,
+                    )
+        except Exception as e:
+            logger.error(f"[HERMES PROXY] Erro ao buscar dashboard: {e}")
         
-        with open(path, "r", encoding="utf-8") as f:
-            html_content = f.read()
+        # Se o Hermes não estiver rodando, mostra uma página placeholder
+        html = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Dashboard — 1CRYPTEN</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #050508;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            gap: 24px;
+        }
+        .status {
+            padding: 16px 32px;
+            border-radius: 16px;
+            background: rgba(34, 211, 238, 0.05);
+            border: 1px solid rgba(34, 211, 238, 0.15);
+            text-align: center;
+        }
+        .status .icon { font-size: 32px; margin-bottom: 12px; }
+        .status h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+        .status p { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+        .status .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f59e0b;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .back-link {
+            color: #22d3ee;
+            font-size: 11px;
+            text-decoration: none;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .back-link:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="status">
+        <div class="icon">&#x1FAB6;</div>
+        <span class="dot"></span>
+        <h2>Hermes Dashboard</h2>
+        <p>Inicializando servi&ccedil;o...<br>O Hermes ser&aacute; carregado automaticamente quando estiver pronto.</p>
+    </div>
+    <a href="/cockpit#/" class="back-link">&larr; Voltar ao Cockpit</a>
+    <script>
+        // Auto-refresh a cada 3s at&eacute; o dashboard ficar pronto
+        setInterval(function() { window.location.reload(); }, 3000);
+    </script>
+</body>
+</html>
+"""
+        return HTMLResponse(content=html)
+
+    # [HERMES DASHBOARD v2] Proxy reverso completo para todos os paths do Hermes Dashboard
+    # Usamos um helper genérico para evitar duplicação de código
+    async def _proxy_to_hermes(path: str, request: Request = None) -> Response:
+        """Proxy genérico: encaminha requisição para o Hermes Dashboard interno."""
+        hermes_url = None
+        if hermes_dashboard_service and hermes_dashboard_service.is_running:
+            hermes_url = hermes_dashboard_service.base_url
+        else:
+            hermes_url = "http://127.0.0.1:9119"
+        
+        target_url = f"{hermes_url}/{path}" if path else hermes_url
+        
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30) as client:
+                req_headers = {}
+                if request:
+                    req_headers = {
+                        k: v for k, v in request.headers.items()
+                        if k.lower() not in ("host", "content-length", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host")
+                    }
+                
+                body = await request.body() if request and request.method in ("POST", "PUT", "PATCH") and request.headers.get("content-length") else None
+                params = dict(request.query_params) if request else {}
+                
+                resp = await client.request(
+                    method=request.method if request else "GET",
+                    url=target_url,
+                    headers=req_headers,
+                    content=body,
+                    params=params,
+                )
+                
+                # Para HTML, injeta a base tag e reescreve assets absolutos
+                content_type = resp.headers.get("content-type", "")
+                if "text/html" in content_type:
+                    html = resp.text
+                    # Rewrite absolute asset paths so they work behind /hermes/ proxy
+                    html = html.replace('src="/assets/', 'src="/hermes/assets/')
+                    html = html.replace('href="/assets/', 'href="/hermes/assets/')
+                    html = html.replace('href="/favicon.ico"', 'href="/hermes/favicon.ico"')
+                    html = html.replace('__HERMES_BASE_PATH__=""', '__HERMES_BASE_PATH__="/hermes"')
+                    if "<head>" in html:
+                        html = html.replace(
+                            "<head>",
+                            "<head><base href=\"/hermes/\">",
+                            1
+                        )
+                    return HTMLResponse(content=html, status_code=resp.status_code)
+                
+                return Response(
+                    content=resp.content,
+                    status_code=resp.status_code,
+                    media_type=content_type or "application/octet-stream",
+                )
+        except Exception as e:
+            logger.error(f"[HERMES PROXY] Erro ao fazer proxy para {path}: {e}")
             return HTMLResponse(
-                content=html_content,
-                headers={
-                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
-                    "ETag": f"1c-kanban-{time.time()}"
-                }
+                content=f'{{"error": "Erro de conexão com Hermes Dashboard: {str(e)}"}}',
+                status_code=502,
+                media_type="application/json",
             )
+
+    # API do Hermes Dashboard
+    @app.api_route("/hermes/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+    @app.api_route("/hermes/api", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+    async def proxy_hermes_api(path: str = "", request: Request = None):
+        """Proxy reverso para API do Hermes Dashboard."""
+        api_path = f"api/{path}" if path else "api"
+        return await _proxy_to_hermes(api_path, request)
+
+    # Catch-all: tudo que começar com /hermes/ (exceto os já roteados) vai para o dashboard
+    @app.api_route("/hermes/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+    async def proxy_hermes_catch_all(path: str, request: Request = None):
+        """Proxy catch-all: serve assets, JS, CSS, imagens etc. do Hermes Dashboard."""
+        # Evita conflito com rotas já definidas (/hermes/api/...)
+        if path.startswith("api/") or path == "api":
+            return await proxy_hermes_api(path.replace("api/", "", 1) if path != "api" else "", request)
+        return await _proxy_to_hermes(path, request)
 
     @app.get("/")
     async def serve_index():

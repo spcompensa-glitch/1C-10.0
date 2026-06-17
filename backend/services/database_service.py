@@ -3,6 +3,7 @@ import os
 import logging
 import asyncio
 import time
+import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -141,6 +142,35 @@ class VaultCycle(Base):
     data = Column(JSON)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+LEGACY_VAULT_CYCLE_FIELDS = (
+    "sniper_wins",
+    "cycle_number",
+    "cycle_profit",
+    "cycle_losses",
+    "started_at",
+    "in_admiral_rest",
+    "rest_until",
+    "vault_total",
+    "cautious_mode",
+    "min_score_threshold",
+    "total_trades_cycle",
+    "cycle_gains_count",
+    "cycle_losses_count",
+    "accumulated_vault",
+    "sniper_mode_active",
+    "used_symbols_in_cycle",
+    "cycle_start_bankroll",
+    "next_entry_value",
+    "mega_cycle_wins",
+    "mega_cycle_total",
+    "mega_cycle_number",
+    "mega_cycle_profit",
+    "order_ids_processed",
+)
+
+LEGACY_VAULT_JSON_FIELDS = {"used_symbols_in_cycle", "order_ids_processed"}
+
 class DatabaseService:
     def __init__(self):
         # Em Railway, DATABASE_URL é provido automaticamente (postgres://...)
@@ -230,6 +260,7 @@ class DatabaseService:
                         ("banca_status", "saldo_real_okx", "DOUBLE PRECISION"),
                         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
                         ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION"),
+                        ("vault_cycles", "data", "JSONB"),
                         ("vault_cycles", "updated_at", "TIMESTAMP")
                     ]
                     for table, col, col_type in migrations:
@@ -252,6 +283,11 @@ class DatabaseService:
                                 logger.info(f"✅ Coluna '{col}' verificada/adicionada na tabela '{table}'.")
                         except Exception as migration_error:
                             logger.warning(f"Erro ao adicionar coluna {col} na tabela {table}: {migration_error}")
+
+                    try:
+                        await self._heal_vault_cycle_storage(conn)
+                    except Exception as vault_heal_err:
+                        logger.warning(f"Erro ao reconciliar vault_cycles: {vault_heal_err}")
             
             self.is_active = True
             logger.info("✅ Database Service initialized successfully (Postgres/Railway).")
@@ -260,6 +296,96 @@ class DatabaseService:
 
     async def get_session(self):
         return self.AsyncSessionLocal()
+
+    async def _list_table_columns(self, executor, table_name: str) -> set[str]:
+        try:
+            if "sqlite" in self.engine.url.drivername:
+                result = await executor.execute(text(f"PRAGMA table_info({table_name})"))
+                return {row[1] for row in result.fetchall()}
+
+            result = await executor.execute(text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = :table_name
+            """), {"table_name": table_name})
+            return {row[0] for row in result.fetchall()}
+        except Exception as e:
+            logger.warning(f"Failed to inspect columns for {table_name}: {e}")
+            return set()
+
+    def _normalize_legacy_vault_value(self, field: str, value: Any) -> Any:
+        if value is None:
+            return None
+        if field in LEGACY_VAULT_JSON_FIELDS and isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                return []
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
+
+    def _vault_cycle_payload_to_json(self, data: Dict[str, Any]) -> str:
+        return json.dumps(data, ensure_ascii=False, default=lambda obj: obj.isoformat() if hasattr(obj, "isoformat") else str(obj))
+
+    async def _upsert_vault_cycle_json(self, executor, data: Dict[str, Any]):
+        payload = self._vault_cycle_payload_to_json(data)
+        if "sqlite" in self.engine.url.drivername:
+            stmt = text("""
+                INSERT INTO vault_cycles (id, data, updated_at)
+                VALUES (1, :payload, CURRENT_TIMESTAMP)
+                ON CONFLICT(id) DO UPDATE
+                SET data = excluded.data,
+                    updated_at = CURRENT_TIMESTAMP
+            """)
+        else:
+            stmt = text("""
+                INSERT INTO vault_cycles (id, data, updated_at)
+                VALUES (1, CAST(:payload AS JSONB), CURRENT_TIMESTAMP)
+                ON CONFLICT (id) DO UPDATE
+                SET data = EXCLUDED.data,
+                    updated_at = CURRENT_TIMESTAMP
+            """)
+        await executor.execute(stmt, {"payload": payload})
+
+    async def _load_legacy_vault_cycle(self, executor) -> Optional[Dict[str, Any]]:
+        columns = await self._list_table_columns(executor, "vault_cycles")
+        legacy_fields = [field for field in LEGACY_VAULT_CYCLE_FIELDS if field in columns]
+        if not legacy_fields:
+            return None
+
+        query = text(f"SELECT {', '.join(['id'] + legacy_fields)} FROM vault_cycles WHERE id = 1")
+        result = await executor.execute(query)
+        row = result.mappings().first()
+        if not row:
+            return None
+
+        payload = {}
+        for field in legacy_fields:
+            value = self._normalize_legacy_vault_value(field, row.get(field))
+            if value is not None:
+                payload[field] = value
+
+        return payload or None
+
+    async def _heal_vault_cycle_storage(self, executor):
+        columns = await self._list_table_columns(executor, "vault_cycles")
+        if "data" not in columns:
+            return
+
+        try:
+            result = await executor.execute(text("SELECT data FROM vault_cycles WHERE id = 1"))
+            row = result.mappings().first()
+            if row and row.get("data"):
+                return
+        except Exception:
+            pass
+
+        legacy_payload = await self._load_legacy_vault_cycle(executor)
+        if legacy_payload:
+            await self._upsert_vault_cycle_json(executor, legacy_payload)
+            logger.info("✅ vault_cycles legado reconciliado para o campo JSON data.")
 
     # --- BANCA STATUS ---
     async def update_banca_status(self, data: dict):
@@ -525,13 +651,7 @@ class DatabaseService:
         """[V111.3] Salva o estado do ciclo do vault no Postgres."""
         try:
             async with self.AsyncSessionLocal() as session:
-                obj = await session.get(VaultCycle, 1)
-                if not obj:
-                    obj = VaultCycle(id=1, data=data)
-                    session.add(obj)
-                else:
-                    obj.data = data
-                    obj.updated_at = datetime.utcnow()
+                await self._upsert_vault_cycle_json(session, data)
                 await session.commit()
                 logger.info("✅ Vault cycle saved in Postgres.")
                 return True
@@ -543,9 +663,22 @@ class DatabaseService:
         """[V111.3] Recupera o estado do ciclo do vault do Postgres."""
         try:
             async with self.AsyncSessionLocal() as session:
-                obj = await session.get(VaultCycle, 1)
-                if obj and obj.data:
-                    return obj.data
+                columns = await self._list_table_columns(session, "vault_cycles")
+                if "data" in columns:
+                    try:
+                        result = await session.execute(text("SELECT data FROM vault_cycles WHERE id = 1"))
+                        row = result.mappings().first()
+                        if row and row.get("data"):
+                            return row["data"]
+                    except Exception as json_err:
+                        logger.warning(f"Vault cycle JSON read failed, trying legacy fallback: {json_err}")
+
+                legacy_payload = await self._load_legacy_vault_cycle(session)
+                if legacy_payload:
+                    if "data" in columns:
+                        await self._upsert_vault_cycle_json(session, legacy_payload)
+                        await session.commit()
+                    return legacy_payload
         except Exception as e:
             logger.error(f"Error getting vault cycle: {e}")
         return None

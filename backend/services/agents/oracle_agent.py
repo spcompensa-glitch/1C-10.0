@@ -129,6 +129,10 @@ class OracleAgent(AIOSAgent):
                 direction = "UP"
             elif var_15m < 0 and var_1h < 0:
                 direction = "DOWN"
+            elif adx >= settings.ADX_TRENDING_THRESHOLD:
+                direction = "UP" if var_1h > 0 else "DOWN"
+            else:
+                direction = "UP" if var_1h > 0.1 else ("DOWN" if var_1h < -0.1 else "LATERAL")
 
         self.market_context["regime"] = regime
         self.market_context["btc_direction"] = direction

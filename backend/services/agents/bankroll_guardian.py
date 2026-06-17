@@ -82,6 +82,12 @@ class BankrollGuardian:
                     result["direction"] = "UP"
                 elif var_15m < 0 and var_1h < 0:
                     result["direction"] = "DOWN"
+                elif adx >= settings.ADX_TRENDING_THRESHOLD:
+                    # ADX >= 25: fallback para 1h se 15m/1h discordam
+                    result["direction"] = "UP" if var_1h > 0 else "DOWN"
+                else:
+                    # ADX 22-25 com direção inconclusiva: usar 1h como tiebreaker
+                    result["direction"] = "UP" if var_1h > 0.1 else ("DOWN" if var_1h < -0.1 else "LATERAL")
         except Exception:
             pass
         return result

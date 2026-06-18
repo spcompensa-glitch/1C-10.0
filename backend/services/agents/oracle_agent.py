@@ -123,15 +123,20 @@ class OracleAgent(AIOSAgent):
         else:
             regime = "RANGING"
 
+        # [V111.3 ORACLE-FIX] Direção do BTC:
+        # ADX >= 25 (TRENDING/ROARING): 1h é sempre o árbitro final — nunca cai para LATERAL por conflito de TFs.
+        # ADX 22-25 (TRANSITION): usa confluência 15m + 1h, com 1h como tiebreaker.
+        # ADX < 22 (RANGING): LATERAL absoluto.
         direction = "LATERAL"
-        if adx >= settings.ADX_MIN_ENTRY:
+        if adx >= settings.ADX_TRENDING_THRESHOLD:  # >= 25: tendência confirmada
+            direction = "UP" if var_1h > 0 else "DOWN"
+        elif adx >= settings.ADX_MIN_ENTRY:  # 22-25: zona de transição
             if var_15m > 0 and var_1h > 0:
                 direction = "UP"
             elif var_15m < 0 and var_1h < 0:
                 direction = "DOWN"
-            elif adx >= settings.ADX_TRENDING_THRESHOLD:
-                direction = "UP" if var_1h > 0 else "DOWN"
             else:
+                # Conflito de TFs na transição: 1h como tiebreaker com threshold mínimo
                 direction = "UP" if var_1h > 0.1 else ("DOWN" if var_1h < -0.1 else "LATERAL")
 
         self.market_context["regime"] = regime

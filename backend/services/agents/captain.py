@@ -637,6 +637,10 @@ class CaptainAgent(AIOSAgent):
         asyncio.create_task(self._blitz_scan_loop())
         logger.info("⚡ [V110.136 BLITZ] BlitzSniper M30 loop iniciado em paralelo.")
         
+        # [DECOR_HUNTER 3.0] Lança o loop paralelo de pares desgrudados do BTC
+        asyncio.create_task(self._decor_hunter_loop())
+        logger.info("🎯 [DECOR-HUNTER 3.0] Loop paralelo de varredura iniciado.")
+        
         while self.is_running:
             try:
                 # 0. Global Authorization Check
@@ -666,60 +670,14 @@ class CaptainAgent(AIOSAgent):
 
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # [DECOR_HUNTER 2.0] Detectar regime de mercado
-                is_ranging_mode = True
-                try:
-                    from services.okx_ws_public import okx_ws_public_service
-                    adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    is_ranging_mode = (adx < 25)
-                except Exception:
-                    pass
-
-                if is_ranging_mode:
-                    # [DECOR_HUNTER 2.0] Em LATERAL, tenta capturar sinais DECOR_HUNTER.
-                    # Sinais comuns continuam bloqueados, mas pares desgrudados com gás passam.
-                    decor_signal = None
-                    try:
-                        _p, _c, candidate = await asyncio.wait_for(signal_generator.signal_queue.get(), timeout=2.0)
-                        if candidate.get("radar_mode") == "DECOR_HUNTER":
-                            decor_signal = candidate
-                            logger.info(f"[DECOR-HUNTER 2.0] Sinal capturado em modo LATERAL: {candidate.get('symbol')}")
-                        else:
-                            await signal_generator.signal_queue.put((_p, _c, candidate))
-                    except asyncio.TimeoutError:
-                        pass
-
-                    if decor_signal is None:
-                        if not hasattr(self, "_last_lateral_log") or (time.time() - self._last_lateral_log) > 60:
-                            logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado aguardando tendencia.")
-                            self._last_lateral_log = time.time()
-                        await asyncio.sleep(10)
-                        continue
-
-                    # DECOR_HUNTER encontrado: verificar duplicidade e executar
-                    sym = decor_signal.get("symbol")
-                    if sym in self.active_tocaias:
-                        logger.debug(f"[DECOR-HUNTER] {sym} já em Tocaia. Ignorando.")
-                        continue
-                    if okx_rest_service.execution_mode == "PAPER":
-                        if any(p.get("symbol") == sym for p in okx_rest_service.paper_positions):
-                            continue
-                    else:
-                        active_slots = await firebase_service.get_active_slots()
-                        if any(s.get("symbol") == sym for s in active_slots):
-                            continue
-
-                    self.active_tocaias.add(sym)
-                    score = decor_signal.get("score", 0)
-                    logger.info(f"[DECOR-HUNTER 2.0] Executando {sym} Score={score} em modo LATERAL.")
-                    asyncio.create_task(self._process_single_signal(decor_signal))
-                    await asyncio.sleep(0.1)
-                    continue
-
+                # [DECOR_HUNTER 3.0] DECOR_HUNTER roda em loop paralelo próprio (_decor_hunter_loop).
+                # O monitor_signals processa todos os sinais da fila normalmente.
+                # ELITE signals são bloqueados por _run_user_execution_logic quando LATERAL.
+                # DECOR_HUNTER signals são imunes ao regime de mercado.
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2
                 else:
-                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
+                    max_total_slots = 20  # Hard limit: ELITE (tendência) + DECOR_HUNTER (paralelo)
 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
@@ -950,6 +908,289 @@ class CaptainAgent(AIOSAgent):
                 traceback.print_exc()
                 await asyncio.sleep(30)
 
+    # =========================================================================
+    # ████  DECOR_HUNTER 3.0 — Loop Paralelo de Pares Descolados do BTC  ████
+    # =========================================================================
+
+    async def _decor_hunter_loop(self):
+        """
+        [DECOR_HUNTER 3.0] Loop paralelo e independente que varre os 100 pares
+        da DECOR_WATCHLIST a cada 30 segundos, buscando pares descolados do BTC.
+
+        Roda em QUALQUER regime de mercado (LATERAL, TRENDING, ROARING).
+        Limite próprio: DECOR_HUNTER_MAX_SLOTS = 8 slots simultâneos.
+
+        Fluxo por par:
+          1. Filtro de variação: |var_15m| >= 1.5% (par com gás próprio)
+          2. Filtro de correlação: Pearson < 0.5 (descolado do BTC)
+          3. Análise técnica: BLITZ M30 (score >= 65) ou var >= 2%
+          4. Gera sinal com radar_mode="DECOR_HUNTER" e timestamp para TTL
+          5. Injeta na fila com prioridade (-score)
+        """
+        from config import settings
+        from services.agents.blitz_sniper import blitz_sniper_agent
+        from services.agents.oracle_agent import oracle_agent as oracle_ref
+        from services.okx_rest import okx_rest_service
+
+        SCAN_INTERVAL = settings.DECOR_HUNTER_SCAN_INTERVAL  # 30s
+        logger.info("[DECOR-HUNTER 3.0] Loop de varredura de 100 pares iniciado.")
+
+        while self.is_running:
+            try:
+                # Verifica capacidade de slots DECOR_HUNTER
+                from services.database_service import database_service
+                slots = await database_service.get_active_slots()
+                decor_count = sum(1 for s in slots if s.get("slot_type") == "DECOR_HUNTER")
+
+                if decor_count >= settings.DECOR_HUNTER_MAX_SLOTS:
+                    logger.debug(f"[DECOR-HUNTER 3.0] Limite de {settings.DECOR_HUNTER_MAX_SLOTS} slots atingido. Aguardando.")
+                    await asyncio.sleep(SCAN_INTERVAL)
+                    continue
+
+                # Obtém contexto do BTC para análise técnica
+                ctx = oracle_ref.get_validated_context()
+                btc_dir = ctx.get("btc_direction", "LATERAL")
+                btc_adx = ctx.get("btc_adx", 0.0)
+
+                # Busca candles do BTC para cálculo de correlação (1 chamada para todos os pares)
+                btc_klines_raw = await okx_rest_service.get_klines(symbol="BTCUSDT", interval="1", limit=17)
+                if not btc_klines_raw or len(btc_klines_raw) < 15:
+                    logger.debug("[DECOR-HUNTER 3.0] Dados do BTC indisponíveis. Aguardando.")
+                    await asyncio.sleep(SCAN_INTERVAL)
+                    continue
+
+                btc_closes = [float(c[4]) for c in list(reversed(btc_klines_raw))[:15]]
+
+                # Varredura da DECOR_WATCHLIST em batches de 25
+                watchlist = getattr(settings, "DECOR_WATCHLIST", [])
+                decor_signals = []
+
+                for symbol in watchlist:
+                    try:
+                        if symbol in self.active_tocaias:
+                            continue
+                        # Checa cooldown
+                        in_cd, _ = await self.is_symbol_in_cooldown(symbol)
+                        if in_cd:
+                            continue
+
+                        result = await self._analyze_decor_pair(
+                            symbol, btc_closes, btc_dir, btc_adx, blitz_sniper_agent
+                        )
+                        if result:
+                            decor_signals.append(result)
+
+                    except Exception as ex:
+                        logger.debug(f"[DECOR-HUNTER 3.0] Erro em {symbol}: {ex}")
+                        continue
+
+                # Ordena por score e injeta os melhores na fila
+                decor_signals.sort(key=lambda s: s.get("score", 0), reverse=True)
+
+                slots_avail = settings.DECOR_HUNTER_MAX_SLOTS - decor_count
+                for sig in decor_signals[:slots_avail]:
+                    sym = sig["symbol"]
+                    # Verifica duplicidade antes de injetar
+                    if any(s.get("symbol") == sym for s in slots if s.get("symbol")):
+                        continue
+
+                    self._signal_counter = getattr(self, "_signal_counter", 0) + 1
+                    await signal_generator.signal_queue.put(
+                        (-sig["score"], self._signal_counter, sig)
+                    )
+                    logger.info(
+                        f"🎯 [DECOR-HUNTER 3.0] {sym} {sig['side']} injetado | "
+                        f"Score={sig['score']} | Corr={sig.get('btc_correlation', 0):.2f} "
+                        f"| VarPar={sig.get('own_variation', 0):.2f}%"
+                    )
+
+                if decor_signals:
+                    logger.info(f"[DECOR-HUNTER 3.0] Ciclo: {len(decor_signals)} par(es) qualificado(s) de {len(watchlist)} varridos.")
+                else:
+                    logger.debug(f"[DECOR-HUNTER 3.0] Ciclo: nenhum par descolado encontrado em {len(watchlist)} varridos.")
+
+                await asyncio.sleep(SCAN_INTERVAL)
+
+            except Exception as e:
+                logger.error(f"❌ [DECOR-HUNTER 3.0] Erro no loop: {e}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(30)
+
+    async def _analyze_decor_pair(
+        self,
+        symbol: str,
+        btc_closes: List[float],
+        btc_dir: str,
+        btc_adx: float,
+        blitz_agent,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        [DECOR_HUNTER 3.0] Analisa um par para verificar:
+          1. Variação própria >= 1.5% nos últimos 15m
+          2. Correlação de Pearson com BTC < 0.5 (descolado)
+          3. Setup técnico válido (BLITZ M30 score >= 65, ou var >= 2.0%)
+
+        Retorna o sinal pronto para injeção, ou None se não qualificado.
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+
+            # ── 1. Candles 1m do par (15 candles = 15 minutos)
+            pair_klines_raw = await asyncio.wait_for(
+                okx_rest_service.get_klines(symbol=symbol, interval="1", limit=17),
+                timeout=3.0
+            )
+            if not pair_klines_raw or len(pair_klines_raw) < 15:
+                return None
+
+            pair_closes = [float(c[4]) for c in list(reversed(pair_klines_raw))[:15]]
+
+            # ── 2. Variação própria nos últimos 15 candles
+            own_variation = ((pair_closes[-1] - pair_closes[0]) / pair_closes[0]) * 100 if pair_closes[0] > 0 else 0.0
+
+            if abs(own_variation) < 1.5:
+                return None  # Par sem gás próprio suficiente
+
+            # ── 3. Correlação de Pearson com BTC
+            correlation = self._pearson_correlation(btc_closes, pair_closes)
+
+            if abs(correlation) >= 0.5:
+                return None  # Par ainda correlacionado com BTC
+
+            # ── 4. Determinar lado com base na variação
+            direction_from_var = "Buy" if own_variation > 0 else "Sell"
+
+            # ── 5. Confirmar com análise técnica (BLITZ M30)
+            try:
+                blitz_signal = await asyncio.wait_for(
+                    blitz_agent.scan_for_blitz_signal(symbol, btc_dir, btc_adx),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                blitz_signal = None
+
+            if blitz_signal and blitz_signal.get("score", 0) >= 65:
+                side = blitz_signal["side"]
+                tech_score = blitz_signal["score"]
+                tech_reasons = blitz_signal.get("reasons", [])
+            elif abs(own_variation) >= 2.0:
+                # Fallback: variação forte compensa ausência de setup técnico
+                side = direction_from_var
+                tech_score = min(75, int(abs(own_variation) * 15))
+                tech_reasons = [f"Variação própria forte: {own_variation:.2f}%"]
+            else:
+                return None  # Variação de 1.5-2% sem setup técnico confirmado
+
+            return {
+                "id":              f"decor_{symbol.replace('.P','')}_{int(time.time())}",
+                "symbol":          symbol,
+                "side":            side,
+                "score":           tech_score,
+                "layer":           "DECOR_HUNTER",
+                "slot_type":       "DECOR_HUNTER",
+                "radar_mode":      "DECOR_HUNTER",
+                "strategy":        "DECOR_HUNTER",
+                "timeframe":       "30",
+                "btc_correlation": round(correlation, 3),
+                "own_variation":   round(own_variation, 2),
+                "timestamp":       time.time(),  # TTL gate usa este campo
+                "reasons":         [
+                    f"Descolado BTC (corr={correlation:.2f})",
+                    f"Var própria: {own_variation:.2f}%",
+                ] + tech_reasons,
+            }
+
+        except asyncio.TimeoutError:
+            return None
+        except Exception as e:
+            logger.debug(f"[DECOR-HUNTER 3.0] _analyze_decor_pair {symbol}: {e}")
+            return None
+
+    def _pearson_correlation(self, x: List[float], y: List[float]) -> float:
+        """
+        [DECOR_HUNTER 3.0] Correlação de Pearson entre dois arrays de preços.
+        Retorna valor entre -1.0 (correlação inversa) e 1.0 (correlação direta).
+        """
+        if len(x) != len(y) or len(x) < 2:
+            return 0.0
+        n = len(x)
+        mean_x = sum(x) / n
+        mean_y = sum(y) / n
+        num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
+        den_x = sum((xi - mean_x) ** 2 for xi in x) ** 0.5
+        den_y = sum((yi - mean_y) ** 2 for yi in y) ** 0.5
+        if den_x == 0 or den_y == 0:
+            return 0.0
+        return num / (den_x * den_y)
+
+    async def _check_decor_momentum(self, symbol: str, side: str) -> bool:
+        """
+        [DECOR_HUNTER 3.0] Verifica se o momentum do par ainda está ativo
+        antes de abrir a ordem (confirma que o movimento não esgotou).
+
+        Critérios de descarte (momentum esgotado):
+          - RSI > 80 para LONG (sobrecomprado)
+          - RSI < 20 para SHORT (sobrevendido)
+          - Variação dos últimos 5 candles de 1m vai contra a posição (> 0.5% inverso)
+
+        Retorna True se o momentum está ok, False se esgotado.
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+
+            # Busca últimos 20 candles de 1m para RSI
+            klines_1m = await asyncio.wait_for(
+                okx_rest_service.get_klines(symbol=symbol, interval="1", limit=22),
+                timeout=3.0
+            )
+            if not klines_1m or len(klines_1m) < 15:
+                return True  # Sem dados = não bloqueia
+
+            closes = [float(c[4]) for c in list(reversed(klines_1m))]
+
+            # ── RSI check
+            rsi = self._calculate_rsi(closes, period=14)
+            side_lower = side.lower()
+            if side_lower in ("buy", "long") and rsi > 80:
+                logger.info(f"[DECOR-HUNTER 3.0] {symbol} RSI={rsi:.1f} sobrecomprado. Momentum esgotado.")
+                return False
+            if side_lower in ("sell", "short") and rsi < 20:
+                logger.info(f"[DECOR-HUNTER 3.0] {symbol} RSI={rsi:.1f} sobrevendido. Momentum esgotado.")
+                return False
+
+            # ── Variação dos últimos 5 candles (checando reversão imediata)
+            if len(closes) >= 5:
+                var_5c = ((closes[-1] - closes[-5]) / closes[-5]) * 100 if closes[-5] > 0 else 0.0
+                if side_lower in ("buy", "long") and var_5c < -0.5:
+                    logger.info(f"[DECOR-HUNTER 3.0] {symbol} var 5m={var_5c:.2f}% negativa. Reversão em curso.")
+                    return False
+                if side_lower in ("sell", "short") and var_5c > 0.5:
+                    logger.info(f"[DECOR-HUNTER 3.0] {symbol} var 5m={var_5c:.2f}% positiva. Reversão em curso.")
+                    return False
+
+            return True
+
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.debug(f"[DECOR-HUNTER 3.0] momentum check {symbol}: {e}")
+            return True  # Em caso de erro, não bloqueia
+
+    def _calculate_rsi(self, closes: List[float], period: int = 14) -> float:
+        """[DECOR_HUNTER 3.0] Calcula RSI simples a partir de lista de closes."""
+        if len(closes) < period + 1:
+            return 50.0
+        gains, losses = [], []
+        for i in range(1, len(closes)):
+            diff = closes[i] - closes[i - 1]
+            gains.append(max(diff, 0.0))
+            losses.append(max(-diff, 0.0))
+        avg_gain = sum(gains[-period:]) / period
+        avg_loss = sum(losses[-period:]) / period
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return round(100.0 - (100.0 / (1.0 + rs)), 1)
+
     async def get_deep_macro_status(self):
         """[V110.36.8] Guilhotina Reforçada com SSOT M-ADX (Sem falsos laterais)."""
 
@@ -964,17 +1205,9 @@ class CaptainAgent(AIOSAgent):
         
         # [V110.116] DYNAMIC ADX THRESHOLD: 25 for Elite Transitions (was 30)
         if adx >= 25:
-            # Convergência: Ambos devem apontar para a mesma direção
-            if variation_15m > 0 and variation_1h > 0:
-                btc_direction = "UP"
-            elif variation_15m < 0 and variation_1h < 0:
-                btc_direction = "DOWN"
-            else:
-                # Divergência entre timeframes ou variação nula = Tratado como LATERAL para segurança
-                btc_direction = "LATERAL"
-                self.last_lateral_at = time.time()
-            
-            logger.info(f"🔥 [MARKET-REGIME] ADX {adx:.1f} detectado. Direção BTC: {btc_direction} (15m: {variation_15m:.2f}%, 1h: {variation_1h:.2f}%)")
+            # [V111.3 ORACLE-FIX] ADX >= 25: 1h é sempre o árbitro final
+            btc_direction = "UP" if variation_1h > 0 else "DOWN"
+            logger.info(f"🔥 [MARKET-REGIME] ADX {adx:.1f} detectado. Direção BTC: {btc_direction} via 1h ({variation_1h:.2f}%) | 15m={variation_15m:.2f}%")
         else:
             btc_direction = "LATERAL"
             self.last_lateral_at = time.time()
@@ -1132,10 +1365,26 @@ class CaptainAgent(AIOSAgent):
             is_decor_hunter = best_signal.get("radar_mode") == "DECOR_HUNTER"
             if is_decor_hunter:
                 logger.info(
-                    f"[DECOR-HUNTER 2.0] {symbol} bypass B2 (_run_user_execution_logic). "
-                    f"Score={score} Side={side}"
+                    f"[DECOR-HUNTER 3.0] {symbol} sinal recebido. "
+                    f"Score={score} Side={side} | Correlação={best_signal.get('btc_correlation', 'N/A')} "
+                    f"| VarPar={best_signal.get('own_variation', 'N/A')}%"
                 )
 
+                # [DECOR-HUNTER 3.0] Freshness Gate: TTL de 10 minutos
+                signal_age = time.time() - best_signal.get("timestamp", 0)
+                if signal_age > 600:
+                    msg = f"[DECOR-HUNTER 3.0] {symbol} sinal expirado ({signal_age:.0f}s > 600s). Descartado."
+                    logger.info(msg)
+                    self.active_tocaias.discard(symbol)
+                    return
+
+                # [DECOR-HUNTER 3.0] Momentum check: verifica se o movimento ainda é válido
+                momentum_ok = await self._check_decor_momentum(symbol, side)
+                if not momentum_ok:
+                    msg = f"[DECOR-HUNTER 3.0] {symbol} momentum esgotado. Descartado."
+                    logger.info(msg)
+                    self.active_tocaias.discard(symbol)
+                    return
             if not is_decor_hunter:
                 # [V111.3 TREND_FOCUS] Em LATERAL bloqueia execucao. Em TENDENCIA, max 20 slots.
                 is_ranging_mode = True

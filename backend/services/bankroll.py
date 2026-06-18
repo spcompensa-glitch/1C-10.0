@@ -1326,7 +1326,7 @@ class BankrollManager:
             else:
                 # [V111.0] ULTRA-DIVERSIFICATION: slots e margem dinâmicos por regime de mercado
                 is_ranging_mode = slot_type in ("RANGING",) or (
-                    not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
+                    not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ", "DECOR_HUNTER")
                 )
                 if self.strict_single_order_mode:
                     max_total_slots = 1

@@ -76,17 +76,17 @@ class BankrollGuardian:
             result["is_trending"] = (adx >= settings.ADX_TRENDING_THRESHOLD)
             result["is_strong_trend"] = (adx >= settings.ADX_STRONG_TREND_THRESHOLD)
 
-            # Determinar direção do BTC com confluência 15m + 1h
-            if adx >= 22:
+            # [V111.3 ORACLE-FIX] Direção alinhada com OracleAgent:
+            # ADX >= 25: 1h é sempre o árbitro final (nunca LATERAL por conflito de TFs)
+            # ADX 22-25: confluência 15m + 1h, com 1h como tiebreaker
+            if adx >= settings.ADX_TRENDING_THRESHOLD:  # >= 25
+                result["direction"] = "UP" if var_1h > 0 else "DOWN"
+            elif adx >= 22:  # 22-25: zona de transição
                 if var_15m > 0 and var_1h > 0:
                     result["direction"] = "UP"
                 elif var_15m < 0 and var_1h < 0:
                     result["direction"] = "DOWN"
-                elif adx >= settings.ADX_TRENDING_THRESHOLD:
-                    # ADX >= 25: fallback para 1h se 15m/1h discordam
-                    result["direction"] = "UP" if var_1h > 0 else "DOWN"
                 else:
-                    # ADX 22-25 com direção inconclusiva: usar 1h como tiebreaker
                     result["direction"] = "UP" if var_1h > 0.1 else ("DOWN" if var_1h < -0.1 else "LATERAL")
         except Exception:
             pass

@@ -741,34 +741,6 @@ class BankrollGuardian:
                     f"MERCADO MORTO: ADX={market['adx']:.1f} < {settings.ADX_MIN_ENTRY:.0f}. "
                     "Novas entradas bloqueadas em regime de baixa volatilidade."
                 )
-            elif market["is_strong_trend"] or market["is_trending"]:
-                is_long = signal_side in ("buy", "long")
-                if market["direction"] == "UP" and not is_long:
-                    approved = False
-                    reasons.append(
-                        f"CONTRA-TENDENCIA: BTC em BULL (ADX={market['adx']:.1f}), "
-                        f"mas sinal e {signal_side.upper()}. Apenas LONGs permitidos."
-                    )
-                elif market["direction"] == "DOWN" and is_long:
-                    approved = False
-                    reasons.append(
-                        f"CONTRA-TENDENCIA: BTC em BEAR (ADX={market['adx']:.1f}), "
-                        f"mas sinal e {signal_side.upper()}. Apenas SHORTs permitidos."
-                    )
-            elif market["adx"] >= settings.ADX_MIN_ENTRY and market["adx"] < settings.ADX_TRENDING_THRESHOLD:
-                is_long = signal_side in ("buy", "long")
-                if market["direction"] == "UP" and not is_long:
-                    approved = False
-                    reasons.append(
-                        f"ZONA DE TRANSICAO: BTC em BULL leve (ADX={market['adx']:.1f}), "
-                        f"apenas LONGs permitidos ate confirmacao de tendencia."
-                    )
-                elif market["direction"] == "DOWN" and is_long:
-                    approved = False
-                    reasons.append(
-                        f"ZONA DE TRANSICAO: BTC em BEAR leve (ADX={market['adx']:.1f}), "
-                        f"apenas SHORTs permitidos ate confirmacao de tendencia."
-                    )
 
         if report["mode"] == "PRESERVACAO_TOTAL":
             approved = False

@@ -1673,10 +1673,6 @@ class CaptainAgent(AIOSAgent):
                 consensus["approved"] = False
                 consensus["reason"] = "MERCADO_LATERAL_PAUSADO"
                 logger.info(f"[V111.3 TREND_FOCUS] {symbol} ({strategy}) rejeitado. Mercado LATERAL - sistema pausado aguardando tendencia.")
-            elif strategy == "DECOR":
-                consensus["approved"] = False
-                consensus["reason"] = "DECOR_SUSPENSO"
-                logger.info(f"[V111.3 TREND_FOCUS] {symbol} ({strategy}) rejeitado. Pares DECOR/desgrudados suspensos. So operamos pares seguindo BTC.")
             else:
                 consensus["approved"] = True
             

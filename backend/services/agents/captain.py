@@ -2272,18 +2272,23 @@ class CaptainAgent(AIOSAgent):
                     logger.info(f"🥊 [ZONE REJECTION] Volume + MSS Fired! Delta: {diff:.0f}.")
                     return True
 
-            # Type D: [V110.24.0 REFINED] Score >= 70 já libera entrada sem MSS obrigatório
+            # Type D: [V110.24.0 REFINED] Score >= 70 libera entrada sem MSS obrigatório
             score_val = signal_data.get("score", 0) if signal_data else 0
-            if score_val >= 70 and confidence >= 45:
+            if score_val >= 70 and confidence >= 30:
                 logger.info(f"🚀 [ELITE BYPASS V110.24] Score {score_val} + Conf {confidence:.1f}%. Disparo direto!")
                 return True
 
-            # Type E: [V110.24.0 TIME PRESSURE] Após 30s, entrada forçada (Elite >= 20%, Normal >= 35%)
+            # Type D2: Score >= 90 entra direto mesmo com confiança baixa
+            if score_val >= 90 and confidence >= 10:
+                logger.info(f"🚀 [ELITE BYPASS V111.4] Score {score_val} + Conf {confidence:.1f}%. Disparo direto!")
+                return True
+
+            # Type E: [V110.24.0 TIME PRESSURE] Após 15s, entrada forçada (Elite >= 10%, Normal >= 20%)
             elapsed = time.time() - start_time
             score_val = signal_data.get("score", 0) if signal_data else 0
-            min_conf_bypass = 20 if score_val >= 90 else 35
-            if elapsed >= 30 and confidence >= min_conf_bypass:
-                logger.info(f"🚀 [TIME PRESSURE V110.24] Entrada forçada para {symbol} após {elapsed:.0f}s (Conf: {confidence:.1f}% >= {min_conf_bypass}%).")
+            min_conf_bypass = 10 if score_val >= 90 else 20
+            if elapsed >= 15 and confidence >= min_conf_bypass:
+                logger.info(f"🚀 [TIME PRESSURE V111.4] Entrada forçada para {symbol} após {elapsed:.0f}s (Conf: {confidence:.1f}% >= {min_conf_bypass}%).")
                 return True
             
             elapsed = time.time() - start_time

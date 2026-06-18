@@ -1286,10 +1286,11 @@ class CaptainAgent(AIOSAgent):
         symbol = best_signal["symbol"]
         side = best_signal.get("side", "Buy")
         
-        # [MASTER BYPASS] - Se existir OKX Master ou for modo PAPER, ignora os inscritos e executa o sinal na conta Master/Simulada.
+        # [MASTER BYPASS] - Se existir OKX Master, executa diretamente na conta global.
         from config import settings
         if settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER":
-            logger.info(f"🚀 [BYPASS MASTER/PAPER] Sinal de {symbol} roteado diretamente para OKX Master/Paper global.")
+            mode = "REAL" if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER" else "PAPER"
+            logger.info(f"🚀 [BYPASS] Sinal de {symbol} roteado para OKX ({mode}).")
             await self._run_user_execution_logic(None, {}, best_signal)
             return
 

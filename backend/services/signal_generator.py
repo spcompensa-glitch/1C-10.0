@@ -3251,20 +3251,20 @@ class SignalGenerator:
                     
                     # [V110.36.5] VANGUARD PRE-QUALIFIER (S2): Alinhado com o Stage 1 e Captain.
                     # Usa M-ADX autêntico e permite passe livre para ativos com Score >= 90 e fluxo BTC Positivo.
+                    # Threshold alinhado com ADX_TRENDING_THRESHOLD=25 (grade oficial do sistema).
                     m_adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    if m_adx and m_adx < 28 and _settings.OKX_EXECUTION_MODE != "PAPER":
+                    adx_threshold = _settings.ADX_TRENDING_THRESHOLD
+                    if m_adx and m_adx < adx_threshold and _settings.OKX_EXECUTION_MODE != "PAPER":
                         btc_cvd_total = okx_ws_public_service.get_cvd_score("BTCUSDT")
                         btc_cvd_5m    = okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300)
                         has_real_flow = (btc_cvd_total > 0) and (btc_cvd_5m > 0)
                         is_vanguard_pre = (candidate.get('preliminary_score', 0) >= 90) and has_real_flow
 
                         if not is_vanguard_pre:
-                            reason = f"SENTINELA ADX GUARD: M-ADX {m_adx:.1f} < 28 (MODO ELITE). Rejeitado."
+                            reason = f"SENTINELA ADX GUARD: M-ADX {m_adx:.1f} < {adx_threshold}. Rejeitado."
                             logger.info(f"🚫 [V110.36.5] {symbol} rejected: {reason}")
                             self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             return None
-                    elif m_adx and m_adx < 28 and _settings.OKX_EXECUTION_MODE == "PAPER":
-                        logger.info(f"🛡️ [PAPER] Ignorando trava ADX Sentinela (M-ADX {m_adx:.1f} < 28) para permitir ampla emanação de sinais no radar local.")
                     
                     self._diag_counters['ema4h_pass'] += 1
                     

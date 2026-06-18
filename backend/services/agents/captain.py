@@ -1700,12 +1700,11 @@ class CaptainAgent(AIOSAgent):
             if current_p_audit > 0:
                 space_audit = await self._check_engine_space(symbol, side, current_p_audit)
                 if not space_audit.get("valid", True):
-                    logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO ENGINE SPACE PARA {symbol}.")
-                    # msg = f"🚫 [V68.0 ENGINE SPACE] Rejeitado: Espaço de manobra insuficiente."
-                    # logger.warning(msg)
-                    # await firebase_service.update_signal_outcome(best_signal.get("id"), "ENGINE_SPACE_REJECTED")
-                    # self.active_tocaias.discard(symbol)
-                    # return
+                    msg = f"🚫 [V68.0 ENGINE SPACE] Rejeitado: Espaço de manobra insuficiente."
+                    logger.warning(msg)
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "ENGINE_SPACE_REJECTED")
+                    self.active_tocaias.discard(symbol)
+                    return
 
             is_mean_rev = best_signal.get("is_mean_reversion", False)
             trap_exploited = best_signal.get("trap_exploited", False)
@@ -1743,8 +1742,7 @@ class CaptainAgent(AIOSAgent):
             local_cvd = best_signal.get("cvd_local", 0)
             is_high_risk = lib_dna.get("status") == "HIGH_RISK"
             
-            # [SANDBOX] Todas as ordens contornam a Tocaia e entram a mercado
-            should_bypass_ambush = True
+            should_bypass_ambush = score >= 90 or local_cvd > 50000 or current_btc_adx >= 50
 
             
             if should_bypass_ambush:
@@ -1797,10 +1795,10 @@ class CaptainAgent(AIOSAgent):
 
                 if not price_check["confirmed"]:
                     rejection = price_check.get("rejection_type", "UNKNOWN")
-                    logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO PULLBACK HUNTER PARA {symbol}. ({rejection})")
-                    # await firebase_service.update_signal_outcome(best_signal.get("id"), f"{rejection}")
-                    # self.active_tocaias.discard(symbol)
-                    # return
+                    logger.info(f"🚫 [PULLBACK HUNTER] {symbol} rejeitado: {rejection}")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), f"{rejection}")
+                    self.active_tocaias.discard(symbol)
+                    return
 
                 await firebase_service.update_signal_outcome(
                     best_signal.get("id"),
@@ -1813,10 +1811,9 @@ class CaptainAgent(AIOSAgent):
                 flip_confirmed = await self._wait_for_needle_flip(symbol, side, max_wait=10, signal_data=best_signal)
 
                 if not flip_confirmed:
-                    logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO BLOQUEIO DO NEEDLE FLIP PARA {symbol}.")
-                    # logger.info(f"⏭️ [NEEDLE FLIP] {symbol} não confirmou exaustão CVD+Volume.")
-                    # await firebase_service.update_signal_outcome(best_signal.get("id"), "NEEDLE_FLIP_FAIL")
-                    # return
+                    logger.info(f"⏭️ [NEEDLE FLIP] {symbol} não confirmou exaustão CVD+Volume.")
+                    await firebase_service.update_signal_outcome(best_signal.get("id"), "NEEDLE_FLIP_FAIL")
+                    return
                 
             await firebase_service.update_signal_outcome(best_signal.get("id"), "NEEDLE_FLIP_OK")
             logger.info(f"🎯 V36.4 PULLBACK ALVO PRONTO: {symbol}")
@@ -2216,9 +2213,6 @@ class CaptainAgent(AIOSAgent):
         [V7.0] THE PERFECT ENTRY: Wait Sniper Protocol.
         Monitors for confluence (Fibonacci/Walls) and Signal Maturity.
         """
-        logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO NEEDLE FLIP PARA {symbol}.")
-        return True
-        
         start_time = time.time()
         side_norm = side.lower()
         initial_cvd = await redis_service.get_cvd(symbol)
@@ -2310,9 +2304,6 @@ class CaptainAgent(AIOSAgent):
         Cenário B (Ancoragem): Se o mercado derreter/estourar a favor direto sem pullback,
         espera confirmação de distanciamento (0.25%) para entrar, evitando fake wicks na cara.
         """
-        
-        logger.info(f"💎 [PAPER-TEST-FIRE] FORÇANDO SUCESSO INSTANTÂNEO NO PULLBACK HUNTER PARA {symbol}.")
-        return {"confirmed": True, "rejection_type": None, "adaptive_sl": 0, "final_price": 0, "max_drawdown_pct": 0}
         
         signal_price = okx_ws_public_service.get_current_price(symbol)
         if signal_price <= 0:

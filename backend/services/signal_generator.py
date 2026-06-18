@@ -1585,7 +1585,7 @@ class SignalGenerator:
                 confidence += 15
                 signals.append(f"RATIO({decorrelation_ratio:.1f})")
             
-            is_decorrelated = confidence >= 45 or (correlation_data["is_decorrelated"] and confidence >= 30)
+            is_decorrelated = correlation_data["is_decorrelated"] and confidence >= 45
             
             direction = "Long" if alt_cvd > 0 else "Short"
             if alt_ls_ratio > 1.5: direction = "Short"
@@ -3261,9 +3261,8 @@ class SignalGenerator:
                         if not is_vanguard_pre:
                             reason = f"SENTINELA ADX GUARD: M-ADX {m_adx:.1f} < 28 (MODO ELITE). Rejeitado."
                             logger.info(f"🚫 [V110.36.5] {symbol} rejected: {reason}")
-                            logger.info(f"💎 [PAPER-TEST-FIRE] IGNORANDO SENTINELA ADX GUARD PARA {symbol}.")
-                            # self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                            # return None
+                            self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                            return None
                     elif m_adx and m_adx < 28 and _settings.OKX_EXECUTION_MODE == "PAPER":
                         logger.info(f"🛡️ [PAPER] Ignorando trava ADX Sentinela (M-ADX {m_adx:.1f} < 28) para permitir ampla emanação de sinais no radar local.")
                     

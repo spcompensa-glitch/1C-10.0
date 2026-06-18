@@ -1445,7 +1445,7 @@ class BankrollManager:
                 pending_ids = {k[1] for k in self.pending_slots}
                 for i in range(1, max_total_slots + 1):
                     if i not in active_ids and i not in pending_ids:
-                        logger.info(f"💎 [PAPER-TEST-FIRE] Forçando Slot {i} disponivel para {slot_type} (max={max_total_slots}).")
+                        logger.info(f"Slot {i} disponivel para {slot_type} (max={max_total_slots}).")
                         return i
 
                 logger.info(f"[PAPER] Todos os {max_total_slots} slots disponíveis ocupados.")

@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.3)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.4)
 
 ## Resumo Executivo
-* **Versão:** `V111.3: Oracle BTC Regime SSOT — ADX 22/25/30 + Confluência 15m/1h`
-* **Data:** 2026-06-17
+* **Versão:** `V111.4: PAPER-TEST-FIRE Purge — Validação Real Obrigatória + DECOR_HUNTER Pearson Fix`
+* **Data:** 2026-06-18
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Correção crítica do `BankrollGuardian` que impedia abertura de ordens em REAL mode: o `base_balance` usava o valor simulado (`$100`) em vez do equity real da exchange (~$20), causando `PRESERVACAO_TOTAL` com `min_score = 999.0` e bloqueando 100% dos sinais. Agora `base_balance = equity` em REAL mode. Watchlist expandida para 41 pares (ELITE_40_MATRIX + SOLUSDT). SOLUSDT removido do `ASSET_BLOCKLIST`. Remoção da restrição `LATERAL_ONLY_DECOR`. Escudo de correlação elevado para 0.95. Reset Nuclear integrado com Redis FLUSHDB. Sistema operacional com 8 posições ativas simultâneas no modo REAL da OKX.
+* **Escopo:** Remoção completa de todos os bypasses `PAPER-TEST-FIRE` que forçavam sucesso em validações críticas (Pullback Hunter, Needle Flip, Engine Space, Sentinela ADX). O CaptainAgent agora executa validação real antes de abrir ordens. Corrigido `should_bypass_ambush` que estava hardcoded como `True`. Corrigido o critério de decorrelação do `DECOR_HUNTER 2.0` que aprovava pares com Pearson > 0.9 como "descolados" — agora exige correlação baixa (`< 0.35`) como condição obrigatória.
 
 ---
 
@@ -70,7 +70,19 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 
 ---
 
-## Melhorias e Atualizações (Jun 16)
+## Melhorias e Atualizações (Jun 18)
+
+### V111.4: PAPER-TEST-FIRE Purge & DECOR_HUNTER Pearson Fix
+
+* **Remoção total do PAPER-TEST-FIRE:** Todos os bypasses de desenvolvimento foram removidos do runtime. As validações de Engine Space, Pullback Hunter, Needle Flip e Sentinela ADX agora executam a lógica real de mercado.
+* **`_wait_for_needle_flip` reativado:** Antes retornava `True` instantaneamente sem monitorar o mercado. Agora executa o protocolo completo de até 60s para confirmar entrada.
+* **`_validate_price_structure` reativado:** Antes retornava sucesso imediato sem validar pullback. Agora executa o Pullback Hunter real com adaptive SL.
+* **`should_bypass_ambush` corrigido:** Era hardcoded `True` (todas as ordens ignoravam a Tocaia). Agora só faz DIRECT-ENTRY se `score >= 90` ou `CVD > 50k` ou `ADX >= 50`.
+* **DECOR_HUNTER 2.0 Pearson fix:** O critério `is_decorrelated` foi corrigido para exigir Pearson `< 0.35` como condição **obrigatória** (antes `confidence >= 45` bastava para aprovar, mesmo com Pearson 0.95).
+* **Arquivos alterados:**
+  - `backend/services/agents/captain.py` — 6 blocos de PAPER-TEST-FIRE removidos; `should_bypass_ambush` corrigido.
+  - `backend/services/signal_generator.py` — PAPER-TEST-FIRE removido; `is_decorrelated` agora requer Pearson baixo.
+  - `backend/services/bankroll.py` — log PAPER-TEST-FIRE removido.
 
 ### V111.3: Oracle BTC Regime SSOT
 

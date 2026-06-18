@@ -3,6 +3,13 @@
 
 > **⚠️ NOTA DE DEPRECIAÇÃO:** O version log abaixo reflete o estado arquitetural na data de publicação de cada versão. Para a arquitetura atual e consolidada, consulte a seção `## 🏗️ ARQUITETURA DE SISTEMA` no final deste documento.
 
+*   **V111.4: PAPER-TEST-FIRE PURGE & DECOR_HUNTER PEARSON FIX [JUN 18]**
+    *   **PAPER-TEST-FIRE completamente removido**: Todos os bypasses de desenvolvimento que forçavam sucesso em validações foram eliminados do runtime (`captain.py`, `signal_generator.py`, `bankroll.py`). As validações de `Engine Space`, `Pullback Hunter`, `Needle Flip` e `Sentinela ADX` agora executam a lógica real de mercado.
+    *   **`_wait_for_needle_flip()` reativado**: Antes retornava `True` instantaneamente sem monitorar o mercado. Agora executa o protocolo completo de até 60s com confluência de CVD, MSS e time pressure.
+    *   **`_validate_price_structure()` reativado**: Antes retornava `{"confirmed": True}` imediato. Agora executa o Pullback Hunter real com Adaptive Stop Loss.
+    *   **`should_bypass_ambush` corrigido**: Era hardcoded `True` (SANDBOX). Agora usa `score >= 90 or CVD > 50k or ADX >= 50`, liberando DIRECT-ENTRY apenas para sinais elite com fluxo real.
+    *   **DECOR_HUNTER 2.0 Pearson fix**: `detect_btc_decorrelation()` agora exige Pearson `< 0.35` como condição **obrigatória** para `is_decorrelated` (antes `confidence >= 45` bastava, mesmo com Pearson 0.95). Impede que pares altamente correlacionados entrem como "descolados".
+
 *   **V111.3: ORACLE BTC REGIME SSOT & 15M DIRECTION FIX [JUN 17]**
     *   **Oracle alinhado à grade oficial `22/25/30`**: O `OracleAgent` agora deriva `regime` pela mesma escala operacional do `BankrollGuardian`: `RANGING` (`ADX < 22`), `TRANSITION` (`22-25`), `TRENDING` (`>= 25`) e `ROARING` (`>= 30`).
     *   **Direção do BTC por confluência real**: O Oracle fecha `btc_direction` como `UP`, `DOWN` ou `LATERAL` usando a confluência de variação `15m + 1h`, evitando depender de fragments espalhados pelo runtime.

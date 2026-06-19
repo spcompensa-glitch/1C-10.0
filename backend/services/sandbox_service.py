@@ -151,9 +151,19 @@ class SandboxService:
                     active_level_name = flash_state.get("active_level", "INICIAL")
                     current_stop_roi = float(flash_state.get("stop_roi", -100.0))
 
-                    # Lógica da Escadinha (Trailing Stop progressivo)
-                    ladder = proj_service.get_stop_ladder(max_roi)
-                    active_level = proj_service.get_active_level(max_roi, ladder)
+                    # Lógica da Escadinha (Trailing Stop progressivo) baseado no ADX
+                    adx_val = 30.0
+                    try:
+                        from services.okx_ws_public import okx_ws_public_service
+                        val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                        if val > 0.1:
+                            adx_val = val
+                    except Exception:
+                        pass
+                    is_ranging = (adx_val < 25)
+                    
+                    ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
+                    active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
 
                     updated_stop_roi = current_stop_roi
                     updated_level_name = active_level_name

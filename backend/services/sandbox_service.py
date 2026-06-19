@@ -53,7 +53,7 @@ class SandboxService:
             # Identificar direção: Buy/LONG, Sell/SHORT
             side = sig.get("side", "Buy")
             direction = "LONG" if side.lower() in ("buy", "long", "b") else "SHORT"
-            strategy = sig.get("strategy", "RADAR")
+            strategy = sig.get("strategy") or sig.get("strategy_class") or sig.get("strategy_type") or "RADAR"
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
 
             if entry_price <= 0.0:
@@ -72,9 +72,10 @@ class SandboxService:
             trade_id = f"sb_{symbol.replace('.P', '')}_{strategy}_{int(time.time())}"
             
             # Setup inicial do stop loss
-            # [V110.172] Stop inicial reduzido de -100% → -50% ROI para cortar risco máximo por trade.
-            # Com 50x alavancagem: -100% ROI = 2% de queda (muito amplo), -50% ROI = 1% de queda (mais seguro).
-            initial_stop_roi = -50.0
+            # [V111.4] Stop inicial reduzido de -50% → -30% ROI baseado em análise Sandbox.
+            # 52% dos trades perdem com WR 48% — reduzir perda média de -50% para -30% salva banca.
+            # Com 50x: -30% ROI = 0.6% de movimento de preço contra.
+            initial_stop_roi = -30.0
             stop_price = proj_service.raw_price_from_roi(entry_price, initial_stop_roi, side, 50.0)
 
             trade_data = {
@@ -95,7 +96,7 @@ class SandboxService:
                     "phase": "ESCADINHA",
                     "active_level": "INICIAL",
                     "stop_roi": initial_stop_roi,
-                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} (-100% ROI)"]
+                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} (-30% ROI)"]
                 },
                 "contract_meta": sig.get("contract_info") or {}
             }

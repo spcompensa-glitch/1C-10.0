@@ -1241,7 +1241,7 @@ class CaptainAgent(AIOSAgent):
                 opened_at = slot.get("opened_at", 0)
                 pnl_pct = slot.get("pnl_percent", 0.0)
                 
-                if not symbol or slot_id not in [1, 2, 3, 4]:
+                if not symbol or slot_id not in range(1, 41):
                     continue
                 
                 # Rule 1: Stagnant ROI (-5% to +5%)

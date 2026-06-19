@@ -1370,7 +1370,7 @@ class BankrollManager:
                 active_slot_ids = {
                     int(s.get("id"))
                     for s in slots
-                    if s.get("id") in [1, 2, 3, 4]
+                    if s.get("id") in range(1, 41)
                     and s.get("symbol")
                     and float(s.get("qty", 0) or 0) > 0
                     and float(s.get("entry_price", 0) or 0) > 0

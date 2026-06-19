@@ -82,7 +82,16 @@
         <div class="flex items-center gap-3">
             <img src="logo10DTrasp.png" alt="Logo" class="w-9 h-9 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">
             <div>
-                <h1 class="text-lg font-bold tracking-tight text-white font-display">1CRYPTEN <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span></h1>
+                <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2 font-display">
+                    1CRYPTEN 
+                    <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span>
+                    <!-- Contadores das 3 Estratégias -->
+                    <span class="flex items-center gap-1.5 ml-4">
+                        <span id="badge-alpha" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen">ALPHA SHIELD: <span id="count-alpha">0</span></span>
+                        <span id="badge-velocity" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">VELOCITY FLOW: <span id="count-velocity">0</span></span>
+                        <span id="badge-decor" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue">DECOR SHADOW: <span id="count-decor">0</span></span>
+                    </span>
+                </h1>
                 <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V110.903 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x)</p>
             </div>
         </div>
@@ -265,6 +274,16 @@
                 const statsRes = await fetch("/api/sandbox/stats");
                 if (statsRes.ok) {
                     const stats = await statsRes.json();
+                    // Atualizar contadores das 3 estratégias
+                    const breakdown = stats.strategy_breakdown || {};
+                    const alphaCount = breakdown["ALPHA SHIELD"] ? breakdown["ALPHA SHIELD"].total : 0;
+                    const velocityCount = breakdown["VELOCITY FLOW"] ? breakdown["VELOCITY FLOW"].total : 0;
+                    const decorCount = breakdown["DECOR SHADOW"] ? breakdown["DECOR SHADOW"].total : 0;
+                    
+                    document.getElementById("count-alpha").innerText = alphaCount;
+                    document.getElementById("count-velocity").innerText = velocityCount;
+                    document.getElementById("count-decor").innerText = decorCount;
+                    
                     document.getElementById("stat-total").innerText = stats.total_trades;
                     document.getElementById("stat-active").innerText = stats.active_trades;
                     document.getElementById("stat-winrate").innerText = stats.win_rate + "%";

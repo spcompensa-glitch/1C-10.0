@@ -3484,6 +3484,13 @@ class SignalGenerator:
 
                     final_score = max(10, min(99, final_score))
                     
+                    # [V111.4] SHORT BIAS — SHORT WR 49.12% vs LONG 47.18% no Sandbox
+                    if side_label == "Short" and getattr(settings, 'SHORT_BIAS_ACTIVE', True):
+                        short_boost = getattr(settings, 'SHORT_BIAS_BOOST', 8)
+                        if short_boost:
+                            final_score += short_boost
+                            logger.info(f"📊 [SHORT-BIAS] {symbol} Short +{short_boost} pts → final_score={min(99, final_score)}")
+                    
                     # [V41.1] SESSION AWARENESS: Penalidade/bônus baseado no horário
                     from datetime import datetime, timezone
                     hour_utc = datetime.now(timezone.utc).hour

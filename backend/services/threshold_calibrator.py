@@ -28,7 +28,7 @@ logger = logging.getLogger("ThresholdCalibrator")
 
 # Thresholds Padrão (V110.113)
 DEFAULT_THRESHOLDS = {
-    "min_score": 85,
+    "min_score": 90,
     "min_m_adx": 28,
     "min_cvd": 15000,
     "min_volume_24h": 1000000,  # $1M

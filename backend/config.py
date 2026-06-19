@@ -171,36 +171,40 @@ class Settings(BaseSettings):
         "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
     ]
     
-    # [V111] RADAR WATCHLIST UNIFICADA (41 pares = ELITE_40_MATRIX + SOLUSDT)
-    # Unificada com a ELITE_40_MATRIX para que todos os 40 pares monitorados
-    # possam gerar ordens, mais SOLUSDT (par de alta liquidez da watchlist original).
-    # Filtros de qualidade (Fleet Consensus, BankrollGuardian, Quartermaster)
-    # continuam protegendo a banca.
+    # [V111.4] RADAR WATCHLIST REDUZIDA (36 pares)
+    # Removidos por performance Sandbox negativa: ICPUSDT (-1475%), APTUSDT (-1078%),
+    # PYTHUSDT (-977%), LDOUSDT (-734%), RENDERUSDT (-550%). Mantidos apenas pares com ROI > -600% ou WR > 48%.
     RADAR_WATCHLIST: list = [
-        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
-        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "AVAXUSDT", "SUIUSDT", "OPUSDT",
+        "ARBUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
         "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
         "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
         "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
-        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT",
-        "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
+        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
+        "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
         "SOLUSDT"
     ]
     
-    # [DECOR_HUNTER 2.0] WATCHLIST EXPANDIDA (100 pares)
+    # [V111.4] SHORT BIAS — SHORT signals outperform LONG in Sandbox
+    # SHORT WR 49.12% vs LONG 47.18%, SHORT PnL -969% vs LONG -2797%
+    SHORT_BIAS_ACTIVE: bool = True
+    SHORT_BIAS_BOOST: int = 8
+    
+    # [DECOR_HUNTER 2.0] WATCHLIST EXPANDIDA (94 pares)
     # Usada exclusivamente pelo DECOR_HUNTER para scan de pares desgrudados do BTC.
-    # Inclui os 41 da RADAR_WATCHLIST + 59 mid-caps com potencial de desgrude.
+    # Inclui os 36 da RADAR_WATCHLIST + 58 mid-caps com potencial de desgrude.
+    # Removidos ICP, APT, PYTH, LDO, RENDER, CHZ (Sandbox: péssima performance).
     # O scan é feito em batches de 25 para não sobrecarregar a API.
     DECOR_WATCHLIST: list = [
-        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
-        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "AVAXUSDT", "SUIUSDT", "OPUSDT",
+        "ARBUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
         "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
         "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
         "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
-        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT",
-        "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
+        "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
+        "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
         "SOLUSDT",
         "UNIUSDT", "SUSHIUSDT", "CAKEUSDT", "COMPUSDT", "MKRUSDT",
         "SNXUSDT", "RUNEUSDT", "DODOUSDT", "GMXUSDT", "WOOUSDT",
@@ -212,7 +216,7 @@ class Settings(BaseSettings):
         "TRBUSDT", "AKTUSDT", "NKNUSDT",
         "ARUSDT", "STRKUSDT", "ZROUSDT", "ENAUSDT", "ETHFIUSDT",
         "ALTUSDT", "ZETAUSDT", "WUSDT", "PENDLEUSDT",
-        "MANAUSDT", "AXSUSDT", "ENJUSDT", "CHZUSDT",
+        "MANAUSDT", "AXSUSDT", "ENJUSDT",
         "ANKRUSDT", "STORJUSDT", "CVCUSDT", "BATUSDT",
         "KNCUSDT", "ZRXUSDT", "UMAUSDT", "RLCUSDT",
         "BADGERUSDT", "ALPACAUSDT", "CVXUSDT",
@@ -224,6 +228,7 @@ class Settings(BaseSettings):
     # [V111] Official Asset Blocklist - Memecoins & Low Liquidity
     # BTCUSDT e ETHUSDT sao apenas monitorados (Master Context), nao operados.
     # SOLUSDT foi removido — esta na RADAR_WATCHLIST e pode ser operado.
+    # Adicionados RENDER, ICP e CHZ por performance Sandbox extremamente negativa.
     ASSET_BLOCKLIST: set = {
         'BTCUSDT', 'ETHUSDT',  # Master Context Assets (Monitoring only)
         'PAXGUSDT', 'XAUTUSDT', 'TAOUSDT', 
@@ -235,7 +240,7 @@ class Settings(BaseSettings):
         '1000SHIBUSDT', '1000BONKUSDT', '1000FLOKIUSDT', 'LUNCUSDT', 'USTCUSDT',
         'XAUUSDT', 'XAGUSDT', 'XPDUSDT', 'XPTUSDT', 'WTIUSDT', 'BRENTUSDT',
         'USDEUSDT', 'USDCUSDT', 'EURSUSDT', 'DAIUSDT', 'FDUSDUSDT',
-        'BNBUSDT'
+        'BNBUSDT', 'ICPUSDT', 'RENDERUSDT', 'CHZUSDT'
     }
 
     # Fast API context

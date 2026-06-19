@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.4)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.5)
 
 ## Resumo Executivo
-* **Versão:** `V111.4: PAPER-TEST-FIRE Purge — Validação Real Obrigatória + DECOR_HUNTER Pearson Fix`
+* **Versão:** `V111.5: OKX REAL Mode Activation, Protobuf Version Fix, Score Threshold Upgrade & Escadinha 30% Protection`
 * **Data:** 2026-06-18
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Remoção completa de todos os bypasses `PAPER-TEST-FIRE` que forçavam sucesso em validações críticas (Pullback Hunter, Needle Flip, Engine Space, Sentinela ADX). O CaptainAgent agora executa validação real antes de abrir ordens. Corrigido `should_bypass_ambush` que estava hardcoded como `True`. Corrigido o critério de decorrelação do `DECOR_HUNTER 2.0` que aprovava pares com Pearson > 0.9 como "descolados" — agora exige correlação baixa (`< 0.35`) como condição obrigatória.
+* **Escopo:** Ativação real na OKX (`OKX_TESTNET=False`), correção do conflito crítico de versão do Protobuf (`protobuf==6.31.1`), aumento do threshold de score do Radar de 85 para `90` para filtrar trades de baixa probabilidade, inserção definitiva de **RENDERUSDT, ICPUSDT e CHZUSDT** na `ASSET_BLOCKLIST` devido ao péssimo histórico no sandbox, e inclusão de um novo degrau de proteção da escadinha (`30% ROI -> +5% Stop Loss`) salvando lucros antes de reversões.
 
 ---
 

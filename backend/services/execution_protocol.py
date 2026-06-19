@@ -495,13 +495,16 @@ class ExecutionProtocol:
         if slot_type in ["TREND", "SWING", "SNIPER", "SCALP", "SHADOW"]:
             target_stop_roi_trend = 0
             
-            # [V15.0] Apenas 2 fases:
-            # 1. 80% ROI (Gatilho) -> Move Stop Loss para +15% ROI (Fôlego/Taxas)
-            # 2. 150% ROI (Gatilho) -> Promove para Moonbag com Stop travado em +110% ROI
+            # [V15.0] Apenas 2 fases originais + proteção de 30% ROI:
+            # 1. 30% ROI (Gatilho) -> Move Stop Loss para +5% ROI (Proteção / Taxas)
+            # 2. 80% ROI (Gatilho) -> Move Stop Loss para +15% ROI (Fôlego / Taxas)
+            # 3. 150% ROI (Gatilho) -> Promove para Moonbag com Stop travado em +110% ROI
             if roi >= 150.0:
                 target_stop_roi_trend = 110.0
             elif roi >= 80.0:
                 target_stop_roi_trend = 15.0
+            elif roi >= 30.0:
+                target_stop_roi_trend = 5.0
                 
             if target_stop_roi_trend > 0:
                 # [V110.135] Use current trade leverage for correct price offset calculation

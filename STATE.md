@@ -1,10 +1,11 @@
 # Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.5)
 
 ## Resumo Executivo
-* **Versão:** `V111.5: OKX REAL Mode Activation, Protobuf Version Fix, Score Threshold Upgrade & Escadinha 30% Protection`
-* **Data:** 2026-06-18
+* **Versão:** `V111.6: OKX REAL Mode Restored, Hermes Compliance Fixed & DB History Purged`
+* **Data:** 2026-06-19
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Ativação real na OKX (`OKX_TESTNET=False`), correção do conflito crítico de versão do Protobuf (`protobuf==6.31.1`), aumento do threshold de score do Radar de 85 para `90` para filtrar trades de baixa probabilidade, inserção definitiva de **RENDERUSDT, ICPUSDT e CHZUSDT** na `ASSET_BLOCKLIST` devido ao péssimo histórico no sandbox, e inclusão de um novo degrau de proteção da escadinha (`30% ROI -> +5% Stop Loss`) salvando lucros antes de reversões.
+* **Escopo:** Restauração total pós-conflito do protobuf (pinado em `protobuf==4.25.3`), correção do erro de compliance do HermesAgent através do alias `ORDER_STOP_LADDER` em `order_projection_service.py`, e purga completa da base de dados PostgreSQL e Firebase RTDB (slots zerados como `LIVRE` e ciclo do vault reiniciado no Ciclo 1) para novas operações limpas na OKX.
+* **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
 

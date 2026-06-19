@@ -319,7 +319,15 @@
                 return `
                     <tr class="hover:bg-white/[0.01] transition-all">
                         <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
-                        <td class="p-4 font-mono text-xs text-gray-400">${t.strategy}</td>
+                        <td class="p-4 font-mono text-xs">
+                            <span class="px-2 py-0.5 rounded font-black ${
+                                t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :
+                                t.strategy === 'VELOCITY FLOW' ? 'bg-primary/10 border border-primary/20 text-primary' :
+                                t.strategy === 'DECOR SHADOW' ? 'bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue' : 'text-gray-400'
+                            }">
+                                ${t.strategy}
+                            </span>
+                        </td>
                         <td class="p-4">${directionBadge}</td>
                         <td class="p-4 font-mono text-xs">${t.entry_price.toFixed(4)}</td>
                         <td class="p-4 font-mono text-xs">${t.current_price.toFixed(4)}</td>

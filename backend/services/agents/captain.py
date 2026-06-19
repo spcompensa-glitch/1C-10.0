@@ -1653,9 +1653,17 @@ class CaptainAgent(AIOSAgent):
                 best_signal["is_reverse_sniper"] = True # Mark for tighter protection in SL logic
                 consensus["approved"] = True # Override approval for the pivot trade
             
-            # [SANDBOX] Whitelist Global de 20 Pares & Filtro de Regime Lateral
+            # [SANDBOX] Whitelist Global & Filtro de Regime Lateral
             from config import settings as temp_settings
-            whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
+            clean_sym = symbol.replace(".P", "").upper()
+            
+            # Se for estratégia de descolamento, a whitelist correta é a DECOR_WATCHLIST (94 pares)
+            is_decor_strategy = strategy in ("DECOR_HUNTER", "DECOR SHADOW")
+            if is_decor_strategy:
+                whitelist = getattr(temp_settings, 'DECOR_WATCHLIST', [])
+            else:
+                whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
+                
             if not whitelist:
                 whitelist = [
                     "SOLUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT", "NEARUSDT",
@@ -1664,11 +1672,10 @@ class CaptainAgent(AIOSAgent):
                     "XLMUSDT", "XRPUSDT", "TRXUSDT", "FILUSDT", "SUIUSDT"
                 ]
             
-            clean_sym = symbol.replace(".P", "").upper()
             if clean_sym not in whitelist:
                 consensus["approved"] = False
                 consensus["reason"] = "WATCHLIST_RESTRICTED"
-                logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na RADAR_WATCHLIST.")
+                logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na Watchlist correspondente.")
             elif is_market_ranging:
                 consensus["approved"] = False
                 consensus["reason"] = "MERCADO_LATERAL_PAUSADO"

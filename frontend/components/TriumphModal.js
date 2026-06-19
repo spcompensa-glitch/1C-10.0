@@ -123,7 +123,7 @@
                                 <div className="flex flex-col items-center justify-center">
                                     <span className="text-[8px] text-gray-500 uppercase tracking-wider font-black">Estratégia</span>
                                     <span className="text-[11px] font-mono font-bold text-gray-300">
-                                        {selectedHistoryLog.strategy_label || 'BLITZ'}
+                                        {selectedHistoryLog.strategy || selectedHistoryLog.strategy_label || 'VELOCITY FLOW'}
                                     </span>
                                 </div>
                             </div>
@@ -467,7 +467,16 @@
                                     <div className="space-y-2 p-3 rounded-xl bg-white/[0.02] border border-white/5">
                                         <div className="flex justify-between border-b border-white/5 pb-2">
                                             <span className="text-[8px] text-gray-600 uppercase font-bold">Batalhão</span>
-                                            <span className="text-[9px] font-black text-gray-300 uppercase">{selectedHistoryLog.slot_type || "BLITZ"}</span>
+                                            <span className="text-[9px] font-black text-gray-300 uppercase">
+                                                {(() => {
+                                                    const raw_strat = selectedHistoryLog.strategy || selectedHistoryLog.slot_type || "VELOCITY FLOW";
+                                                    const raw_strat_upper = String(raw_strat).toUpperCase();
+                                                    if (raw_strat_upper in {"ALPHA SHIELD":1, "VELOCITY FLOW":1, "DECOR SHADOW":1}) return raw_strat_upper;
+                                                    if (["DVAP", "MOLA", "FAS"].includes(raw_strat_upper)) return "ALPHA SHIELD";
+                                                    if (["DECOR", "DECOR_HUNTER"].includes(raw_strat_upper)) return "DECOR SHADOW";
+                                                    return "VELOCITY FLOW";
+                                                })()}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between border-b border-white/5 pb-2">
                                             <span className="text-[8px] text-gray-600 uppercase font-bold">BTC ADX (Entry)</span>
@@ -479,7 +488,7 @@
                                         </div>
                                         <div className="flex justify-between border-b border-white/5 pb-2">
                                             <span className="text-[8px] text-gray-600 uppercase font-bold">Protocolo</span>
-                                            <span className="text-[9px] font-mono font-bold text-white">{selectedHistoryLog.strategy || 'SNIPER'}</span>
+                                            <span className="text-[9px] font-mono font-bold text-white">{selectedHistoryLog.strategy || 'VELOCITY FLOW'}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-[8px] text-gray-600 uppercase font-bold">Alavancagem</span>

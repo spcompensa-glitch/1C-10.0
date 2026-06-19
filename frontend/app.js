@@ -19,17 +19,17 @@
         // Fecha o submenu ADM ao navegar
         useEffect(() => { setAdmOpen(false); }, [location.pathname]);
 
-        const isAdmActive = ['/config', '/adm', '/kanban'].includes(location.pathname)
+        const isAdmActive = ['/config', '/adm', '/kanban', '/hermes'].includes(location.pathname)
             || location.pathname.startsWith('/adm');
 
-        // Sub-itens do menu ADM
+        // [HERMES DASHBOARD v2] Sub-itens do menu ADM — Kanban substituído por Hermes
         const admItems = [
             { to: '/', icon: 'space_dashboard', label: 'Banca' },
-            { to: '/neural-chat', icon: 'psychology', label: 'Chat' },
+            { to: '/hermes', icon: 'auto_awesome', label: 'Hermes' },
             { href: '/sandbox', icon: 'science', label: 'Sandbox', targetSelf: true },
             { to: '/config', icon: 'settings', label: 'Config' },
             ...(isAdmin ? [{ to: '/adm', icon: 'admin_panel_settings', label: 'Controle' }] : []),
-            { to: '/kanban', icon: 'view_kanban', label: 'Kanban' },
+            { to: '/neural-chat', icon: 'psychology', label: 'Chat (legado)' },
             { href: 'https://n8n-production-8e2d4.up.railway.app', icon: 'account_tree', label: 'N8N', external: true },
         ];
 
@@ -127,12 +127,12 @@
                                 isActive={location.pathname === '/' || location.pathname === '/10d'}
                             />
 
-                            {/* CHAT */}
+                            {/* [HERMES DASHBOARD v2] HERMES — substitui o Chat antigo */}
                             <NavBtn
-                                to="/neural-chat"
-                                icon="psychology"
-                                label="Chat"
-                                isActive={location.pathname === '/neural-chat'}
+                                to="/hermes"
+                                icon="auto_awesome"
+                                label="Hermes"
+                                isActive={location.pathname === '/hermes'}
                             />
 
                             {/* ADM — expande submenu */}
@@ -282,8 +282,10 @@
                     <ReactRouterDOM.Routes>
                         <Route path="/" element={<Page10DComponent />} />
                         <Route path="/10d" element={<Page10DComponent />} />
-                        <Route path="/neural-chat" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/neural-chat.html" className="w-full h-full border-none" title="Neural Chat Interface" /></div>} />
-                        <Route path="/kanban" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/kanban.html" className="w-full h-full border-none" title="Hermes Kanban" /></div>} />
+                        {/* [HERMES DASHBOARD v2] Hermes Dashboard - substitui Kanban e Neural Chat */}
+                        <Route path="/hermes" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/hermes" className="w-full h-full border-none" title="Hermes Dashboard" /></div>} />
+                        <Route path="/neural-chat" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/neural-chat.html" className="w-full h-full border-none" title="Neural Chat Interface (legado)" /></div>} />
+                        <Route path="/kanban" element={<ReactRouterDOM.Navigate to="/hermes" replace />} />
                         <Route path="/config" element={<SettingsPageComponent onLogout={handleLogout} theme={theme} setTheme={setTheme} />} />
                         <Route path="/adm" element={<AdminUsersPageComponent />} />
                     </ReactRouterDOM.Routes>

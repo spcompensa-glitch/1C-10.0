@@ -337,7 +337,8 @@ class VaultService:
                     pnl = trade_data.get("pnl", 0)
                     roi = trade_data.get("pnl_percent", 0)
                     slot_id = trade_data.get("slot_id")
-                    is_trend_slot = slot_id in [3, 4]
+                    # No SaaS (40 slots), slots de 3 a 40 são elegíveis para a contagem do ciclo de tendência
+                    is_trend_slot = slot_id in [3, 4] or (slot_id is not None and 3 <= slot_id <= 40)
                     
                     # [V111.3] Idempotency Check (Ledger)
                     order_id = trade_data.get("order_id")
@@ -441,7 +442,8 @@ class VaultService:
             # Slots 3 & 4 (TREND) agora incrementam o ciclo 1/10 em QUALQUER resultado (Win/Loss).
             # Slots 1 & 2 (SCALP) são ignorados pelo contador 1/10 (Missões), mas aparecem no histórico.
             slot_id = trade_data.get("slot_id")
-            is_trend_slot = slot_id in [3, 4]
+            # No SaaS (40 slots), slots de 3 a 40 são elegíveis para a contagem do ciclo de tendência
+            is_trend_slot = slot_id in [3, 4] or (slot_id is not None and 3 <= slot_id <= 40)
             
             # V11.0: WIN_ROI_THRESHOLD define o mínimo para contar como vitória de ELITE
             win_threshold = getattr(settings, 'WIN_ROI_THRESHOLD', 80.0)
@@ -663,7 +665,8 @@ class VaultService:
             # 3. Update Database
             # [V25.1] total_trades_cycle should count only trades in the current 10-trade window
             # NOT all historical trades. Use modulo to prevent META 100 false positive.
-            slot34_trades = len([t for t in trades if t.get('slot_id') in [3, 4]])
+            # No SaaS (40 slots), slots de 3 a 40 entram na contagem do ciclo de tendência
+            slot34_trades = len([t for t in trades if t.get('slot_id') in [3, 4] or (t.get('slot_id') is not None and 3 <= t.get('slot_id') <= 40)])
             total_trades_capped = slot34_trades % 10  # Reset every 10 trades as designed
             
             update_data = {

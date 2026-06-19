@@ -170,16 +170,17 @@ class HermesAgent(AIOSAgent):
         
         try:
             # 1. Load code constants from order_projection_service
-            from services.order_projection_service import ORDER_STOP_LADDER
+            from services.order_projection_service import ORDER_STOP_LADDER_RANGING, ORDER_STOP_LADDER_TRENDING
             
             code_phases = {}
-            for level in ORDER_STOP_LADDER:
-                if level.phase in ("ESCADINHA", "EMANCIPACAO"):
-                    code_phases[level.name] = {
-                        "trigger_roi": level.trigger_roi,
-                        "sl_target_roi": level.stop_roi,
-                        "label": level.name.replace("_", " ").title()
-                    }
+            for ladder in (ORDER_STOP_LADDER_RANGING, ORDER_STOP_LADDER_TRENDING):
+                for level in ladder:
+                    if level.phase in ("ESCADINHA", "EMANCIPACAO"):
+                        code_phases[level.name] = {
+                            "trigger_roi": level.trigger_roi,
+                            "sl_target_roi": level.stop_roi,
+                            "label": level.name.replace("_", " ").title()
+                        }
             
             # 2. Get runtime data from sovereign_service
             runtime_slots = []

@@ -45,9 +45,9 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
-    # Em Trending, deixa o trade respirar mais
-    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 15.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 50.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 25.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_GARANTIDO_80", 80.0, 50.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 75.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
     StopLevel("TRAILING", "ALVO_150", 150.0, 110.0, "PROFIT_LOCK"),
     StopLevel("TRAILING", "WAVE", 200.0, 150.0, "TRAIL_LOCK"),

@@ -3676,7 +3676,7 @@
         };
 
         // --- Sub-Component: Positions Table (V111.0 — Ultra-Diversification OKX Style) ---
-        const PositionsTable = ({ slots, tickers, moonbags, onClosePosition, onSelectSlot, isRangingMode: propIsRangingMode }) => {
+        const PositionsTable = ({ slots, tickers, moonbags, onClosePosition, onSelectSlot, isRangingMode: propIsRangingMode, maxSlotsOverride = 20 }) => {
             // Filtra apenas posições ativas (com símbolo e quantidade)
             const activeSlots = (slots || []).filter(s => 
                 s && s.symbol && Number(s.entry_price || 0) > 0
@@ -3689,10 +3689,10 @@
                 ? activeSlots.reduce((sum, s) => sum + Number(s.pnl_percent || 0), 0) / activeSlots.length 
                 : 0;
             const isRangingMode = propIsRangingMode !== undefined ? propIsRangingMode : activeSlots.some(s => (s.strategy || '').includes('DECOR'));
-            const maxSlots = isRangingMode ? 0 : 20;
-            const capacityPct = Math.min(100, (activeSlots.length / maxSlots) * 100);
-            const modeLabel = isRangingMode ? 'PAUSADO' : 'ELITE_40_MATRIX';
-            const modeColor = isRangingMode ? '#22d3ee' : '#a78bfa';
+            const maxSlots = Number.isFinite(Number(maxSlotsOverride)) && Number(maxSlotsOverride) > 0 ? Number(maxSlotsOverride) : 20;
+            const capacityPct = Math.min(100, maxSlots > 0 ? (activeSlots.length / maxSlots) * 100 : 0);
+            const modeLabel = isRangingMode ? 'PAUSA_ENTRADA' : 'TREND_FOCUS';
+            const modeColor = isRangingMode ? '#f59e0b' : '#a78bfa';
 
             // Determina degrau ativo da Escadinha de Elite
             const getActiveDegrau = (s) => {
@@ -3804,7 +3804,7 @@
                                 const targetPrice = Number(s.target_price || 0);
                                 const liqPrice = Number(s.liq_price || 0);
                                 const leverage = Number(s.leverage || 50);
-                                const stratLabel = s.strategy_label || s.strategy || (s.slot_type || '').replace(/_/g, ' ') || 'TACTICAL';
+                                const stratLabel = s.strategy || s.strategy_label || (s.slot_type || '').replace(/_/g, ' ') || 'TACTICAL';
                                 const isEven = idx % 2 === 0;
 
                                 // 1. Cálculo da Distância do Stop
@@ -4001,16 +4001,16 @@
                                             <span style={{ 
                                                 fontSize: '8px', 
                                                 fontWeight: 900, 
-                                                color: stratLabel === 'LRT' ? '#8b5cf6' : (stratLabel === 'FAS' ? '#f59e0b' : 'rgba(255,255,255,0.45)'), 
+                                                color: stratLabel === 'ALPHA SHIELD' ? '#10b981' : (stratLabel === 'VELOCITY FLOW' ? '#8b5cf6' : (stratLabel === 'DECOR SHADOW' ? '#22d3ee' : 'rgba(255,255,255,0.45)')), 
                                                 letterSpacing: '0.5px', 
                                                 textTransform: 'uppercase',
-                                                background: stratLabel === 'LRT' ? 'rgba(139,92,246,0.15)' : (stratLabel === 'FAS' ? 'rgba(245,158,11,0.15)' : 'transparent'),
-                                                border: stratLabel === 'LRT' ? '1px solid rgba(139,92,246,0.3)' : (stratLabel === 'FAS' ? '1px solid rgba(245,158,11,0.3)' : 'none'),
-                                                padding: (stratLabel === 'LRT' || stratLabel === 'FAS') ? '1px 5px' : '0px',
+                                                background: stratLabel === 'ALPHA SHIELD' ? 'rgba(16,185,129,0.15)' : (stratLabel === 'VELOCITY FLOW' ? 'rgba(139,92,246,0.15)' : (stratLabel === 'DECOR SHADOW' ? 'rgba(34,211,238,0.15)' : 'transparent')),
+                                                border: stratLabel === 'ALPHA SHIELD' ? '1px solid rgba(16,185,129,0.3)' : (stratLabel === 'VELOCITY FLOW' ? '1px solid rgba(139,92,246,0.3)' : (stratLabel === 'DECOR SHADOW' ? '1px solid rgba(34,211,238,0.3)' : 'none')),
+                                                padding: (stratLabel === 'ALPHA SHIELD' || stratLabel === 'VELOCITY FLOW' || stratLabel === 'DECOR SHADOW') ? '1px 5px' : '0px',
                                                 borderRadius: '4px',
                                                 width: 'fit-content'
                                             }}>
-                                                {stratLabel.length > 14 ? stratLabel.substring(0, 14) + '…' : stratLabel}
+                                                {stratLabel}
                                             </span>
                                             <span style={{ fontSize: '7px', color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
                                                 ⏱️ {ageStr}
@@ -5761,7 +5761,7 @@
             filteredSignals, intelligenceMessage,
             historyPage, setHistoryPage, historyLimit, loadingHistory, setSelectedHistoryLog
         }) => {
-            const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
+            const isRangingMode = unifiedRegime === 'LATERAL';
             const [selectedSlotId, setSelectedSlotId] = useState(null);
             const [gridMode, setGridMode] = useState('4'); // Default to 4 charts
             const [gridSymbols, setGridSymbols] = useState(["BTCUSDT", "BTCUSDT", "BTCUSDT", "BTCUSDT"]);
@@ -5824,7 +5824,7 @@
                                 activeSlotCount={activeSlotCount}
                                 pulseStatus={pulseStatus}
                                 latency={latency}
-                                maxSlots={isRangingMode ? 20 : 40}
+                                maxSlots={20}
                             />
                             {/* Hover Panel do Pensamento AI (Sci-Fi Glass) */}
                             {focusedAsset && focusedAsset.pensamento && (
@@ -5965,7 +5965,7 @@
                                         <div className="flex items-center gap-1.5 mt-2 text-[9px] font-black bg-white/5 border border-white/10 rounded px-2.5 py-1 w-fit">
                                             <span className="text-gray-500 uppercase tracking-wider">Regime:</span>
                                             <span className={isRangingMode ? "text-amber-400" : "text-violet-400"}>
-                                                {isRangingMode ? "LATERAL (SISTEMA PAUSADO)" : "TENDÊNCIA (20/40 PARES)"}
+                                                {isRangingMode ? "LATERAL (NOVAS ENTRADAS PAUSADAS)" : "TENDÊNCIA (ENTRADAS LIBERADAS)"}
                                             </span>
                                         </div>
                                     </div>
@@ -6282,7 +6282,7 @@
                 return 'LATERAL';
             })();
 
-            const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
+            const isRangingMode = unifiedRegime === 'LATERAL';
 
             const [historyLogs, setHistoryLogs] = useState([]);
             const [loadingHistory, setLoadingHistory] = useState(true);
@@ -6511,12 +6511,16 @@
             // [V110.370] Radar Intelligence & Slot Needs
             const { intelligenceMessage, filteredSignals } = useMemo(() => {
                 const activeSlotsCount = slots.filter(s => s && s.symbol && Number(s.entry_price || 0) > 0).length;
-                const isRangingMode = unifiedRegime === 'LATERAL' || (guardianReport && guardianReport.max_slots_allowed === 20);
-                const maxSlots = isRangingMode ? 0 : 20;
+                const isRangingMode = unifiedRegime === 'LATERAL';
+                const maxSlots = 20;
                 const freeSlotsCount = maxSlots - activeSlotsCount;
 
                 let msg = "";
-                if (activeSlotsCount >= maxSlots) {
+                if (isRangingMode) {
+                    msg = activeSlotsCount > 0
+                        ? `LATERAL: GERINDO ${activeSlotsCount}/${maxSlots}`
+                        : 'LATERAL: NOVAS ENTRADAS PAUSADAS';
+                } else if (activeSlotsCount >= maxSlots) {
                     msg = `CUSTÓDIA PLENA ${activeSlotsCount}/${maxSlots}`;
                 } else {
                     const occupiedStr = `${activeSlotsCount}/${maxSlots}`;

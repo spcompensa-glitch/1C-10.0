@@ -2027,21 +2027,19 @@ class OKXRest:
                             # Cache result
                             self._funding_cache[api_symbol] = {"rate": rate, "ts": time.time()}
                             return rate
-                            
                 return 0.0
             except Exception as e:
                 logger.warning(f"Error fetching funding rate from OKX for {symbol}: {e}")
                 return 0.0
-    
+                
     async def set_trading_stop(self, category: str, symbol: str, stopLoss: str, slTriggerBy: str = None, tpslMode: str = None, positionIdx: int = None, side: str = None):
         """
         Sets the stop loss for a position.
-        [V43.0] Hedge Mode Support: Automatically resolves positionIdx based on side if not provided.
+        [V111.5 OKX REAL STOP FIX]
         """
         if self.execution_mode == "PAPER":
             api_symbol = self._strip_p(symbol)
             logger.info(f"[PAPER] Updating Stop Loss for {api_symbol} to {stopLoss}")
-            # [V110.28.2 FIX] Busca em paper_positions E paper_moonbags (garante Hard-Lock 110%)
             pos = next((p for p in self.paper_positions if p["symbol"] == api_symbol), None)
             if not pos:
                 pos = next((p for p in self.paper_moonbags if p["symbol"] == api_symbol), None)
@@ -2057,12 +2055,50 @@ class OKXRest:
         try:
             api_symbol = self._strip_p(symbol)
             
-            # [V43.0] Hedge Mode Auto-Resolution
+            # OKX REAL STOP LOSS IMPLEMENTATION
+            if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
+                from services.okx_service import okx_service
+                logger.info(f"⚡ [FLASH-OKX] Identificando ordens de stop pendentes na OKX para {symbol}...")
+                pending_algos = await okx_service.get_pending_algo_orders(symbol)
+                algo_id = None
+                if pending_algos:
+                    for algo in pending_algos:
+                        if algo.get("ordType") == "conditional" or "slTriggerPx" in algo:
+                            algo_id = algo.get("algoId")
+                            break
+                if algo_id:
+                    logger.info(f"🚀 [FLASH-OKX-SEND] Alterando preço de disparo do Stop Loss (algoId: {algo_id}) para {stopLoss} na OKX...")
+                    res = await okx_service.amend_algo_order(symbol, algo_id, float(stopLoss))
+                    if res and res.get("code") == "0":
+                        logger.info(f"✅ [FLASH-OKX-CONFIRMED] OKX confirmou alteração de stop da ordem ID: {algo_id}. Posição agora protegida!")
+                        from services.firebase_service import firebase_service
+                        slots = await firebase_service.get_active_slots()
+                        for slot in slots:
+                            if slot.get("symbol") and self._strip_p(slot["symbol"]) == api_symbol:
+                                visual_msg = f"⚡ Flash subiu Stop Loss para {stopLoss}!"
+                                await firebase_service.update_slot(slot["id"], {
+                                    "pensamento": visual_msg,
+                                    "timestamp_last_update": time.time()
+                                })
+                        return {"retCode": 0, "result": {"algoId": algo_id}}
+                    else:
+                        logger.error(f"❌ [FLASH-OKX-FAIL] Falha ao enviar stop para a OKX: {res.get('msg') if res else 'Unknown'}")
+                        return {"retCode": -1, "retMsg": res.get("msg") if res else "Unknown OKX Error"}
+                else:
+                    logger.warning(f"⚠️ [FLASH-OKX-NOTFOUND] Nenhuma ordem condicional pendente encontrada para {symbol}. Criando nova...")
+                    res = await okx_service.place_algo_order(
+                        symbol=symbol,
+                        side="sell" if side.lower() == "buy" else "buy",
+                        order_type="conditional",
+                        qty=0.0,
+                        stop_price=float(stopLoss)
+                    )
+                    if res and res.get("code") == "0":
+                        return {"retCode": 0, "result": {}}
+                    return {"retCode": -1, "retMsg": res.get("msg") if res else "Error creating new Stop"}
+
             if positionIdx is None:
                 if side:
-                    # In Hedge Mode: 1=Buy, 2=Sell. In One-Way: 0.
-                    # We default to 0 but if we have a side, we can't be sure of the mode without an API call.
-                    # Optimization: Fetch one position to see its structure.
                     active_pos = await self.get_active_positions(symbol=api_symbol)
                     if active_pos:
                         positionIdx = active_pos[0].get("positionIdx", 0)

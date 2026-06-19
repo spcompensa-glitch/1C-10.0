@@ -123,6 +123,7 @@ class SandboxService:
 
     async def _price_update_loop(self):
         """Loop de alta frequência que atualiza preços das posições virtuais e aplica regras do Flash."""
+        from services.okx_ws_public import okx_ws_public_service
         while self.is_running:
             try:
                 active_trades = await database_service.get_sandbox_trades(active_only=True)
@@ -154,7 +155,6 @@ class SandboxService:
                     # Lógica da Escadinha (Trailing Stop progressivo) baseado no ADX
                     adx_val = 30.0
                     try:
-                        from services.okx_ws_public import okx_ws_public_service
                         val = getattr(okx_ws_public_service, "btc_adx", 0.0)
                         if val > 0.1:
                             adx_val = val

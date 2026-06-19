@@ -62,6 +62,8 @@ ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
     StopLevel("TRAILING", "APEX", 1200.0, 1000.0, "TRAIL_LOCK"),
 ]
 
+ORDER_STOP_LADDER: List[StopLevel] = ORDER_STOP_LADDER_TRENDING # Alias para compatibilidade com o compliance do hermes-agent
+
 POST_APEX_STEP_ROI = 200.0
 POST_APEX_STOP_OFFSET_ROI = 200.0
 

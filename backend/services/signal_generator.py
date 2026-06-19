@@ -3174,38 +3174,45 @@ class SignalGenerator:
                         logger.error(f"Erro ao avaliar setup MOLA para {symbol}: {sq_err}")
 
                     # [V110.960] Classifica a estratégia do sinal seguindo a Hierarquia Consensual
-                    strategy_class = "SWING"
+                    raw_class = "SWING"
                     if is_lrt_play:
-                        strategy_class = "LRT"
+                        raw_class = "LRT"
                     elif is_dvap_play:
-                        strategy_class = "DVAP"
+                        raw_class = "DVAP"
                     elif is_fas_play:
-                        strategy_class = "FAS"
+                        raw_class = "FAS"
                     elif is_mola_play:
-                        strategy_class = "MOLA"
+                        raw_class = "MOLA"
                     elif candidate.get("is_decorrelated", False):
-                        strategy_class = "DECOR"
+                        raw_class = "DECOR"
                     elif candidate.get("v42_pattern", {}).get("detected", False):
-                        strategy_class = str(candidate.get("v42_pattern", {}).get("type", "RANGING")).upper()
+                        raw_class = str(candidate.get("v42_pattern", {}).get("type", "RANGING")).upper()
                     else:
                         # Se não for nenhuma das especiais, classificamos como ABCD ou 1-2-3 baseando-se no padrão
                         pat_name = str(candidate.get("indicators", {}).get("pattern", "unknown")).upper()
                         if "ABCD" in pat_name:
-                            strategy_class = "ABCD"
+                            raw_class = "ABCD"
                         elif "123" in pat_name:
-                            strategy_class = "1-2-3"
+                            raw_class = "1-2-3"
                         else:
-                            strategy_class = "TREND"
+                            raw_class = "TREND"
+
+                    if raw_class in ("DVAP", "MOLA", "FAS"):
+                        strategy_class = "ALPHA SHIELD"
+                    elif raw_class in ("DECOR", "DECOR_HUNTER"):
+                        strategy_class = "DECOR SHADOW"
+                    else:
+                        strategy_class = "VELOCITY FLOW"
 
                     # 2. Executa Filtros Rígidos de Consenso por Estratégia
-                    if strategy_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND"):
+                    if raw_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND"):
                         # LRT, DVAP, ABCD, 1-2-3 e TREND exigem alinhamento direcional com a SMA de 2H
                         if not is_sma_2h_aligned:
                             reason = f"SMA 2H ALIGN: Setup {strategy_class} 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"
                             logger.info(f"🚫 [SMA2H-ALIGN-REJECT] {symbol} rejeitado: {reason}")
                             self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             return None
-                    elif strategy_class == "MOLA":
+                    elif raw_class == "MOLA":
                         # MOLA exige ADX >= 25 para evitar falsos rompimentos em lateralização
                         asset_adx = market_regime.get("adx", 20.0)
                         if asset_adx < 25.0:
@@ -3213,7 +3220,7 @@ class SignalGenerator:
                             logger.info(f"🚫 [MOLA-ADX-REJECT] {symbol} rejeitado: {reason}")
                             self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
                             return None
-                    elif strategy_class == "FAS":
+                    elif raw_class == "FAS":
                         # FAS (Funding Squeeze) é isento de alinhamento com a SMA de 2H por ser puramente contra-tendência
                         logger.info(f"⚡ [FAS EXEMPTION] {symbol} {side_label} isento de alinhamento SMA 2H devido a Funding Extremo.")
 

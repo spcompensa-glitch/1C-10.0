@@ -53,7 +53,21 @@ class SandboxService:
             # Identificar direção: Buy/LONG, Sell/SHORT
             side = sig.get("side", "Buy")
             direction = "LONG" if side.lower() in ("buy", "long", "b") else "SHORT"
-            strategy = sig.get("strategy") or sig.get("strategy_class") or sig.get("strategy_type") or "RADAR"
+            raw_strat = sig.get("strategy") or sig.get("strategy_class") or sig.get("strategy_type") or "RADAR"
+            
+            # Mapeamento robusto para os 3 Pilares do Sniper
+            raw_strat_upper = str(raw_strat).upper()
+            if raw_strat_upper in ("ALPHA SHIELD", "VELOCITY FLOW", "DECOR SHADOW"):
+                strategy = raw_strat_upper
+            elif raw_strat_upper in ("DVAP", "MOLA", "FAS"):
+                strategy = "ALPHA SHIELD"
+            elif raw_strat_upper in ("DECOR", "DECOR_HUNTER"):
+                strategy = "DECOR SHADOW"
+            elif raw_strat_upper in ("LRT", "TREND", "ABCD", "1-2-3", "SWING", "BLITZ_30M"):
+                strategy = "VELOCITY FLOW"
+            else:
+                strategy = raw_strat
+                
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
 
             if entry_price <= 0.0:

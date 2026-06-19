@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.5)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.7)
 
 ## Resumo Executivo
-* **Versão:** `V111.6: OKX REAL Mode Restored, Hermes Compliance Fixed & DB History Purged`
+* **Versão:** `V111.7: Sniper 3-Pillar Taxonomy Unified (ALPHA SHIELD, VELOCITY FLOW, DECOR SHADOW)`
 * **Data:** 2026-06-19
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Restauração total pós-conflito do protobuf (pinado em `protobuf==4.25.3`), correção do erro de compliance do HermesAgent através do alias `ORDER_STOP_LADDER` em `order_projection_service.py`, e purga completa da base de dados PostgreSQL e Firebase RTDB (slots zerados como `LIVRE` e ciclo do vault reiniciado no Ciclo 1) para novas operações limpas na OKX.
+* **Escopo:** Unificação e taxonomia definitiva das estratégias sob 3 pilares proprietários (ALPHA SHIELD para exaustão e reversões como DVAP/MOLA/FAS; VELOCITY FLOW para seguimento de tendência como TREND/LRT/ABCD; e DECOR SHADOW para descorrelações de mercado via DECOR_HUNTER). Aplicação automática no Sandbox e no modo Real para fins de exibição na UI e rastreamento consolidado de PnL/WinRate.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---

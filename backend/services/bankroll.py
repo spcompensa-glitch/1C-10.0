@@ -2173,6 +2173,9 @@ class BankrollManager:
                     import uuid as _uuid
                     strategy_type = signal_data.get("strategy_class") if signal_data and signal_data.get("strategy_class") else ("BLITZ_30M" if slot_type == "BLITZ_30M" else "SWING")
                     prefix_map = {
+                        "ALPHA SHIELD": "APH",
+                        "VELOCITY FLOW": "VLO",
+                        "DECOR SHADOW": "DSH",
                         "DVAP": "DVAP",
                         "LRT": "LRT",
                         "FAS": "FAS",

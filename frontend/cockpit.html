@@ -4370,7 +4370,7 @@
             const chartInstance = useRef(null);
             const candlestickSeries = useRef(null);
             const [localSymbol, setLocalSymbol] = useState(symbol || "BTCUSDT");
-            const [localTimeframe, setLocalTimeframe] = useState("30");
+            const [localTimeframe, setLocalTimeframe] = useState("120");
             const [historicalData, setHistoricalData] = useState({ candles: [], volumes: [] });
             const [studyData, setStudyData] = useState(null);
             const extraLinesRef = useRef([]);
@@ -5163,7 +5163,9 @@
                                     <span className="text-[14px] font-black text-white uppercase tracking-tight">{localSymbol}</span>
                                     <div className="w-1.5 h-1.5 rounded-full bg-lime-500 animate-pulse shadow-[0_0_8px_rgba(132,204,22,0.6)]"></div>
                                 </div>
-                                <span className="text-[8px] font-bold text-gray-500 uppercase tracking-[0.2em]">{localTimeframe}M INTERVAL</span>
+                                <span className="text-[8px] font-bold text-gray-500 uppercase tracking-[0.2em]">
+                                    {localTimeframe === "60" ? "1H" : localTimeframe === "120" ? "2H" : localTimeframe === "240" ? "4H" : `${localTimeframe}M`} INTERVAL
+                                </span>
                             </div>
                             {(() => {
                                 const activeSlot = slots.find(s => s && s.symbol && s.symbol.replace('.P','').replace('.p','').toUpperCase() === localSymbol.toUpperCase());
@@ -5249,7 +5251,7 @@
                                 onChange={(e) => setLocalTimeframe(e.target.value)}
                                 className="bg-black/80 backdrop-blur-2xl text-[10px] font-black text-white border border-white/10 rounded-xl pl-3 pr-8 py-1.5 uppercase outline-none hover:border-primary/50 hover:text-primary transition-all appearance-none cursor-pointer shadow-xl"
                             >
-                                <option value="1">1m</option><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option><option value="60">1h</option><option value="240">4h</option>
+                                <option value="1">1m</option><option value="5">5m</option><option value="15">15m</option><option value="30">30m</option><option value="60">1h</option><option value="120">2h</option><option value="240">4h</option>
                             </select>
                             <span className="material-icons-round absolute right-2 top-1/2 -translate-y-1/2 text-[14px] text-gray-500 group-hover/sel:text-primary pointer-events-none">expand_more</span>
                         </div>

@@ -4581,8 +4581,8 @@
                     const sma21 = window.calculateSMA(historicalData.candles, 21);
                     const sma100 = window.calculateSMA(historicalData.candles, 100);
                     
-                    if (sma21.length > 0) levels.push({ value: sma21[sma21.length-1].value, label: 'SMA 21', color: '#FFFFFF', gutterVisible: false });
-                    if (sma100.length > 0) levels.push({ value: sma100[sma100.length-1].value, label: 'SMA 100', color: '#FFFF00', gutterVisible: false });
+                    if (sma21.length > 0 && sma21[sma21.length-1] !== null) levels.push({ value: sma21[sma21.length-1].value, label: 'SMA 21', color: '#FFFFFF', gutterVisible: false });
+                    if (sma100.length > 0 && sma100[sma100.length-1] !== null) levels.push({ value: sma100[sma100.length-1].value, label: 'SMA 100', color: '#FFFF00', gutterVisible: false });
                 }
 
                 // Price Lines

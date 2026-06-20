@@ -94,6 +94,15 @@ async def get_sandbox_stats():
                 best_pnl = s_data["pnl"]
                 best_strategy = strat
 
+        # Tentar buscar o regime atual
+        current_regime = "NEUTRAL"
+        try:
+            from services.agents.captain import captain
+            if hasattr(captain, 'btc_market_regime'):
+                current_regime = captain.btc_market_regime.get("direction", "NEUTRAL")
+        except Exception:
+            pass
+
         return {
             "total_trades": total,
             "active_trades": active,
@@ -104,7 +113,8 @@ async def get_sandbox_stats():
             "average_pnl": round(avg_pnl, 2),
             "total_pnl": round(bank_pnl_percent, 2),
             "best_strategy": best_strategy,
-            "strategy_breakdown": strategy_stats
+            "strategy_breakdown": strategy_stats,
+            "current_regime": current_regime
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar estatísticas do sandbox: {str(e)}")

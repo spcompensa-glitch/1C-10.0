@@ -85,6 +85,10 @@
                 <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2 font-display">
                     1CRYPTEN 
                     <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span>
+                    <!-- Status do Regime / Oracle -->
+                    <span id="sandbox-regime-badge" class="ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300">
+                        REGIME: <span id="sandbox-regime-value">AGUARDANDO...</span>
+                    </span>
                     <!-- Contadores das 3 Estratégias -->
                     <span class="flex items-center gap-1.5 ml-4">
                         <span id="badge-alpha" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen">ALPHA SHIELD: <span id="count-alpha">0</span></span>
@@ -284,6 +288,22 @@
                     document.getElementById("count-velocity").innerText = velocityCount;
                     document.getElementById("count-decor").innerText = decorCount;
                     
+                    // Atualizar Regime
+                    const regime = stats.current_regime || "NEUTRAL";
+                    const regimeBadge = document.getElementById("sandbox-regime-badge");
+                    const regimeValue = document.getElementById("sandbox-regime-value");
+                    
+                    if (regime === "LATERAL") {
+                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange";
+                        regimeValue.innerText = "LATERAL (V.F PAUSADO | D.S ATIVO)";
+                    } else if (regime === "UP" || regime === "DOWN") {
+                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen";
+                        regimeValue.innerText = `TENDÊNCIA ${regime} (V.F ATIVO | D.S PAUSADO)`;
+                    } else {
+                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300";
+                        regimeValue.innerText = regime;
+                    }
+
                     document.getElementById("stat-total").innerText = stats.total_trades;
                     document.getElementById("stat-active").innerText = stats.active_trades;
                     document.getElementById("stat-winrate").innerText = stats.win_rate + "%";

@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.7)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.8)
 
 ## Resumo Executivo
-* **Versão:** `V111.7: Sniper 3-Pillar Taxonomy Unified (ALPHA SHIELD, VELOCITY FLOW, DECOR SHADOW)`
-* **Data:** 2026-06-19
+* **Versão:** `V111.8: Sniper 3-Pillar Taxonomy Unified (SaaS 40 slots, 2H UI View & SMA fix)`
+* **Data:** 2026-06-20
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Unificação e taxonomia definitiva das estratégias sob 3 pilares proprietários (ALPHA SHIELD para exaustão e reversões como DVAP/MOLA/FAS; VELOCITY FLOW para seguimento de tendência como TREND/LRT/ABCD; e DECOR SHADOW para descorrelações de mercado via DECOR_HUNTER). Aplicação automática no Sandbox e no modo Real para fins de exibição na UI e rastreamento consolidado de PnL/WinRate.
+* **Escopo:** Unificação e taxonomia de estratégias sob 3 pilares principais. Expansão completa para suporte de 1 a 40 slots ativos no SaaS. Refinamento da visualização gráfica do Cockpit no timeframe de 2H (120m) como padrão inicial, com correções e otimizações de escala da SMA 21/100 e incremento do cache do backend para 300 klines para evitar encurtamento visual. Contadores de tempo real implementados na Navbar do Sandbox.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -71,7 +71,17 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 
 ---
 
-## Melhorias e Atualizações (Jun 18)
+## Melhorias e Atualizações (Jun 20)
+
+### V111.8: Visualização 2H Unificada, Otimização de SMA e Expansão SaaS 40 Slots
+
+* **Exibição Padrão de 2H na UI**: O seletor de Timeframe do cockpit e do grid principal (Eagle Vision) foi ajustado para ter o timeframe de **2H** (120m) como padrão inicial, com identificação limpa `"2H INTERVAL"` no HUD.
+* **Correção da Escala e Traçado da SMA**: 
+  - Resolvido o TypeError causado por valores nulos na filtragem do array de SMA no frontend.
+  - Ajustadas as séries de SMA 21 e SMA 100 para herdar explicitamente a escala direita (`priceScaleId: 'right'`), além de aumentar a espessura da linha (`lineWidth: 4`) para destaque.
+  - Corrigido o backend (`okx_rest.py`) para expandir o limite de histórico de klines de 144 para **300 candles**, resolvendo definitivamente o corte prematuro/encurtamento visual da linha da SMA 100 amarela.
+* **SaaS 40 Slots**: Modificado o core do backend (`captain.py`, `bankroll.py`, `vault_service.py`) para suportar a totalidade de slots SaaS de `1` a `40` ativos em concorrência no Postgres e Firebase.
+* **Contadores de Estratégias no Sandbox**: Integrado contadores reativos na Navbar do Sandbox para mapear as 3 estratégias de forma paralela.
 
 ### V111.4: PAPER-TEST-FIRE Purge & DECOR_HUNTER Pearson Fix
 

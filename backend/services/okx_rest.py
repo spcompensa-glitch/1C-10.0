@@ -1705,10 +1705,9 @@ class OKXRest:
         if '_GLOBAL_KLINES_LOCKS' not in globals():
             _GLOBAL_KLINES_LOCKS = {}
             
-        # [V120 OPTIMIZATION] Ignore limit in cache key to share the same cache for all requests of this interval.
-        # Always fetch 144 candles (enough for 2H, 4H EMA, Daily, etc) to maximize cache hit rate.
+        # Always fetch 300 candles (enough for 2H, 4H EMA, Daily, etc) to maximize cache hit rate.
         cache_key = f"{symbol}_{interval}_shared"
-        fetch_limit = 144
+        fetch_limit = 300
         now = time.time()
         
         # 1. Check cache WITHOUT lock (fast path)

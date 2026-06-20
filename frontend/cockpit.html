@@ -2366,8 +2366,8 @@
                                 })));
                             }
 
-                            if (ema20Ref.current) ema20Ref.current.setData(calculateSMA(klines, 100).filter(d => d && typeof d.value === 'number'));
-                            if (ema200Ref.current) ema200Ref.current.setData(calculateSMA(klines, 21).filter(d => d && typeof d.value === 'number'));
+                            if (ema20Ref.current) ema20Ref.current.setData(calculateSMA(klines, 100).filter(d => d !== null && typeof d.value === 'number'));
+                            if (ema200Ref.current) ema200Ref.current.setData(calculateSMA(klines, 21).filter(d => d !== null && typeof d.value === 'number'));
 
                             // SuperTrend (10, 2)
                             if (stUpRef.current && stDownRef.current) {
@@ -4770,8 +4770,8 @@
                         if (window.calculateSMA) {
                             const sma21 = window.calculateSMA(candles, 21);
                             const sma100 = window.calculateSMA(candles, 100);
-                            sma21SeriesRef.current.setData(sma21.filter(d => typeof d === 'object' && typeof d.value === 'number'));
-                            sma100SeriesRef.current.setData(sma100.filter(d => typeof d === 'object' && typeof d.value === 'number'));
+                            sma21SeriesRef.current.setData(sma21.filter(d => d !== null && typeof d === 'object' && typeof d.value === 'number'));
+                            sma100SeriesRef.current.setData(sma100.filter(d => d !== null && typeof d === 'object' && typeof d.value === 'number'));
                         }
                     }
 

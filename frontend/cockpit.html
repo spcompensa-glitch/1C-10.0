@@ -2281,7 +2281,7 @@
             const seriesRef = useRef();
             const linesRef = useRef([]);
             const [lastPrice, setLastPrice] = useState(null);
-            const [tf, setTf] = useState('30'); // Default 30m
+            const [tf, setTf] = useState('120'); // Default 2h (120m)
             const isMounted = useRef(true);
 
             // V9.0 Trend Data State
@@ -2308,6 +2308,7 @@
                 { label: '15m', value: '15' },
                 { label: '30m', value: '30' },
                 { label: '1h', value: '60' },
+                { label: '2h', value: '120' },
                 { label: '4h', value: '240' },
             ];
 

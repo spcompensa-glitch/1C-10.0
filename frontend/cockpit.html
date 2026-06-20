@@ -4524,8 +4524,8 @@
                     visible: false
                 });
 
-                sma21SeriesRef.current = chart.addLineSeries({ color: '#FFFFFF', lineWidth: 3, title: '', visible: eagleMode, axisLabelVisible: false, lastValueVisible: false, priceLineVisible: false });
-                sma100SeriesRef.current = chart.addLineSeries({ color: '#FFFF00', lineWidth: 3, title: '', visible: eagleMode, axisLabelVisible: false, lastValueVisible: false, priceLineVisible: false });
+                sma21SeriesRef.current = chart.addLineSeries({ color: '#FFFFFF', lineWidth: 4, title: 'SMA 21', visible: eagleMode, axisLabelVisible: false, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' });
+                sma100SeriesRef.current = chart.addLineSeries({ color: '#FFFF00', lineWidth: 4, title: 'SMA 100', visible: eagleMode, axisLabelVisible: false, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' });
 
                 // Gutter Sync
                 chart.timeScale().subscribeVisibleLogicalRangeChange(() => {

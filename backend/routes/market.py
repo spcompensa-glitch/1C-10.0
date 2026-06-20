@@ -127,10 +127,16 @@ async def get_trend_analysis(symbol: str):
         return {"symbol": symbol, "trend": "sideways", "pattern": "none", "trend_strength": 0}
 
 @router.get("/market/klines")
-async def get_klines_proxy(symbol: str, interval: str = "60", limit: int = 200):
+async def get_klines_proxy(symbol: str, interval: str = "120", limit: int = 300):
     okx_rest_service, _, _, _, _, _ = get_services()
     try:
-        int_map = {"15m": "15", "1h": "60", "4h": "240"}
+        int_map = {
+            "15": "15m", "15m": "15m",
+            "30": "30m", "30m": "30m",
+            "60": "1H", "1h": "1H", "1H": "1H",
+            "120": "2H", "2h": "2H", "2H": "2H",
+            "240": "4H", "4h": "4H", "4H": "4H"
+        }
         interval_str = int_map.get(str(interval), str(interval))
         data = await okx_rest_service.get_klines(symbol=symbol, interval=interval_str, limit=limit)
         if data: 

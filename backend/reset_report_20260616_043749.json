@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-06-16T04:35:35.366547",
+  "target_balance": 100.0,
+  "steps": [
+    "\u2705 PostgreSQL: trade_history, moonbags, slots zerados. Banca resetada para $100.",
+    "\u2705 Redis (Mock/In-Memory) caches limpos.",
+    "\u26a0\ufe0f Firestore n\u00e3o ativo \u2014 SDK Firebase n\u00e3o inicializado.",
+    "\u2705 Firebase RTDB zerado (banca=$100.00).",
+    "\u2705 RAM: 0 posi\u00e7\u00f5es e 0 moonbags removidas.",
+    "\u2705 BankrollManager: pending_slots, recent_openings e ghost trackers limpos.",
+    "\u2705 Capit\u00e3o destravado: {'active_tocaias': 0, 'processing_lock': 0, 'cooldown_registry': 0, 'daily_symbol_trades': 0}",
+    "\u2705 Guardi\u00e3o da Banca resetado: {'peak_equity': 0.0, 'protected_profit_peak': 0.0, 'last_report_at': 0.0}",
+    "\u2705 SignalGenerator: blocklists e daily_trades limpos."
+  ],
+  "status": "SUCCESS"
+}

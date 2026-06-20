@@ -73,6 +73,13 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 
 ## Melhorias e Atualizações (Jun 20)
 
+### V112.0: Proteção de Regime (Regime Gating) e Trailing Stop Agressivo D.S
+
+* **Regime Gating:** Implementada trava rígida para impedir que o sistema opere estratégias direcionais/fortes (`VELOCITY FLOW`) quando o Oráculo indicar um mercado `LATERAL`. Em contrapartida, `DECOR SHADOW` foi restringido para não atuar em mercado de `TENDÊNCIA`.
+* **Proteção em Múltiplos Níveis:** Gating aplicado no núcleo de inteligência (`signal_generator.py`), no motor de simulação (`sandbox_service.py`) e no despachante final (`captain.py`).
+* **Trailing Stop 50/70 para D.S:** Otimizado o motor de projeção de ordens (`order_projection_service.py`) no regime Lateral: quando a operação atinge +50% de ROI, o stop é defendido em +40%. Ao bater +70%, o alvo principal é garantido com stop em +50%, subindo elásticamente a partir daí.
+* **Cockpit UI Atualizado:** A exibição de Regimes no HUD do frontend agora especifica visualmente o status das estratégias (ex: `LATERAL (V.F PAUSADO | D.S ATIVO)`).
+
 ### V111.8: Visualização 2H Unificada, Otimização de SMA e Expansão SaaS 40 Slots
 
 * **Exibição Padrão de 2H na UI**: O seletor de Timeframe do cockpit e do grid principal (Eagle Vision) foi ajustado para ter o timeframe de **2H** (120m) como padrão inicial, com identificação limpa `"2H INTERVAL"` no HUD.

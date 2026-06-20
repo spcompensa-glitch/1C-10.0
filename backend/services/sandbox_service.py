@@ -68,6 +68,17 @@ class SandboxService:
             else:
                 strategy = raw_strat
                 
+            # [REGIME GATING] Impedir poluição do sandbox
+            try:
+                from services.agents.captain import captain
+                current_regime = captain.btc_market_regime.get("direction", "NEUTRAL")
+                if strategy == "VELOCITY FLOW" and current_regime == "LATERAL":
+                    continue
+                if strategy == "DECOR SHADOW" and current_regime in ("UP", "DOWN"):
+                    continue
+            except Exception:
+                pass
+                
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
 
             if entry_price <= 0.0:

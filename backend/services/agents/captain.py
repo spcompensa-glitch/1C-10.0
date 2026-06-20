@@ -1285,6 +1285,16 @@ class CaptainAgent(AIOSAgent):
         """
         symbol = best_signal["symbol"]
         side = best_signal.get("side", "Buy")
+        strategy_class = best_signal.get("strategy_class", "VELOCITY FLOW")
+        
+        # [REGIME GATING] Garantia Absoluta no Nível do Capitão
+        current_regime = self.btc_market_regime.get("direction", "NEUTRAL")
+        if strategy_class == "VELOCITY FLOW" and current_regime == "LATERAL":
+            logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} VELOCITY FLOW rejeitado em mercado LATERAL.")
+            return
+        if strategy_class == "DECOR SHADOW" and current_regime in ("UP", "DOWN"):
+            logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} DECOR SHADOW rejeitado em mercado em TENDÊNCIA.")
+            return
         
         # [MASTER BYPASS] - Se existir OKX Master, executa diretamente na conta global.
         from config import settings

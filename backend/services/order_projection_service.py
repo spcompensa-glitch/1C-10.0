@@ -28,7 +28,7 @@ class StopLevel:
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     # Em Ranging, o breakeven ativa precoce e sobe agressivo por causa dos falsos rompimentos.
     StopLevel("ESCADINHA", "SL_0", 30.0, 5.0, "SL_0"),
-    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 25.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 40.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 70.0, 50.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_TRAVADO_100", 100.0, 80.0, "PROFIT_LOCK"),
     StopLevel("TRAILING", "ALVO_150", 150.0, 110.0, "PROFIT_LOCK"),

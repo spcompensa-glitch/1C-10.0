@@ -3205,7 +3205,19 @@ class SignalGenerator:
                         strategy_class = "VELOCITY FLOW"
 
                     # 2. Executa Filtros Rígidos de Consenso por Estratégia
-                    if raw_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND"):
+                    if strategy_class == "VELOCITY FLOW" and btc_dir.get("direction", "NEUTRAL") == "LATERAL":
+                        reason = f"ORACLE REGIME GATING: Mercado LATERAL detectado. VELOCITY FLOW pausado."
+                        logger.info(f"🚫 [REGIME-REJECT] {symbol} rejeitado: {reason}")
+                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                        return None
+                    
+                    if strategy_class == "DECOR SHADOW" and btc_dir.get("direction", "NEUTRAL") in ("UP", "DOWN"):
+                        reason = f"ORACLE REGIME GATING: Mercado em TENDENCIA. DECOR SHADOW pausado."
+                        logger.info(f"🚫 [REGIME-REJECT] {symbol} rejeitado: {reason}")
+                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
+                        return None
+
+                    if raw_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND", "DECOR", "DECOR_HUNTER"):
                         # LRT, DVAP, ABCD, 1-2-3 e TREND exigem alinhamento direcional com a SMA de 2H
                         if not is_sma_2h_aligned:
                             reason = f"SMA 2H ALIGN: Setup {strategy_class} 30M nao alinhado com o cruzamento da SMA de 2H (Trend 2H={trend_2h})"

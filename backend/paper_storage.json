@@ -1,0 +1,67 @@
+{
+    "positions": [
+        {
+            "symbol": "ARBUSDT",
+            "side": "Sell",
+            "size": "116.7",
+            "avgPrice": "0.0857",
+            "leverage": "50.0",
+            "stopLoss": "0.08800625",
+            "takeProfit": "0.077094",
+            "entry_margin": "2.000238",
+            "ctVal": "10.0",
+            "createdTime": "1781563949378",
+            "opened_at": 1781563949.3788383,
+            "maestria_guard_active": false,
+            "slot_id": 1
+        },
+        {
+            "symbol": "DOTUSDT",
+            "side": "Sell",
+            "size": "99.80000000000001",
+            "avgPrice": "1.0017",
+            "leverage": "50.0",
+            "stopLoss": "1.0280500000000001",
+            "takeProfit": "0.9018",
+            "entry_margin": "1.9993932000000003",
+            "ctVal": "1.0",
+            "createdTime": "1781564111218",
+            "opened_at": 1781564111.2187815,
+            "maestria_guard_active": false,
+            "slot_id": 3
+        },
+        {
+            "symbol": "XRPUSDT",
+            "side": "Buy",
+            "size": "0.8",
+            "avgPrice": "1.235",
+            "leverage": "50.0",
+            "stopLoss": "1.2388",
+            "takeProfit": "1.3585000000000003",
+            "entry_margin": "1.9760000000000002",
+            "ctVal": "100.0",
+            "createdTime": "1781566914206",
+            "opened_at": 1781566914.2062788,
+            "maestria_guard_active": false,
+            "slot_id": 2
+        }
+    ],
+    "moonbags": [],
+    "balance": 100.0,
+    "history": [
+        {
+            "symbol": "UNIUSDT",
+            "side": "Buy",
+            "positionValue": 97.632,
+            "unrealisedPnl": 0,
+            "createdTime": "1781558609327",
+            "avgEntryPrice": "2.712",
+            "avgExitPrice": "2.78",
+            "closedPnl": "2.339258399999986",
+            "leverage": "50.0",
+            "qty": "36.0",
+            "is_partial": false,
+            "updatedTime": "1781561190382"
+        }
+    ]
+}

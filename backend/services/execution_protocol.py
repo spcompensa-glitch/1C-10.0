@@ -25,10 +25,11 @@ logger = logging.getLogger("ExecutionProtocol")
 # V14.1 Stabilization Protocol Phases
 # [V110.23.3] DEEP CLEAN: SAFE phase removed to allow maximum breathing room until 70% ROI.
 SMART_SL_PHASES = {
-    "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -70.0,  "icon": "🔴", "color": "red",    "label": "BREATHING"},
-    "PHASE_BREAKEVEN":    {"trigger_roi": 80.0,  "stop_roi": 15.0,   "icon": "⚖️", "color": "cyan",   "label": "BREAKEVEN"},
-    "PHASE_RISK_ZERO":    {"trigger_roi": 80.0,  "stop_roi": 15.0,   "icon": "🛡️", "color": "green",  "label": "RISK_ZERO"},
-    "PHASE_MEGA_PULSE":   {"trigger_roi": 150.0, "stop_roi": 110.0,  "icon": "💎", "color": "diamond", "label": "MEGA_PULSE"}
+    "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -30.0,  "icon": "🔴", "color": "red",     "label": "INICIAL"},
+    "PHASE_RISK_ZERO":    {"trigger_roi": 50.0,  "stop_roi": 25.0,   "icon": "🛡️", "color": "green",   "label": "RISK_ZERO"},
+    "PHASE_LUCRO_80":     {"trigger_roi": 80.0,  "stop_roi": 50.0,   "icon": "⚖️", "color": "cyan",    "label": "LUCRO_80"},
+    "PHASE_PROFIT_LOCK":  {"trigger_roi": 100.0, "stop_roi": 75.0,   "icon": "🔒", "color": "blue",    "label": "PROFIT_LOCK"},
+    "PHASE_MEGA_PULSE":   {"trigger_roi": 130.0, "stop_roi": 110.0,  "icon": "💎", "color": "diamond", "label": "MEGA_PULSE"}
 }
 
 # V12.0 Risk Management Constants
@@ -495,43 +496,35 @@ class ExecutionProtocol:
         if slot_type in ["TREND", "SWING", "SNIPER", "SCALP", "SHADOW"]:
             target_stop_roi_trend = 0
             
-            # [V15.0] Apenas 2 fases originais + proteção de 30% ROI:
-            # 1. 30% ROI (Gatilho) -> Move Stop Loss para +5% ROI (Proteção / Taxas)
-            # 2. 80% ROI (Gatilho) -> Move Stop Loss para +15% ROI (Fôlego / Taxas)
-            # 3. 150% ROI (Gatilho) -> Promove para Moonbag com Stop travado em +110% ROI
-            if roi >= 150.0:
+            # [V111.4] ESCADINHA DE TENDÊNCIA UNIFICADA (Ordem Única até o infinito):
+            # 1. 50% ROI  -> Move SL para +25% ROI (Risco Zero / Lucro Inicial)
+            # 2. 80% ROI  -> Move SL para +50% ROI (Lucro Garantido)
+            # 3. 100% ROI -> Move SL para +75% ROI (Lucro Travado)
+            # 4. 130% ROI -> Move SL para +110% ROI (Sucesso Total)
+            if roi >= 130.0:
                 target_stop_roi_trend = 110.0
+            elif roi >= 100.0:
+                target_stop_roi_trend = 75.0
             elif roi >= 80.0:
-                target_stop_roi_trend = 15.0
-            elif roi >= 30.0:
-                target_stop_roi_trend = 5.0
+                target_stop_roi_trend = 50.0
+            elif roi >= 50.0:
+                target_stop_roi_trend = 25.0
                 
             if target_stop_roi_trend > 0:
                 # [V110.135] Use current trade leverage for correct price offset calculation
                 price_offset_pct = target_stop_roi_trend / (leverage * 100)
                 new_stop = entry * (1 + price_offset_pct) if side_norm == "buy" else entry * (1 - price_offset_pct)
 
-                # [V110.136.2 F3] EMANCIPATION SL GUARD
-                # Se entry_price=0 (dado corrompido), new_stop seria 0 e o Moonbag ficaria
-                # sem protecao. Fallback: calcular SL a partir do current_price.
+                # Fallback de segurança se o preço de entrada for corrompido
                 if new_stop <= 0 and current_price > 0:
-                    logger.warning(
-                        f"[SL-GUARD] {symbol}: entry_price={entry} invalido → "
-                        f"SL de emancipacao calculado a partir do current_price ({current_price:.6f})."
-                    )
                     new_stop = current_price * (1 + price_offset_pct) if side_norm == "buy" else current_price * (1 - price_offset_pct)
 
                 from services.okx_rest import okx_rest_service
                 new_stop = await okx_rest_service.round_price(symbol, new_stop)
-                
-                # Check Emancipação (V110.4: Gatilho em 150% ROI)
-                if roi >= 150.0 and not is_emancipated:
-                    logger.info(f"[V110.21 EMANCIPAR] {symbol} atingiu +{roi:.0f}% ROI (>=150%). Liberando slot (Moonbag)!")
-                    return False, "EMANCIPATE_SLOT", new_stop
 
-                # Atualiza se melhor (Paciência Absoluta: só move o stop para CIMA/PROVEITO)
+                # Atualiza se melhor (Paciência Absoluta: só move o stop para a direção favorável)
                 if (side_norm == "buy" and new_stop > current_sl) or (side_norm == "sell" and (current_sl == 0 or new_stop < current_sl)):
-                    logger.info(f"🛡️ [V15.0 ESCADINHA] {symbol} ROI={roi:.0f}%. Novo SL garantido em +{target_stop_roi_trend}% ROI.")
+                    logger.info(f"🛡️ [ESCADINHA MACRO] {symbol} ROI={roi:.0f}%. Novo SL garantido em +{target_stop_roi_trend}% ROI.")
                     return False, None, new_stop
 
 
@@ -590,10 +583,14 @@ class ExecutionProtocol:
         scale_trigger = max(1.0, scale)
         current_phase = "SAFE"
 
-        # 1. Fase baseada no ROI atual (V15.0: Apenas 2 Degraus)
-        if roi >= 150.0 * scale_trigger:
+        # 1. Fase baseada no ROI atual (Trending/Decor Shadow)
+        if roi >= 130.0 * scale_trigger:
             current_phase = "MEGA_PULSE"
+        elif roi >= 100.0 * scale_trigger:
+            current_phase = "PROFIT_LOCK"
         elif roi >= 80.0 * scale_trigger:
+            current_phase = "LUCRO_80"
+        elif roi >= 50.0 * scale_trigger:
             current_phase = "RISK_ZERO"
 
         # 2. Persistência baseada no SL (Caso o mercado recue mas o SL continue travado)

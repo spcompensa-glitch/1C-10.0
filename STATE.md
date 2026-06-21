@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.5)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.6)
 
 ## Resumo Executivo
-* **Versão:** `V112.5: Lateral Market Ranging Defense (10% BE, 15% Partial TP, 20% Trailing Stop)`
+* **Versão:** `V112.6: Sandbox Stop Loss Optimization & Virtual Slippage Calibration`
 * **Data:** 2026-06-21
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral (Ranging / Neutral, ADX < 25) para maximizar eficiência de capital: Break-Even a 10% ROI, saída parcial de 50% a 15% ROI, e trailing stop contínuo de 5% a partir de 20% ROI. O mercado de tendência (ADX >= 25) permanece inalterado para surfar alvos longos.
+* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral (Ranging / Neutral, ADX < 25), stop inicial dinâmico no Sandbox (-20% ROI em mercado lateral, -30% ROI em tendência) e correção de cálculo do PnL simulado sob slippage virtual de alta frequência.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -69,6 +69,11 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 ---
 
 ## Melhorias e Atualizações (Jun 21)
+
+### V112.6: Otimização do Sandbox (Stop Dinâmico e Correção de Slippage)
+
+* **Stop Inicial Dinâmico no Sandbox:** Calibrado o stop inicial simulado para herdar o regime atual (ADX < 25). Se estiver em mercado lateral, o Stop Loss inicial é definido em **-20% ROI** (0.4% de preço). Se estiver em tendência, permanece em **-30% ROI** (0.6% de preço).
+* **Failsafe contra Slippage Virtual:** Corrigido o cálculo de PnL no loop do Sandbox. Quando um stop é violado por spikes abruptos no WebSocket (ex: INJUSDT registrando -567%), o simulador agora recalcula a saída exatamente no preço do Stop Loss configurado, evitando a distorção artificial do histórico de trades do Sandbox.
 
 ### V112.5: Escadinha e Saídas Defensivas em Mercado Lateral
 

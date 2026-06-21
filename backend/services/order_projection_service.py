@@ -27,6 +27,7 @@ class StopLevel:
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     # Em Ranging, o breakeven ativa precoce e depois entra em trailing agressivo
+    StopLevel("ESCADINHA", "SL_5", 5.0, -10.0, "RISCO_MEDIO"),
     StopLevel("ESCADINHA", "SL_BE", 10.0, 0.0, "RISCO_ZERO"),
     StopLevel("TRAILING", "TRAIL_20", 20.0, 15.0, "TRAIL_LOCK"),
 ]
@@ -182,7 +183,7 @@ class OrderProjectionService:
         if is_ranging:
             if roi_percent >= 20.0:
                 return "TRAILING"
-            if roi_percent >= 10.0:
+            if roi_percent >= 5.0:
                 return "ESCADINHA"
             return "ORDER"
         else:

@@ -113,6 +113,11 @@ def test_ranging_ladder():
     print("🔍 Testing Ranging Ladder stop levels...")
     from services.order_projection_service import order_projection_service
     
+    # Test level at 6% ROI (should trigger SL_5 stop at -10%)
+    active_6 = order_projection_service.get_active_level(6.0, is_ranging=True)
+    assert active_6 is not None
+    assert active_6.stop_roi == -10.0
+    
     # Test level at 12% ROI (should trigger BE stop at 0%)
     active_12 = order_projection_service.get_active_level(12.0, is_ranging=True)
     assert active_12 is not None

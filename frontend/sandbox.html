@@ -354,6 +354,9 @@
 
                 const flashPhase = t.flash_state?.phase || "ESCADINHA";
                 const flashLevel = t.flash_state?.active_level || "INICIAL";
+                
+                const stopRoi = t.flash_state?.stop_roi;
+                const stopRoiText = stopRoi !== undefined ? ` (${stopRoi >= 0 ? '+' : ''}${stopRoi.toFixed(0)}%)` : '';
 
                 return `
                     <tr class="hover:bg-white/[0.01] transition-all">
@@ -370,7 +373,10 @@
                         <td class="p-4">${directionBadge}</td>
                         <td class="p-4 font-mono text-xs">${t.entry_price.toFixed(4)}</td>
                         <td class="p-4 font-mono text-xs">${t.current_price.toFixed(4)}</td>
-                        <td class="p-4 font-mono text-xs text-cyberRed">${t.stop_loss.toFixed(4)}</td>
+                        <td class="p-4 font-mono text-xs text-cyberRed">
+                            ${t.stop_loss.toFixed(4)}
+                            <span class="text-[10px] text-gray-500 font-sans font-medium block sm:inline ml-1">${stopRoiText}</span>
+                        </td>
                         <td class="p-4 font-mono text-xs text-cyberGreen">+${t.max_roi.toFixed(1)}%</td>
                         <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${t.pnl_pct.toFixed(1)}%</td>
                         <td class="p-4">

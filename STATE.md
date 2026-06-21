@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.7)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.8)
 
 ## Resumo Executivo
-* **Versão:** `V112.7: Sandbox Regime-Enforced Strategy Gating`
+* **Versão:** `V112.8: Progressive Micro-Defense (SL_5) & Sandbox Stop ROI UI`
 * **Data:** 2026-06-21
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral, stop dinâmico e enforço estrito de regime no Sandbox: apenas DECOR SHADOW opera no lateral (ADX < 25), e apenas VELOCITY FLOW e ALPHA SHIELD operam em tendência (ADX >= 25).
+* **Escopo:** Implementação do degrau progressivo de risco em mercado lateral (SL_5: +5% ROI -> stop em -10% ROI) e integração visual do ROI equivalente do Stop Loss na planilha do Sandbox UI.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -23,6 +23,7 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 **Regime LATERAL (ADX < 25):**
 | Gatilho ROI | Stop sobe para / Ação | Fase |
 |---|---|---|
+| 5% | -10% (Degrau de Risco inicial reduzido) | ESCADINHA |
 | 10% | 0% (Break-Even) | ESCADINHA |
 | 15% | Saída Parcial de 50% (Stop mantém em 0%) | ESCADINHA |
 | 20%+ | Trailing Stop Dinâmico (gatilho - 5%) | TRAILING |
@@ -69,6 +70,11 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 ---
 
 ## Melhorias e Atualizações (Jun 21)
+
+### V112.8: Degrau de Risco Progressivo (SL_5) e ROI do Stop na UI do Sandbox
+
+* **Degrau de Risco Progressivo (Opção 2):** Injetada a regra de micro-defesa `SL_5` no stop ladder de regime lateral (`ORDER_STOP_LADDER_RANGING`): ao atingir **+5% ROI** (0.1% de preço), o stop sobe imediatamente de -20% para **-10% ROI**, cortando a perda máxima potencial pela metade no primeiro impulso antes de evoluir para Break-Even (0% a +10% ROI).
+* **ROI do Stop na UI do Sandbox:** Atualizado o template de renderização da planilha do Sandbox no frontend (`sandbox.html`) para decodificar o `stop_roi` do estado do `FlashAgent` e mostrá-lo em tempo real ao lado do preço absoluto do Stop Loss (ex: `1.2454 (-10%)` ou `1.2454 (0%)`), facilitando o acompanhamento visual das escadinhas de stop.
 
 ### V112.7: Gating de Estratégia por Regime no Sandbox
 

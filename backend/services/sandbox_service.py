@@ -68,6 +68,25 @@ class SandboxService:
             else:
                 strategy = raw_strat
                 
+            adx_val = 30.0
+            try:
+                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                if val > 0.1:
+                    adx_val = val
+            except Exception:
+                pass
+            is_ranging = (adx_val < 25)
+
+            # [V112.7] Sandbox Regime Gating:
+            # Lateral (ADX < 25) -> Apenas DECOR SHADOW é permitido.
+            # Tendência (ADX >= 25) -> Apenas VELOCITY FLOW e ALPHA SHIELD são permitidos.
+            if is_ranging:
+                if strategy != "DECOR SHADOW":
+                    continue
+            else:
+                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
+                    continue
+
             # Sandbox deve aceitar todos os sinais para fins de simulação/estatística
 
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
@@ -89,15 +108,6 @@ class SandboxService:
             
             # Setup inicial do stop loss
             # [V112.6] Stop inicial dinâmico por regime: -20% ROI em mercado lateral, -30% ROI em tendência.
-            adx_val = 30.0
-            try:
-                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
-                if val > 0.1:
-                    adx_val = val
-            except Exception:
-                pass
-            is_ranging = (adx_val < 25)
-            
             initial_stop_roi = -20.0 if is_ranging else -30.0
             stop_price = proj_service.raw_price_from_roi(entry_price, initial_stop_roi, side, 50.0)
 

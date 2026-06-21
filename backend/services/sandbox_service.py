@@ -88,10 +88,17 @@ class SandboxService:
             trade_id = f"sb_{symbol.replace('.P', '')}_{strategy}_{int(time.time())}"
             
             # Setup inicial do stop loss
-            # [V111.4] Stop inicial reduzido de -50% → -30% ROI baseado em análise Sandbox.
-            # 52% dos trades perdem com WR 48% — reduzir perda média de -50% para -30% salva banca.
-            # Com 50x: -30% ROI = 0.6% de movimento de preço contra.
-            initial_stop_roi = -30.0
+            # [V112.6] Stop inicial dinâmico por regime: -20% ROI em mercado lateral, -30% ROI em tendência.
+            adx_val = 30.0
+            try:
+                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+                if val > 0.1:
+                    adx_val = val
+            except Exception:
+                pass
+            is_ranging = (adx_val < 25)
+            
+            initial_stop_roi = -20.0 if is_ranging else -30.0
             stop_price = proj_service.raw_price_from_roi(entry_price, initial_stop_roi, side, 50.0)
 
             trade_data = {
@@ -112,7 +119,7 @@ class SandboxService:
                     "phase": "ESCADINHA",
                     "active_level": "INICIAL",
                     "stop_roi": initial_stop_roi,
-                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} (-30% ROI)"]
+                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} ({initial_stop_roi}% ROI)"]
                 },
                 "contract_meta": sig.get("contract_info") or {}
             }
@@ -226,6 +233,10 @@ class SandboxService:
                     if is_closed:
                         update_payload["closed_at"] = closed_at
                         update_payload["current_price"] = exit_price
+                        # Recalcular ROI usando o preço de saída real do stop (evita saltos absurdos de liquidação simulados por spikes)
+                        actual_exit_roi = proj_service.calculate_roi(trade.entry_price, exit_price, side, leverage)
+                        update_payload["current_roi"] = actual_exit_roi
+                        update_payload["pnl_pct"] = actual_exit_roi
 
                     await database_service.update_sandbox_trade(trade.id, update_payload)
 

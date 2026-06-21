@@ -343,11 +343,15 @@
                     ? `<span class="px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen text-xs font-bold font-mono">LONG</span>`
                     : `<span class="px-2 py-0.5 rounded bg-cyberRed/10 border border-cyberRed/20 text-cyberRed text-xs font-bold font-mono">SHORT</span>`;
 
-                const statusBadge = t.status === "ACTIVE"
-                    ? `<span class="px-2 py-0.5 rounded bg-cyberOrange/10 border border-cyberOrange/20 text-cyberOrange text-xs font-mono">ATIVO</span>`
-                    : t.status === "CLOSED_SL"
-                        ? `<span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">FECHADO SL</span>`
-                        : `<span class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">FECHADO</span>`;
+                const isPartial = t.flash_state?.has_taken_partial;
+                const statusText = t.status === "ACTIVE" 
+                    ? (isPartial ? "ATIVO (PARCIAL)" : "ATIVO")
+                    : (t.status === "CLOSED_SL" ? (isPartial ? "FECHADO SL (PARCIAL)" : "FECHADO SL") : "FECHADO");
+                const statusColor = t.status === "ACTIVE"
+                    ? (isPartial ? "bg-cyberGreen/10 border-cyberGreen/20 text-cyberGreen" : "bg-cyberOrange/10 border-cyberOrange/20 text-cyberOrange")
+                    : "bg-white/5 border-white/10 text-gray-400";
+                
+                const statusBadge = `<span class="px-2 py-0.5 rounded border text-xs font-mono ${statusColor}">${statusText}</span>`;
 
                 const pnlClass = t.pnl_pct >= 0 ? "text-cyberGreen font-bold" : "text-cyberRed font-bold";
                 const pnlSign = t.pnl_pct > 0 ? "+" : "";

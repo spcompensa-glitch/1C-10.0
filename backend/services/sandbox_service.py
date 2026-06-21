@@ -163,13 +163,15 @@ class SandboxService:
                     
                     current_roi = proj_service.calculate_roi(trade.entry_price, current_price, side, leverage)
                     max_roi = max(trade.max_roi, current_roi)
-                    pnl_pct = current_roi
 
                     # Carregar estado do Flash
                     flash_state = dict(trade.flash_state or {})
                     history = list(flash_state.get("history", []))
                     active_level_name = flash_state.get("active_level", "INICIAL")
                     current_stop_roi = float(flash_state.get("stop_roi", -100.0))
+                    
+                    has_taken_partial = flash_state.get("has_taken_partial", False)
+                    partial_roi = flash_state.get("partial_roi", 0.0)
 
                     # Lógica da Escadinha (Trailing Stop progressivo) baseado no ADX
                     adx_val = 30.0
@@ -180,6 +182,21 @@ class SandboxService:
                     except Exception:
                         pass
                     is_ranging = (adx_val < 25)
+
+                    # [SANDBOX PARTIAL TP] Regra 2: Saída Parcial de 50% a +15% ROI em mercado lateral
+                    if is_ranging and max_roi >= 15.0 and not has_taken_partial:
+                        has_taken_partial = True
+                        partial_roi = max(15.0, current_roi)
+                        flash_state["has_taken_partial"] = True
+                        flash_state["partial_roi"] = partial_roi
+                        history.append(f"Saida Parcial de 50% executada a {partial_roi:.1f}% ROI")
+                        logger.info(f"🧪 [SANDBOX-PARTIAL] {trade.symbol} realizou parcial de 50% a {partial_roi:.1f}% ROI")
+
+                    # Calcular PnL atual da posição (ponderado se houve parcial)
+                    if has_taken_partial:
+                        pnl_pct = (partial_roi * 0.5) + (current_roi * 0.5)
+                    else:
+                        pnl_pct = current_roi
                     
                     ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
                     active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
@@ -246,7 +263,13 @@ class SandboxService:
                         # Recalcular ROI usando o preço de saída real do stop (evita saltos absurdos de liquidação simulados por spikes)
                         actual_exit_roi = proj_service.calculate_roi(trade.entry_price, exit_price, side, leverage)
                         update_payload["current_roi"] = actual_exit_roi
-                        update_payload["pnl_pct"] = actual_exit_roi
+                        
+                        # Se já fez saída parcial, calcula a média de PnL correta de fechamento
+                        if has_taken_partial:
+                            final_pnl = (partial_roi * 0.5) + (actual_exit_roi * 0.5)
+                        else:
+                            final_pnl = actual_exit_roi
+                        update_payload["pnl_pct"] = final_pnl
 
                     await database_service.update_sandbox_trade(trade.id, update_payload)
 

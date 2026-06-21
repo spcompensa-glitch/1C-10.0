@@ -3205,17 +3205,9 @@ class SignalGenerator:
                         strategy_class = "VELOCITY FLOW"
 
                     # 2. Executa Filtros Rígidos de Consenso por Estratégia
-                    if strategy_class == "VELOCITY FLOW" and btc_dir.get("direction", "NEUTRAL") == "LATERAL":
-                        reason = f"ORACLE REGIME GATING: Mercado LATERAL detectado. VELOCITY FLOW pausado."
-                        logger.info(f"🚫 [REGIME-REJECT] {symbol} rejeitado: {reason}")
-                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                        return None
-                    
-                    if strategy_class == "DECOR SHADOW" and btc_dir.get("direction", "NEUTRAL") in ("UP", "DOWN"):
-                        reason = f"ORACLE REGIME GATING: Mercado em TENDENCIA. DECOR SHADOW pausado."
-                        logger.info(f"🚫 [REGIME-REJECT] {symbol} rejeitado: {reason}")
-                        self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                        return None
+                    # [NOTA] O Regime Gating (bloqueio de V.F em LATERAL e D.S em TENDENCIA)
+                    # foi movido EXCLUSIVAMENTE para o Captain. O Radar (signal_generator)
+                    # DEVE emitir todos os sinais para que o Sandbox possa testar todos os cenários.
 
                     if raw_class in ("LRT", "DVAP", "ABCD", "1-2-3", "TREND", "DECOR", "DECOR_HUNTER"):
                         # LRT, DVAP, ABCD, 1-2-3 e TREND exigem alinhamento direcional com a SMA de 2H

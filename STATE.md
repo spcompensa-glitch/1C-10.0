@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V111.8)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.5)
 
 ## Resumo Executivo
-* **Versão:** `V111.8: Sniper 3-Pillar Taxonomy Unified (SaaS 40 slots, 2H UI View & SMA fix)`
-* **Data:** 2026-06-20
+* **Versão:** `V112.5: Lateral Market Ranging Defense (10% BE, 15% Partial TP, 20% Trailing Stop)`
+* **Data:** 2026-06-21
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Unificação e taxonomia de estratégias sob 3 pilares principais. Expansão completa para suporte de 1 a 40 slots ativos no SaaS. Refinamento da visualização gráfica do Cockpit no timeframe de 2H (120m) como padrão inicial, com correções e otimizações de escala da SMA 21/100 e incremento do cache do backend para 300 klines para evitar encurtamento visual. Contadores de tempo real implementados na Navbar do Sandbox.
+* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral (Ranging / Neutral, ADX < 25) para maximizar eficiência de capital: Break-Even a 10% ROI, saída parcial de 50% a 15% ROI, e trailing stop contínuo de 5% a partir de 20% ROI. O mercado de tendência (ADX >= 25) permanece inalterado para surfar alvos longos.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -21,14 +21,11 @@
 A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas promove o stop.
 
 **Regime LATERAL (ADX < 25):**
-| Gatilho ROI | Stop sobe para | Fase |
+| Gatilho ROI | Stop sobe para / Ação | Fase |
 |---|---|---|
-| 30% | 5% | ESCADINHA |
-| 50% | 25% | ESCADINHA |
-| 70% | 50% | ESCADINHA |
-| 100% | 80% | ESCADINHA |
-| 150% | 110% | TRAILING |
-| 200%+ | WAVE...APEX...ULTRA_* | TRAILING |
+| 10% | 0% (Break-Even) | ESCADINHA |
+| 15% | Saída Parcial de 50% (Stop mantém em 0%) | ESCADINHA |
+| 20%+ | Trailing Stop Dinâmico (gatilho - 5%) | TRAILING |
 
 **Regime TENDÊNCIA (ADX ≥ 25):**
 | Gatilho ROI | Stop sobe para | Fase |
@@ -70,6 +67,15 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 | **OKX** | Exchange real (Portfolio Margin) | `-` | `REAL ✅` |
 
 ---
+
+## Melhorias e Atualizações (Jun 21)
+
+### V112.5: Escadinha e Saídas Defensivas em Mercado Lateral
+
+* **Break-Even em 10%:** No regime lateral (ADX < 25), o stop é movido imediatamente para o preço de entrada (0% ROI) assim que a operação atinge +10% ROI, protegendo o trade contra reversões abruptas de canal.
+* **Saída Parcial de 15% (TP 50%):** Ao atingir +15% ROI em mercado lateral, o FlashAgent executa o fechamento parcial de 50% da posição na OKX, registrando a mudança no audit do slot no DB (`has_taken_partial` no `execution_audit`) e atualizando a margem/tamanho do slot.
+* **Trailing Stop a partir de 20%:** A partir de +20% ROI no regime lateral, o trailing stop assume o controle dinâmico travado a exactly `ROI Pico - 5%` (passo contínuo de 1%), blindando os ganhos residuais.
+* **Isolamento de Tendência:** As novas regras aplicam-se estritamente quando `is_ranging == True`. O modo de tendência (`TRENDING`) mantém intocado seu stop ladder largo (50% -> 100% -> 130% -> Trailing 150%+), permitindo colher lucros superiores (300%, 500%, 800% ou mais) normalmente.
 
 ## Melhorias e Atualizações (Jun 20)
 

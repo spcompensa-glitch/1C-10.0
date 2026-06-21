@@ -26,22 +26,9 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
-    # Em Ranging, o breakeven ativa precoce e sobe agressivo por causa dos falsos rompimentos.
-    StopLevel("ESCADINHA", "SL_0", 30.0, 5.0, "SL_0"),
-    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 40.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 70.0, 50.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_TRAVADO_100", 100.0, 80.0, "PROFIT_LOCK"),
-    StopLevel("TRAILING", "ALVO_150", 150.0, 110.0, "PROFIT_LOCK"),
-    StopLevel("TRAILING", "WAVE", 200.0, 150.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "ROCKET", 300.0, 220.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "STAR", 400.0, 280.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "CROWN", 500.0, 350.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "SUPERNOVA", 600.0, 420.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "GOD_MODE", 700.0, 500.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "CHOKE_PREP", 750.0, 600.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "CHOKE", 800.0, 650.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "HYPER", 1000.0, 800.0, "TRAIL_LOCK"),
-    StopLevel("TRAILING", "APEX", 1200.0, 1000.0, "TRAIL_LOCK"),
+    # Em Ranging, o breakeven ativa precoce e depois entra em trailing agressivo
+    StopLevel("ESCADINHA", "SL_BE", 10.0, 0.0, "RISCO_ZERO"),
+    StopLevel("TRAILING", "TRAIL_20", 20.0, 15.0, "TRAIL_LOCK"),
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
@@ -133,19 +120,34 @@ class OrderProjectionService:
         ladder = list(ORDER_STOP_LADDER_RANGING if is_ranging else ORDER_STOP_LADDER_TRENDING)
         highest_trigger = max(level.trigger_roi for level in ladder)
         target_ceiling = max(highest_trigger, roi_percent + 400.0)
-        trigger_roi = highest_trigger + POST_APEX_STEP_ROI
-
-        while trigger_roi <= target_ceiling + 1e-9:
-            ladder.append(
-                StopLevel(
-                    "TRAILING",
-                    f"ULTRA_{int(trigger_roi)}",
-                    trigger_roi,
-                    max(trigger_roi - POST_APEX_STOP_OFFSET_ROI, 0.0),
-                    "TRAIL_LOCK",
+        
+        if is_ranging:
+            # Em Ranging, acima de 20% ROI, a escada sobe dinamicamente de 1 em 1%
+            trigger_roi = highest_trigger + 1.0
+            while trigger_roi <= target_ceiling + 1e-9:
+                ladder.append(
+                    StopLevel(
+                        "TRAILING",
+                        f"TRAIL_{int(trigger_roi)}",
+                        trigger_roi,
+                        trigger_roi - 5.0,
+                        "TRAIL_LOCK",
+                    )
                 )
-            )
-            trigger_roi += POST_APEX_STEP_ROI
+                trigger_roi += 1.0
+        else:
+            trigger_roi = highest_trigger + POST_APEX_STEP_ROI
+            while trigger_roi <= target_ceiling + 1e-9:
+                ladder.append(
+                    StopLevel(
+                        "TRAILING",
+                        f"ULTRA_{int(trigger_roi)}",
+                        trigger_roi,
+                        max(trigger_roi - POST_APEX_STOP_OFFSET_ROI, 0.0),
+                        "TRAIL_LOCK",
+                    )
+                )
+                trigger_roi += POST_APEX_STEP_ROI
 
         return ladder
 
@@ -157,6 +159,16 @@ class OrderProjectionService:
                 active = level
             else:
                 break
+        
+        # Se estiver em Ranging e em trailing stop ativo (ROI >= 20%)
+        if is_ranging and active and active.phase == "TRAILING" and roi_percent >= 20.0:
+            active = StopLevel(
+                phase=active.phase,
+                name=active.name,
+                trigger_roi=active.trigger_roi,
+                stop_roi=round(roi_percent - 5.0, 2),
+                status_risco=active.status_risco
+            )
         return active
 
     def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False) -> Optional[StopLevel]:
@@ -167,11 +179,18 @@ class OrderProjectionService:
         return None
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False) -> str:
-        if roi_percent >= 150.0:
-            return "TRAILING"
-        if roi_percent >= 30.0:
-            return "ESCADINHA"
-        return "ORDER"
+        if is_ranging:
+            if roi_percent >= 20.0:
+                return "TRAILING"
+            if roi_percent >= 10.0:
+                return "ESCADINHA"
+            return "ORDER"
+        else:
+            if roi_percent >= 150.0:
+                return "TRAILING"
+            if roi_percent >= 30.0:
+                return "ESCADINHA"
+            return "ORDER"
 
     async def get_contract_meta(self, symbol: str) -> Dict[str, float]:
         try:

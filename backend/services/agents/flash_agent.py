@@ -245,6 +245,51 @@ class FlashAgent:
         effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
         self._peak_roi_cache[slot_key] = effective_roi
 
+        # [RANGING PARTIAL TP] Rule 2: 15% Partial TP (50% close)
+        audit = slot.get("execution_audit") or {}
+        has_taken_partial = False
+        if isinstance(audit, dict):
+            has_taken_partial = audit.get("has_taken_partial", False)
+
+        if is_ranging and effective_roi >= 15.0 and not has_taken_partial:
+            partial_qty = qty * 0.5
+            logger.warning(f"⚡ [FLASH-PARTIAL-TP] {symbol} atingiu +15% ROI lateral! Executando saida parcial de 50% (qty={partial_qty:.6f})")
+            
+            if not isinstance(audit, dict):
+                audit = {}
+            audit["has_taken_partial"] = True
+            
+            entry_margin = float(slot.get("entry_margin") or 0)
+            new_margin = entry_margin * 0.5
+            
+            await database_service.update_slot(slot_id, {
+                "qty": qty * 0.5,
+                "entry_margin": new_margin,
+                "execution_audit": audit
+            })
+            
+            from services.okx_rest import okx_rest_service
+            await okx_rest_service.close_position(
+                symbol,
+                side,
+                partial_qty,
+                reason=f"FLASH_PARTIAL_TP_{roi:.1f}%",
+                is_partial=True,
+                slot_id=slot_id
+            )
+            
+            await self._sync_firebase_slot(slot_id, {
+                "qty": qty * 0.5,
+                "entry_margin": new_margin,
+                "execution_audit": audit
+            })
+            
+            # Atualiza slot local
+            slot["qty"] = qty * 0.5
+            slot["entry_margin"] = new_margin
+            slot["execution_audit"] = audit
+            qty = qty * 0.5
+
         decision_projection = projection
         if effective_roi > roi + 0.1:
             decision_price = order_projection_service.raw_price_from_roi(

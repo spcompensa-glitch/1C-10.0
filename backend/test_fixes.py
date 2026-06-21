@@ -108,6 +108,29 @@ def test_roi_calculation_consistency():
             print("   - flash_agent.py missing correct ROI formula")
         return False
 
+def test_ranging_ladder():
+    """Test dynamic ranging ladder stop levels"""
+    print("🔍 Testing Ranging Ladder stop levels...")
+    from services.order_projection_service import order_projection_service
+    
+    # Test level at 12% ROI (should trigger BE stop at 0%)
+    active_12 = order_projection_service.get_active_level(12.0, is_ranging=True)
+    assert active_12 is not None
+    assert active_12.stop_roi == 0.0
+    
+    # Test level at 25% ROI (should trigger trailing stop at 20.0%)
+    active_25 = order_projection_service.get_active_level(25.0, is_ranging=True)
+    assert active_25 is not None
+    assert active_25.stop_roi == 20.0
+    
+    # Test level at 52.5% ROI (should trigger trailing stop at 47.5%)
+    active_52 = order_projection_service.get_active_level(52.5, is_ranging=True)
+    assert active_52 is not None
+    assert active_52.stop_roi == 47.5
+    
+    print("✅ Ranging Ladder stop levels successfully verified!")
+    return True
+
 def main():
     """Run all tests"""
     print("🧪 Testing all critical fixes...\n")
@@ -116,7 +139,8 @@ def main():
         test_captain_threshold,
         test_bankroll_roi,
         test_moonbags_ui,
-        test_roi_calculation_consistency
+        test_roi_calculation_consistency,
+        test_ranging_ladder
     ]
     
     results = []

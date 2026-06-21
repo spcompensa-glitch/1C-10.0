@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.6)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.7)
 
 ## Resumo Executivo
-* **Versão:** `V112.6: Sandbox Stop Loss Optimization & Virtual Slippage Calibration`
+* **Versão:** `V112.7: Sandbox Regime-Enforced Strategy Gating`
 * **Data:** 2026-06-21
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral (Ranging / Neutral, ADX < 25), stop inicial dinâmico no Sandbox (-20% ROI em mercado lateral, -30% ROI em tendência) e correção de cálculo do PnL simulado sob slippage virtual de alta frequência.
+* **Escopo:** Implementação de regras de saída defensiva agressiva exclusivas para mercado lateral, stop dinâmico e enforço estrito de regime no Sandbox: apenas DECOR SHADOW opera no lateral (ADX < 25), e apenas VELOCITY FLOW e ALPHA SHIELD operam em tendência (ADX >= 25).
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -69,6 +69,10 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 ---
 
 ## Melhorias e Atualizações (Jun 21)
+
+### V112.7: Gating de Estratégia por Regime no Sandbox
+
+* **Enforço de Regime no Sandbox:** Ajustado o Sandbox (`sandbox_service.py`) para filtrar ativamente as aberturas conforme a análise do Manus: em mercado lateral (ADX < 25), o Sandbox processa **apenas sinais de DECOR SHADOW** (D.S). Em mercado de tendência (ADX >= 25), processa **apenas VELOCITY FLOW (V.F) e ALPHA SHIELD (A.S)**. Isso alinha a simulação com as regras de produção e refina a amostragem estatística.
 
 ### V112.6: Otimização do Sandbox (Stop Dinâmico e Correção de Slippage)
 

@@ -1886,12 +1886,13 @@ class BankrollManager:
                     )
 
                     # [V125] Define margem estrita de $1.00 ou $2.00 por slot para suportar até 40 posições simultâneas
-                    # Contudo, se a banca for muito baixa (ex: $22.60), escalamos a margem dinamicamente entre 1% e 2% da banca
+                    # Contudo, se a banca for muito baixa (ex: $22.60), escalamos a margem dinamicamente entre 0.55 e 1.00 da banca
                     is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
                         not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
                     )
                     if balance <= 40.0:
-                        margin = max(0.20, round(balance * 0.015, 2))
+                        # Definir margem proporcional para bancas pequenas garantindo o piso de $0.55 e teto de $1.00
+                        margin = max(0.55, min(1.00, round(balance * 0.03, 2)))
                     else:
                         if is_ranging_mode:
                             margin = self.margin_lateral      # $2.00
@@ -1925,8 +1926,8 @@ class BankrollManager:
                     # First trade of cycle: initialize cycle bankroll (apenas histórico)
                     await vault_service.initialize_cycle_bankroll(balance)
                 
-                # Para bancas baixas (< $40), permitimos margens de até $0.20. Caso contrário, mantemos o mínimo operacional clássico de $1.00
-                min_op_margin = 0.20 if balance <= 40.0 else 1.00
+                # Para bancas baixas (< $40), permitimos margens de até $0.55. Caso contrário, mantemos o mínimo operacional clássico de $1.00
+                min_op_margin = 0.55 if balance <= 40.0 else 1.00
                 if margin < min_op_margin:
                     if balance >= min_op_margin:
                         margin = min_op_margin

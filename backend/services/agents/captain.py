@@ -1429,8 +1429,10 @@ class CaptainAgent(AIOSAgent):
             slots = await firebase_service.get_active_slots(username=username)
             occupied_count = sum(1 for s in slots if s.get("symbol"))
             
-            # [DECOR_HUNTER 2.0] Sinal DECOR_HUNTER é isento do filtro LATERAL
-            is_decor_hunter = best_signal.get("radar_mode") == "DECOR_HUNTER"
+            # [DECOR_HUNTER 2.0] Sinais de descorrelação (DECOR_HUNTER / DECOR SHADOW) são isentos do filtro LATERAL
+            radar_mode = best_signal.get("radar_mode", "")
+            strategy_class = best_signal.get("strategy_class", "")
+            is_decor_hunter = "DECOR" in str(radar_mode).upper() or "DECOR" in str(strategy).upper() or "DECOR" in str(strategy_class).upper()
             if is_decor_hunter:
                 logger.info(
                     f"[DECOR-HUNTER 3.0] {symbol} sinal recebido. "

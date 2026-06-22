@@ -1432,7 +1432,7 @@ class CaptainAgent(AIOSAgent):
                     self.active_tocaias.discard(symbol)
                     return
             if not is_decor_hunter:
-                # [V111.3 TREND_FOCUS] Em LATERAL bloqueia execucao. Em TENDENCIA, max 20 slots.
+                # [V111.3 TREND_FOCUS] Gating inteligente por regime
                 is_ranging_mode = True
                 try:
                     from services.okx_ws_public import okx_ws_public_service
@@ -1441,14 +1441,22 @@ class CaptainAgent(AIOSAgent):
                 except Exception:
                     pass
 
-                # [V111.3] Se LATERAL, bloqueia execucao
                 if is_ranging_mode:
-                    msg = f"[V111.3 TREND_FOCUS] {symbol} ({side}) bloqueado. Mercado LATERAL (ADX < 25). Sistema pausado."
-                    logger.info(msg)
-                    await firebase_service.log_event("TREND_FOCUS", msg, "INFO")
-                    await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")
-                    self.active_tocaias.discard(symbol)
-                    return
+                    # Em mercado LATERAL, apenas DECOR SHADOW é permitida
+                    if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
+                        msg = f"[TREND_FOCUS] {symbol} ({strategy}) bloqueado em mercado LATERAL (ADX < 25)."
+                        logger.info(msg)
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")
+                        self.active_tocaias.discard(symbol)
+                        return
+                else:
+                    # Em mercado em TENDÊNCIA, apenas VELOCITY FLOW e ALPHA SHIELD são permitidas
+                    if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
+                        msg = f"[TREND_FOCUS] {symbol} ({strategy}) bloqueado em mercado em TENDÊNCIA (ADX >= 25)."
+                        logger.info(msg)
+                        await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_TRENDING_BLOCK")
+                        self.active_tocaias.discard(symbol)
+                        return
 
             max_allowed_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
             
@@ -1722,11 +1730,19 @@ class CaptainAgent(AIOSAgent):
                 consensus["reason"] = "WATCHLIST_RESTRICTED"
                 logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na Watchlist correspondente.")
             elif is_market_ranging:
-                consensus["approved"] = False
-                consensus["reason"] = "MERCADO_LATERAL_PAUSADO"
-                logger.info(f"[V111.3 TREND_FOCUS] {symbol} ({strategy}) rejeitado. Mercado LATERAL - sistema pausado aguardando tendencia.")
+                if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
+                    consensus["approved"] = False
+                    consensus["reason"] = "MERCADO_LATERAL_PAUSADO"
+                    logger.info(f"[TREND_FOCUS] {symbol} ({strategy}) rejeitado. Mercado LATERAL ativo apenas para DECOR SHADOW.")
+                else:
+                    consensus["approved"] = True
             else:
-                consensus["approved"] = True
+                if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
+                    consensus["approved"] = False
+                    consensus["reason"] = "DECOR_SHADOW_BLOQUEADO_EM_TENDENCIA"
+                    logger.info(f"[TREND_FOCUS] {symbol} ({strategy}) rejeitado. Estratégia de lateralidade desativada em tendência.")
+                else:
+                    consensus["approved"] = True
             
             if not consensus["approved"]:
                 reason = consensus["reason"]

@@ -1,10 +1,10 @@
-# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.8)
+# Estado Atual do Projeto — 1Crypten (SaaS v5.5.0 / V112.9)
 
 ## Resumo Executivo
-* **Versão:** `V112.8: Progressive Micro-Defense (SL_5) & Sandbox Stop ROI UI`
+* **Versão:** `V112.9: Intelligent Regime Gating & Trend Bias Filter`
 * **Data:** 2026-06-21
 * **Estado:** `OPERATIONAL REAL ✅`
-* **Escopo:** Implementação do degrau progressivo de risco em mercado lateral (SL_5: +5% ROI -> stop em -10% ROI) e integração visual do ROI equivalente do Stop Loss na planilha do Sandbox UI.
+* **Escopo:** Liberação das operações reais em mercado lateral exclusivamente para a estratégia DECOR SHADOW, implementação do filtro macro de direção do BTC (Trend Bias) em tempo real, adição de DYDX, FIL, ALGO e LTC à blocklist de ativos, e paridade total de gating macro no motor do Sandbox.
 * **Watchlists e Escadinha:** Confirmada a regra de monitoração ampla (100 ativos na `RADAR_WATCHLIST` para encontrar oportunidades desgrudadas a qualquer momento) e lista reduzida de 41 ativos (`ELITE_40_MATRIX` + SOL) atuando exclusivamente em mercados com tendência confirmada (ADX >= 25) para proteção.
 
 ---
@@ -70,6 +70,14 @@ A mesma ordem permanece no slot do início ao fim. Cada alvo rompido apenas prom
 ---
 
 ## Melhorias e Atualizações (Jun 21)
+
+### V112.9: Gating Inteligente Real e Filtro Macro Trend Bias do BTC
+
+* **Liberação de Operações Reais em Mercado Lateral:** O Captain real e simulado (`captain.py`) agora permite a execução da estratégia `DECOR SHADOW` (e `DECOR_HUNTER`) em cenários de mercado lateralizado (ADX < 25), eliminando o bloqueio geral anterior.
+* **Gating Estratégico por Regime:** Implementação de travas limpas por regime de volatilidade: em mercado lateral (ADX < 25), apenas `DECOR SHADOW` é aprovada; em mercado com tendência (ADX >= 25), apenas `VELOCITY FLOW` e `ALPHA SHIELD` são permitidas.
+* **Filtro Macro Trend Bias (Direção do BTC):** O robô consulta a SMA 200 diária do BTC em tempo real: se o preço estiver abaixo da SMA 200 (BEARISH), apenas sinais do tipo `SHORT` são permitidos em qualquer estratégia (bloqueio de LONG). Se estiver acima da SMA 200 (BULLISH), apenas sinais do tipo `LONG` são executados (bloqueio de SHORT).
+* **Paridade Total no Sandbox:** O motor do Sandbox (`sandbox_service.py`) foi atualizado para herdar o mesmo filtro de direção do BTC e gating por regime, garantindo que o laboratório estatístico replique exatamente a lógica executada nas contas reais da OKX.
+* **Blocklist de Ativos Expandida:** Adicionados `DYDXUSDT`, `FILUSDT`, `ALGOUSDT` e `LTCUSDT` à `ASSET_BLOCKLIST` global (`config.py`) devido ao fraco desempenho histórico relatado nas estatísticas.
 
 ### V112.8: Degrau de Risco Progressivo (SL_5) e ROI do Stop na UI do Sandbox
 

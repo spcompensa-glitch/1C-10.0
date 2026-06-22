@@ -1401,6 +1401,20 @@ class CaptainAgent(AIOSAgent):
         side = best_signal.get("side", "Buy")
         norm_symbol_lock = normalize_symbol(symbol) + "_" + str(username)
         
+        # Obter e normalizar a estratégia do sinal
+        raw_strat = best_signal.get("strategy") or best_signal.get("strategy_class") or best_signal.get("strategy_type") or "RADAR"
+        raw_strat_upper = str(raw_strat).upper()
+        if raw_strat_upper in ("ALPHA SHIELD", "VELOCITY FLOW", "DECOR SHADOW"):
+            strategy = raw_strat_upper
+        elif raw_strat_upper in ("DVAP", "MOLA", "FAS"):
+            strategy = "ALPHA SHIELD"
+        elif raw_strat_upper in ("DECOR", "DECOR_HUNTER"):
+            strategy = "DECOR SHADOW"
+        elif raw_strat_upper in ("LRT", "TREND", "ABCD", "1-2-3", "SWING", "BLITZ_30M"):
+            strategy = "VELOCITY FLOW"
+        else:
+            strategy = raw_strat
+            
         try:
             # [V120] Verificação de Slots por Usuário
             # O sistema agora busca slots privados do usuário no Firestore

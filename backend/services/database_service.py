@@ -884,11 +884,21 @@ class DatabaseService:
         async with self.AsyncSessionLocal() as session:
             try:
                 from sqlalchemy import delete
-                # Deletar por order_id ou id (convertendo id para int ou UUID se necessário dependendo do schema)
-                # Como a coluna order_id ou id são chaves únicas, cobrimos ambas as correspondências
-                stmt = delete(TradeHistory).where(
-                    (TradeHistory.order_id == id_or_order_id) | (TradeHistory.id == id_or_order_id)
-                )
+                # Verifica se id_or_order_id é conversível para inteiro para evitar erro de tipo no Postgres
+                is_int = False
+                try:
+                    int_id = int(id_or_order_id)
+                    is_int = True
+                except (ValueError, TypeError):
+                    pass
+
+                if is_int:
+                    stmt = delete(TradeHistory).where(TradeHistory.id == int_id)
+                else:
+                    stmt = delete(TradeHistory).where(
+                        (TradeHistory.order_id == id_or_order_id) | (TradeHistory.genesis_id == id_or_order_id)
+                    )
+                
                 await session.execute(stmt)
                 await session.commit()
                 logger.info(f"Item do histórico {id_or_order_id} excluído com sucesso do Postgres.")

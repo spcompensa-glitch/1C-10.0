@@ -370,15 +370,18 @@
                     const minSz = t.contract_meta.minSz || "?";
                     
                     // Calcular o valor nominal mínimo aproximado da ordem:
-                    // tamanho mínimo (minSz) * valor de 1 contrato (ctVal) * preço de entrada (ou preço atual se entrada for zero)
+                    // Se minSz for "?" ou inválido, assumimos 1 contrato para mostrar o nocional mínimo de 1 contrato
                     let minNocional = "";
                     try {
                         const ctValNum = parseFloat(ctVal);
-                        const minSzNum = parseFloat(minSz);
+                        let minSzNum = parseFloat(minSz);
+                        if (isNaN(minSzNum)) {
+                            minSzNum = 1.0; // Padrão se não vier da API
+                        }
                         const price = parseFloat(t.entry_price) || 0;
-                        if (!isNaN(ctValNum) && !isNaN(minSzNum) && price > 0) {
+                        if (!isNaN(ctValNum) && price > 0) {
                             const val = ctValNum * minSzNum * price;
-                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nominal Mín: $${val.toFixed(2)}</div>`;
+                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nocional Mín: $${val.toFixed(2)}</div>`;
                         }
                     } catch (e) {}
 

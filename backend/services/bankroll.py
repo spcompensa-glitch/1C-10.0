@@ -1336,12 +1336,16 @@ class BankrollManager:
                     max_at_risk_slots = 2
                     logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
                 elif is_ranging_mode:
-                    # [V111.3 TREND_FOCUS] Mercado LATERAL - nao abrir nada
-                    logger.info(f"[V111.3 TREND_FOCUS] Mercado LATERAL (ADX < 25). Sistema pausado. LiveEquity=${balance:.2f}")
-                    return None
+                    if slot_type in ("DECOR SHADOW", "DECOR_HUNTER"):
+                        max_total_slots = self.max_slots_lateral # 16 slots
+                        max_at_risk_slots = self.max_slots_lateral
+                        logger.info(f"🛡️ [LATERAL-DECOR] Aprovado DECOR SHADOW em mercado LATERAL. Max Slots={max_total_slots} | LiveEquity=${balance:.2f}")
+                    else:
+                        logger.info(f"[TREND_FOCUS] {symbol} ({slot_type}) bloqueado em mercado LATERAL (ADX < 25). LiveEquity=${balance:.2f}")
+                        return None
                 else:
-                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
-                    max_at_risk_slots = 20
+                    max_total_slots = self.max_slots_trending  # 16 slots em tendência
+                    max_at_risk_slots = self.max_slots_trending
                     logger.info(f"🛡️ [V111.3] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | 40% Banca | LiveEquity=${balance:.2f}")
 
             # [V125] Desativado bloqueio por posições sem stop para permitir preenchimento em escala de até 40 slots

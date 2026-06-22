@@ -121,9 +121,9 @@ class Settings(BaseSettings):
     # [V110.550] Anti-Slippage Engine (Random Jitter)
     ANTI_SLIPPAGE_MAX_JITTER_MS: int = int(os.getenv("ANTI_SLIPPAGE_MAX_JITTER_MS", 350))
     # [V111.2] Máximo de posições simultâneas
-    MAX_SLOTS: int = 15
-    MAX_SLOTS_LATERAL: int = 10    # [V111.0] Reduzido para banca real de $20.00
-    MAX_SLOTS_TRENDING: int = 15   # [V111.0] Reduzido para banca real de $20.00
+    MAX_SLOTS: int = 16
+    MAX_SLOTS_LATERAL: int = 16    # [V111.0] Reduzido para banca real de $20.00 (até 16 ordens com margem de 0.50)
+    MAX_SLOTS_TRENDING: int = 16   # [V111.0] Reduzido para banca real de $20.00 (até 16 ordens)
     MARGIN_PER_TRADE_LATERAL: float = 0.50   # [V111.0] $0.50 por par para banca de $20.00
     MARGIN_PER_TRADE_TRENDING: float = 0.50  # [V111.0] $0.50 por par para banca de $20.00
     RISK_CAP_PERCENT: float = 0.40  # 40% da banca alocada no total (invariante)

@@ -953,8 +953,13 @@
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-gray-500">
-                            <span>Alocação por Slot (1% - 2%)</span>
-                            <span className="text-white">${(liveEquity * 0.01).toFixed(2)} - ${(liveEquity * 0.02).toFixed(2)}</span>
+                            <span>Alocação por Slot ({liveEquity <= 40.0 ? "Piso/Teto" : "1% - 2%"})</span>
+                            <span className="text-white">
+                                {liveEquity <= 40.0 
+                                    ? `$0.55 - $1.00 (Calc: $${Math.max(0.55, Math.min(1.00, liveEquity * 0.03)).toFixed(2)})`
+                                    : `$${(liveEquity * 0.01).toFixed(2)} - $${(liveEquity * 0.02).toFixed(2)}`
+                                }
+                            </span>
                         </div>
                         <div className="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden p-[1px]">
                             <div 

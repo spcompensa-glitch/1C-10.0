@@ -363,20 +363,47 @@
                 const stopRoi = t.flash_state?.stop_roi;
                 const stopRoiText = stopRoi !== undefined ? ` (${stopRoi >= 0 ? '+' : ''}${stopRoi.toFixed(0)}%)` : '';
 
-                // Informações do contrato
+                // Dicionário de contratos conhecidos na OKX como fallback fixo
+                const okxStaticContracts = {
+                    "BTCUSDT": { ctVal: 0.01, minSz: 1 },
+                    "ETHUSDT": { ctVal: 0.1, minSz: 1 },
+                    "SOLUSDT": { ctVal: 1, minSz: 1 },
+                    "SANDUSDT": { ctVal: 10, minSz: 1 },
+                    "ADAUSDT": { ctVal: 100, minSz: 1 },
+                    "XRPUSDT": { ctVal: 10, minSz: 1 },
+                    "DOGEUSDT": { ctVal: 100, minSz: 1 },
+                    "AVAXUSDT": { ctVal: 1, minSz: 1 },
+                    "LINKUSDT": { ctVal: 1, minSz: 1 },
+                    "DOTUSDT": { ctVal: 1, minSz: 1 },
+                    "NEARUSDT": { ctVal: 10, minSz: 1 },
+                    "SUIUSDT": { ctVal: 10, minSz: 1 },
+                    "OPUSDT": { ctVal: 10, minSz: 1 },
+                    "ARBUSDT": { ctVal: 10, minSz: 1 },
+                    "APTUSDT": { ctVal: 1, minSz: 1 },
+                    "GALAUSDT": { ctVal: 100, minSz: 1 }
+                };
+
+                // Obter informações do contrato (priorizando dados da API, senão fallback estático)
+                let meta = t.contract_meta || {};
+                const sym = t.symbol.replace("-USDT", "").replace("USDT", "") + "USDT";
+                if ((!meta.ctVal || meta.ctVal === "?") && okxStaticContracts[sym]) {
+                    meta = {
+                        ctVal: okxStaticContracts[sym].ctVal,
+                        minSz: okxStaticContracts[sym].minSz
+                    };
+                }
+
                 let contractInfo = `<span class="text-gray-500 font-mono text-xs">N/A</span>`;
-                if (t.contract_meta) {
-                    const ctVal = t.contract_meta.ctVal || "?";
-                    const minSz = t.contract_meta.minSz || "?";
+                if (meta && (meta.ctVal || meta.minSz)) {
+                    const ctVal = meta.ctVal || "?";
+                    const minSz = meta.minSz || "?";
                     
-                    // Calcular o valor nominal mínimo aproximado da ordem:
-                    // Se minSz for "?" ou inválido, assumimos 1 contrato para mostrar o nocional mínimo de 1 contrato
                     let minNocional = "";
                     try {
                         const ctValNum = parseFloat(ctVal);
                         let minSzNum = parseFloat(minSz);
                         if (isNaN(minSzNum)) {
-                            minSzNum = 1.0; // Padrão se não vier da API
+                            minSzNum = 1.0;
                         }
                         const price = parseFloat(t.entry_price) || 0;
                         if (!isNaN(ctValNum) && price > 0) {

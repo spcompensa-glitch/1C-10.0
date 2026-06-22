@@ -3264,27 +3264,14 @@ class SignalGenerator:
                     btc_regime = btc_regime_data.get('regime', 'TRANSITION')
                     btc_is_up = btc_dir.get('direction') == 'UP'
                     
-                    # [V110.36.5] VANGUARD PRE-QUALIFIER (S2): Alinhado com o Stage 1 e Captain.
-                    # Usa M-ADX autêntico e permite passe livre para ativos com Score >= 90 e fluxo BTC Positivo.
-                    # Threshold alinhado com ADX_TRENDING_THRESHOLD=25 (grade oficial do sistema).
-                    # [V111.4] DECOR BYPASS: Sinais decorrelacionados operam em qualquer ADX (D.S em LATERAL).
+                    # [V110.36.5] VANGUARD PRE-QUALIFIER (S2): REMOVIDO V111.4.
+                    # O CaptainAgent já possui regime gating completo (LATERAL→D.S, TRENDING→V.F).
+                    # Esta guarda era redundante e bloqueava todo sinal em REAL mode com ADX<25,
+                    # impedindo o D.S de operar em mercado lateral mesmo com pares desgrudados.
+                    # Log mantido apenas para diagnóstico:
                     m_adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    adx_threshold = _settings.ADX_TRENDING_THRESHOLD
-                    if m_adx and m_adx < adx_threshold and _settings.OKX_EXECUTION_MODE != "PAPER":
-                        btc_cvd_total = okx_ws_public_service.get_cvd_score("BTCUSDT")
-                        btc_cvd_5m    = okx_ws_public_service.get_cvd_score_time("BTCUSDT", 300)
-                        has_real_flow = (btc_cvd_total > 0) and (btc_cvd_5m > 0)
-                        is_vanguard_pre = (candidate.get('preliminary_score', 0) >= 90) and has_real_flow
-
-                        is_decor_candidate = candidate.get('is_decorrelated', False) or raw_class == "DECOR"
-
-                        if not is_vanguard_pre and not is_decor_candidate:
-                            reason = f"SENTINELA ADX GUARD: M-ADX {m_adx:.1f} < {adx_threshold}. Rejeitado."
-                            logger.info(f"🚫 [V110.36.5] {symbol} rejected: {reason}")
-                            self.recent_rejections.append({"symbol": symbol, "reason": reason, "timestamp": time.time()})
-                            return None
-                        elif is_decor_candidate:
-                            logger.info(f"🔓 [DECOR-ADX-BYPASS] {symbol} decorrelated — bypass SENTINELA ADX GUARD (ADX={m_adx:.1f})")
+                    if m_adx < _settings.ADX_TRENDING_THRESHOLD:
+                        logger.info(f"🔓 [ADX-GUARD-PASS] {symbol} passou ao Captain (ADX={m_adx:.1f})")
                     
                     self._diag_counters['ema4h_pass'] += 1
                     

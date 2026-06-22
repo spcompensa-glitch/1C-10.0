@@ -660,7 +660,8 @@ class CaptainAgent(AIOSAgent):
                 
                 # [V110.0] ZERO EQUITY SHIELD: Monitoramento proativo no Capitão
                 balance = await bankroll_manager.get_live_operating_equity()
-                if balance < 2.0:
+                is_paper = okx_rest_service.execution_mode == "PAPER"
+                if balance < 2.0 and not (is_paper or settings.OKX_API_KEY_MASTER):
                     if not hasattr(self, "_last_zero_equity_log") or (time.time() - self._last_zero_equity_log) > 60:
                         msg = f"🛑 [ZERO EQUITY] Capitão em standby. LiveEquity (${balance:.2f}) insuficiente."
                         logger.error(msg)

@@ -1335,8 +1335,11 @@ class BankrollManager:
                 if margin_per_trade <= 0:
                     margin_per_trade = 0.50
                 
-                max_slots_by_risk = int((balance * self.risk_cap) / margin_per_trade)
-                dynamic_max_slots = min(40, max(1, max_slots_by_risk))
+                if okx_rest_service.execution_mode == "PAPER":
+                    dynamic_max_slots = 40
+                else:
+                    max_slots_by_risk = int((balance * self.risk_cap) / margin_per_trade)
+                    dynamic_max_slots = min(40, max(1, max_slots_by_risk))
 
                 if self.strict_single_order_mode:
                     max_total_slots = 1

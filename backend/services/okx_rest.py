@@ -1091,6 +1091,57 @@ class OKXRest:
                 logger.info(f"[PAPER] Position Created: {api_symbol} Entry={last_price}")
                 await self._save_paper_state()
                 
+                # [OKX-REAL-PARALLEL] Disparar a mesma ordem na conta real
+                if settings.OKX_API_KEY_MASTER:
+                    try:
+                        from services.okx_service import okx_service
+                        # 1. Obter saldo da conta real (OKX Master)
+                        real_balance = 22.60
+                        try:
+                            request_path = "/api/v5/account/balance"
+                            url = okx_service.base_url + request_path
+                            headers = okx_service._get_headers("GET", request_path)
+                            async with httpx.AsyncClient(timeout=5.0) as client:
+                                response = await client.get(url, headers=headers)
+                                if response.status_code == 200:
+                                    res_data = response.json()
+                                    if res_data.get("code") == "0" and res_data.get("data"):
+                                        real_balance = float(res_data["data"][0].get("totalEq", 22.60))
+                        except Exception as bal_err:
+                            logger.warning(f"⚠️ [OKX-REAL-PARALLEL] Falha ao obter saldo real, usando fallback de $22.60: {bal_err}")
+
+                        # 2. Calcular margem proporcional para abrir até 16 ordens mantendo limite estrito de 40% da banca
+                        real_margin = max(0.50, round((real_balance * 0.40) / 16.0, 2))
+                        real_leverage = 50.0
+
+                        # raw_qty para a real:
+                        real_raw_qty = (real_margin * real_leverage) / (last_price * ct_val)
+
+                        # Ajustar qty baseado nas regras do instrumento real
+                        details = await okx_service.get_instrument_details(symbol)
+                        real_lot_size = float(details.get("lotSize", "1.0"))
+                        real_qty = round(real_raw_qty / real_lot_size) * real_lot_size
+
+                        min_sz = float(details.get("minSz", "1.0"))
+                        if real_qty < min_sz:
+                            real_qty = min_sz
+
+                        if real_qty > 0:
+                            logger.info(f"🔌 [OKX-REAL-PARALLEL] Disparando ordem real em paralelo para {symbol}: {side} {real_qty} com SL={sl_price} e TP={tp_price} | Margem=${real_margin}")
+                            asyncio.create_task(
+                                okx_service.place_atomic_order(
+                                    symbol=symbol,
+                                    side=side,
+                                    qty=real_qty,
+                                    sl_price=sl_price,
+                                    tp_price=tp_price,
+                                    slot_id=slot_id,
+                                    leverage=real_leverage
+                                )
+                            )
+                    except Exception as real_err:
+                        logger.error(f"❌ [OKX-REAL-PARALLEL] Erro ao disparar ordem real paralela para {symbol}: {real_err}")
+                
                 # Return fake order response
                 return {
                     "retCode": 0,
@@ -1194,6 +1245,33 @@ class OKXRest:
                 self.pending_closures.add(norm_symbol)
             
             if self.execution_mode == "PAPER":
+                # [OKX-REAL-PARALLEL] Fechamento da posição real em paralelo
+                if settings.OKX_API_KEY_MASTER:
+                    try:
+                        from services.okx_service import okx_service
+                        logger.info(f"🔌 [OKX-REAL-PARALLEL] Fechando posição real de {symbol} na conta real...")
+                        # Dispara em background para fechar na OKX real
+                        async def close_real_pos():
+                            try:
+                                real_positions = await okx_service.get_positions()
+                                inst_id = okx_service.to_okx_inst_id(symbol)
+                                real_pos = next((p for p in real_positions if p.get("instId") == inst_id), None)
+                                if real_pos:
+                                    real_qty = abs(float(real_pos.get("pos", 0)))
+                                    if real_qty > 0:
+                                        logger.info(f"🔌 [OKX-REAL-PARALLEL] Posição real ativa de {symbol} encontrada com {real_qty} qty. Fechando...")
+                                        await okx_service.close_position(
+                                            symbol=symbol,
+                                            side=side,
+                                            qty=real_qty,
+                                            reason=reason
+                                        )
+                            except Exception as e_close:
+                                logger.error(f"❌ [OKX-REAL-PARALLEL] Falha ao fechar posição real de {symbol}: {e_close}")
+                        asyncio.create_task(close_real_pos())
+                    except Exception as real_close_err:
+                        logger.error(f"❌ [OKX-REAL-PARALLEL] Erro geral ao disparar fechamento real em paralelo: {real_close_err}")
+
                 logger.info(f"[PAPER] {'Partial harvest' if is_partial else 'Closing'} position {norm_symbol} | qty={qty} | Reason: {reason}")
                 # Find position in tactical or moonbags
                 pos = next((p for p in self.paper_positions if self.normalize_symbol(p["symbol"]) == norm_symbol), None)

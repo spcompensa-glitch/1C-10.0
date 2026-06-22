@@ -211,7 +211,7 @@ async def get_system_state():
         # 🆕 [V110.34] Calculate Captain-Aligned Direction for REST fallback
         btc_var_15m = getattr(okx_ws_public_service, 'btc_variation_15m', 0) if okx_ws_public_service else 0
         effective_adx = btc_adx if btc_adx else (getattr(okx_ws_public_service, 'btc_adx', 0) if okx_ws_public_service else 0)
-        if effective_adx >= 30:
+        if effective_adx >= 25:
             if btc_var_15m > 0 and btc_var_1h > 0:
                 btc_direction = "UP"
             elif btc_var_15m < 0 and btc_var_1h < 0:

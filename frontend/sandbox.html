@@ -223,6 +223,7 @@
                     <thead>
                         <tr class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
                             <th class="p-4">Ativo</th>
+                            <th class="p-4">Contrato OKX</th>
                             <th class="p-4">Estratégia</th>
                             <th class="p-4">Direção</th>
                             <th class="p-4">Entrada</th>
@@ -329,7 +330,7 @@
             if (!trades || trades.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="11" class="p-8 text-center text-gray-500 font-mono text-xs">
+                        <td colspan="12" class="p-8 text-center text-gray-500 font-mono text-xs">
                             Nenhuma simulação ativa. Aguardando sinais do Radar...
                         </td>
                     </tr>
@@ -362,9 +363,38 @@
                 const stopRoi = t.flash_state?.stop_roi;
                 const stopRoiText = stopRoi !== undefined ? ` (${stopRoi >= 0 ? '+' : ''}${stopRoi.toFixed(0)}%)` : '';
 
+                // Informações do contrato
+                let contractInfo = `<span class="text-gray-500 font-mono text-xs">N/A</span>`;
+                if (t.contract_meta) {
+                    const ctVal = t.contract_meta.ctVal || "?";
+                    const minSz = t.contract_meta.minSz || "?";
+                    
+                    // Calcular o valor nominal mínimo aproximado da ordem:
+                    // tamanho mínimo (minSz) * valor de 1 contrato (ctVal) * preço de entrada (ou preço atual se entrada for zero)
+                    let minNocional = "";
+                    try {
+                        const ctValNum = parseFloat(ctVal);
+                        const minSzNum = parseFloat(minSz);
+                        const price = parseFloat(t.entry_price) || 0;
+                        if (!isNaN(ctValNum) && !isNaN(minSzNum) && price > 0) {
+                            const val = ctValNum * minSzNum * price;
+                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nominal Mín: $${val.toFixed(2)}</div>`;
+                        }
+                    } catch (e) {}
+
+                    contractInfo = `
+                        <div class="flex flex-col font-mono text-xs text-gray-300">
+                            <div>Mín: <span class="text-white font-bold">${minSz}</span> contr.</div>
+                            <div class="text-gray-400 text-[10px]">ctVal: ${ctVal}</div>
+                            ${minNocional}
+                        </div>
+                    `;
+                }
+
                 return `
                     <tr class="hover:bg-white/[0.01] transition-all">
                         <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
+                        <td class="p-4">${contractInfo}</td>
                         <td class="p-4 font-mono text-xs">
                             <span class="px-2 py-0.5 rounded font-black ${
                                 t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :

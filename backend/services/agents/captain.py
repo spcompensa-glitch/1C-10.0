@@ -96,6 +96,7 @@ class CaptainAgent(AIOSAgent):
         self.last_librarian_sync = 0
         self.last_lateral_at = 0 # [V110.30.2] Cooldown pós-Lateral
         self.prev_btc_adx = 0 # [V110.128] ADX Slope Tracking
+        self.btc_market_regime = {"direction": "NEUTRAL", "macro": "BULLISH"}
 
     def reset_runtime_state(self) -> Dict[str, Any]:
         """Limpa travas em memória que não vivem no banco de dados."""
@@ -1287,13 +1288,47 @@ class CaptainAgent(AIOSAgent):
         side = best_signal.get("side", "Buy")
         strategy_class = best_signal.get("strategy_class", "VELOCITY FLOW")
         
-        # [REGIME GATING] Garantia Absoluta no Nível do Capitão
-        current_regime = self.btc_market_regime.get("direction", "NEUTRAL")
-        if strategy_class == "VELOCITY FLOW" and current_regime == "LATERAL":
-            logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} VELOCITY FLOW rejeitado em mercado LATERAL.")
+        # [REGIME GATING & MACRO FILTER] Garantia Absoluta no Nível do Capitão
+        is_ranging_mode = True
+        try:
+            from services.okx_ws_public import okx_ws_public_service
+            adx = getattr(okx_ws_public_service, 'btc_adx', 0)
+            is_ranging_mode = (adx < 25)
+        except Exception:
+            pass
+
+        current_regime = "LATERAL" if is_ranging_mode else "TRENDING"
+
+        # Get BTC Macro Trend (EMA 200 / SMA 200 base)
+        macro_trend = "BULLISH"
+        try:
+            btc_macro = await signal_generator.get_daily_macro_filter("BTCUSDT")
+            macro_trend = "BULLISH" if btc_macro.get("above_200sma", True) else "BEARISH"
+        except Exception as e:
+            logger.error(f"Error checking BTC macro trend: {e}")
+
+        # Update dynamic state
+        self.btc_market_regime = {
+            "direction": current_regime,
+            "macro": macro_trend
+        }
+
+        # 1. Filtro por regime de volatilidade (LATERAL vs TRENDING)
+        if current_regime == "LATERAL":
+            if strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD"):
+                logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} {strategy_class} rejeitado em mercado LATERAL.")
+                return
+        else:
+            if strategy_class == "DECOR SHADOW":
+                logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} DECOR SHADOW rejeitado em mercado em TENDÊNCIA.")
+                return
+
+        # 2. Filtro de Direção Macro (Trend Bias Filter)
+        if macro_trend == "BEARISH" and side.lower() in ("buy", "long", "b"):
+            logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} LONG rejeitado. Tendência Macro do BTC é BEARISH.")
             return
-        if strategy_class == "DECOR SHADOW" and current_regime in ("UP", "DOWN"):
-            logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} DECOR SHADOW rejeitado em mercado em TENDÊNCIA.")
+        elif macro_trend == "BULLISH" and side.lower() in ("sell", "short", "s"):
+            logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} SHORT rejeitado. Tendência Macro do BTC é BULLISH.")
             return
         
         # [MASTER BYPASS] - Se existir OKX Master, executa diretamente na conta global.

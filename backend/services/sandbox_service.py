@@ -87,6 +87,22 @@ class SandboxService:
                 if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
                     continue
 
+            # [V112.8] Sandbox Macro Trend Gating:
+            macro_trend = "BULLISH"
+            try:
+                from services.signal_generator import signal_generator
+                btc_macro = await signal_generator.get_daily_macro_filter("BTCUSDT")
+                macro_trend = "BULLISH" if btc_macro.get("above_200sma", True) else "BEARISH"
+            except Exception as e:
+                logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
+
+            if macro_trend == "BEARISH" and direction == "LONG":
+                logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH.")
+                continue
+            elif macro_trend == "BULLISH" and direction == "SHORT":
+                logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH.")
+                continue
+
             # Sandbox deve aceitar todos os sinais para fins de simulação/estatística
 
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)

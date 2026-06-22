@@ -901,6 +901,7 @@
         };
 
         const BancaWealthSection = ({ 
+            banca,
             liveEquity, liveTotalProfit, liveTotalPnL, startBankroll, 
             hullIntegrityPct, isDrawdown, fleetRank, rankColor, guardianReport
         }) => {
@@ -952,9 +953,15 @@
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-gray-500">
-                            <span>Alocação por Slot (1% - 2%)</span>
+                            <span>{banca?.execution_mode === "PAPER" ? "Alocação Sandbox (1% - 2%)" : "Alocação por Slot (1% - 2%)"}</span>
                             <span className="text-white">${(liveEquity * 0.01).toFixed(2)} - ${(liveEquity * 0.02).toFixed(2)}</span>
                         </div>
+                        {banca?.execution_mode === "PAPER" && banca?.saldo_real_okx > 0 && (
+                            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-cyan-400">
+                                <span>OKX Real em Paralelo (Proporcional)</span>
+                                <span className="text-white">Saldo: ${banca.saldo_real_okx.toFixed(2)} | Alocação: $0.50 (Máx 16 Slots)</span>
+                            </div>
+                        )}
                         <div className="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden p-[1px]">
                             <div 
                                 className={`h-full transition-all duration-1000 ${isDrawdown ? 'bg-orange-500' : 'bg-green-500'}`} 
@@ -6437,8 +6444,10 @@
             const liveTotalProfit = Number.isFinite(guardianSessionProfit)
                 ? guardianSessionProfit
                 : (banca.lucro_total_acumulado || 0) + liveTotalPnL;
-            // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX
-            const isRealMode = banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0;
+            // [V110.705] Ajuste para modo REAL: evita dupla contagem do PnL flutuante já consolidado na OKX.
+            // Se o execution_mode for PAPER (Sandbox ativo com cópia real), tratamos isRealMode como false
+            // para que a UI reflita a banca do Sandbox ($100) e os percentuais/alocação do simulador.
+            const isRealMode = banca.execution_mode === "REAL" || (banca.execution_mode === undefined && banca.saldo_real_okx !== undefined && banca.saldo_real_okx > 0);
             const baseEquity = (banca.saldo_total != null && banca.saldo_total > 0) ? banca.saldo_total : ((banca.configured_balance > 0) ? banca.configured_balance : (banca.saldo_real_okx || 100));
             const liveEquity = isRealMode
                 ? (banca.saldo_real_okx || banca.saldo_total)

@@ -1596,6 +1596,21 @@ class BankrollManager:
                         okx_rest_service.paper_balance = db_balance
                     calculated_equity = paper_snapshot["calculated_equity"]
                     reported_real_okx = 0.0
+                    if settings.OKX_API_KEY_MASTER:
+                        try:
+                            import httpx
+                            from services.okx_service import okx_service
+                            request_path = "/api/v5/account/balance"
+                            url = okx_service.base_url + request_path
+                            headers = okx_service._get_headers("GET", request_path)
+                            async with httpx.AsyncClient(timeout=5.0) as client:
+                                response = await client.get(url, headers=headers)
+                                if response.status_code == 200:
+                                    res_data = response.json()
+                                    if res_data.get("code") == "0" and res_data.get("data"):
+                                        reported_real_okx = float(res_data["data"][0].get("totalEq", 0.0))
+                        except Exception as real_bal_err:
+                            logger.error(f"❌ [BANKROLL-STATUS] Erro ao obter saldo real para status: {real_bal_err}")
                     logger.info(
                         "📊 [PAPER BALANCE] "
                         f"BaseOperacional={base_balance:.2f} | "
@@ -1650,6 +1665,7 @@ class BankrollManager:
                     "calculated_equity": calculated_equity,
                     "paper_equity": calculated_equity if okx_rest_service.execution_mode == "PAPER" else None,
                     "paper_float_pnl": float_pnl if okx_rest_service.execution_mode == "PAPER" else None,
+                    "execution_mode": okx_rest_service.execution_mode,
                 }
                 await firebase_service.update_banca_status(update_data)
                 

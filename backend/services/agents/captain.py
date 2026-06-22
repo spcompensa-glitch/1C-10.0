@@ -1344,7 +1344,14 @@ class CaptainAgent(AIOSAgent):
         if settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER":
             mode = "REAL" if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER" else "PAPER"
             logger.info(f"🚀 [BYPASS] Sinal de {symbol} roteado para OKX ({mode}).")
-            await self._run_user_execution_logic(None, {}, best_signal)
+            bypass_credentials = {}
+            if settings.OKX_API_KEY_MASTER:
+                bypass_credentials = {
+                    "api_key": settings.OKX_API_KEY_MASTER,
+                    "api_secret": settings.OKX_API_SECRET_MASTER,
+                    "passphrase": settings.OKX_PASSPHRASE_MASTER
+                }
+            await self._run_user_execution_logic("admin", bypass_credentials, best_signal)
             return
 
         # 1. Busca usuários ativos com cofre

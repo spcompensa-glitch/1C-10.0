@@ -719,11 +719,14 @@ class BankrollGuardian:
         approved = True
         reasons: List[str] = []
 
-        # [DECOR_HUNTER 2.0] Sinal DECOR_HUNTER é isento do filtro de regime de mercado
-        # pois busca pares desgrudados que se movem independentemente do BTC.
-        is_decor_hunter = signal.get("radar_mode") == "DECOR_HUNTER"
+        # [DECOR_HUNTER 2.0] Sinais de descorrelação (DECOR_HUNTER / DECOR SHADOW) são isentos do filtro de regime de mercado
+        # pois buscam pares desgrudados que se movem independentemente do BTC.
+        radar_mode = signal.get("radar_mode", "")
+        strategy = signal.get("strategy", "")
+        strategy_label = signal.get("strategy_label", "")
+        is_decor = "DECOR" in str(radar_mode).upper() or "DECOR" in str(strategy).upper() or "DECOR" in str(strategy_label).upper()
 
-        if is_decor_hunter:
+        if is_decor:
             market = await self._get_market_data()
             report["market_data"] = market
             logger.info(

@@ -78,13 +78,13 @@ class SandboxService:
             is_ranging = (adx_val < 25)
 
             # [V112.7] Sandbox Regime Gating:
-            # Lateral (ADX < 25) -> Apenas DECOR SHADOW é permitido.
-            # Tendência (ADX >= 25) -> Apenas VELOCITY FLOW e ALPHA SHIELD são permitidos.
+            # Lateral (ADX < 25) -> DECOR SHADOW e ALPHA SHIELD permitidos.
+            # Tendência (ADX >= 25) -> VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW permitidos.
             if is_ranging:
-                if strategy != "DECOR SHADOW":
+                if strategy not in ("DECOR SHADOW", "ALPHA SHIELD"):
                     continue
             else:
-                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
+                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW"):
                     continue
 
             # [V112.8] Sandbox Macro Trend Gating:

@@ -1494,7 +1494,7 @@ class SignalGenerator:
                     except: pass
                     
                     correlation_data = {
-                        "is_decorrelated": correlation < 0.35,
+                        "is_decorrelated": correlation < 0.45,
                         "correlation": round(correlation, 2),
                         "correlation_short": round(corr_short, 2)
                     }

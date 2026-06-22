@@ -1051,14 +1051,14 @@ class CaptainAgent(AIOSAgent):
             # ── 2. Variação própria nos últimos 15 candles
             own_variation = ((pair_closes[-1] - pair_closes[0]) / pair_closes[0]) * 100 if pair_closes[0] > 0 else 0.0
 
-            if abs(own_variation) < 1.5:
-                return None  # Par sem gás próprio suficiente
+            if abs(own_variation) < 0.8:
+                return None  # Par sem gás próprio suficiente (relaxado de 1.5% para 0.8%)
 
             # ── 3. Correlação de Pearson com BTC
             correlation = self._pearson_correlation(btc_closes, pair_closes)
 
-            if abs(correlation) >= 0.5:
-                return None  # Par ainda correlacionado com BTC
+            if abs(correlation) >= 0.65:
+                return None  # Par ainda correlacionado com BTC (relaxado de 0.5 para 0.65)
 
             # ── 4. Determinar lado com base na variação
             direction_from_var = "Buy" if own_variation > 0 else "Sell"
@@ -1076,13 +1076,13 @@ class CaptainAgent(AIOSAgent):
                 side = blitz_signal["side"]
                 tech_score = blitz_signal["score"]
                 tech_reasons = blitz_signal.get("reasons", [])
-            elif abs(own_variation) >= 2.0:
+            elif abs(own_variation) >= 1.0:
                 # Fallback: variação forte compensa ausência de setup técnico
                 side = direction_from_var
-                tech_score = min(75, int(abs(own_variation) * 15))
+                tech_score = min(75, int(abs(own_variation) * 30))
                 tech_reasons = [f"Variação própria forte: {own_variation:.2f}%"]
             else:
-                return None  # Variação de 1.5-2% sem setup técnico confirmado
+                return None  # Variação menor que 1.0% sem setup técnico confirmado
 
             return {
                 "id":              f"decor_{symbol.replace('.P','')}_{int(time.time())}",

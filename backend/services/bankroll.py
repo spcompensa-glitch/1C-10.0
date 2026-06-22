@@ -1328,6 +1328,16 @@ class BankrollManager:
                 is_ranging_mode = slot_type in ("RANGING",) or (
                     not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ", "DECOR_HUNTER")
                 )
+                # [V112.9] Cálculo Dinâmico de Slots baseados em Risco
+                # 40% da Banca (self.risk_cap) / Margem por trade (de 0.50)
+                # Teto máximo absoluto de 40 slots para fins SaaS.
+                margin_per_trade = settings.MARGIN_PER_TRADE_LATERAL if is_ranging_mode else settings.MARGIN_PER_TRADE_TRENDING
+                if margin_per_trade <= 0:
+                    margin_per_trade = 0.50
+                
+                max_slots_by_risk = int((balance * self.risk_cap) / margin_per_trade)
+                dynamic_max_slots = min(40, max(1, max_slots_by_risk))
+
                 if self.strict_single_order_mode:
                     max_total_slots = 1
                     max_at_risk_slots = 1
@@ -1337,16 +1347,16 @@ class BankrollManager:
                     logger.info(f"🛡️ [V110.802.6] Low Balance Mode: Max Slots=2 | LiveEquity=${balance:.2f}")
                 elif is_ranging_mode:
                     if slot_type in ("DECOR SHADOW", "DECOR_HUNTER"):
-                        max_total_slots = self.max_slots_lateral # 16 slots
-                        max_at_risk_slots = self.max_slots_lateral
-                        logger.info(f"🛡️ [LATERAL-DECOR] Aprovado DECOR SHADOW em mercado LATERAL. Max Slots={max_total_slots} | LiveEquity=${balance:.2f}")
+                        max_total_slots = dynamic_max_slots
+                        max_at_risk_slots = dynamic_max_slots
+                        logger.info(f"🛡️ [LATERAL-DECOR] Aprovado DECOR SHADOW em mercado LATERAL. Max Slots Dinâmicos (40% Risco)={max_total_slots} | LiveEquity=${balance:.2f}")
                     else:
                         logger.info(f"[TREND_FOCUS] {symbol} ({slot_type}) bloqueado em mercado LATERAL (ADX < 25). LiveEquity=${balance:.2f}")
                         return None
                 else:
-                    max_total_slots = self.max_slots_trending  # 16 slots em tendência
-                    max_at_risk_slots = self.max_slots_trending
-                    logger.info(f"🛡️ [V111.3] ELITE_40_MATRIX Mode: Max Slots={max_total_slots} | 40% Banca | LiveEquity=${balance:.2f}")
+                    max_total_slots = dynamic_max_slots
+                    max_at_risk_slots = dynamic_max_slots
+                    logger.info(f"🛡️ [TRENDING] Aprovado em TENDÊNCIA. Max Slots Dinâmicos (40% Risco)={max_total_slots} | LiveEquity=${balance:.2f}")
 
             # [V125] Desativado bloqueio por posições sem stop para permitir preenchimento em escala de até 40 slots
             # if at_risk_count >= max_at_risk_slots:

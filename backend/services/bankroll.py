@@ -1716,7 +1716,7 @@ class BankrollManager:
         logger.info(f"🎯 [V110.113] {dna_margin_pct*100:.0f}% DNA Margin: ${margin:.2f} (Based on UI Balance: ${balance:.2f})")
         return margin
 
-    async def open_position(self, symbol: str, side: str, sl_price: float = 0, tp_price: float = None, pensamento: str = "", slot_type: str = "SNIPER", signal_data: dict = None, target_slot_id: int = None):
+    async def open_position(self, symbol: str, side: str, sl_price: float = 0, tp_price: float = None, pensamento: str = "", slot_type: str = "SNIPER", signal_data: dict = None, target_slot_id: int = None, username: str = None, credentials: dict = None):
         """[V21.0] Executes Sniper entry with structural target-based TP. Accepts target_slot_id from Captain routing."""
         async with self.execution_lock:
             try:
@@ -2158,7 +2158,22 @@ class BankrollManager:
                         logger.info(f"🎯 [V110.65] Ambush Zone calculada: ${ambush_price:.6f} (Entry: ${current_price:.6f})")
                 
                 execution_started_at = time.time()
-                order = await asyncio.wait_for(okx_rest_service.place_atomic_order(symbol, side, qty, final_sl, final_tp, slot_id=slot_id, leverage=current_leverage, ambush_price=ambush_price), timeout=10.0)
+                # Pass credentials mapping down for signature calculation
+                params = {
+                    "symbol": symbol,
+                    "side": side,
+                    "qty": qty,
+                    "sl_price": final_sl,
+                    "tp_price": final_tp,
+                    "slot_id": slot_id,
+                    "leverage": current_leverage,
+                    "ambush_price": ambush_price,
+                    "username": username
+                }
+                if credentials:
+                    params.update(credentials)
+                
+                order = await asyncio.wait_for(okx_rest_service.place_atomic_order(**params), timeout=10.0)
                 execution_completed_at = time.time()
                 
                 if order and order.get("retCode") == 0:

@@ -2014,7 +2014,9 @@ class CaptainAgent(AIOSAgent):
                 pensamento=pensamento,
                 slot_type=slot_type,  # Usando o slot_type determinado acima
                 signal_data=best_signal,
-                target_slot_id=slot_id
+                target_slot_id=slot_id,
+                username=username,
+                credentials=credentials
             )
             
             if order:

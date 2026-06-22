@@ -102,20 +102,21 @@ class OKXService:
         now = datetime.now(timezone.utc)
         return now.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 
-    def _generate_signature(self, timestamp: str, method: str, request_path: str, body: str = "") -> str:
+    def _generate_signature(self, timestamp: str, method: str, request_path: str, body: str = "", custom_secret: str = None) -> str:
         """Gera assinatura HMAC-SHA256 em base64 para a autenticação OKX V5."""
-        if not self.api_secret:
+        secret = custom_secret or self.api_secret
+        if not secret:
             return ""
         message = timestamp + method + request_path + body
         mac = hmac.new(
-            self.api_secret.encode("utf-8"),
+            secret.encode("utf-8"),
             message.encode("utf-8"),
             hashlib.sha256
         )
         return base64.b64encode(mac.digest()).decode("utf-8")
 
-    def _get_headers(self, method: str, request_path: str, body: str = "") -> Dict[str, str]:
-        """Gera os headers necessários para autenticação na OKX."""
+    def _get_headers(self, method: str, request_path: str, body: str = "", **kwargs) -> Dict[str, str]:
+        """Gera os headers necessários para autenticação na OKX. Aceita credenciais dinâmicas."""
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json"
@@ -127,14 +128,18 @@ class OKXService:
         if self.is_mock:
             return headers
 
+        custom_key = kwargs.get("custom_key")
+        custom_secret = kwargs.get("custom_secret")
+        custom_passphrase = kwargs.get("custom_passphrase")
+
         timestamp = self._get_timestamp()
-        signature = self._generate_signature(timestamp, method, request_path, body)
+        signature = self._generate_signature(timestamp, method, request_path, body, custom_secret=custom_secret)
 
         headers.update({
-            "OK-ACCESS-KEY": self.api_key,
+            "OK-ACCESS-KEY": custom_key or self.api_key,
             "OK-ACCESS-SIGN": signature,
             "OK-ACCESS-TIMESTAMP": timestamp,
-            "OK-ACCESS-PASSPHRASE": self.passphrase
+            "OK-ACCESS-PASSPHRASE": custom_passphrase or self.passphrase
         })
 
         return headers
@@ -390,7 +395,15 @@ class OKXService:
         request_path = "/api/v5/trade/order"
         url = self.base_url + request_path
         body_str = json.dumps(order_req)
-        headers = self._get_headers("POST", request_path, body_str)
+        
+        headers = self._get_headers(
+            "POST", 
+            request_path, 
+            body_str, 
+            custom_key=kwargs.get("api_key"),
+            custom_secret=kwargs.get("api_secret"),
+            custom_passphrase=kwargs.get("passphrase")
+        )
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -421,7 +434,7 @@ class OKXService:
             logger.error(f"❌ [OKX REST] Falha crítica no envio de ordem para {inst_id}: {e}", exc_info=True)
             return {"code": "-1", "msg": str(e)}
 
-    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", username: str = None) -> bool:
+    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", username: str = None, **kwargs) -> bool:
         """
         [Fase 1] Encerra uma posição individual de forma isolada na OKX Testnet/Mainnet
         enviando uma ordem de fechamento a mercado.
@@ -468,7 +481,14 @@ class OKXService:
         request_path = "/api/v5/trade/order"
         url = self.base_url + request_path
         body_str = json.dumps(close_req)
-        headers = self._get_headers("POST", request_path, body_str)
+        headers = self._get_headers(
+            "POST", 
+            request_path, 
+            body_str,
+            custom_key=kwargs.get("api_key"),
+            custom_secret=kwargs.get("api_secret"),
+            custom_passphrase=kwargs.get("passphrase")
+        )
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

@@ -1211,7 +1211,7 @@ class OKXRest:
             return None
 
     @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=False, is_critical=True)
-    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", is_partial: bool = False, username: str = None, slot_id: int = None) -> bool:
+    async def close_position(self, symbol: str, side: str, qty: float, reason: str = "MANUAL_CLOSE", is_partial: bool = False, username: str = None, slot_id: int = None, **kwargs) -> bool:
         """
         [V120] Encerramento Multitenant Soberano.
         """
@@ -1219,7 +1219,7 @@ class OKXRest:
             from services.okx_service import okx_service
             mode_str = "Testnet" if okx_service.testnet else "Mainnet"
             logger.info(f"🔌 [OKX] Direcionando Fechamento de Posição de {symbol} para OKX {mode_str}...")
-            success = await okx_service.close_position(symbol, side, qty, reason, username)
+            success = await okx_service.close_position(symbol, side, qty, reason, username, **kwargs)
             return success
 
         norm_symbol = self._strip_p(symbol).upper()

@@ -97,9 +97,9 @@ async def get_sandbox_stats():
         # Tentar buscar o regime atual
         current_regime = "NEUTRAL"
         try:
-            from services.agents.captain import captain
-            if hasattr(captain, 'btc_market_regime'):
-                current_regime = captain.btc_market_regime.get("direction", "NEUTRAL")
+            from services.agents.captain import captain_agent
+            if hasattr(captain_agent, 'btc_market_regime'):
+                current_regime = captain_agent.btc_market_regime.get("direction", "NEUTRAL")
         except Exception:
             pass
 

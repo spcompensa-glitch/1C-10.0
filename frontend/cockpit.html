@@ -6317,8 +6317,8 @@
             }, []);
 
             useEffect(() => {
-                const fetchHistory = async () => {
-                    setLoadingHistory(true);
+                const fetchHistory = async (isBackground = false) => {
+                    if (!isBackground) setLoadingHistory(true);
                     try {
                         let url = `${API_BASE}/api/history?limit=${historyLimit}&page=${historyPage}`;
                         if (searchSymbol) url += `&symbol=${searchSymbol}`;
@@ -6335,7 +6335,7 @@
                     } catch (e) {
                         console.warn('Erro ao carregar histórico da Vault', e);
                     } finally {
-                        setLoadingHistory(false);
+                        if (!isBackground) setLoadingHistory(false);
                     }
                 };
 
@@ -6354,17 +6354,17 @@
                     } catch (e) {}
                 };
 
-                const refreshHistory = () => {
-                    fetchHistory();
+                const refreshHistory = (isBackground = false) => {
+                    fetchHistory(isBackground);
                     fetchStats();
                 };
                 const onVisibilityChange = () => {
-                    if (document.visibilityState === 'visible') refreshHistory();
+                    if (document.visibilityState === 'visible') refreshHistory(true);
                 };
 
-                refreshHistory();
+                refreshHistory(false);
                 const interval = historyPage === 1
-                    ? setInterval(refreshHistory, 30000)
+                    ? setInterval(() => refreshHistory(true), 30000)
                     : null;
                 document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -6678,7 +6678,7 @@
                                         historyLogs.map((log, i) => {
                                             const isProfit = (log.pnl || 0) >= 0;
                                             return (
-                                                <div key={i} onClick={() => setSelectedHistoryLog(log)} className="flex justify-between items-center p-3 rounded-xl bg-white/[0.02] border border-white/5 active:bg-white/5 transition-colors">
+                                                <div key={i} onClick={() => setSelectedHistoryLog(log)} className="flex justify-between items-center p-3 rounded-xl bg-white/[0.02] border border-white/5 active:bg-white/5 transition-colors group cursor-pointer">
                                                     <div className="flex flex-col">
                                                         <span className="text-xs font-bold text-white">{log.symbol}</span>
                                                         <div className="flex items-center gap-1">
@@ -6687,11 +6687,35 @@
                                                         </div>
                                                         <span className="text-[8px] text-gray-500 uppercase font-bold">{log.side}</span>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <span className={`text-xs font-mono font-black ${isProfit ? 'text-success' : 'text-red-400'}`}>
-                                                            {isProfit ? '+' : '-'}${Math.abs(log.pnl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </span>
-                                                        <div className="text-[7px] text-gray-600 uppercase font-black">{new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="text-right">
+                                                            <span className={`text-xs font-mono font-black ${isProfit ? 'text-success' : 'text-red-400'}`}>
+                                                                {isProfit ? '+' : '-'}${Math.abs(log.pnl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                            <div className="text-[7px] text-gray-600 uppercase font-black">{new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                                                        </div>
+                                                        <button 
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Deseja excluir o registro de ${log.symbol}?`)) {
+                                                                    const identifier = log.id || log.order_id;
+                                                                    try {
+                                                                        const res = await fetch(`${API_BASE}/api/history/${identifier}`, { method: 'DELETE' });
+                                                                        if (res.ok) {
+                                                                            setHistoryLogs(prev => prev.filter(item => item.id !== identifier && item.order_id !== identifier));
+                                                                        } else {
+                                                                            alert('Erro ao excluir item.');
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center p-1 rounded-lg hover:bg-red-500/10"
+                                                            title="Excluir Registro"
+                                                        >
+                                                            <span className="material-icons-round text-xs">delete</span>
+                                                        </button>
                                                     </div>
                                                 </div>
                                             );

@@ -175,6 +175,18 @@ async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str =
         logger.error(f"Error fetching trade history: {e}")
         return []
 
+@router.delete("/history/{id}")
+async def delete_history_item(id: str):
+    firebase_service, _, _, _, _ = get_services()
+    try:
+        success = await firebase_service.delete_trade_history_item(id)
+        if success:
+            return {"status": "success", "message": f"Item {id} excluído com sucesso."}
+        return {"status": "error", "message": "Falha ao excluir item do histórico."}
+    except Exception as e:
+        logger.error(f"Error deleting trade history item: {e}")
+        return {"status": "error", "message": str(e)}
+
 @router.get("/history/stats")
 async def get_history_stats(symbol: str = None, start_date: str = None, end_date: str = None):
     firebase_service, _, _, _, _ = get_services()

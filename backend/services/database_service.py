@@ -879,6 +879,24 @@ class DatabaseService:
                 logger.error(f"Error fetching trade history from database: {e}")
                 return []
 
+    async def delete_trade_history_item(self, id_or_order_id: str):
+        """Exclui um item específico do histórico de trades no banco Postgres."""
+        async with self.AsyncSessionLocal() as session:
+            try:
+                from sqlalchemy import delete
+                # Deletar por order_id ou id (convertendo id para int ou UUID se necessário dependendo do schema)
+                # Como a coluna order_id ou id são chaves únicas, cobrimos ambas as correspondências
+                stmt = delete(TradeHistory).where(
+                    (TradeHistory.order_id == id_or_order_id) | (TradeHistory.id == id_or_order_id)
+                )
+                await session.execute(stmt)
+                await session.commit()
+                logger.info(f"Item do histórico {id_or_order_id} excluído com sucesso do Postgres.")
+                return True
+            except Exception as e:
+                logger.error(f"Error deleting trade history item {id_or_order_id}: {e}")
+                return False
+
     # --- RADAR PULSE PERSISTENCE ---
     async def update_radar_pulse(self, data: dict):
         async with self.AsyncSessionLocal() as session:

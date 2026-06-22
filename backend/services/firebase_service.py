@@ -535,6 +535,27 @@ class FirebaseService:
         """Alias para get_trade_history usado pelo Librarian Profile Engine."""
         return await self.get_trade_history(limit=limit)
 
+    async def delete_trade_history_item(self, doc_id: str):
+        """Exclui um documento do histórico no Firestore e no Postgres de fallback."""
+        try:
+            # 1. Deletar do Postgres
+            from services.database_service import database_service
+            await database_service.delete_trade_history_item(doc_id)
+        except Exception as e:
+            logger.error(f"Erro ao excluir do Postgres: {e}")
+
+        if not self.is_active:
+            return True
+        try:
+            # 2. Deletar do Firestore
+            # Tenta apagar pelo ID do documento
+            self.db.collection("trade_history").document(doc_id).delete()
+            logger.info(f"Documento {doc_id} excluído com sucesso do Firestore.")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao excluir documento do Firestore: {e}")
+            return False
+
     async def get_trade_history_stats(self, symbol: str = None, start_date: str = None, end_date: str = None):
         """
         [V15.1] Memory-efficient stats.

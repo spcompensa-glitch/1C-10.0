@@ -3395,12 +3395,13 @@ class SignalGenerator:
                     # [V33.1] Decorrelation plays are BY DEFINITION counter-trend
                     # — penalizing them for going against the daily is redundant and kills the signal
                     is_decorrelation_play = candidate.get('is_decorrelated', False)
+                    is_exempt = is_decorrelation_play or is_dvap_play or is_flex_mode
                     
                     # [V28.2 PAPER FIX] Penalidade relaxada de -40 para -15 quando em OKX_EXECUTION_MODE = PAPER
                     # Para permitir testes de reversão SWING no Simulador.
                     fatal_penalty = -15 if _settings.OKX_EXECUTION_MODE == 'PAPER' else -40
                     
-                    if is_exempt:
+                    if is_exempt or is_decorrelation_play:
                         daily_penalty = 0  # [V110.999] Exempt: decorrelation/DVAP/FLEX is the edge
                         logger.info(f"🎯 [V33.1] {symbol} Decorrelation Play — Daily penalty SKIPPED (counter-trend is expected)")
                     elif is_swing_macro_s3:

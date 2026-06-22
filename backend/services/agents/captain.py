@@ -1325,12 +1325,19 @@ class CaptainAgent(AIOSAgent):
                 return
 
         # 2. Filtro de Direção Macro (Trend Bias Filter)
-        if macro_trend == "BEARISH" and side.lower() in ("buy", "long", "b"):
-            logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} LONG rejeitado. Tendência Macro do BTC é BEARISH.")
-            return
-        elif macro_trend == "BULLISH" and side.lower() in ("sell", "short", "s"):
-            logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} SHORT rejeitado. Tendência Macro do BTC é BULLISH.")
-            return
+        # Isenções:
+        # - Estratégia DECOR SHADOW é imune à direção macro do BTC em qualquer regime.
+        # - Se o mercado for LATERAL (ADX < 25), todos os bloqueios direcionais de tendência do BTC são ignorados.
+        is_decor_shadow = strategy_class == "DECOR SHADOW"
+        if not is_decor_shadow and current_regime != "LATERAL":
+            if macro_trend == "BEARISH" and side.lower() in ("buy", "long", "b"):
+                logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} LONG rejeitado. Tendência Macro do BTC é BEARISH.")
+                return
+            elif macro_trend == "BULLISH" and side.lower() in ("sell", "short", "s"):
+                logger.warning(f"🚫 [CAPTAIN-MACRO-BLOCK] {symbol} {strategy_class} SHORT rejeitado. Tendência Macro do BTC é BULLISH.")
+                return
+        else:
+            logger.info(f"🔓 [CAPTAIN-MACRO-PASS] {symbol} {strategy_class} {side} liberado (D.S={is_decor_shadow}, Regime={current_regime}).")
         
         # [MASTER BYPASS] - Se existir OKX Master, executa diretamente na conta global.
         from config import settings

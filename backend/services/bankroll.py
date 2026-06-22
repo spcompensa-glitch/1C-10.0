@@ -1867,13 +1867,17 @@ class BankrollManager:
                     )
 
                     # [V125] Define margem estrita de $1.00 ou $2.00 por slot para suportar até 40 posições simultâneas
+                    # Contudo, se a banca for muito baixa (ex: $22.60), escalamos a margem dinamicamente entre 1% e 2% da banca
                     is_ranging_mode = slot_type in ("DECOR_HUNTER", "RANGING") or (
                         not slot_type or slot_type.upper() not in ("ELITE_40_MATRIX", "TRENDING", "BLITZ_30M", "BLITZ")
                     )
-                    if is_ranging_mode:
-                        margin = self.margin_lateral      # $2.00
+                    if balance <= 40.0:
+                        margin = max(0.20, round(balance * 0.015, 2))
                     else:
-                        margin = self.margin_trending     # $1.00
+                        if is_ranging_mode:
+                            margin = self.margin_lateral      # $2.00
+                        else:
+                            margin = self.margin_trending     # $1.00
                     
                     logger.info(f"💰 [MARGEM DINA-SLOT] Definido para exatamente ${margin:.2f} (Modo Ranging: {is_ranging_mode})")
                 
@@ -1895,19 +1899,20 @@ class BankrollManager:
                 if balance < 1:
                     logger.warning(f"❌ BANKROLL BELOW MINIMUM ($1): ${balance:.2f}. Blocked.")
                     return None
-
+ 
                 cycle_status = await vault_service.get_cycle_status()
                 cycle_bankroll = cycle_status.get("cycle_start_bankroll", 0)
                 if cycle_bankroll < 5:
                     # First trade of cycle: initialize cycle bankroll (apenas histórico)
                     await vault_service.initialize_cycle_bankroll(balance)
                 
-                if margin < 1.0:
-                    # [V42.0] Force minimum operational margin if balance allows
-                    if balance >= 1.0:
-                        margin = 1.0
+                # Para bancas baixas (< $40), permitimos margens de até $0.20. Caso contrário, mantemos o mínimo operacional clássico de $1.00
+                min_op_margin = 0.20 if balance <= 40.0 else 1.00
+                if margin < min_op_margin:
+                    if balance >= min_op_margin:
+                        margin = min_op_margin
                     else:
-                        logger.warning(f"❌ Balance extremely low (${balance:.2f}). Cannot even afford $1 margin.")
+                        logger.warning(f"❌ Balance extremely low (${balance:.2f}). Cannot even afford ${min_op_margin:.2f} margin.")
                         return None
                 
                 # [V42.0] QUANTITY CALCULATION (Critical Fix for OKX Contracts)

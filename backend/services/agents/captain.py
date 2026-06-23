@@ -710,7 +710,11 @@ class CaptainAgent(AIOSAgent):
                     except asyncio.TimeoutError:
                         continue
 
-                    is_elite_shadow = best_signal.get("is_shadow_strike") and best_signal.get("score", 0) >= 90
+                    try:
+                        sig_score = float(best_signal.get("score", 0) or 0)
+                    except (TypeError, ValueError):
+                        sig_score = 0
+                    is_elite_shadow = best_signal.get("is_shadow_strike") and sig_score >= 90
                     
                     if is_elite_shadow:
                         # [V110.28.1] SHADOW PREEMPTION REACTIVATED
@@ -1427,9 +1431,10 @@ class CaptainAgent(AIOSAgent):
 
     async def _run_user_execution_logic(self, username: str, credentials: dict, best_signal: dict):
         """Lógica de filtragem e execução original do Captain adaptada para o usuário."""
-        symbol = best_signal["symbol"]
-        score = best_signal["score"]
+        symbol = str(best_signal.get("symbol", ""))
+        score = float(best_signal.get("score", 0) or 0) if best_signal.get("score") is not None else 0
         side = best_signal.get("side", "Buy")
+        logger.info(f"[CAPTAIN-DIAG] processando {symbol} {side} score={score} usuario={username} modo={settings.OKX_EXECUTION_MODE}")
         norm_symbol_lock = normalize_symbol(symbol) + "_" + str(username)
         
         # Obter e normalizar a estratégia do sinal
@@ -1464,7 +1469,12 @@ class CaptainAgent(AIOSAgent):
                 )
 
                 # [DECOR-HUNTER 3.0] Freshness Gate: TTL de 10 minutos
-                signal_age = time.time() - best_signal.get("timestamp", 0)
+                raw_ts = best_signal.get("timestamp", 0)
+                try:
+                    ts = float(raw_ts) if raw_ts is not None else 0
+                except (TypeError, ValueError):
+                    ts = 0
+                signal_age = time.time() - ts
                 if signal_age > 600:
                     msg = f"[DECOR-HUNTER 3.0] {symbol} sinal expirado ({signal_age:.0f}s > 600s). Descartado."
                     logger.info(msg)
@@ -1532,7 +1542,11 @@ class CaptainAgent(AIOSAgent):
                 
                 # Penalidade/Bônus Dinâmico
                 # Se um agente está viciado (peso < 1), o score final cai.
-                original_score = best_signal["score"]
+                raw_score = best_signal.get("score", 0)
+                try:
+                    original_score = float(raw_score) if raw_score is not None else 0
+                except (TypeError, ValueError):
+                    original_score = 0
                 
                 # Exemplo: Se Macro errou muito (weight 0.5) e o sinal depende muito de Macro (intel 100),
                 # o score sofre uma redução proporcional.
@@ -1548,7 +1562,11 @@ class CaptainAgent(AIOSAgent):
                 if score != original_score:
                     logger.info(f"⚖️ [V110.62 WEIGHTING] Score ajustado: {original_score} -> {score} (Penalty: {penalty}, Bonus: {bonus})")
             else:
-                score = best_signal["score"]
+                raw_score2 = best_signal.get("score", 0)
+                try:
+                    score = float(raw_score2) if raw_score2 is not None else 0
+                except (TypeError, ValueError):
+                    score = 0
 
             strategy = best_signal.get("strategy_class") if best_signal and best_signal.get("strategy_class") else "SWING"
 

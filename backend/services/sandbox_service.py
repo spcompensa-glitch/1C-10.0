@@ -108,31 +108,48 @@ class SandboxService:
                 pass
             is_ranging = (adx_val < 25)
 
-            # [V112.7] Sandbox Regime Gating:
-            # Lateral (ADX < 25) -> DECOR SHADOW e ALPHA SHIELD permitidos.
-            # Tendência (ADX >= 25) -> VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW permitidos.
+            # [V112.10] Sandbox Regime Gating (paridade com produção):
+            # Lateral (ADX < 25) -> DECOR SHADOW, ALPHA SHIELD
+            # Tendência (ADX >= 25) -> VELOCITY FLOW, ALPHA SHIELD (DECOR SHADOW bloqueado em tendência)
             if is_ranging:
                 if strategy not in ("DECOR SHADOW", "ALPHA SHIELD"):
                     continue
             else:
-                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW"):
+                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
                     continue
 
-            # [V112.8] Sandbox Macro Trend Gating:
+            # [V112.10] Sandbox Asset Blocklist Filter
+            try:
+                from config import settings
+                if symbol in getattr(settings, 'ASSET_BLOCKLIST', set()):
+                    logger.info(f"🧪 [SANDBOX-BLOCKLIST] {symbol} descartado (asset blocklist).")
+                    continue
+            except Exception as e:
+                logger.warning(f"Erro ao verificar blocklist: {e}")
+
+            # [V112.10] Sandbox Macro Trend Gating com bypass para DECOR SHADOW descorrelacionado
             macro_trend = "BULLISH"
+            decor_bypass = False
             try:
                 from services.signal_generator import signal_generator
                 btc_macro = await signal_generator.get_daily_macro_filter("BTCUSDT")
                 macro_trend = "BULLISH" if btc_macro.get("above_200sma", True) else "BEARISH"
+
+                # DECOR SHADOW descorrelacionado (Pearson < 0.35) bypassa o filtro macro
+                if strategy == "DECOR SHADOW":
+                    decor_data = sig.get("decorrelation") or {}
+                    if decor_data.get("is_decorrelated", False) and decor_data.get("pearson", 1.0) < 0.35:
+                        decor_bypass = True
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            if macro_trend == "BEARISH" and direction == "LONG":
-                logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH.")
-                continue
-            elif macro_trend == "BULLISH" and direction == "SHORT":
-                logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH.")
-                continue
+            if not decor_bypass:
+                if macro_trend == "BEARISH" and direction == "LONG":
+                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH.")
+                    continue
+                elif macro_trend == "BULLISH" and direction == "SHORT":
+                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH.")
+                    continue
 
             # Sandbox deve aceitar todos os sinais para fins de simulação/estatística
 

@@ -409,7 +409,8 @@
             if (phase === 'MOONBAG') return `rgba(34, 211, 238, ${alpha})`;
             if (phase === 'EMANCIPACAO') return `rgba(34, 197, 94, ${alpha})`;
             if (name.includes('PROFIT_LOCK')) return `rgba(234, 179, 8, ${alpha})`;
-            if (name.includes('RISCO_ZERO')) return `rgba(34, 197, 94, ${alpha})`;
+            if (name.includes('RISCO_ZERO') || name.includes('MICRO_LOCK')) return `rgba(34, 197, 94, ${alpha})`;
+            if (name.includes('PROFIT_BRIDGE')) return `rgba(99, 102, 241, ${alpha})`;
             return `rgba(148, 163, 184, ${state === 'future' ? 0.22 : 0.38})`;
         };
 
@@ -417,6 +418,7 @@
             const name = String(level?.name || level?.phase || 'STOP').toUpperCase();
             const map = {
                 BREAKEVEN: 'BE',
+                MICRO_LOCK: 'ML',
                 PROFIT_BRIDGE: 'PB',
                 RISCO_ZERO: 'RZ',
                 PROFIT_LOCK: 'PL',
@@ -4136,7 +4138,11 @@
             const activeLevel = projection.active_level || lastActiveLevel;
             const flashAction = activeLevel?.name || flashIntel.last_action || s.flash_last_action || 'MONITORANDO';
             const fallbackLevels = [
-                { phase: 'ESCADINHA', name: 'RISCO_ZERO', trigger_roi: 80, stop_roi: 15 },
+                { phase: 'ESCADINHA', name: 'MICRO_LOCK', trigger_roi: 20, stop_roi: 5 },
+                { phase: 'ESCADINHA', name: 'RISCO_ZERO', trigger_roi: 50, stop_roi: 25 },
+                { phase: 'ESCADINHA', name: 'PROFIT_BRIDGE', trigger_roi: 65, stop_roi: 40 },
+                { phase: 'ESCADINHA', name: 'LUCRO_GARANTIDO_80', trigger_roi: 80, stop_roi: 50 },
+                { phase: 'ESCADINHA', name: 'LUCRO_GARANTIDO', trigger_roi: 100, stop_roi: 75 },
                 { phase: 'EMANCIPACAO', name: 'EMANCIPADA', trigger_roi: 150, stop_roi: 110 },
                 { phase: 'MOONBAG', name: 'WAVE', trigger_roi: 200, stop_roi: 150 },
                 { phase: 'MOONBAG', name: 'ROCKET', trigger_roi: 300, stop_roi: 220 },

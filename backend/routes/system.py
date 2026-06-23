@@ -363,3 +363,21 @@ async def calibrate_bankroll(payload: dict):
         "message": f"Banca calibrada para ${target_val:.2f}.",
         "report": report
     }
+
+@router.get("/system/execution-diagnostics")
+async def execution_diagnostics():
+    """Diagnostico do modo de execucao para debug de ordens nao abertas."""
+    try:
+        from services.okx_service import okx_service as okx_svc
+    except Exception:
+        okx_svc = None
+    return {
+        "execution_mode": settings.OKX_EXECUTION_MODE,
+        "has_master_api_key": bool(settings.OKX_API_KEY_MASTER),
+        "has_api_key": bool(settings.OKX_API_KEY),
+        "okx_service_mock": getattr(okx_svc, "is_mock", "UNKNOWN") if okx_svc else "UNINITIALIZED",
+        "okx_testnet": getattr(okx_svc, "testnet", "UNKNOWN") if okx_svc else "UNINITIALIZED",
+        "master_key_prefix": (settings.OKX_API_KEY_MASTER or "")[:8] + "..." if settings.OKX_API_KEY_MASTER else None,
+        "captain_bypass_condition": bool(settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER"),
+        "captain_mode": "REAL" if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER" else "PAPER" if (settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER") else "DISABLED",
+    }

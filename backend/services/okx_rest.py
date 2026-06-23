@@ -1004,7 +1004,10 @@ class OKXRest:
         """
         [V120] Envio de Ordem Atômica com isolamento de sessão por usuário.
         """
-        if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
+        # REAL mode: usa OKX API nativa
+        is_real = self.execution_mode != "PAPER"
+        has_okx_key = bool(settings.OKX_API_KEY_MASTER or settings.OKX_API_KEY)
+        if is_real and has_okx_key:
             from services.okx_service import okx_service
             mode_str = "Testnet" if okx_service.testnet else "Mainnet"
             logger.info(f"🔌 [OKX] Direcionando Ordem Atômica: {side} {qty} {symbol} para OKX {mode_str}...")
@@ -1015,7 +1018,9 @@ class OKXRest:
                     "retCode": 0,
                     "result": {"orderId": ord_info.get("ordId"), "orderLinkId": ord_info.get("clOrdId")}
                 }
-            return {"retCode": -1, "retMsg": res.get("msg") if res else "Unknown OKX Error"}
+            err_msg = res.get("msg") if res else "Unknown OKX Error"
+            logger.error(f"❌ [OKX] Falha na ordem atomica para {symbol}: {err_msg}")
+            return {"retCode": -1, "retMsg": err_msg}
 
         api_symbol = self._strip_p(symbol)
         
@@ -1091,45 +1096,47 @@ class OKXRest:
                 logger.info(f"[PAPER] Position Created: {api_symbol} Entry={last_price}")
                 await self._save_paper_state()
                 
-                # [OKX-REAL-PARALLEL] Disparar a mesma ordem na conta real
+                # [OKX-REAL-PARALLEL] Disparar a mesma ordem na conta real (apenas se modo PAPER + master key presente)
                 if settings.OKX_API_KEY_MASTER:
                     try:
                         from services.okx_service import okx_service
-                        # 1. Obter saldo da conta real (OKX Master)
-                        real_balance = 22.60
-                        try:
-                            request_path = "/api/v5/account/balance"
-                            url = okx_service.base_url + request_path
-                            headers = okx_service._get_headers("GET", request_path)
-                            async with httpx.AsyncClient(timeout=5.0) as client:
-                                response = await client.get(url, headers=headers)
-                                if response.status_code == 200:
-                                    res_data = response.json()
-                                    if res_data.get("code") == "0" and res_data.get("data"):
-                                        real_balance = float(res_data["data"][0].get("totalEq", 22.60))
-                        except Exception as bal_err:
-                            logger.warning(f"⚠️ [OKX-REAL-PARALLEL] Falha ao obter saldo real, usando fallback de $22.60: {bal_err}")
+                        if okx_service.is_mock:
+                            logger.warning(f"⚠️ [OKX-REAL-PARALLEL] okx_service em modo MOCK. Ordem real para {symbol} NAO sera enviada de verdade.")
+                        else:
+                            # 1. Obter saldo da conta real (OKX Master)
+                            real_balance = 22.60
+                            try:
+                                request_path = "/api/v5/account/balance"
+                                url = okx_service.base_url + request_path
+                                headers = okx_service._get_headers("GET", request_path)
+                                async with httpx.AsyncClient(timeout=5.0) as client:
+                                    response = await client.get(url, headers=headers)
+                                    if response.status_code == 200:
+                                        res_data = response.json()
+                                        if res_data.get("code") == "0" and res_data.get("data"):
+                                            real_balance = float(res_data["data"][0].get("totalEq", 22.60))
+                            except Exception as bal_err:
+                                logger.warning(f"⚠️ [OKX-REAL-PARALLEL] Falha ao obter saldo real, usando fallback de $22.60: {bal_err}")
 
-                        # 2. Calcular margem proporcional para abrir até 16 ordens mantendo limite estrito de 40% da banca
-                        real_margin = max(0.50, round((real_balance * 0.40) / 16.0, 2))
-                        real_leverage = 50.0
+                            # 2. Calcular margem proporcional para abrir até 16 ordens mantendo limite estrito de 40% da banca
+                            real_margin = max(0.50, round((real_balance * 0.40) / 16.0, 2))
+                            real_leverage = 50.0
 
-                        # raw_qty para a real:
-                        real_raw_qty = (real_margin * real_leverage) / (last_price * ct_val)
+                            # raw_qty para a real:
+                            real_raw_qty = (real_margin * real_leverage) / (last_price * ct_val)
 
-                        # Ajustar qty baseado nas regras do instrumento real
-                        details = await okx_service.get_instrument_details(symbol)
-                        real_lot_size = float(details.get("lotSize", "1.0"))
-                        real_qty = round(real_raw_qty / real_lot_size) * real_lot_size
+                            # Ajustar qty baseado nas regras do instrumento real
+                            details = await okx_service.get_instrument_details(symbol)
+                            real_lot_size = float(details.get("lotSize", "1.0"))
+                            real_qty = round(real_raw_qty / real_lot_size) * real_lot_size
 
-                        min_sz = float(details.get("minSz", "1.0"))
-                        if real_qty < min_sz:
-                            real_qty = min_sz
+                            min_sz = float(details.get("minSz", "1.0"))
+                            if real_qty < min_sz:
+                                real_qty = min_sz
 
-                        if real_qty > 0:
-                            logger.info(f"🔌 [OKX-REAL-PARALLEL] Disparando ordem real em paralelo para {symbol}: {side} {real_qty} com SL={sl_price} e TP={tp_price} | Margem=${real_margin}")
-                            asyncio.create_task(
-                                okx_service.place_atomic_order(
+                            if real_qty > 0:
+                                logger.info(f"🔌 [OKX-REAL-PARALLEL] Disparando ordem real para {symbol}: {side} {real_qty} com SL={sl_price} e TP={tp_price} | Margem=${real_margin}")
+                                real_result = await okx_service.place_atomic_order(
                                     symbol=symbol,
                                     side=side,
                                     qty=real_qty,
@@ -1138,7 +1145,13 @@ class OKXRest:
                                     slot_id=slot_id,
                                     leverage=real_leverage
                                 )
-                            )
+                                if real_result and real_result.get("code") == "0":
+                                    logger.info(f"✅ [OKX-REAL-PARALLEL] Ordem real enviada com sucesso para {symbol}")
+                                else:
+                                    err = real_result.get("msg", "ERRO_DESCONHECIDO") if real_result else "SEM_RESPOSTA"
+                                    logger.error(f"❌ [OKX-REAL-PARALLEL] Ordem real FALHOU para {symbol}: {err}")
+                            else:
+                                logger.warning(f"⚠️ [OKX-REAL-PARALLEL] Quantidade calculada zero para {symbol}. Ordem real ignorada.")
                     except Exception as real_err:
                         logger.error(f"❌ [OKX-REAL-PARALLEL] Erro ao disparar ordem real paralela para {symbol}: {real_err}")
                 
@@ -1159,6 +1172,12 @@ class OKXRest:
             except Exception as e:
                 logger.error(f"[PAPER] Failed to place simulated order: {e}")
                 return None
+
+        # REAL mode without API key — should not proceed to legacy pybit path
+        if self.execution_mode != "PAPER":
+            logger.error(f"[OKX] REAL mode sem API Key configurada. Impossível executar ordem para {symbol}. "
+                         f"Defina OKX_API_KEY_MASTER ou OKX_API_KEY no ambiente.")
+            return {"retCode": -1, "retMsg": "REAL mode without API key configured"}
 
         try:
             # [V5.2.5] Precision Engine: Normalizar preços antes do envio

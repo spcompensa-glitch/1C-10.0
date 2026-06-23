@@ -14,6 +14,8 @@ class SandboxService:
     def __init__(self):
         self.is_running = False
         self._loop_task = None
+        self._process_lock = asyncio.Lock()
+        self._processed_signals = set()
 
     def start(self):
         if self.is_running:
@@ -30,7 +32,22 @@ class SandboxService:
             pulse_data = await database_service.get_radar_pulse()
             if pulse_data and "signals" in pulse_data:
                 logger.info(f"🧪 [SANDBOX] Carregando {len(pulse_data['signals'])} sinais pré-existentes do Radar no Sandbox.")
-                await self.on_radar_pulse(pulse_data["signals"])
+                # Só processa sinais que ainda não estão como trades ativos no DB
+                active_trades = await database_service.get_sandbox_trades(active_only=True)
+                active_keys = {
+                    (t.symbol.replace(".P", "").upper(), t.strategy, t.direction)
+                    for t in active_trades
+                }
+                novos = [
+                    s for s in pulse_data["signals"]
+                    if (s.get("symbol", "").replace(".P", "").upper(),
+                        s.get("strategy") or s.get("strategy_class") or "RADAR",
+                        "LONG" if (s.get("side") or "Buy").lower() in ("buy", "long", "b") else "SHORT")
+                    not in active_keys
+                ]
+                if novos:
+                    logger.info(f"🧪 [SANDBOX] Processando {len(novos)} sinais novos do radar (já existem {len(active_trades)} ativos).")
+                    await self._process_radar_signals(novos)
         except Exception as e:
             logger.error(f"Erro ao carregar sinais existentes no Sandbox: {e}")
 
@@ -45,10 +62,24 @@ class SandboxService:
         if not signals:
             return
 
+        async with self._process_lock:
+            await self._process_radar_signals(signals)
+
+    async def _process_radar_signals(self, signals: List[Dict[str, Any]]):
+        """Processa sinais do radar com lock para evitar duplicatas por race condition."""
         for sig in signals:
-            symbol = sig.get("symbol")
-            if not symbol:
+            raw_symbol = sig.get("symbol")
+            if not raw_symbol:
                 continue
+            symbol = raw_symbol.replace(".P", "").upper()
+
+            # Evitar reprocessamento do mesmo sinal (por id único)
+            signal_id = sig.get("id") or f"{symbol}_{sig.get('timestamp', 0)}"
+            if signal_id in self._processed_signals:
+                continue
+            self._processed_signals.add(signal_id)
+            if len(self._processed_signals) > 500:
+                self._processed_signals.clear()
 
             # Identificar direção: Buy/LONG, Sell/SHORT
             side = sig.get("side", "Buy")
@@ -113,14 +144,19 @@ class SandboxService:
                 if entry_price <= 0.0:
                     continue
 
-            # Verificar se já existe trade ATIVO para este símbolo + estratégia para evitar duplicidade
+            # Verificar se já existe trade ATIVO para este símbolo + estratégia + direção
             active_trades = await database_service.get_sandbox_trades(active_only=True)
-            already_active = any(t.symbol == symbol and t.strategy == strategy for t in active_trades)
+            already_active = any(
+                t.symbol.replace(".P", "").upper() == symbol
+                and t.strategy == strategy
+                and t.direction == direction
+                for t in active_trades
+            )
             if already_active:
                 continue
 
             # Criar novo trade simulado
-            trade_id = f"sb_{symbol.replace('.P', '')}_{strategy}_{int(time.time())}"
+            trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
             
             # Setup inicial do stop loss
             # [V112.6] Stop inicial dinâmico por regime: -20% ROI em mercado lateral, -30% ROI em tendência.
@@ -180,8 +216,9 @@ class SandboxService:
                     current_roi = proj_service.calculate_roi(trade.entry_price, current_price, side, leverage)
                     max_roi = max(trade.max_roi, current_roi)
 
-                    # Carregar estado do Flash
-                    flash_state = dict(trade.flash_state or {})
+                    # Carregar estado do Flash (evita erro se for None)
+                    raw_flash = trade.flash_state
+                    flash_state = dict(raw_flash) if raw_flash else {}
                     history = list(flash_state.get("history", []))
                     active_level_name = flash_state.get("active_level", "INICIAL")
                     current_stop_roi = float(flash_state.get("stop_roi", -100.0))

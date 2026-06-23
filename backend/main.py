@@ -602,6 +602,18 @@ async def lifespan(app: FastAPI):
                 except Exception as sandbox_err:
                     logger.error(f"❌ [SaaS] Falha ao iniciar Sandbox Service: {sandbox_err}")
 
+                # Diagnostico de execucao
+                try:
+                    from services.okx_service import okx_service as _oks
+                    logger.info(
+                        f"🔍 [SaaS-DIAG] Modo={settings.OKX_EXECUTION_MODE} "
+                        f"| MasterKey={'SIM' if settings.OKX_API_KEY_MASTER else 'NAO'} "
+                        f"| OKXKey={'SIM' if settings.OKX_API_KEY else 'NAO'} "
+                        f"| is_mock={getattr(_oks, 'is_mock', '?')}"
+                    )
+                except Exception as diag_err:
+                    logger.warning(f"⚠️ [SaaS-DIAG] Falha no diagnostico: {diag_err}")
+
                 logger.info("✅ [SaaS] OKX e Hermes Broker inicializados com SUCESSO!")
             except Exception as saas_init_err:
                 logger.error(f"❌ [SaaS] Falha ao iniciar serviços OKX/Hermes: {saas_init_err}", exc_info=True)

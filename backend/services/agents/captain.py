@@ -1339,18 +1339,34 @@ class CaptainAgent(AIOSAgent):
         else:
             logger.info(f"🔓 [CAPTAIN-MACRO-PASS] {symbol} {strategy_class} {side} liberado (D.S={is_decor_shadow}, Regime={current_regime}).")
         
-        # [MASTER BYPASS] - Se existir OKX Master, executa diretamente na conta global.
+        # [MASTER BYPASS] - Roteia o sinal para execucao (REAL ou PAPER).
         from config import settings
-        if settings.OKX_API_KEY_MASTER or settings.OKX_EXECUTION_MODE == "PAPER":
-            mode = "REAL" if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER" else "PAPER"
+        should_bypass = (
+            settings.OKX_API_KEY_MASTER
+            or settings.OKX_EXECUTION_MODE == "PAPER"
+            or settings.OKX_EXECUTION_MODE == "REAL"
+        )
+        if should_bypass:
+            has_master_key = bool(settings.OKX_API_KEY_MASTER)
+            is_real = settings.OKX_EXECUTION_MODE == "REAL" and has_master_key
+            mode = "REAL" if is_real else ("PAPER" if settings.OKX_EXECUTION_MODE == "PAPER" or not has_master_key else f"REAL(OKX)")
             logger.info(f"🚀 [BYPASS] Sinal de {symbol} roteado para OKX ({mode}).")
             bypass_credentials = {}
-            if settings.OKX_API_KEY_MASTER:
+            if has_master_key:
                 bypass_credentials = {
                     "api_key": settings.OKX_API_KEY_MASTER,
                     "api_secret": settings.OKX_API_SECRET_MASTER,
                     "passphrase": settings.OKX_PASSPHRASE_MASTER
                 }
+            elif settings.OKX_API_KEY:
+                bypass_credentials = {
+                    "api_key": settings.OKX_API_KEY,
+                    "api_secret": settings.OKX_API_SECRET,
+                    "passphrase": settings.OKX_PASSPHRASE or ""
+                }
+            if not bypass_credentials and settings.OKX_EXECUTION_MODE == "REAL":
+                logger.error(f"❌ [BYPASS] {symbol} modo REAL sem chaves de API configuradas. Abortando.")
+                return
             await self._run_user_execution_logic("admin", bypass_credentials, best_signal)
             return
 

@@ -1665,9 +1665,9 @@ class CaptainAgent(AIOSAgent):
             lib_dna = await librarian_agent.get_asset_dna(symbol)
             nectar_seal = lib_dna.get("nectar_seal", "🛡️ VANGUARD")
 
-            # [V120] VANGUARD QUALITY FILTER RELAXADO — Ordem direta, score mínimo reduzido
-            if "VANGUARD" in nectar_seal and score < 60 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
-                msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 60. Ativos Vanguard exigem confiança mínima. Abortando."
+            # [V120] VANGUARD QUALITY FILTER — Ordem direta, score mínimo reduzido
+            if "VANGUARD" in nectar_seal and score < 70 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
+                msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 70. Ativos Vanguard exigem confiança mínima. Abortando."
                 logger.warning(msg)
                 await firebase_service.log_event("CAPTAIN", msg, "INFO")
                 if best_signal.get("id"):

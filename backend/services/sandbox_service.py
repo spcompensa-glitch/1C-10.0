@@ -295,19 +295,15 @@ class SandboxService:
                     # O stop loss de preço é calculado com base no updated_stop_roi
                     stop_price = proj_service.raw_price_from_roi(trade.entry_price, updated_stop_roi, side, leverage)
                     
-                    # Checar violação do stop loss
+                    # Checar violação do stop loss (status final decidido depois do calculo de final_pnl)
                     if trade.direction == "LONG" and current_price <= stop_price:
                         is_closed = True
-                        status = "CLOSED_SL"
                         exit_price = stop_price
                         closed_at = time.time()
-                        history.append(f"Violou Stop Loss em {current_price} (SL configurado em {stop_price})")
                     elif trade.direction == "SHORT" and current_price >= stop_price:
                         is_closed = True
-                        status = "CLOSED_SL"
                         exit_price = stop_price
                         closed_at = time.time()
-                        history.append(f"Violou Stop Loss em {current_price} (SL configurado em {stop_price})")
 
                     # Atualizar flash state
                     flash_state.update({
@@ -341,6 +337,14 @@ class SandboxService:
                         else:
                             final_pnl = actual_exit_roi
                         update_payload["pnl_pct"] = final_pnl
+
+                        # Determinar status final baseado no PnL real de fechamento
+                        status = "CLOSED_TRAILING" if final_pnl > 0 else "CLOSED_SL"
+                        update_payload["status"] = status
+                        if status == "CLOSED_TRAILING":
+                            history.append(f"[TRAILING] Stop atingido em {current_price} — fechado lucrativo com +{final_pnl:.1f}% ROI")
+                        else:
+                            history.append(f"Stop atingido em {current_price} (SL configurado em {stop_price})")
 
                     await database_service.update_sandbox_trade(trade.id, update_payload)
 

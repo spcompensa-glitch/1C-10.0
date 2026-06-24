@@ -345,12 +345,20 @@
                     : `<span class="px-2 py-0.5 rounded bg-cyberRed/10 border border-cyberRed/20 text-cyberRed text-xs font-bold font-mono">SHORT</span>`;
 
                 const isPartial = t.flash_state?.has_taken_partial;
-                const statusText = t.status === "ACTIVE" 
-                    ? (isPartial ? "ATIVO (PARCIAL)" : "ATIVO")
-                    : (t.status === "CLOSED_SL" ? (isPartial ? "FECHADO SL (PARCIAL)" : "FECHADO SL") : "FECHADO");
-                const statusColor = t.status === "ACTIVE"
-                    ? (isPartial ? "bg-cyberGreen/10 border-cyberGreen/20 text-cyberGreen" : "bg-cyberOrange/10 border-cyberOrange/20 text-cyberOrange")
-                    : "bg-white/5 border-white/10 text-gray-400";
+                let statusText, statusColor;
+                if (t.status === "ACTIVE") {
+                    statusText = isPartial ? "ATIVO (PARCIAL)" : "ATIVO";
+                    statusColor = isPartial ? "bg-cyberGreen/10 border-cyberGreen/20 text-cyberGreen" : "bg-cyberOrange/10 border-cyberOrange/20 text-cyberOrange";
+                } else if (t.status === "CLOSED_TRAILING") {
+                    statusText = isPartial ? "TRAILING (PARCIAL)" : "TRAILING";
+                    statusColor = "bg-cyberGreen/15 border-cyberGreen/30 text-cyberGreen";
+                } else if (t.status === "CLOSED_SL") {
+                    statusText = isPartial ? "FECHADO SL (PARCIAL)" : "FECHADO SL";
+                    statusColor = "bg-white/5 border-white/10 text-gray-400";
+                } else {
+                    statusText = "FECHADO";
+                    statusColor = "bg-white/5 border-white/10 text-gray-400";
+                }
                 
                 const statusBadge = `<span class="px-2 py-0.5 rounded border text-xs font-mono ${statusColor}">${statusText}</span>`;
 

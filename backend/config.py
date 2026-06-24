@@ -161,12 +161,12 @@ class Settings(BaseSettings):
     
     # [V110.701] OFFICIAL 40 ELITE MATRIX
     ELITE_40_MATRIX: list = [
-        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "SUIUSDT", "OPUSDT", 
-        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT", 
+        "AVAXUSDT", "PYTHUSDT", "APTUSDT", "OPUSDT", 
+        "ARBUSDT", "RENDERUSDT", "NEARUSDT", "INJUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT", 
-        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
-        "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT", 
-        "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
+        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT",
+        "SEIUSDT", "FILUSDT", "FTMUSDT", "ALGOUSDT", 
+        "IMXUSDT", "GALAUSDT", "GRTUSDT", "EGLDUSDT",
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT", "LDOUSDT", 
         "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
     ]
@@ -175,12 +175,12 @@ class Settings(BaseSettings):
     # Removidos por performance Sandbox negativa: ICPUSDT (-1475%), APTUSDT (-1078%),
     # PYTHUSDT (-977%), LDOUSDT (-734%), RENDERUSDT (-550%). Mantidos apenas pares com ROI > -600% ou WR > 48%.
     RADAR_WATCHLIST: list = [
-        "AVAXUSDT", "SUIUSDT", "OPUSDT",
-        "ARBUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "AVAXUSDT", "OPUSDT",
+        "ARBUSDT", "NEARUSDT", "INJUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
-        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
-        "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
-        "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
+        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT",
+        "SEIUSDT", "FILUSDT", "FTMUSDT", "ALGOUSDT",
+        "IMXUSDT", "GALAUSDT", "GRTUSDT", "EGLDUSDT",
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
         "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
         "SOLUSDT"
@@ -197,12 +197,12 @@ class Settings(BaseSettings):
     # Removidos ICP, APT, PYTH, LDO, RENDER, CHZ (Sandbox: péssima performance).
     # O scan é feito em batches de 25 para não sobrecarregar a API.
     DECOR_WATCHLIST: list = [
-        "AVAXUSDT", "SUIUSDT", "OPUSDT",
-        "ARBUSDT", "NEARUSDT", "INJUSDT", "TIAUSDT",
+        "AVAXUSDT", "OPUSDT",
+        "ARBUSDT", "NEARUSDT", "INJUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
-        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT", "TRXUSDT",
-        "SEIUSDT", "FILUSDT", "FTMUSDT", "AAVEUSDT", "ALGOUSDT",
-        "IMXUSDT", "GALAUSDT", "GRTUSDT", "CRVUSDT", "EGLDUSDT",
+        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT",
+        "SEIUSDT", "FILUSDT", "FTMUSDT", "ALGOUSDT",
+        "IMXUSDT", "GALAUSDT", "GRTUSDT", "EGLDUSDT",
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
         "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
         "SOLUSDT",
@@ -241,7 +241,14 @@ class Settings(BaseSettings):
         'XAUUSDT', 'XAGUSDT', 'XPDUSDT', 'XPTUSDT', 'WTIUSDT', 'BRENTUSDT',
         'USDEUSDT', 'USDCUSDT', 'EURSUSDT', 'DAIUSDT', 'FDUSDUSDT',
         'BNBUSDT', 'ICPUSDT', 'RENDERUSDT', 'CHZUSDT',
-        'DYDXUSDT', 'FILUSDT', 'ALGOUSDT', 'LTCUSDT'
+        'DYDXUSDT', 'FILUSDT', 'ALGOUSDT', 'LTCUSDT',
+        # [V112.12] Sandbox: Pares com performance DECOR SHADOW extremamente negativa
+        # AAVEUSDT: 10/18 trades bateram no INITIAL (-20%), WR 25%
+        # CRVUSDT: 3/18 trades no INITIAL, 8 trades totais com WR 25%
+        # SUIUSDT: 4 trades com WR 25%, PnL -21.43%
+        # TRXUSDT: 100% loss rate no sandbox
+        # TIAUSDT: 100% loss rate no sandbox
+        'AAVEUSDT', 'CRVUSDT', 'SUIUSDT', 'TRXUSDT', 'TIAUSDT'
     }
 
     # Fast API context

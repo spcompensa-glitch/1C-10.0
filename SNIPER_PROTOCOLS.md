@@ -1,96 +1,215 @@
-# 1CRYPTEN_SPACE_V4.0 - PROTOCOLO DE STOPS E ALVOS (V111.3)
+# 1Crypten — Protocolos de Trading
 
-## Arquitetura Atual: Ordem Unica, Escadinha Continua
+*Baseado no codigo-fonte. Atualizado em 2026-06-24.*
 
-O sistema usa o `OrderProjectionService` como fonte oficial de alvos, stops, ROI e linhas do grafico. Nao existe mais promocao de ordem para Moonbag: todos os sinais aprovados viram ordens, e cada ordem continua buscando alvos sucessivos. Quando um alvo e rompido, o `FlashAgent` fixa/promove o stop da propria ordem.
+---
 
-## Filtro de Regime de Mercado (V111.2)
+## 1. Filtro de Regime de Mercado
 
-O BankrollGuardian agora bloqueia entradas com base no ADX e direcao do BTC:
+### 1.1 Grade ADX
 
-| Condicao | Acao |
-| :--- | :--- |
-| **ADX < 22** (Mercado Morto) | Nenhuma entrada permitida. Volatilidade insuficiente. |
-| **ADX 22-25** (Transicao) | Apenas trades a favor da direcao do BTC (LONG se UP, SHORT se DOWN). |
-| **ADX ≥ 25** (Tendencia) | Bloqueio absoluto de contra-tendencia. SHORTs bloqueados em bull market. LONGs bloqueados em bear market. |
-| **ADX ≥ 30** (Tendencia Forte) | Reforco do bloqueio contra-tendencia com threshold mais alto. |
+| Condicao | Regime | Acao |
+|----------|--------|------|
+| ADX < 22 | MORTO | Nenhuma entrada permitida. Volatilidade insuficiente. |
+| ADX 22-25 | TRANSICAO | Apenas trades a favor da direcao do BTC. |
+| ADX >= 25 | TENDENCIA | Bloqueio de contra-tendencia. |
+| ADX >= 30 | FORTE | Reforco do bloqueio contra-tendencia. |
 
-A direcao do BTC e determinada por confluencia de variacao 15m + 1h:
-- Ambas positivas => `UP`
-- Ambas negativas => `DOWN`
-- Divergencia => `LATERAL` (não bloqueia, pois não há direcao clara)
+### 1.2 Direcao do BTC
 
-O `OracleAgent` agora e a SSOT desse contexto macro: recebe `btc_adx`, `btc_variation_1h` e `btc_variation_15m` do fluxo OKX, deriva `regime` na grade `22/25/30` e persiste o snapshot validado para recovery via LKG.
+Determinada por confluencia de variacao 15m + 1h:
+- Ambas positivas => UP
+- Ambas negativas => DOWN
+- Divergencia => LATERAL (nao bloqueia)
 
-Para recalibrar essa grade com estudo historico do BTC na OKX, use `backend/scratch/study_oracle_btc_regime.py`.
+### 1.3 Trend Bias (SMA 200)
 
-## Stop Inicial Inteligente
+- Preco BTC < SMA 200 => BEARISH: so SHORT
+- Preco BTC > SMA 200 => BULLISH: so LONG
 
-Na abertura, o stop inicial nao e mais fixo em -50% ou -100% ROI. O `BankrollManager` calcula um plano de stop inicial:
+---
 
-- LONG: stop abaixo da invalidacao tecnica do setup, como fundo, sweep, suporte ou zona rompida.
-- SHORT: stop acima da invalidacao tecnica do setup, como topo, sweep, resistencia ou zona rompida.
-- Se o sinal trouxer `adaptive_sl`, `sl_price`, `stop_loss`, `invalidation_price` ou campos estruturais equivalentes, essa informacao tem prioridade.
-- Se nao houver stop estrutural, o fallback usa ATR/range/volatilidade recente.
-- Se o stop estrutural explicito ficar longe demais para o regime, a entrada e bloqueada em vez de aceitar risco fixo gigante.
-- O stop inicial em tendencia e maior que em lateral para acomodar oscilacoes naturais de alta volatilidade.
+## 2. Estrategias
 
-### Teto de Stop Inicial (V111.2) — Atualizado V112.11
+### 2.1 DECOR SHADOW (LATERAL)
 
-Para proteger banca pequena, o ROI do stop inicial **nunca ultrapassa 40%** (`MAX_INITIAL_STOP_ROI`) em tendencia,
-ou 30% em lateral.
-- Se ATR/estrutura indicar stop com risco > 40% ROI, o stop e reposicionado para o teto.
-- Block de entrada (approved=False) ainda pode ocorrer se o stop estrutural ficar alem de `max_risk_pct * 1.35`.
-- Logs `[STOP-CAP]` registram quando o cap e aplicado.
+- **Regime**: ADX < 25
+- **Mecanismo**: Reversao de exaustao com decorrelacao BTC
+- **Requisito**: Pearson < 0.35 (obrigatorio)
+- **Margem**: $2.00 por ordem
+- **Max slots**: 20 (ranging)
 
-## Escadinha em Lateral
+### 2.2 DECOR_HUNTER (LATERAL)
 
-Mercado lateral protege cedo porque falso rompimento e comum.
+- **Regime**: ADX < 25
+- **Mecanismo**: Caca a decorrelacao com score elite
+- **Bypass**: score >= 90 ou CVD > 50k ou ADX >= 50
 
-| Alvo rompido (ROI) | Stop fixado (ROI) | Status |
-| ---: | ---: | --- |
-| 30% | 5% | `SL_0` |
-| 50% | 25% | `RISCO_ZERO` |
-| 70% | 50% | `RISCO_ZERO` |
-| 100% | 80% | `PROFIT_LOCK` |
-| 150% | 110% | `PROFIT_LOCK` |
-| 200% | 150% | `TRAIL_LOCK` |
-| 300% | 220% | `TRAIL_LOCK` |
+### 2.3 VELOCITY FLOW (TENDENCIA)
 
-## Escadinha em Tendencia (V112.11)
+- **Regime**: ADX >= 25
+- **Mecanismo**: Momentum de alta, breakout
+- **Margem**: $1.00 por ordem
+- **Max slots**: 40 (trending)
 
-Mercado em tendencia usa degraus progressivos para proteger lucro sem fechar prematuramente.
-A escadinha agora e unificada entre sandbox e execucao real.
+### 2.4 ALPHA SHIELD (TENDENCIA)
 
-### Nova Escada Progressiva
+- **Regime**: ADX >= 25
+- **Mecanismo**: Protecao de capital, pullback
 
-| Alvo rompido (ROI) | Stop fixado (ROI) | Nome do Degrau | Status |
-| ---: | ---: | --- | --- |
-| 10% | 0% | `BREAKEVEN` | `RISCO_ZERO` |
-| 30% | 15% | `LUCRO_INICIAL` | `RISCO_ZERO` |
-| 45% | 30% | `LUCRO_MEDIO` | `RISCO_ZERO` |
-| 80% | 50% | `LUCRO_GARANTIDO_80` | `RISCO_ZERO` |
-| 100% | 75% | `LUCRO_GARANTIDO` | `RISCO_ZERO` |
-| 130% | 110% | `SUCESSO_TOTAL` | `PROFIT_LOCK` |
-| 150% | 110% | `ALVO_150` | `PROFIT_LOCK` |
-| 200% | 150% | `WAVE` | `TRAIL_LOCK` |
-| 300% | 220% | `ROCKET` | `TRAIL_LOCK` |
-| 400% | 280% | `STAR` | `TRAIL_LOCK` |
+### 2.5 LRT (Liquidez de Alta Frequencia)
 
-**Mudancas principais (vs V112.10):**
-- MICRO_LOCK (20%->5%) removido — travava lucro cedo demais (0.4% de preco)
-- PROFIT_BRIDGE (65%->40%) removido — fechava trades lucrativos prematuramente
-- BREAKEVEN (10%->0%) adicionado — protecao basica de capital
-- LUCRO_INICIAL (30%->15%) adicionado — primeiro lucro real com respiro
-- LUCRO_MEDIO (45%->30%) adicionado — degrau intermediario para preencher gap
-- Stop inicial em tendencia aumentado de -25% para -40% ROI (mais respiro para oscilacoes)
+- **Regime**: Qualquer
+- **Mecanisme**: Setup de liquidez
 
-## Continuidade Pos-APEX
+### 2.6 DVAP (Reversao de Exaustao)
 
-A partir de 1200% ROI, o sistema continua criando niveis `ULTRA_*` a cada 200% ROI. O stop fica 200% ROI atras do alvo rompido: `ULTRA_1400 -> stop +1200%`, `ULTRA_1600 -> stop +1400%`, e assim por diante.
+- **Regime**: Qualquer
+- **Mecanismo**: Reversao estrutural
 
-## Simetria LONG/SHORT
+### 2.7 FAS (Funding Squeeze)
 
-- LONG: o stop sobe conforme os alvos sao rompidos.
-- SHORT: o stop desce conforme os alvos sao rompidos.
-- O ROI e sempre alavancado: o preco real do stop depende de entrada, lado e leverage.
+- **Regime**: Qualquer
+- **Mecanismo**: Desequilibrio de derivativos
+- **Nota**: Isento de alinhamento SMA 2H
+
+### 2.8 MOLA (Breakout de Volatilidade)
+
+- **Regime**: Qualquer
+- **Mecanismo**: Rompimento de volatilidade
+
+### 2.9 ABCD / 1-2-3 / TREND
+
+- **Regime**: TENDENCIA
+- **Mecanismo**: Tendencias geometricas
+
+---
+
+## 3. Escadinha de Stops
+
+### 3.1 Regime LATERAL
+
+| Gatilho ROI | Stop (ROI) | Nome | Status |
+|------------|-----------|------|--------|
+| 5% | -10% | SL_5 | ESCADINHA |
+| 10% | 0% | SL_BE | RISCO_ZERO |
+| 15% | 0% | SAIDA_PARCIAL | TRAILING |
+| 20%+ | Dinamico | TRAIL_20 | TRAILING |
+
+**Trailing a partir de 20%**: stop = pico - 5% ROI.
+
+### 3.2 Regime TENDENCIA
+
+| Gatilho ROI | Stop (ROI) | Nome | Status |
+|------------|-----------|------|--------|
+| 10% | 0% | BREAKEVEN | RISCO_ZERO |
+| 30% | 15% | LUCRO_INICIAL | RISCO_ZERO |
+| 45% | 30% | LUCRO_MEDIO | RISCO_ZERO |
+| 80% | 50% | LUCRO_GARANTIDO_80 | RISCO_ZERO |
+| 100% | 75% | LUCRO_GARANTIDO | RISCO_ZERO |
+| 130% | 110% | SUCESSO_TOTAL | PROFIT_LOCK |
+| 150% | 110% | ALVO_150 | PROFIT_LOCK |
+| 200% | 150% | WAVE | TRAIL_LOCK |
+| 300% | 220% | ROCKET | TRAIL_LOCK |
+| 400% | 280% | STAR | TRAIL_LOCK |
+| 500% | 350% | CROWN | TRAIL_LOCK |
+| 600% | 420% | SUPERNOVA | TRAIL_LOCK |
+| 700% | 500% | GOD_MODE | TRAIL_LOCK |
+| 750% | 600% | CHOKE_PREP | TRAIL_LOCK |
+| 800% | 650% | CHOKE | TRAIL_LOCK |
+| 1000% | 800% | HYPER | TRAIL_LOCK |
+| 1200% | 1000% | APEX | TRAIL_LOCK |
+
+### 3.3 Pos-APEX
+
+A partir de 1200% ROI, niveis `ULTRA_*` a cada 200%. Stop = gatilho - 200%.
+
+---
+
+## 4. Stop Inicial Inteligente
+
+- **Calculo**: ATR + suporte/resistencia estrutural
+- **Teto**: 30% ROI (configuravel)
+- **LONG**: stop abaixo da invalidacao tecnica
+- **SHORT**: stop acima da invalidacao tecnica
+- **Se stop > teto**: reposicionado para o teto
+- **Se stop > max_risk_pct * 1.35**: entrada bloqueada
+
+---
+
+## 5. Quality Gate do Capitao
+
+- **Threshold dinamico**: 35% (2+ slots livres) ou 40% (normal)
+- **Consenso de frota**: Macro 15%, Whale 25%, SMC 30%, OnChain 30%
+- **Bypass PAPER**: Nao — sinais bloqueados permanecem bloqueados em PAPER
+- **Contrato OKX**: Avaliado antes do quality gate final
+
+---
+
+## 6. BankrollGuardian
+
+### 6.1 Modos de Operacao
+
+| Modo | Condicao | Slots | Score Minimo |
+|------|----------|-------|-------------|
+| ACUMULACAO | Equity >= base | 20/40 | Elevado |
+| CAUTELOSO | Drawdown moderado | Reduzido | Elevado |
+| DEFESA | Drawdown alto | Minimo | Maximo |
+| PRESERVACAO_TOTAL | Equity critica | 0 | - |
+
+### 6.2 Limites de Slots
+
+| Camada | Lateral | Tendencia |
+|--------|---------|-----------|
+| config.py | 16 | 16 |
+| bankroll_guardian.py | 20 | 40 |
+| captain.py (hardcoded) | 20 | 20 |
+
+**Nota**: Existem multiplas camadas de limite. O Guardian e o mais restritivo.
+
+---
+
+## 7. Filtros de Risco
+
+### 7.1 ExecutionCapacityGate
+
+- Valida book L2 antes de ordem
+- Mede spread, profundidade, fill ratio, slippage
+- Slippage > 20bps => reduz tamanho ou ordem Limit Post-Only
+- PAPER: book falha = aviso; REAL: book falha = bloqueio
+
+### 7.2 Cost Gate
+
+- Custo projetado (taker + 24h funding) > 15% do lucro projetado => abortado
+
+### 7.3 Panic Filter de Correlacao
+
+- BTC > 2% em 1H + correlacao > 0.8 => entradas bloqueadas
+
+### 7.4 Quartermaster
+
+| Wick | Classificacao | Leverage | Margem |
+|------|--------------|----------|--------|
+| < 0.45 | SMOOTH | 50x | 1.0x |
+| 0.45-0.70 | JUMPY | 20x | 2.5x |
+| > 0.70 | EXTREME | 10x | 5.0x |
+
+**Bloqueio**: EXTREME + BTC ADX < 25 => bloqueado (exceto PAPER)
+
+### 7.5 FleetAudit (Saida Emergencial)
+
+- **Early ROI Panic**: -80% em < 300s => saida automatica
+- **Saida emergencia**: -90% ROI => fechamento imediato
+- **Reconciliacao**: 20s, ghost cleanup
+
+---
+
+## 8. Simetria LONG/SHORT
+
+- LONG: stop sobe conforme alvos sao rompidos
+- SHORT: stop desce conforme alvos sao rompidos
+- ROI sempre alavancado: preco real do stop depende de entrada, lado e leverage
+
+---
+
+*Fonte: codigo-fonte (`config.py`, `order_projection_service.py`, `captain.py`, `bankroll_guardian.py`, `flash_agent.py`). Nao historico de commits.*

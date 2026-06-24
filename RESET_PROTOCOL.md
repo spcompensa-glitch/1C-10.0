@@ -1,35 +1,87 @@
-# ☢️ PROTOCOLO DE RESET NUCLEAR (ESTADO ZERO)
+# 1Crypten — Protocolo de Reset
 
-Este documento define o procedimento para resetar completamente o sistema 1Crypten para fins de teste ou reinício de banca.
-
-### 🚀 Comando Rápido
-Execute o comando abaixo no terminal da raiz do projeto:
-
-```bash
-python backend/nuclear_reset_complete.py
-```
-
-Ou via API (requer autenticação):
-```
-POST /api/system/nuclear-reset
-```
-
-### 🛠️ O que o Reset faz?
-1. **Limpa Slots**: Todos os 40 slots voltam ao estado `LIVRE`.
-2. **Reseta Banca**: O saldo total volta para **$100.00** (PAPER) ou reflete o equity real da exchange (REAL mode).
-3. **Apaga Histórico**: Deleta permanentemente o histórico de trades, registros de Gênese e radar_pulse no Postgres.
-4. **Redis FLUSHDB**: Limpa todos os caches voláteis — tickers, CVD, OI, LS Ratios, locks e filas de processamento.
-5. **Firebase RTDB**: Reseta active_slots, vault_history e estado da banca no espelho de transmissão.
-6. **Firestore**: Limpa o paper_engine (posições simuladas).
-7. **Reseta estado interno**: Limpa tocaias, cooldowns, daily_symbol_trades, processing_locks, pending_slots e recent_openings do CaptainAgent em memória.
-
-### ⚠️ Aviso Importante
-Este procedimento é **irreversível**. Use-o apenas quando desejar iniciar um novo ciclo ou validar correções na lógica de Stop/Escadinha.
-
-### 🔧 Configuração de Banca Pós-Reset
-Após o reset, verifique as variáveis de ambiente no Railway:
-- **PAPER mode:** `OKX_EXECUTION_MODE=PAPER` e `OKX_SIMULATED_BALANCE=100`
-- **REAL mode:** `OKX_EXECUTION_MODE=REAL` com chaves OKX configuradas
+*Baseado no codigo-fonte. Atualizado em 2026-06-24.*
 
 ---
-*Documentação V2.0 - 1Crypten V111.1*
+
+## 1. Tipos de Reset
+
+### 1.1 Nuclear Reset (Completo)
+
+**Endpoint**: `POST /api/admin/reset-system`
+
+**O que limpa**:
+- Slots ativos e historico
+- Dados de banca
+- Cache do Redis (tickers, CVD, OI, LS Ratios, locks)
+- Estado do CaptainAgent (active_tocaias, processing_lock, cooldown_registry, daily_symbol_trades, slot_vacancy_tracker)
+- BankrollManager (pending_slots, recent_openings)
+- Firebase RTDB (system_state, active_slots, radar_pulse)
+- Postgres (slots, radar_pulse, banca_status)
+
+**Nao limpa**:
+- Credenciais OKX
+- Configuracoes de usuario
+- Historico de trades (trade_history)
+
+### 1.2 Reset de Sandbox
+
+**Endpoint**: `POST /api/sandbox/reset`
+
+**O que limpa**:
+- Trades simulados
+- Estatisticas sandbox
+
+### 1.3 Hard Reset de Slot
+
+**Funcao**: `hard_reset_slot()`
+
+**O que limpa**:
+- genesis_id, order metadata
+- execution_audit
+- Alvos, regime, score, flags auxiliares
+
+**Preserva**:
+- exit_price, pnl, current_stop_at_close (quando fechamento ja trouxe dados do executor)
+
+---
+
+## 2. Via Admin Panel
+
+1. Acessar `/config` ou `/admin`
+2. Clicar em "Nuclear Reset"
+3. Confirmar acao
+
+---
+
+## 3. Via API
+
+```bash
+curl -X POST http://localhost:8085/api/admin/reset-system \
+  -H "Authorization: Bearer <JWT_TOKEN>"
+```
+
+---
+
+## 4. Pos-Reset
+
+Apos nuclear reset:
+1. Sistema reinicia com slots vazios
+2. OracleAgent recalibra regime (150s de estabilizacao)
+3. CaptainAgent retoma scan de sinais
+4. FlashAgent comeca monitorar novos slots
+5. Dashboard mostra estado limpo
+
+---
+
+## 5. Recuperacao
+
+Se o sistema nao responder apos reset:
+1. Verificar logs do backend
+2. Checar conexao com PostgreSQL
+3. Verificar credenciais OKX
+4. Reiniciar container Railway se necessario
+
+---
+
+*Endpoint real: `POST /api/admin/reset-system`. Nao existe script `nuclear_reset_complete.py`.*

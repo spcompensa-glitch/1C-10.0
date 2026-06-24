@@ -229,7 +229,7 @@ async def get_sandbox_analytics():
             stop_roi = state.get('stop_roi', -40.0)
             if stop_roi >= -25.0:
                 return 'LATERAL'
-            return 'TRENDING
+            return 'TRENDING'
         
         losses = [t for t in closed if t.pnl_pct <= 0]
         wins = [t for t in closed if t.pnl_pct > 0]

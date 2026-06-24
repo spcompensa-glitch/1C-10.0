@@ -33,9 +33,9 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
-    StopLevel("ESCADINHA", "MICRO_LOCK", 20.0, 5.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "RISCO_ZERO", 50.0, 25.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PROFIT_BRIDGE", 65.0, 40.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "BREAKEVEN", 10.0, 0.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_INICIAL", 30.0, 15.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_MEDIO", 45.0, 30.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_GARANTIDO_80", 80.0, 50.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 75.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
@@ -191,7 +191,7 @@ class OrderProjectionService:
         else:
             if roi_percent >= 150.0:
                 return "TRAILING"
-            if roi_percent >= 30.0:
+            if roi_percent >= 10.0:
                 return "ESCADINHA"
             return "ORDER"
 

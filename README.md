@@ -1,8 +1,8 @@
 # 1Crypten 7.0 — Elite Trading System
 
-**Current Version:** V112.9 (Intelligent Regime Gating & Trend Bias Filter)  
+**Current Version:** V112.11 (Escadinha Refinada — Desempenho em Tendência)  
 **Status:** 🟢 OPERATIONAL REAL (Live OKX Trading + Sandbox Testing)  
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 
 ---
 

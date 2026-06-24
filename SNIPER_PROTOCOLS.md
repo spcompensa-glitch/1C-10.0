@@ -33,11 +33,13 @@ Na abertura, o stop inicial nao e mais fixo em -50% ou -100% ROI. O `BankrollMan
 - Se o sinal trouxer `adaptive_sl`, `sl_price`, `stop_loss`, `invalidation_price` ou campos estruturais equivalentes, essa informacao tem prioridade.
 - Se nao houver stop estrutural, o fallback usa ATR/range/volatilidade recente.
 - Se o stop estrutural explicito ficar longe demais para o regime, a entrada e bloqueada em vez de aceitar risco fixo gigante.
+- O stop inicial em tendencia e maior que em lateral para acomodar oscilacoes naturais de alta volatilidade.
 
-### Teto de Stop Inicial (V111.2)
+### Teto de Stop Inicial (V111.2) — Atualizado V112.11
 
-Para proteger banca pequena, o ROI do stop inicial **nunca ultrapassa 30%** (`MAX_INITIAL_STOP_ROI`).
-- Se ATR/estrutura indicar stop com risco > 30% ROI, o stop e reposicionado para o teto.
+Para proteger banca pequena, o ROI do stop inicial **nunca ultrapassa 40%** (`MAX_INITIAL_STOP_ROI`) em tendencia,
+ou 30% em lateral.
+- Se ATR/estrutura indicar stop com risco > 40% ROI, o stop e reposicionado para o teto.
 - Block de entrada (approved=False) ainda pode ocorrer se o stop estrutural ficar alem de `max_risk_pct * 1.35`.
 - Logs `[STOP-CAP]` registram quando o cap e aplicado.
 
@@ -55,19 +57,33 @@ Mercado lateral protege cedo porque falso rompimento e comum.
 | 200% | 150% | `TRAIL_LOCK` |
 | 300% | 220% | `TRAIL_LOCK` |
 
-## Escadinha em Tendencia
+## Escadinha em Tendencia (V112.11)
 
-Mercado em tendencia da mais respiro para sobreviver a pullbacks saudaveis.
+Mercado em tendencia usa degraus progressivos para proteger lucro sem fechar prematuramente.
+A escadinha agora e unificada entre sandbox e execucao real.
 
-| Alvo rompido (ROI) | Stop fixado (ROI) | Status |
-| ---: | ---: | --- |
-| 50% | 15% | `RISCO_ZERO` |
-| 100% | 50% | `RISCO_ZERO` |
-| 130% | 110% | `PROFIT_LOCK` |
-| 150% | 110% | `PROFIT_LOCK` |
-| 200% | 150% | `TRAIL_LOCK` |
-| 300% | 220% | `TRAIL_LOCK` |
-| 400% | 280% | `TRAIL_LOCK` |
+### Nova Escada Progressiva
+
+| Alvo rompido (ROI) | Stop fixado (ROI) | Nome do Degrau | Status |
+| ---: | ---: | --- | --- |
+| 10% | 0% | `BREAKEVEN` | `RISCO_ZERO` |
+| 30% | 15% | `LUCRO_INICIAL` | `RISCO_ZERO` |
+| 45% | 30% | `LUCRO_MEDIO` | `RISCO_ZERO` |
+| 80% | 50% | `LUCRO_GARANTIDO_80` | `RISCO_ZERO` |
+| 100% | 75% | `LUCRO_GARANTIDO` | `RISCO_ZERO` |
+| 130% | 110% | `SUCESSO_TOTAL` | `PROFIT_LOCK` |
+| 150% | 110% | `ALVO_150` | `PROFIT_LOCK` |
+| 200% | 150% | `WAVE` | `TRAIL_LOCK` |
+| 300% | 220% | `ROCKET` | `TRAIL_LOCK` |
+| 400% | 280% | `STAR` | `TRAIL_LOCK` |
+
+**Mudancas principais (vs V112.10):**
+- MICRO_LOCK (20%->5%) removido — travava lucro cedo demais (0.4% de preco)
+- PROFIT_BRIDGE (65%->40%) removido — fechava trades lucrativos prematuramente
+- BREAKEVEN (10%->0%) adicionado — protecao basica de capital
+- LUCRO_INICIAL (30%->15%) adicionado — primeiro lucro real com respiro
+- LUCRO_MEDIO (45%->30%) adicionado — degrau intermediario para preencher gap
+- Stop inicial em tendencia aumentado de -25% para -40% ROI (mais respiro para oscilacoes)
 
 ## Continuidade Pos-APEX
 

@@ -176,8 +176,9 @@ class SandboxService:
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
             
             # Setup inicial do stop loss
-            # [V112.10] Stop inicial dinâmico por regime: -20% ROI em mercado lateral, -25% ROI em tendência.
-            initial_stop_roi = -20.0 if is_ranging else -25.0
+            # [V112.11] Stop inicial dinâmico por regime: -20% ROI em mercado lateral, -40% ROI em tendência.
+            # Em tendência, a volatilidade é maior e stops mais largos dão respiro para oscilações naturais.
+            initial_stop_roi = -20.0 if is_ranging else -40.0
             stop_price = proj_service.raw_price_from_roi(entry_price, initial_stop_roi, side, 50.0)
 
             trade_data = {

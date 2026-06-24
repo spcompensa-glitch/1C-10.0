@@ -25,7 +25,7 @@ logger = logging.getLogger("ExecutionProtocol")
 # V14.1 Stabilization Protocol Phases
 # [V110.23.3] DEEP CLEAN: SAFE phase removed to allow maximum breathing room until 70% ROI.
 SMART_SL_PHASES = {
-    "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -30.0,  "icon": "🔴", "color": "red",     "label": "INICIAL"},
+    "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -40.0,  "icon": "🔴", "color": "red",     "label": "INICIAL"},
     "PHASE_RISK_ZERO":    {"trigger_roi": 50.0,  "stop_roi": 25.0,   "icon": "🛡️", "color": "green",   "label": "RISK_ZERO"},
     "PHASE_LUCRO_80":     {"trigger_roi": 80.0,  "stop_roi": 50.0,   "icon": "⚖️", "color": "cyan",    "label": "LUCRO_80"},
     "PHASE_PROFIT_LOCK":  {"trigger_roi": 100.0, "stop_roi": 75.0,   "icon": "🔒", "color": "blue",    "label": "PROFIT_LOCK"},
@@ -491,24 +491,29 @@ class ExecutionProtocol:
 
             return False, None, None
 
-        # 🌟 V15.0 ESCADINHA DE ELITE: Fôlego Macro com Apenas 2 Degraus
-        # [V110.28.2 FIX] SHADOW incluído para garantir emancipação de slots do tipo Shadow
+        # 🌟 V15.0 ESCADINHA DE ELITE: Fôlego Macro Progressivo
+        # [V112.11] ESCADINHA REFINADA (Desempenho em Tendência):
+        # 1. 10% ROI  -> Move SL para 0% (Break-even, proteção de capital)
+        # 2. 30% ROI  -> Move SL para +15% ROI (Primeiro lucro real)
+        # 3. 45% ROI  -> Move SL para +30% ROI (Lucro intermediário)
+        # 4. 80% ROI  -> Move SL para +50% ROI (Lucro Garantido)
+        # 5. 100% ROI -> Move SL para +75% ROI (Lucro Travado)
+        # 6. 130% ROI -> Move SL para +110% ROI (Sucesso Total)
         if slot_type in ["TREND", "SWING", "SNIPER", "SCALP", "SHADOW"]:
             target_stop_roi_trend = 0
             
-            # [V111.4] ESCADINHA DE TENDÊNCIA UNIFICADA (Ordem Única até o infinito):
-            # 1. 50% ROI  -> Move SL para +25% ROI (Risco Zero / Lucro Inicial)
-            # 2. 80% ROI  -> Move SL para +50% ROI (Lucro Garantido)
-            # 3. 100% ROI -> Move SL para +75% ROI (Lucro Travado)
-            # 4. 130% ROI -> Move SL para +110% ROI (Sucesso Total)
             if roi >= 130.0:
                 target_stop_roi_trend = 110.0
             elif roi >= 100.0:
                 target_stop_roi_trend = 75.0
             elif roi >= 80.0:
                 target_stop_roi_trend = 50.0
-            elif roi >= 50.0:
-                target_stop_roi_trend = 25.0
+            elif roi >= 45.0:
+                target_stop_roi_trend = 30.0
+            elif roi >= 30.0:
+                target_stop_roi_trend = 15.0
+            elif roi >= 10.0:
+                target_stop_roi_trend = 0.0
                 
             if target_stop_roi_trend > 0:
                 # [V110.135] Use current trade leverage for correct price offset calculation

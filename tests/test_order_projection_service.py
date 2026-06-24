@@ -96,10 +96,10 @@ async def test_ranging_ladder_protects_earlier_than_trending():
     )
 
     assert ranging["roi_percent"] == pytest.approx(70.0)
-    assert ranging["active_level"]["name"] == "LUCRO_GARANTIDO"
-    assert ranging["active_level"]["stop_roi"] == 50.0
-    assert trending["active_level"]["name"] == "RISCO_ZERO"
-    assert trending["active_level"]["stop_roi"] == 15.0
+    assert ranging["active_level"]["name"] == "TRAIL_70"
+    assert ranging["active_level"]["stop_roi"] == 65.0
+    assert trending["active_level"]["name"] == "LUCRO_MEDIO"
+    assert trending["active_level"]["stop_roi"] == 30.0
 
 
 @pytest.mark.asyncio

@@ -199,6 +199,7 @@ class SandboxService:
                     "phase": "ESCADINHA",
                     "active_level": "INICIAL",
                     "stop_roi": initial_stop_roi,
+                    "regime": "LATERAL" if is_ranging else "TRENDING",
                     "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} ({initial_stop_roi}% ROI)"]
                 },
                 "contract_meta": sig.get("contract_info") or {}
@@ -345,6 +346,16 @@ class SandboxService:
                             history.append(f"[TRAILING] Stop atingido em {current_price} — fechado lucrativo com +{final_pnl:.1f}% ROI")
                         else:
                             history.append(f"Stop atingido em {current_price} (SL configurado em {stop_price})")
+                            # [FIX-LOSS-LOG] Log detalhado de trades com loss para análise de padrões
+                            loss_regime = "TRENDING" if not is_ranging else "LATERAL"
+                            loss_hour_utc = datetime.now(timezone.utc).hour
+                            logger.warning(
+                                f"📊 [SANDBOX-LOSS] {trade.symbol} | Strategy={trade.strategy} | "
+                                f"Dir={trade.direction} | Entry={trade.entry_price:.4f} | "
+                                f"Exit={exit_price:.4f} | ROI={final_pnl:.1f}% | "
+                                f"StopROI={updated_stop_roi:.0f}% | Regime={loss_regime} | "
+                                f"HourUTC={loss_hour_utc} | MaxROI={max_roi:.1f}%"
+                            )
 
                     await database_service.update_sandbox_trade(trade.id, update_payload)
 

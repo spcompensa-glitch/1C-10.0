@@ -197,6 +197,130 @@ async def get_sandbox_patterns():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao extrair padrões: {str(e)}")
 
+
+@router.get("/analytics")
+async def get_sandbox_analytics():
+    """[FIX-ANALYTICS] Endpoint de analytics detalhado do Sandbox: distribuição de losses por regime, símbolo e hora."""
+    try:
+        from datetime import datetime, timezone
+        trades = await database_service.get_sandbox_trades(active_only=False)
+        closed = [t for t in trades if t.status != "ACTIVE"]
+        
+        if not closed:
+            return {
+                "total_analyzed": 0,
+                "message": "Nenhum trade fechado para analisar.",
+                "loss_by_regime": {},
+                "loss_by_symbol": {},
+                "loss_by_hour": {},
+                "win_loss_by_strategy": {},
+                "avg_loss_roi": 0,
+                "avg_win_roi": 0,
+            }
+        
+        # Classificar regime pelo flash_state (se disponível) ou fallback
+        def get_trade_regime(t):
+            state = t.flash_state or {}
+            # Prioridade: regime salvo no flash_state (V112.13+)
+            saved = state.get('regime')
+            if saved in ('LATERAL', 'TRENDING'):
+                return saved
+            # Fallback: trades com stop em -20% eram LATERAL, -40% eram TRENDING
+            stop_roi = state.get('stop_roi', -40.0)
+            if stop_roi >= -25.0:
+                return 'LATERAL'
+            return 'TRENDING
+        
+        losses = [t for t in closed if t.pnl_pct <= 0]
+        wins = [t for t in closed if t.pnl_pct > 0]
+        
+        # 1. Loss por Regime
+        loss_by_regime = {}
+        for t in losses:
+            regime = get_trade_regime(t)
+            if regime not in loss_by_regime:
+                loss_by_regime[regime] = {"count": 0, "total_roi": 0, "avg_roi": 0}
+            loss_by_regime[regime]["count"] += 1
+            loss_by_regime[regime]["total_roi"] += t.pnl_pct
+        for r in loss_by_regime:
+            loss_by_regime[r]["avg_roi"] = round(loss_by_regime[r]["total_roi"] / loss_by_regime[r]["count"], 2)
+        
+        # 2. Loss por Símbolo (top 10 piores)
+        loss_by_symbol = {}
+        for t in losses:
+            sym = t.symbol
+            if sym not in loss_by_symbol:
+                loss_by_symbol[sym] = {"count": 0, "total_roi": 0, "avg_roi": 0, "wins": 0}
+            loss_by_symbol[sym]["count"] += 1
+            loss_by_symbol[sym]["total_roi"] += t.pnl_pct
+        for t in wins:
+            sym = t.symbol
+            if sym in loss_by_symbol:
+                loss_by_symbol[sym]["wins"] += 1
+        for s in loss_by_symbol:
+            total = loss_by_symbol[s]["count"]
+            loss_by_symbol[s]["avg_roi"] = round(loss_by_symbol[s]["total_roi"] / total, 2) if total else 0
+            loss_by_symbol[s]["win_rate"] = round(loss_by_symbol[s]["wins"] / (loss_by_symbol[s]["wins"] + loss_by_symbol[s]["count"]) * 100, 1) if (loss_by_symbol[s]["wins"] + loss_by_symbol[s]["count"]) > 0 else 0
+        # Ordenar por pior ROI
+        sorted_symbols = sorted(loss_by_symbol.items(), key=lambda x: x[1]["total_roi"])
+        loss_by_symbol = dict(sorted_symbols[:10])
+        
+        # 3. Loss por Hora UTC
+        loss_by_hour = {}
+        for t in losses:
+            opened = t.opened_at or 0
+            if opened > 0:
+                try:
+                    dt = datetime.fromtimestamp(opened, tz=timezone.utc)
+                    hour = dt.hour
+                except:
+                    hour = -1
+            else:
+                hour = -1
+            hour_key = str(hour) if hour >= 0 else "unknown"
+            if hour_key not in loss_by_hour:
+                loss_by_hour[hour_key] = {"count": 0, "total_roi": 0, "avg_roi": 0}
+            loss_by_hour[hour_key]["count"] += 1
+            loss_by_hour[hour_key]["total_roi"] += t.pnl_pct
+        for h in loss_by_hour:
+            loss_by_hour[h]["avg_roi"] = round(loss_by_hour[h]["total_roi"] / loss_by_hour[h]["count"], 2)
+        
+        # 4. Win/Loss por Estratégia
+        win_loss_by_strategy = {}
+        for t in closed:
+            strat = t.strategy or "UNKNOWN"
+            if strat not in win_loss_by_strategy:
+                win_loss_by_strategy[strat] = {"wins": 0, "losses": 0, "total_pnl": 0, "win_rate": 0}
+            if t.pnl_pct > 0:
+                win_loss_by_strategy[strat]["wins"] += 1
+            else:
+                win_loss_by_strategy[strat]["losses"] += 1
+            win_loss_by_strategy[strat]["total_pnl"] += t.pnl_pct
+        for s in win_loss_by_strategy:
+            total = win_loss_by_strategy[s]["wins"] + win_loss_by_strategy[s]["losses"]
+            win_loss_by_strategy[s]["win_rate"] = round(win_loss_by_strategy[s]["wins"] / total * 100, 1) if total else 0
+            win_loss_by_strategy[s]["total_pnl"] = round(win_loss_by_strategy[s]["total_pnl"], 2)
+        
+        avg_loss_roi = round(sum(t.pnl_pct for t in losses) / len(losses), 2) if losses else 0
+        avg_win_roi = round(sum(t.pnl_pct for t in wins) / len(wins), 2) if wins else 0
+        
+        return {
+            "total_analyzed": len(closed),
+            "total_wins": len(wins),
+            "total_losses": len(losses),
+            "overall_win_rate": round(len(wins) / len(closed) * 100, 1) if closed else 0,
+            "loss_by_regime": loss_by_regime,
+            "loss_by_symbol": loss_by_symbol,
+            "loss_by_hour": loss_by_hour,
+            "win_loss_by_strategy": win_loss_by_strategy,
+            "avg_loss_roi": avg_loss_roi,
+            "avg_win_roi": avg_win_roi,
+            "risk_reward_ratio": round(abs(avg_win_roi / avg_loss_roi), 2) if avg_loss_roi != 0 else 0,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar analytics: {str(e)}")
+
+
 @router.post("/clear")
 async def clear_sandbox():
     try:

@@ -3172,8 +3172,12 @@ class SignalGenerator:
                     # Detecta MOLA (Squeeze de Volatilidade)
                     is_mola_play = False
                     try:
-                        squeeze_res = await self.detect_squeeze(symbol, bb_width=3.5)
+                        # [FIX-ALPHA-SHIELD] Usar bb_width real do regime do ativo em vez de 3.5 hardcoded
+                        asset_bb_width = market_regime.get('bb_width', 5.0)
+                        squeeze_res = await self.detect_squeeze(symbol, bb_width=asset_bb_width)
                         is_mola_play = squeeze_res.get("is_squeeze", False)
+                        if is_mola_play:
+                            logger.info(f"🌊 [MOLA STRATEGY TRIGGERED] {symbol} BB Width={asset_bb_width:.2f} < 1.2")
                     except Exception as sq_err:
                         logger.error(f"Erro ao avaliar setup MOLA para {symbol}: {sq_err}")
 
@@ -3201,7 +3205,8 @@ class SignalGenerator:
                         else:
                             raw_class = "TREND"
 
-                    if raw_class in ("DVAP", "MOLA", "FAS"):
+                    # [FIX-ALPHA-SHIELD] LRT agora classificado como ALPHA SHIELD (antes caia no else como VELOCITY FLOW)
+                    if raw_class in ("DVAP", "MOLA", "FAS", "LRT"):
                         strategy_class = "ALPHA SHIELD"
                     elif raw_class in ("DECOR", "DECOR_HUNTER"):
                         strategy_class = "DECOR SHADOW"

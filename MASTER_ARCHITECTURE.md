@@ -2,6 +2,8 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
+*Ultima atualizacao: 2026-06-25 (V114 — Cooldown + Filtro 1M)*
+
 ---
 
 ## 1. Visao Geral
@@ -59,6 +61,7 @@ O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
 | **HermesAgent** | `agents/hermes_agent.py` | Compliance/telemetria/chat. DeepSeek integration, ESCADINHA_DOCS_SSOT |
 | **JarvisBrain** | `agents/jarvis_brain.py` | Chat multi-dimensao (10 dimensoes: Trading, Filosofia, Familia, etc.) |
 | **AIService** | `agents/ai_service.py` | Cascade de IA: DeepSeek -> Gemini -> OpenRouter |
+| **SandboxService** | `services/sandbox_service.py` | Forward Testing Lab. Espelha o sistema real com escadinha, stops adaptativos e fallback de preco. Ciclo 1s. |
 
 ---
 
@@ -335,11 +338,11 @@ PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MYRO, 1000SATS, ORDI, MEME, TURBO, PEOPLE.
 ### 10.3 Sandbox (`/api/sandbox`)
 | Metodo | Path | Descricao |
 |--------|------|-----------|
-| GET | `/api/sandbox/trades` | Listar trades sandbox |
-| GET | `/api/sandbox/stats` | Estatisticas sandbox |
-| POST | `/api/sandbox/trade` | Criar trade sandbox |
-| DELETE | `/api/sandbox/trade/{id}` | Deletar trade sandbox |
-| POST | `/api/sandbox/reset` | Resetar sandbox |
+| GET | `/api/sandbox/trades` | Listar trades sandbox (param: active_only) |
+| GET | `/api/sandbox/stats` | Estatisticas gerais + regime atual + breakdown por estrategia |
+| GET | `/api/sandbox/patterns` | Analise de padroes: whitelist/blacklist sugerida, win rate por direcao |
+| GET | `/api/sandbox/analytics` | Analytics detalhado: loss por regime, simbolo, hora UTC, risk/reward |
+| POST | `/api/sandbox/clear` | Limpar todo o historico sandbox |
 
 ### 10.4 Vault (`/api/vault`)
 | Metodo | Path | Descricao |
@@ -434,7 +437,136 @@ PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MYRO, 1000SATS, ORDI, MEME, TURBO, PEOPLE.
 ## 14. Blacklist de Memecoins
 
 `PEPE`, `DOGE`, `SHIB`, `FLOKI`, `BONK`, `WIF`, `MYRO`, `1000SATS`, `ORDI`, `MEME`, `TURBO`, `PEOPLE`
+## 15. SandboxService — Forward Testing Lab
+
+Servico que espelha o sistema real de forma fiel. Iniciado junto ao backend no startup SaaS.
+
+### 15.1 Fluxo de entrada de sinais
+```
+firebase_service.update_radar_pulse(signals)
+    |
+    +---> asyncio.create_task(sandbox_service.on_radar_pulse(signals))
+              |
+              v
+          _process_radar_signals()
+              |-- Filtro ADX/regime (mesmo atributo btc_adx do FlashAgent)
+              |-- Filtro macro BTC (SMA 200 diaria)
+              |-- Filtro blocklist (ASSET_BLOCKLIST + auto-blocklist)
+              |-- Filtro horario abertura US (13:30-14:30 UTC)
+              |-- Deduplicacao por signal_id
+              |-- [V114] Cooldown 300s pos stop-out por simbolo
+              |-- [V114] Confirmacao 1M (2/3 candles na direcao do sinal)
+              |-- Entry Sanity Check (preco defasado)
+              |-- Stop adaptativo por regime
+              +---> save_sandbox_trade()
+```
+
+### 15.2 Resolucao de preco (fallback em cascata)
+```
+_get_current_price(symbol):
+    1. WebSocket (okx_ws_public_service.get_current_price)
+    2. REST OKX  (_get_rest_price -> /api/v5/market/ticker)
+    3. Cache local (60s TTL)
+
+_check_stop_hit(side, stop_price, symbol):
+    1. Conservative price HIGH/LOW 120s (captura spikes intra-ciclo)
+    2. Preco atual WS
+    3. Fallback 2: _get_current_price() completo (REST + cache)
+```
+
+### 15.3 Stop adaptativo por regime
+
+| Regime | ADX | Stop Inicial (V113.2) | Threshold Stale Entry |
+|--------|-----|----------------------|----------------------|
+| LATERAL | < 25 | **-5% ROI** (unificado) | ROI imediato < -3.5% (floor -10%) |
+| TENDENCIA | >= 25 | **-5% ROI** (unificado) | ROI imediato < -3.5% (floor -10%) |
+
+> **Nota V113.2**: Stop inicial unificado em -5% para ambos os regimes.
+> O floor de -10% no threshold de stale entry evita descartes por ruido de tick.
+
+- Stop price calculado via `raw_price_from_roi()` com tick_size rounding (ROUND_CEILING para SHORT negativo).
+- Entry Sanity Check: se ROI imediato ao abrir ja ultrapassou 70% do stop (floor: -10%), o sinal e descartado com log `[SANDBOX-STALE]`.
+
+### 15.4 [V114] Cooldown pos stop-out
+
+Apos cada `CLOSED_SL`, o simbolo entra em quarentena de **300 segundos** (5 minutos).
+Durante esse periodo, qualquer novo sinal para o mesmo par e descartado automaticamente.
+
+- Dict `_stop_cooldown: Dict[str, float]` em `SandboxService.__init__`
+- Populado em `_process_trade_tick` no momento do `CLOSED_SL`
+- Verificado em `_process_radar_signals` apos o check `already_active`
+- Log `[SANDBOX-COOLDOWN-SET]` ao ativar; `[SANDBOX-COOLDOWN]` ao bloquear
+- **Objetivo**: eliminar re-entries em cadeia (INJUSDT tinha 11 stops seguidos, ATOMUSDT 4)
+
+### 15.5 [V114] Confirmacao 1M antes de abrir
+
+Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via candles de 1 minuto.
+
+- Metodo: `_check_1m_confirmation(symbol, side)`
+- Busca os 5 ultimos candles de 1M via `okx_rest_service.get_klines(symbol, interval="1", limit=5)`
+- Usa o cache de 3min do `get_klines` (sem custo extra de API)
+- **SHORT**: exige >= 2 dos 3 candles mais recentes com `close < open` (bearish)
+- **LONG**: exige >= 2 dos 3 candles mais recentes com `close >= open` (bullish)
+- Comportamento em falha de API: **fail-open** (aprova o trade, nao bloqueia por instabilidade)
+- Log `[SANDBOX-1M-REJECT]` ao rejeitar, com contagem de candles confirmados
+
+### 15.6 Gestao de stops (paridade FlashAgent)
+- **Peak ROI**: `max(current_roi, cached_peak, stored_peak)` — nao perde picos entre reinicializacoes.
+- **Escadinha**: usa `OrderProjectionService.get_stop_ladder()` + `get_active_level()` — **identico ao FlashAgent real**.
+- **Saida parcial lateral**: ao atingir +15% ROI em regime LATERAL, registra `has_taken_partial=True`; PnL final = media 50/50.
+- **Confirmacao REST antes de fechar**: apos `stop_hit=True`, busca preco fresco via REST antes de persistir o fechamento.
+- **Auto-blocklist**: pares com PnL total < -20% E win rate < 30% apos 5+ trades sao bloqueados automaticamente em runtime. Verificado a cada 120s.
+
+### 15.7 Constantes do SandboxService (V113.2 / V114)
+
+| Constante | Valor | Localizacao |
+|-----------|-------|-------------|
+| Ciclo de monitoramento | 1s | `sandbox_service.py` |
+| Banca virtual | **$22.00 USD** | `routes/sandbox.py:49` (`BANCA = 22.0`) |
+| Margem media por trade | **$0.75** | `routes/sandbox.py:50` (`MARGEM_MEDIA = 0.75`) |
+| Margem simulada OKX | Entre $0.50 e $1.00 | `routes/sandbox.py:54` |
+| Leverage (sandbox) | 50x | `sandbox_service.py` |
+| Janela conservative price | 120s | `okx_ws_public.py:291` |
+| TTL cache de preco | 60s | `sandbox_service.py` |
+| Stop inicial (todos os regimes) | **-5% ROI** | `sandbox_service.py` (V113.2) |
+| Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
+| [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
+| [V114] Candles 1M para confirmacao | 5 candles, threshold 2/3 | `sandbox_service.py` |
+| Polling frontend | 2s | `sandbox.html` |
+| Polling patterns | 5s | `sandbox.html` |
+| Placeholder banca (HTML) | **$22.00 USD** | `sandbox.html:158` |
+| Auto-blocklist check | 120s | `sandbox_service.py` |
+| Auto-blocklist criterio | PnL < -20% E WR < 30% apos 5+ trades | `sandbox_service.py` |
+
+### 15.8 Logs esperados no comportamento normal
+
+| Log | Significado |
+|-----|-------------|
+| `[SANDBOX-OPEN]` | Trade aberto com Entry, SL, MktPrice, TickSize |
+| `[SANDBOX-STALE]` | Sinal descartado — entry defasado (ROI imediato < threshold) |
+| `[SANDBOX-FLASH]` | Degrau da escadinha ativado |
+| `[SANDBOX-PARTIAL]` | Saida parcial 50% executada em lateral |
+| `[SANDBOX-LOSS]` | Trade fechado no stop (com ROI, Entry, Exit, MaxROI) |
+| `[SANDBOX-PRICE-UNAVAILABLE]` | Preco indisponivel em WS + REST + cache — trade pulado |
+| `[SANDBOX-COOLDOWN-SET]` | Cooldown de 300s registrado apos stop-out |
+| `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown (com segundos restantes) |
+| `[SANDBOX-1M-REJECT]` | Sinal rejeitado — momentum 1M nao confirma a direcao |
+| `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica ou auto-blocklist |
+| `[SANDBOX-MACRO-BLOCK]` | Sinal bloqueado por filtro macro BTC (SMA 200) |
+| `[SANDBOX-OPEN-FILTER]` | Sinal bloqueado por filtro de abertura US (13:30-14:30 UTC) |
+| `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado automaticamente por performance critica |
+
+### 15.9 Bugs corrigidos (historial)
+
+| Bug | Commit | Descricao |
+|-----|--------|-----------|
+| WS=0 nao detectava stop | `5d77b0f` | `_check_stop_hit` nao consultava REST/cache quando WS retornava 0. Fix: Fallback 2 com `_get_current_price()` |
+| Analytics: typo `fase` | `7175a80` | `state.get("fase")` deveria ser `state.get("phase")`. Fix: corrigido em `routes/sandbox.py:158` |
+| Entry stale (MaxROI=0%) | `d92c28f` | Sandbox abria trades com preco de mercado ja alem do stop. Fix: Entry Sanity Check 70% do stop |
+| Re-entries em cadeia | `855fcec` | INJUSDT/ATOM abriam identicos apos stop-out imediato. Fix: Cooldown 300s por simbolo (V114) |
+| Entrada contra momentum | `855fcec` | Trades abriam com candles 1M indo na direcao oposta ao sinal. Fix: Confirmacao 1M 2/3 candles (V114) |
 
 ---
 
-*Baseado no codigo-fonte em 2026-06-24. Atualizar ao modificar qualquer constante ou componente.*
+*Baseado no codigo-fonte em 2026-06-25. Atualizar ao modificar qualquer constante ou componente.*
+componente.*

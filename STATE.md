@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-24*
+*Ultima atualizacao: 2026-06-25 (V114 — Cooldown + Filtro 1M)*
 
 ---
 
@@ -37,6 +37,7 @@
 | HermesAgent | ATIVO | Compliance/chat |
 | PortfolioGuardian | DESATIVADO | Heartbeat apenas |
 | SentinelAgent | ATIVO | Failsafe de posicoes |
+| **SandboxService** | **ATIVO** | **Forward Testing Lab — espelha sistema real, ciclo 1s** |
 
 ---
 
@@ -116,6 +117,67 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 | `GET /api/radar/regimes` | Regime por par |
 | `POST /api/admin/reset-system` | Nuclear reset |
 | `POST /api/hermes/chat` | Chat com IA |
+
+---
+
+## Sandbox — Forward Testing Lab
+
+- **URL**: https://1crypten.space/sandbox
+- **Banca Virtual**: **$22.00 USD** | Margem media: **$0.75/trade** (entre $0.50 e $1.00) | Leverage: 50x
+  - Objetivo: espelhar a banca real do usuario na OKX ($22 USD)
+  - PnL calculado: `(ROI% / 100) * $0.75` por trade; total como % da banca $22
+- **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
+- **Monitoramento**: loop de 1s identico ao FlashAgent
+- **Estrategias aceitas por regime**:
+  - LATERAL (ADX < 25): ALPHA SHIELD, DECOR SHADOW
+  - TENDENCIA (ADX >= 25): VELOCITY FLOW, ALPHA SHIELD
+- **Stop inicial adaptativo (V113.2)**:
+  - Todos os regimes: **-5% ROI** (unificado)
+  - Anterior: LATERAL -15%, TENDENCIA -30% (descontinuado)
+- **[V114] Cooldown pos stop-out**: 300s por simbolo apos qualquer `CLOSED_SL`
+  - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
+- **[V114] Confirmacao 1M antes de abrir**:
+  - Busca 5 candles de 1M, exige 2/3 mais recentes na direcao do sinal
+  - SHORT: 2+ candles bearish (close < open)
+  - LONG: 2+ candles bullish (close >= open)
+  - fail-open se API falhar
+- **Entry Sanity Check**: descarta sinais com ROI imediato ja < 70% do stop (floor -10%)
+- **Resolucao de preco**: WS -> REST -> cache (60s TTL)
+- **Conservative price**: HIGH/LOW dos ultimos 120s para capturar spikes intra-ciclo
+- **Escadinha**: usa `OrderProjectionService` identico ao sistema real
+- **Peak ROI**: persistido em cache + banco (sobrevive a reinicializacoes)
+- **Saida parcial**: +15% ROI em LATERAL -> 50% saida imediata; PnL = media 50/50
+- **Auto-blocklist**: pares com PnL < -20% E WR < 30% apos 5+ trades bloqueados em runtime
+
+### Logs do Sandbox (V114)
+| Log | Significado |
+|-----|-------------|
+| `[SANDBOX-OPEN]` | Trade aberto |
+| `[SANDBOX-STALE]` | Entry defasado — descartado |
+| `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s iniciado apos stop-out |
+| `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
+| `[SANDBOX-1M-REJECT]` | Sinal rejeitado — momentum 1M contradiz direcao |
+| `[SANDBOX-LOSS]` | Trade fechado no stop |
+| `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
+
+---
+
+## Endpoints Principais
+
+| Rota | Funcao |
+|------|--------|
+| `GET /api/health` | Health check com versao |
+| `GET /api/slots` | Todos os slots ativos |
+| `GET /api/system/state` | Estado completo do sistema |
+| `GET /api/radar/pulse` | Sinais do radar |
+| `GET /api/radar/regimes` | Regime por par |
+| `POST /api/admin/reset-system` | Nuclear reset |
+| `POST /api/hermes/chat` | Chat com IA |
+| `GET /api/sandbox/trades` | Trades do sandbox |
+| `GET /api/sandbox/stats` | Estatisticas + regime |
+| `GET /api/sandbox/patterns` | Whitelist/blacklist sugerida |
+| `GET /api/sandbox/analytics` | Analytics detalhado |
+| `POST /api/sandbox/clear` | Limpar sandbox |
 
 ---
 

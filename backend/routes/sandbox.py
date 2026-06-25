@@ -155,7 +155,7 @@ async def get_sandbox_patterns():
             # Fase do FlashAgent na saída
             # Normalmente salvo no flash_state ou deduzido pelo stop_loss / pnl
             state = t.flash_state or {}
-            phase = state.get("fase", "DESCONHECIDA")
+            phase = state.get("phase", "DESCONHECIDA")
             exit_phases[phase] = exit_phases.get(phase, 0) + 1
 
         # Processar Melhores e Piores Pares

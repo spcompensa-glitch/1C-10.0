@@ -309,10 +309,10 @@ async def test_conservative_price_detects_short_stop_violation(monkeypatch):
 
 def test_adaptive_stop_ranging_is_tighter():
     """
-    ADX < 25 (lateral) → stop inicial = -15% ROI.
+    [V113.2] Stop inicial UNIFICADO = -5% ROI em ambos os regimes (LATERAL e TENDENCIA).
     Para entry=100, side=Buy, leverage=50:
-    price_offset = -15/(50*100) = -0.003 → stop = 99.7
-    Stop lateral DEVE ser maior que stop de tendência (mais próximo do entry) para LONG.
+    price_offset = -5/(50*100) = -0.001 → stop = 99.9
+    O método _calculate_adaptive_stop usa -5% fixo em ambos os regimes.
     """
     sb = SandboxService()
     entry = 100.0
@@ -322,15 +322,12 @@ def test_adaptive_stop_ranging_is_tighter():
     trending_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=False)
 
     proj = OrderProjectionService()
-    expected_ranging = proj.raw_price_from_roi(entry, -15.0, side, 50.0)
-    expected_trending = proj.raw_price_from_roi(entry, -30.0, side, 50.0)
+    expected = proj.raw_price_from_roi(entry, -5.0, side, 50.0)
 
-    assert abs(ranging_stop - expected_ranging) < 0.01, \
-        f"Stop lateral esperado ~{expected_ranging:.4f}, obtido {ranging_stop:.4f}"
-    assert abs(trending_stop - expected_trending) < 0.01, \
-        f"Stop tendência esperado ~{expected_trending:.4f}, obtido {trending_stop:.4f}"
-    assert ranging_stop > trending_stop, \
-        "Stop lateral deve ser maior (mais próximo do entry) que o stop de tendência para LONG"
+    assert abs(ranging_stop - expected) < 0.01, \
+        f"Stop lateral esperado ~{expected:.4f} (-5% ROI), obtido {ranging_stop:.4f}"
+    assert abs(trending_stop - expected) < 0.01, \
+        f"Stop tendência esperado ~{expected:.4f} (-5% ROI), obtido {trending_stop:.4f}"
 
 
 # ---------------------------------------------------------------------------
@@ -339,8 +336,9 @@ def test_adaptive_stop_ranging_is_tighter():
 
 def test_adaptive_stop_trending_is_wider():
     """
-    ADX >= 25 (tendência) → stop inicial = -30% ROI.
-    Para SHORT: stop de tendência deve ser MENOR que stop lateral (mais distante do entry).
+    [V113.2] Stop inicial UNIFICADO = -5% ROI em ambos os regimes.
+    Para SHORT entry=100: stop = 100 + 5/(50*100) = 100.1
+    Ambos os regimes produzem o mesmo stop price (-5% ROI).
     """
     sb = SandboxService()
     entry = 100.0
@@ -350,16 +348,12 @@ def test_adaptive_stop_trending_is_wider():
     trending_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=False)
 
     proj = OrderProjectionService()
-    expected_ranging = proj.raw_price_from_roi(entry, -15.0, side, 50.0)
-    expected_trending = proj.raw_price_from_roi(entry, -30.0, side, 50.0)
+    expected = proj.raw_price_from_roi(entry, -5.0, side, 50.0)
 
-    assert abs(ranging_stop - expected_ranging) < 0.01, \
-        f"Stop lateral SHORT esperado ~{expected_ranging:.4f}, obtido {ranging_stop:.4f}"
-    assert abs(trending_stop - expected_trending) < 0.01, \
-        f"Stop tendência SHORT esperado ~{expected_trending:.4f}, obtido {trending_stop:.4f}"
-    # Para SHORT: stop de tendência é MAIOR em preço (acima do entry → mais distante)
-    assert trending_stop > ranging_stop, \
-        "Stop tendência SHORT deve ser maior em preço (mais distante do entry) que o stop lateral"
+    assert abs(ranging_stop - expected) < 0.01, \
+        f"Stop lateral SHORT esperado ~{expected:.4f} (-5% ROI), obtido {ranging_stop:.4f}"
+    assert abs(trending_stop - expected) < 0.01, \
+        f"Stop tendência SHORT esperado ~{expected:.4f} (-5% ROI), obtido {trending_stop:.4f}"
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +610,7 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
     o trade DEVE ser aberto normalmente.
 
     Cenário: SHORT entry=4.2300, preço mercado=4.2310 (ROI ≈ -0.1%) → aceito
+    [V114] Mocka _check_1m_confirmation para isolação (testado separadamente)
     """
     import services.sandbox_service as svc_mod
     import services.okx_ws_public as ws_mod
@@ -627,6 +622,11 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
     monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
     monkeypatch.setattr(svc_mod, "database_service", db)
     monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # [V114] Mock do filtro 1M para isolar o teste do sanity check
+    async def fake_1m(*a, **kw):
+        return True
+    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
 
     # Mocka macro BEARISH → SHORT permitido
     async def fake_macro(*a, **kw):
@@ -661,3 +661,210 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
     )
     assert saved[0].direction == "SHORT"
     assert abs(float(saved[0].entry_price) - 4.2300) < 0.001
+
+
+# ---------------------------------------------------------------------------
+# Teste 14 – Cooldown pós stop-out: segundo sinal no mesmo símbolo é bloqueado
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
+    """
+    Após um stop-out registrado via _stop_cooldown, um segundo sinal
+    para o mesmo símbolo deve ser descartado com [SANDBOX-COOLDOWN].
+
+    Fluxo simulado:
+    1. Injeta timestamp de stop-out recente em _stop_cooldown
+    2. Envia sinal para o mesmo símbolo
+    3. Verifica que NENHUM trade foi aberto
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+
+    db = FakeDB()
+    ws = FakeWS(price=4.2310, conservative_price=4.2310, adx=30.0)
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Simula stop-out ocorrido agora (cooldown ativo)
+    sb._stop_cooldown["INJUSDT"] = time.time()  # stop-out "agora"
+
+    # Mock do _check_1m_confirmation para não bloquear (fail-open)
+    async def fake_1m(*a, **kw):
+        return True
+    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
+
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2300,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_cooldown_001",
+        "timestamp": 9999997,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    saved = list(db._trades.values())
+    assert len(saved) == 0, (
+        f"Trade NÃO deveria ter sido aberto durante cooldown. "
+        f"Trades abertos: {[t.id for t in saved]}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
+    """
+    Após o cooldown expirar (> 300s), o sinal deve ser aceito normalmente.
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+
+    db = FakeDB()
+    ws = FakeWS(price=4.2310, conservative_price=4.2310, adx=30.0)
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Simula cooldown expirado (301s atrás)
+    sb._stop_cooldown["INJUSDT"] = time.time() - 301.0
+
+    async def fake_1m(*a, **kw):
+        return True
+    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
+
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2300,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_cooldown_expired_001",
+        "timestamp": 9999996,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    saved = list(db._trades.values())
+    assert len(saved) == 1, (
+        f"Trade DEVERIA ter sido aberto após cooldown expirar. "
+        f"Trades abertos: {len(saved)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Teste 15 – Filtro 1M: rejeita SHORT quando candles são majoritariamente bullish
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
+    """
+    Quando os candles de 1M mostram momentum bullish (2/3 candles verdes),
+    um sinal SHORT deve ser rejeitado com [SANDBOX-1M-REJECT].
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+    import services.okx_rest as rest_mod
+
+    db = FakeDB()
+    ws = FakeWS(price=4.2310, conservative_price=4.2310, adx=30.0)
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Candles: 3 bullish (close > open) → SHORT deve ser rejeitado
+    bullish_candles = [
+        {"open": "4.20", "high": "4.25", "low": "4.18", "close": "4.24", "vol": "100"},
+        {"open": "4.18", "high": "4.22", "low": "4.17", "close": "4.21", "vol": "90"},
+        {"open": "4.16", "high": "4.20", "low": "4.15", "close": "4.19", "vol": "80"},
+        {"open": "4.14", "high": "4.17", "low": "4.13", "close": "4.16", "vol": "70"},
+        {"open": "4.12", "high": "4.15", "low": "4.11", "close": "4.14", "vol": "60"},
+    ]
+
+    async def fake_get_klines(symbol, interval="1", limit=5, *a, **kw):
+        return bullish_candles[:limit]
+
+    # Monkeypatcha o okx_rest_service dentro do módulo sandbox_service
+    fake_rest = MagicMock()
+    fake_rest.get_klines = fake_get_klines
+    monkeypatch.setattr(rest_mod, "okx_rest_service", fake_rest)
+
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2300,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_1m_reject_001",
+        "timestamp": 9999995,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    saved = list(db._trades.values())
+    assert len(saved) == 0, (
+        f"Trade NÃO deveria ter sido aberto com candles 1M bullish para SHORT. "
+        f"Trades: {len(saved)}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_1m_filter_accepts_short_with_bearish_candles(monkeypatch):
+    """
+    Quando os candles de 1M mostram momentum bearish (2/3 candles vermelhos),
+    um sinal SHORT deve ser aceito.
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+    import services.okx_rest as rest_mod
+
+    db = FakeDB()
+    ws = FakeWS(price=4.2310, conservative_price=4.2310, adx=30.0)
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Candles: 2 bearish + 1 bullish → SHORT deve ser aceito
+    bearish_candles = [
+        {"open": "4.25", "high": "4.26", "low": "4.20", "close": "4.21", "vol": "100"},  # vermelho
+        {"open": "4.27", "high": "4.28", "low": "4.22", "close": "4.23", "vol": "90"},  # vermelho
+        {"open": "4.22", "high": "4.27", "low": "4.21", "close": "4.26", "vol": "80"},  # verde (ruído)
+        {"open": "4.20", "high": "4.23", "low": "4.18", "close": "4.19", "vol": "70"},  # vermelho
+        {"open": "4.18", "high": "4.21", "low": "4.16", "close": "4.17", "vol": "60"},  # vermelho
+    ]
+
+    async def fake_get_klines(symbol, interval="1", limit=5, *a, **kw):
+        return bearish_candles[:limit]
+
+    fake_rest = MagicMock()
+    fake_rest.get_klines = fake_get_klines
+    monkeypatch.setattr(rest_mod, "okx_rest_service", fake_rest)
+
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2310,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_1m_accept_001",
+        "timestamp": 9999994,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    saved = list(db._trades.values())
+    assert len(saved) == 1, (
+        f"Trade DEVERIA ter sido aberto com candles 1M bearish para SHORT. "
+        f"Trades: {len(saved)}"
+    )
+    assert saved[0].direction == "SHORT"

@@ -30,6 +30,10 @@ class SandboxService:
         # [V113] Auto-blacklist runtime (pares bloqueados automaticamente)
         self._auto_blocklist: Set[str] = set()
 
+        # [V114] Cooldown pós stop-out: {symbol: timestamp_do_stop}
+        # Impede re-entry imediato no mesmo par após loss
+        self._stop_cooldown: Dict[str, float] = {}
+
     def start(self):
         if self.is_running:
             return
@@ -324,6 +328,23 @@ class SandboxService:
             if already_active:
                 continue
 
+            # [V114] Cooldown pós stop-out: impede re-entry no mesmo símbolo por 300s
+            COOLDOWN_SECS = 300.0
+            last_sl_ts = self._stop_cooldown.get(symbol, 0.0)
+            elapsed = time.time() - last_sl_ts
+            if elapsed < COOLDOWN_SECS:
+                remaining = int(COOLDOWN_SECS - elapsed)
+                logger.info(
+                    f"🧪 [SANDBOX-COOLDOWN] {symbol} em cooldown: {remaining}s restantes "
+                    f"após stop-out. Sinal ignorado."
+                )
+                continue
+
+            # [V114] Confirmação 1M: exige que os candles de 1min confirmem a direção
+            tf_confirmed = await self._check_1m_confirmation(symbol, side)
+            if not tf_confirmed:
+                continue
+
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
             # Stop inicial ADAPTATIVO (nao mais fixo -40%/-20%)
@@ -386,6 +407,72 @@ class SandboxService:
                 f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi}%) | "
                 f"MktPrice={mkt_price:.4f} | TickSize={contract_meta.get('tickSize', 'N/A')}"
             )
+
+    # ==================== [V114] 1M CONFIRMATION FILTER ====================
+
+    async def _check_1m_confirmation(self, symbol: str, side: str) -> bool:
+        """
+        [V114] Confirmação de entrada pelo TF de 1 minuto.
+
+        Lógica:
+          - Busca os últimos 5 candles de 1M via OKX REST (usa cache 3min do get_klines)
+          - Para SHORT: pelo menos 2 dos 3 candles mais recentes devem ser BEARISH
+            (close <= open) — sinal de momentum descendente antes de entrar
+          - Para LONG:  pelo menos 2 dos 3 candles mais recentes devem ser BULLISH
+            (close >= open)
+          - Se não conseguir buscar candles: APROVA (fail-open, não bloqueia por falha de API)
+
+        Por que 3 candles com threshold 2/3:
+          - Exige consenso mínimo sem exigir unanimidade (que rejeitaria entradas legítimas
+            onde 1 candle faz ruído antes de confirmar a direção)
+          - Elimina entradas onde o ativo está indo na direção OPOSTA no curto prazo
+            (ex.: INJ SHORT mas 1M mostrando pump — exatamente o que causou os stop-outs em 7s)
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+            # interval="1" = 1 minuto no mapeamento do OKX REST
+            candles = await okx_rest_service.get_klines(symbol, interval="1", limit=5)
+            if not candles or len(candles) < 3:
+                logger.debug(f"[SANDBOX-1M] {symbol}: candles insuficientes para confirmação — aprovando")
+                return True
+
+            # Candles retornados mais recentes primeiro (OKX padrão)
+            # Pega os 3 mais recentes e avalia direção: close vs open
+            recent = candles[:3]
+            bearish_count = 0
+            bullish_count = 0
+            for c in recent:
+                try:
+                    o = float(c.get("open") or c[1])
+                    cl = float(c.get("close") or c[4])
+                    if cl < o:   # candle vermelho
+                        bearish_count += 1
+                    elif cl >= o:  # candle verde ou doji
+                        bullish_count += 1
+                except Exception:
+                    pass
+
+            is_short = side.lower() in ("sell", "short", "s")
+            if is_short:
+                confirmed = bearish_count >= 2
+                if not confirmed:
+                    logger.info(
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} SHORT — confirmação 1M insuficiente: "
+                        f"{bearish_count}/3 candles bearish (precisa ≥2)"
+                    )
+                return confirmed
+            else:
+                confirmed = bullish_count >= 2
+                if not confirmed:
+                    logger.info(
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} LONG — confirmação 1M insuficiente: "
+                        f"{bullish_count}/3 candles bullish (precisa ≥2)"
+                    )
+                return confirmed
+
+        except Exception as e:
+            logger.debug(f"[SANDBOX-1M] {symbol}: falha ao checar confirmação 1M: {e} — aprovando")
+            return True  # fail-open
 
     # ==================== AUTO-BLOCKLIST (V113) ====================
 
@@ -635,6 +722,10 @@ class SandboxService:
                 history.append(f"[TRAILING] Stop atingido em {exit_price} — fechado lucrativo com +{final_pnl:.1f}% ROI")
             else:
                 history.append(f"Stop atingido em {exit_price} (SL configurado em {stop_price})")
+                # [V114] Registra cooldown: bloqueia re-entry no símbolo por 300s
+                clean_sym = symbol.replace(".P", "").upper()
+                self._stop_cooldown[clean_sym] = time.time()
+                logger.info(f"🧪 [SANDBOX-COOLDOWN-SET] {clean_sym} cooldown de 300s iniciado após stop-out.")
                 logger.warning(
                     f"📊 [SANDBOX-LOSS] {symbol} | Strategy={trade.strategy} | "
                     f"Dir={trade.direction} | Entry={entry_price:.4f} | "

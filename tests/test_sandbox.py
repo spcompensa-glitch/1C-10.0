@@ -546,3 +546,118 @@ async def test_ldousdt_short_scenario_regression(monkeypatch):
     final_roi = payload.get("current_roi", 0.0)
     assert final_roi < 0, \
         f"ROI final esperado negativo para SHORT com loss. Obtido: {final_roi:.2f}%"
+
+
+# ---------------------------------------------------------------------------
+# Teste 12 – Entry sanity check: sinal defasado não abre trade
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_entry_sanity_check_rejects_stale_signal(monkeypatch):
+    """
+    Quando o preço de mercado no momento da abertura já está além de 70% do stop,
+    o trade não deve ser aberto (sinal defasado / stale entry).
+
+    Cenário: INJUSDT SHORT, entry_price=4.2300, stop_roi=-30%
+    → stale_threshold = -30% * 0.7 = -21%
+    → Preço atual = 4.3200 (SHORT immediate_roi ≈ -106%) → descartado
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+    from services.signal_generator import signal_generator as sg_module
+
+    db = FakeDB()
+    ws = FakeWS(price=4.3200, conservative_price=4.3200, adx=30.0)  # tendência
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Mocka macro + signal_generator para passar todos os filtros antes do sanity check
+    async def fake_macro(*a, **kw):
+        return {"above_200sma": False}  # BEARISH → SHORT permitido
+
+    monkeypatch.setattr(
+        "services.sandbox_service.signal_generator" if hasattr(svc_mod, "signal_generator") else "services.signal_generator.signal_generator",
+        type("FakeSG", (), {"get_daily_macro_filter": fake_macro})(),
+        raising=False,
+    )
+
+    # Sinal: INJUSDT SHORT com entry_price=4.2300, mercado já em 4.3200
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2300,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_stale_inj_001",
+        "timestamp": 9999999,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    # Nenhum trade deve ter sido salvo — sinal foi descartado por entry stale
+    saved = list(db._trades.values())
+    assert len(saved) == 0, (
+        f"Trade não deveria ter sido aberto com entry defasado. "
+        f"Trades salvos: {[t.id for t in saved]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Teste 13 – Entry sanity check: sinal fresco abre normalmente
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
+    """
+    Quando o preço de mercado está próximo do entry (ROI imediato < 70% do stop),
+    o trade DEVE ser aberto normalmente.
+
+    Cenário: SHORT entry=4.2300, preço mercado=4.2310 (ROI ≈ -0.1%) → aceito
+    """
+    import services.sandbox_service as svc_mod
+    import services.okx_ws_public as ws_mod
+
+    db = FakeDB()
+    ws = FakeWS(price=4.2310, conservative_price=4.2310, adx=30.0)
+
+    sb = SandboxService()
+    monkeypatch.setattr(ws_mod, "okx_ws_public_service", ws)
+    monkeypatch.setattr(svc_mod, "database_service", db)
+    monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
+
+    # Mocka macro BEARISH → SHORT permitido
+    async def fake_macro(*a, **kw):
+        return {"above_200sma": False}
+
+    # Mocka signal_generator para não travar no import real
+    try:
+        import services.signal_generator as sg_mod
+        real_sg = getattr(sg_mod, "signal_generator", None)
+        if real_sg is not None:
+            monkeypatch.setattr(real_sg, "get_daily_macro_filter", fake_macro)
+    except Exception:
+        pass
+
+    signals = [{
+        "symbol": "INJUSDT",
+        "side": "Sell",
+        "strategy": "VELOCITY FLOW",
+        "price": 4.2300,
+        "contract_info": {"maxLeverage": 50.0},
+        "id": "test_fresh_inj_001",
+        "timestamp": 9999998,
+    }]
+
+    await sb._process_radar_signals(signals)
+
+    # Trade DEVE ter sido salvo — entrada fresca
+    saved = list(db._trades.values())
+    assert len(saved) == 1, (
+        f"Trade deveria ter sido aberto com entrada fresca. "
+        f"Trades salvos: {len(saved)}"
+    )
+    assert saved[0].direction == "SHORT"
+    assert abs(float(saved[0].entry_price) - 4.2300) < 0.001

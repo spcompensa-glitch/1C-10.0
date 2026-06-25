@@ -299,6 +299,29 @@ class SandboxService:
             stop_price = self._calculate_adaptive_stop(entry_price, side, contract_meta, is_ranging)
             initial_stop_roi = -15.0 if is_ranging else -30.0
 
+            # ==================== ENTRY SANITY CHECK ====================
+            # Verifica se o preço de mercado atual já está além do stop
+            # (sinal defasado / entry stale). Espelha verificação do sistema real.
+            # Threshold: 70% do stop inicial (ex.: -30% stop → descarta se ROI < -21%)
+            mkt_price = 0.0
+            try:
+                mkt_price = okx_ws_public_service.get_current_price(symbol)
+                if mkt_price <= 0:
+                    mkt_price = await self._get_rest_price(symbol)
+                if mkt_price > 0 and entry_price > 0:
+                    immediate_roi = proj_service.calculate_roi(entry_price, mkt_price, side, 50.0)
+                    stale_threshold = initial_stop_roi * 0.7  # 70% do stop
+                    if immediate_roi <= stale_threshold:
+                        logger.warning(
+                            f"🧪 [SANDBOX-STALE] {symbol} {strategy} {direction} descartado — "
+                            f"entry defasado: ROI imediato={immediate_roi:.1f}% já passou "
+                            f"{stale_threshold:.1f}% (stop={initial_stop_roi}%)"
+                        )
+                        continue
+            except Exception as stale_err:
+                logger.debug(f"[SANDBOX] Entry sanity check falhou para {symbol}: {stale_err}")
+            # ==================== / ENTRY SANITY CHECK ====================
+
             trade_data = {
                 "id": trade_id,
                 "symbol": symbol,
@@ -329,7 +352,7 @@ class SandboxService:
             logger.info(
                 f"🧪 [SANDBOX-OPEN] {symbol} {strategy} {direction} | "
                 f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi}%) | "
-                f"TickSize={contract_meta.get('tickSize', 'N/A')}"
+                f"MktPrice={mkt_price:.4f} | TickSize={contract_meta.get('tickSize', 'N/A')}"
             )
 
     # ==================== MAIN LOOP (paridade com FlashAgent) ====================

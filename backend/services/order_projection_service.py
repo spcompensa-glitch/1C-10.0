@@ -26,13 +26,20 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
+    # [V113] Degraus MICRO protetivos no início
+    # +3% ROI → stop em +1% (trava lucro mínimo)
+    # +8% ROI → stop em +5% (sobe o stop, não retrocede)
+    StopLevel("ESCADINHA", "MICRO_3", 3.0, 1.0, "RISCO_BAIXO"),
+    StopLevel("ESCADINHA", "MICRO_8", 8.0, 5.0, "RISCO_ZERO"),
     # Em Ranging, o breakeven ativa precoce e depois entra em trailing agressivo
-    StopLevel("ESCADINHA", "SL_5", 5.0, -10.0, "RISCO_MEDIO"),
     StopLevel("ESCADINHA", "SL_BE", 10.0, 0.0, "RISCO_ZERO"),
     StopLevel("TRAILING", "TRAIL_20", 20.0, 15.0, "TRAIL_LOCK"),
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
+    # [V113] Degraus MICRO protetivos no início (ambos os regimes)
+    StopLevel("ESCADINHA", "MICRO_3", 3.0, 1.0, "RISCO_BAIXO"),
+    StopLevel("ESCADINHA", "MICRO_8", 8.0, 5.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "BREAKEVEN", 10.0, 0.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_INICIAL", 30.0, 15.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_MEDIO", 45.0, 30.0, "RISCO_ZERO"),

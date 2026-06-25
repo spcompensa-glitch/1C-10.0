@@ -2,8 +2,9 @@ import asyncio
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 from services.database_service import database_service, SandboxTrade
 from services.okx_ws_public import okx_ws_public_service
 from services.order_projection_service import OrderProjectionService
@@ -26,12 +27,16 @@ class SandboxService:
         # Cache de peak ROI por trade (para decisao de escadinha)
         self._peak_roi_cache: Dict[str, float] = {}
 
+        # [V113] Auto-blacklist runtime (pares bloqueados automaticamente)
+        self._auto_blocklist: Set[str] = set()
+
     def start(self):
         if self.is_running:
             return
         self.is_running = True
         self._loop_task = asyncio.create_task(self._price_update_loop())
         asyncio.create_task(self._load_existing_radar_signals())
+        asyncio.create_task(self._initial_auto_blocklist_check())
         logger.info("🧪 Sandbox Service iniciado com sucesso.")
 
     async def _load_existing_radar_signals(self):
@@ -245,10 +250,14 @@ class SandboxService:
                 if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
                     continue
 
+            # [V113] Check static + auto-blocklist
             try:
                 from config import settings
-                if symbol in getattr(settings, 'ASSET_BLOCKLIST', set()):
-                    logger.info(f"🧪 [SANDBOX-BLOCKLIST] {symbol} descartado (asset blocklist).")
+                static_blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
+                is_auto = symbol in self._auto_blocklist
+                if symbol in static_blocklist or is_auto:
+                    reason = "auto-blocklist" if is_auto else "asset blocklist"
+                    logger.info(f"🧪 [SANDBOX-BLOCKLIST] {symbol} descartado ({reason}).")
                     continue
             except Exception as e:
                 logger.warning(f"Erro ao verificar blocklist: {e}")
@@ -266,6 +275,33 @@ class SandboxService:
                         decor_bypass = True
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
+
+            # [V113] Filtro horário — Abertura do mercado americano (13:30-14:30 UTC)
+            # NÃO bloqueia, apenas exige confirmação extra
+            try:
+                now_utc = datetime.now(timezone.utc)
+                current_hour_decimal = now_utc.hour + now_utc.minute / 60.0
+                is_us_market_open = 13.5 <= current_hour_decimal < 14.5
+            except Exception:
+                is_us_market_open = False
+
+            if is_us_market_open:
+                if is_ranging:
+                    # Em lateral durante abertura: só entra se tiver decor_bypass
+                    if strategy == "DECOR SHADOW" and not decor_bypass:
+                        logger.info(
+                            f"🧪 [SANDBOX-OPEN-FILTER] {symbol} {strategy} descartado — "
+                            f"abertura US (13:30-14:30) sem decor_bypass"
+                        )
+                        continue
+                else:
+                    # Em tendência durante abertura: exige ADX mais alto
+                    if adx_val < 28:
+                        logger.info(
+                            f"🧪 [SANDBOX-OPEN-FILTER] {symbol} {strategy} descartado — "
+                            f"abertura US (13:30-14:30) ADX {adx_val:.1f} < 28"
+                        )
+                        continue
 
             if not decor_bypass:
                 if macro_trend == "BEARISH" and direction == "LONG":
@@ -355,6 +391,55 @@ class SandboxService:
                 f"MktPrice={mkt_price:.4f} | TickSize={contract_meta.get('tickSize', 'N/A')}"
             )
 
+    # ==================== AUTO-BLOCKLIST (V113) ====================
+
+    async def _update_auto_blocklist(self):
+        """[V113] Varre trades fechados e bloqueia pares com performance crítica.
+        Critério: PnL total < -20% E win rate < 30% após 5+ trades fechados.
+        """
+        try:
+            all_trades = await database_service.get_sandbox_trades(active_only=False)
+            closed = [t for t in all_trades if t.status != "ACTIVE"]
+            if len(closed) < 5:
+                return
+
+            pair_stats = {}
+            for t in closed:
+                sym = t.symbol
+                if sym not in pair_stats:
+                    pair_stats[sym] = {"total": 0, "wins": 0, "pnl": 0.0}
+                pair_stats[sym]["total"] += 1
+                pair_stats[sym]["pnl"] += t.pnl_pct
+                if t.pnl_pct > 0:
+                    pair_stats[sym]["wins"] += 1
+
+            newly_blocked = []
+            for sym, stats in pair_stats.items():
+                if stats["total"] >= 5:
+                    wr = (stats["wins"] / stats["total"]) * 100.0
+                    if stats["pnl"] < -20.0 and wr < 30.0:
+                        if sym not in self._auto_blocklist:
+                            self._auto_blocklist.add(sym)
+                            newly_blocked.append(sym)
+                            logger.warning(
+                                f"🧪 [SANDBOX-AUTO-BLOCKLIST] {sym} bloqueado automaticamente: "
+                                f"PnL={stats['pnl']:.1f}%, WR={wr:.1f}% ({stats['wins']}/{stats['total']})"
+                            )
+
+            if newly_blocked:
+                logger.info(
+                    f"🧪 [SANDBOX-AUTO-BLOCKLIST] Total bloqueados: {len(self._auto_blocklist)} | "
+                    f"Novos: {', '.join(newly_blocked)}"
+                )
+        except Exception as e:
+            logger.error(f"Erro ao atualizar auto-blocklist: {e}")
+
+    async def _initial_auto_blocklist_check(self):
+        """Executa verificação inicial da auto-blacklist ao startup."""
+        await asyncio.sleep(3.0)
+        logger.info("🧪 [SANDBOX] Verificando auto-blocklist inicial...")
+        await self._update_auto_blocklist()
+
     # ==================== MAIN LOOP (paridade com FlashAgent) ====================
 
     async def _price_update_loop(self):
@@ -366,7 +451,9 @@ class SandboxService:
         - Peak ROI cache para decisao de escadinha
         - Tick size rounding no stop
         - Log detalhado quando stop nao e verificado
+        - [V113] Auto-blocklist check a cada 120s
         """
+        last_blocklist_check = 0.0
         while self.is_running:
             try:
                 active_trades = await database_service.get_sandbox_trades(active_only=True)
@@ -385,6 +472,11 @@ class SandboxService:
 
             except Exception as e:
                 logger.error(f"Erro no loop de preços do Sandbox: {e}", exc_info=True)
+
+            # [V113] Auto-blocklist check a cada 120s
+            if time.time() - last_blocklist_check >= 120.0:
+                asyncio.create_task(self._update_auto_blocklist())
+                last_blocklist_check = time.time()
 
             await asyncio.sleep(1.0)
 
@@ -490,6 +582,7 @@ class SandboxService:
 
         # 11. Verificar stop hit com conservative price (HIGH/LOW 120s)
         is_closed = False
+        should_run_blocklist = False
         status = "ACTIVE"
         closed_at = None
         exit_price = 0.0
@@ -504,6 +597,7 @@ class SandboxService:
                     current_roi = proj_service.calculate_roi(entry_price, current_price, side, leverage)
 
                 is_closed = True
+                should_run_blocklist = True
                 exit_price = stop_price
                 closed_at = time.time()
 
@@ -551,6 +645,10 @@ class SandboxService:
                     f"Exit={exit_price:.4f} | ROI={final_pnl:.1f}% | "
                     f"StopROI={updated_stop_roi:.0f}% | MaxROI={max_roi:.1f}%"
                 )
+
+            # [V113] Auto-blocklist check após fechar trade
+            if should_run_blocklist:
+                asyncio.create_task(self._update_auto_blocklist())
 
             # Limpar cache de peak
             self._peak_roi_cache.pop(trade_key, None)

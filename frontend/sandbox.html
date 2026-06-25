@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -16,10 +18,12 @@
                     colors: {
                         dark: '#0a0a0c',
                         darker: '#050506',
-                        primary: '#3b82f6', // Azul elegante
-                        cyberGreen: '#00ff88', // Verde neon
-                        cyberRed: '#ff2d55', // Vermelho neon
-                        cyberOrange: '#ff9500', // Laranja neon
+                        primary: '#3b82f6',
+                        cyberGreen: '#00ff88',
+                        cyberRed: '#ff2d55',
+                        cyberOrange: '#ff9500',
+                        cyberBlue: '#60a5fa',
+                        cyberPurple: '#a78bfa',
                         panelBg: 'rgba(17, 17, 21, 0.75)',
                         borderSubtle: 'rgba(255, 255, 255, 0.08)'
                     },
@@ -46,33 +50,47 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
-        .neon-glow-green {
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+        .glass-panel-sm {
+            background: rgba(17, 17, 21, 0.5);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
         }
-        .neon-glow-red {
-            box-shadow: 0 0 15px rgba(255, 45, 85, 0.15);
+        .neon-glow-green { box-shadow: 0 0 15px rgba(0, 255, 136, 0.15); }
+        .neon-glow-red { box-shadow: 0 0 15px rgba(255, 45, 85, 0.15); }
+        .neon-glow-orange { box-shadow: 0 0 15px rgba(255, 149, 0, 0.15); }
+        .neon-glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.15); }
+        .neon-text-green { text-shadow: 0 0 8px rgba(0, 255, 136, 0.5); }
+        .neon-text-red { text-shadow: 0 0 8px rgba(255, 45, 85, 0.5); }
+        
+        /* Pulse animation for alerts */
+        @keyframes pulse-alert {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
-        .neon-text-green {
-            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        .alert-pulse {
+            animation: pulse-alert 2s ease-in-out infinite;
         }
-        .neon-text-red {
-            text-shadow: 0 0 8px rgba(255, 45, 85, 0.5);
+        
+        /* Chart containers */
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
         }
+        
         /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(5, 5, 6, 0.5);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(5, 5, 6, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+        /* Transition for table rows */
+        .trade-row { transition: all 0.15s ease; }
+        .trade-row:hover { background: rgba(255, 255, 255, 0.02); }
+        
+        /* Animated number */
+        .stat-number { transition: color 0.3s ease; }
     </style>
 </head>
 <body class="text-gray-200 font-sans min-h-screen flex flex-col">
@@ -85,18 +103,16 @@
                 <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2 font-display">
                     1CRYPTEN 
                     <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span>
-                    <!-- Status do Regime / Oracle -->
                     <span id="sandbox-regime-badge" class="ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300">
                         REGIME: <span id="sandbox-regime-value">AGUARDANDO...</span>
                     </span>
-                    <!-- Contadores das 3 Estratégias -->
                     <span class="flex items-center gap-1.5 ml-4">
                         <span id="badge-alpha" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen">ALPHA SHIELD: <span id="count-alpha">0</span></span>
                         <span id="badge-velocity" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">VELOCITY FLOW: <span id="count-velocity">0</span></span>
                         <span id="badge-decor" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue">DECOR SHADOW: <span id="count-decor">0</span></span>
                     </span>
                 </h1>
-                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V110.903 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x)</p>
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V113 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x)</p>
             </div>
         </div>
         <div class="flex items-center gap-4">
@@ -117,43 +133,134 @@
             <span class="material-icons-round text-primary text-3xl mt-1">science</span>
             <div>
                 <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais</h3>
-                <p class="text-sm text-gray-400">Este Sandbox captura **todos** os sinais gerados em tempo real pelo Radar. As ordens são simuladas com base em uma **banca virtual de $100,00 USD** com **alavancagem de 50x** e **margem de $2,00 USD por ativo** (2% da banca). O acompanhamento de trailing stop do **FlashAgent** monitora e atualiza os stops simulados em tempo real. Use este painel para analisar padrões lucrativos antes de promovê-los ao sistema principal.</p>
+                <p class="text-sm text-gray-400">Este Sandbox captura todos os sinais gerados em tempo real pelo Radar. Ordens simuladas com <strong>banca virtual de $100,00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2,00 USD por ativo</strong> (2% da banca). O <strong>FlashAgent</strong> monitora e atualiza os stops em tempo real.</p>
             </div>
         </div>
 
         <!-- Estatísticas Gerais -->
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <!-- Card 1 -->
             <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
                 <span class="text-xs text-gray-500 font-mono uppercase">Trades Totais</span>
-                <span id="stat-total" class="text-3xl font-bold text-white font-mono mt-2">-</span>
+                <span id="stat-total" class="text-3xl font-bold text-white font-mono mt-2 stat-number">-</span>
             </div>
-            <!-- Card 2 -->
             <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberOrange">
                 <span class="text-xs text-gray-500 font-mono uppercase">Em Andamento</span>
-                <span id="stat-active" class="text-3xl font-bold text-cyberOrange font-mono mt-2">-</span>
+                <span id="stat-active" class="text-3xl font-bold text-cyberOrange font-mono mt-2 stat-number">-</span>
             </div>
-            <!-- Card 3 -->
             <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberGreen">
                 <span class="text-xs text-gray-500 font-mono uppercase">Win Rate</span>
-                <span id="stat-winrate" class="text-3xl font-bold text-cyberGreen font-mono mt-2">-</span>
+                <span id="stat-winrate" class="text-3xl font-bold text-cyberGreen font-mono mt-2 stat-number">-</span>
             </div>
-            <!-- Card 4 -->
             <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-primary">
                 <span class="text-xs text-gray-500 font-mono uppercase">ROI / Saldo da Banca</span>
                 <div class="flex flex-col justify-end mt-2">
-                    <span id="stat-pnl" class="text-3xl font-bold text-white font-mono leading-none">-</span>
+                    <span id="stat-pnl" class="text-3xl font-bold text-white font-mono leading-none stat-number">-</span>
                     <span id="stat-balance" class="text-xs text-gray-400 font-mono mt-1">$100.00 USD</span>
                 </div>
             </div>
-            <!-- Card 5 -->
             <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
                 <span class="text-xs text-gray-500 font-mono uppercase">Melhor Estratégia</span>
-                <span id="stat-best" class="text-lg font-bold text-primary truncate mt-2">-</span>
+                <span id="stat-best" class="text-lg font-bold text-primary truncate mt-2 stat-number">-</span>
             </div>
         </div>
 
-        <!-- Painel de Insights e Padrões (Carregado Dinamicamente) -->
+        <!-- ===== [V113] ANALYTICS DASHBOARD ===== -->
+        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-5" id="analytics-panel">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-white font-bold text-base flex items-center gap-2">
+                        <span class="material-icons-round text-cyberPurple">query_stats</span> Analytics & Distribuição de Perdas
+                    </h3>
+                    <p class="text-xs text-gray-500">Métricas de risco, distribuição de losses por hora/regime e performance por par.</p>
+                </div>
+                <span id="analytics-status" class="px-2.5 py-0.5 rounded bg-white/5 text-[10px] text-gray-400 font-mono uppercase tracking-wider">Coletando...</span>
+            </div>
+
+            <!-- Cards de Risco (Linha 1) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- R:R Ratio -->
+                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center">
+                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Risk/Reward</span>
+                    <span id="analytics-rr" class="text-2xl font-bold text-white font-mono">-</span>
+                    <span class="text-[10px] text-gray-500 mt-1">Rácio Win/Loss</span>
+                </div>
+                <!-- Win Médio -->
+                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberGreen">
+                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Win Médio</span>
+                    <span id="analytics-avg-win" class="text-2xl font-bold text-cyberGreen font-mono">-</span>
+                </div>
+                <!-- Loss Médio -->
+                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberRed">
+                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Loss Médio</span>
+                    <span id="analytics-avg-loss" class="text-2xl font-bold text-cyberRed font-mono">-</span>
+                </div>
+                <!-- Zero-PnL Alert -->
+                <div id="zero-pnl-card" class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange">
+                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Zero-PnL</span>
+                    <span id="analytics-zero-pct" class="text-2xl font-bold text-cyberOrange font-mono">-</span>
+                    <span class="text-[10px] text-gray-500 mt-1">fecharam no entry</span>
+                </div>
+            </div>
+
+            <!-- Zero-PnL Alert Extra (visível apenas quando >30%) -->
+            <div id="zero-pnl-alert" class="hidden">
+                <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-cyberOrange/10 border border-cyberOrange/30 alert-pulse">
+                    <span class="material-icons-round text-cyberOrange">warning_amber</span>
+                    <div class="flex-1">
+                        <span class="text-sm font-bold text-cyberOrange">Alerta de Zero-PnL Alto!</span>
+                        <span id="zero-pnl-alert-text" class="text-xs text-gray-400 ml-2"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos (Linha 2) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Loss por Hora -->
+                <div class="glass-panel-sm p-4 rounded-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs text-gray-400 font-mono uppercase">Losses por Hora UTC</span>
+                        <span class="text-[10px] text-gray-600 font-mono" id="analytics-peak-hour">-</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-hour"></canvas>
+                    </div>
+                </div>
+                <!-- Loss por Regime -->
+                <div class="glass-panel-sm p-4 rounded-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs text-gray-400 font-mono uppercase">Losses por Regime</span>
+                        <span id="analytics-regime-loss-count" class="text-[10px] text-gray-600 font-mono">-</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-regime"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Winners & Losers (Linha 3) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Top Winners -->
+                <div class="glass-panel-sm p-4 rounded-xl">
+                    <span class="text-xs text-cyberGreen font-mono uppercase flex items-center gap-2 mb-3">
+                        <span class="material-icons-round text-sm">trending_up</span> Top 5 Maiores Wins
+                    </span>
+                    <div id="analytics-top-winners" class="space-y-1.5 text-xs font-mono">
+                        <div class="text-gray-500">Aguardando dados...</div>
+                    </div>
+                </div>
+                <!-- Top Losers -->
+                <div class="glass-panel-sm p-4 rounded-xl">
+                    <span class="text-xs text-cyberRed font-mono uppercase flex items-center gap-2 mb-3">
+                        <span class="material-icons-round text-sm">trending_down</span> Top 5 Maiores Losses
+                    </span>
+                    <div id="analytics-top-losers" class="space-y-1.5 text-xs font-mono">
+                        <div class="text-gray-500">Aguardando dados...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Insights e Padrões -->
         <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
             <div class="flex items-center justify-between">
                 <div>
@@ -237,14 +344,13 @@
                         </tr>
                     </thead>
                     <tbody id="trades-table" class="divide-y divide-white/5 text-sm">
-                        <!-- Conteúdo injetado por JS -->
                     </tbody>
                 </table>
             </div>
         </div>
     </main>
 
-    <!-- Modal de Histórico de Mudanças (Flash Details) -->
+    <!-- Modal de Histórico -->
     <div id="history-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
         <div class="glass-panel w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col">
             <div class="p-5 border-b border-white/5 flex items-center justify-between">
@@ -255,78 +361,260 @@
                     <span class="material-icons-round">close</span>
                 </button>
             </div>
-            <div class="p-6 overflow-y-auto max-h-[350px] space-y-3" id="modal-content">
-                <!-- Linhas do histórico -->
-            </div>
+            <div class="p-6 overflow-y-auto max-h-[350px] space-y-3" id="modal-content"></div>
             <div class="p-4 bg-white/[0.02] border-t border-white/5 text-right">
-                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm">
-                    Fechar
-                </button>
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm">Fechar</button>
             </div>
         </div>
     </div>
 
-    <!-- Scripts de Lógica e Render -->
+    <!-- Scripts -->
     <script>
+        // ==================== STATE ====================
         let tradesData = [];
+        let chartsInitialized = false;
+        let chartHour = null;
+        let chartRegime = null;
 
+        // ==================== CHARTS ====================
+        function initCharts() {
+            if (chartsInitialized) return;
+            const hourCtx = document.getElementById('chart-hour');
+            const regimeCtx = document.getElementById('chart-regime');
+            if (!hourCtx || !regimeCtx) return;
+
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = 'JetBrains Mono, monospace';
+
+            chartHour = new Chart(hourCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Losses',
+                        data: [],
+                        backgroundColor: 'rgba(255, 45, 85, 0.5)',
+                        borderColor: 'rgba(255, 45, 85, 0.8)',
+                        borderWidth: 1,
+                        borderRadius: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { font: { size: 9 }, maxRotation: 0 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            beginAtZero: true,
+                            ticks: { font: { size: 9 } }
+                        }
+                    }
+                }
+            });
+
+            chartRegime = new Chart(regimeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['rgba(0, 255, 136, 0.6)', 'rgba(255, 45, 85, 0.6)', 'rgba(255, 149, 0, 0.6)'],
+                        borderColor: ['rgba(0, 255, 136, 0.8)', 'rgba(255, 45, 85, 0.8)', 'rgba(255, 149, 0, 0.8)'],
+                        borderWidth: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 10, family: 'JetBrains Mono' },
+                                padding: 12,
+                                boxWidth: 10,
+                                boxHeight: 10
+                            }
+                        }
+                    }
+                }
+            });
+
+            chartsInitialized = true;
+        }
+
+        function updateHourChart(lossByHour) {
+            if (!chartHour) return;
+            const hours = Object.keys(lossByHour).sort((a, b) => parseInt(a) - parseInt(b));
+            const counts = hours.map(h => lossByHour[h].count);
+
+            chartHour.data.labels = hours.map(h => `${h}h`);
+            chartHour.data.datasets[0].data = counts;
+            chartHour.update('none');
+
+            // Update peak hour
+            const peak = hours.reduce((a, b) => (lossByHour[a].count > lossByHour[b].count) ? a : b, hours[0]);
+            const peakEl = document.getElementById('analytics-peak-hour');
+            if (peak && lossByHour[peak]) {
+                peakEl.innerHTML = `<span class="text-cyberRed">Pico: ${peak}:00 UTC (${lossByHour[peak].count} losses)</span>`;
+            }
+        }
+
+        function updateRegimeChart(lossByRegime) {
+            if (!chartRegime) return;
+            const labels = Object.keys(lossByRegime);
+            const data = labels.map(l => lossByRegime[l].count);
+
+            chartRegime.data.labels = labels;
+            chartRegime.data.datasets[0].data = data;
+            chartRegime.update('none');
+
+            const total = data.reduce((a, b) => a + b, 0);
+            document.getElementById('analytics-regime-loss-count').innerText = `${total} total losses`;
+        }
+
+        // ==================== FETCH ANALYTICS ====================
+        async function fetchAnalytics() {
+            try {
+                const res = await fetch('/api/sandbox/analytics');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.total_analyzed) {
+                    document.getElementById('analytics-status').innerText = 'Sem dados';
+                    return;
+                }
+
+                document.getElementById('analytics-status').innerText = `${data.total_analyzed} trades analisados`;
+
+                // R:R
+                document.getElementById('analytics-rr').innerText = `1:${data.risk_reward_ratio}`;
+                document.getElementById('analytics-avg-win').innerText = `+${data.avg_win_roi}%`;
+                document.getElementById('analytics-avg-loss').innerText = `${data.avg_loss_roi}%`;
+
+                // Zero-PnL
+                const zpnlPct = data.zero_pnl_percent || 0;
+                const zpnlCount = data.zero_pnl_count || 0;
+                document.getElementById('analytics-zero-pct').innerText = `${zpnlPct}%`;
+
+                const zeroCard = document.getElementById('zero-pnl-card');
+                if (zpnlPct > 30) {
+                    zeroCard.className = 'glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange neon-glow-orange';
+                    document.getElementById('zero-pnl-alert').classList.remove('hidden');
+                    document.getElementById('zero-pnl-alert-text').innerHTML =
+                        `${zpnlCount} trades (${zpnlPct}%) fecharam em 0% PnL — média de <strong>+${data.zero_pnl_avg_maxroi}% MaxROI</strong>. Escadinha MICRO pode recuperar esses.`;
+                } else {
+                    zeroCard.className = 'glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange';
+                    document.getElementById('zero-pnl-alert').classList.add('hidden');
+                }
+
+                // Charts
+                initCharts();
+                if (data.loss_by_hour) updateHourChart(data.loss_by_hour);
+                if (data.loss_by_regime) updateRegimeChart(data.loss_by_regime);
+
+                // Top winners/losers
+                const winnersEl = document.getElementById('analytics-top-winners');
+                if (data.top_winners && data.top_winners.length > 0) {
+                    winnersEl.innerHTML = data.top_winners.map((t, i) => `
+                        <div class="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-gray-600 font-bold w-4">#${i+1}</span>
+                                <span class="text-white font-bold text-xs">${t.symbol}</span>
+                                <span class="text-[9px] ${t.direction === 'LONG' ? 'text-cyberGreen' : 'text-cyberRed'}">${t.direction}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-cyberGreen font-bold">+${t.pnl_pct.toFixed(1)}%</span>
+                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${t.max_roi.toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    winnersEl.innerHTML = '<div class="text-gray-500 text-xs">Nenhum winner ainda.</div>';
+                }
+
+                const losersEl = document.getElementById('analytics-top-losers');
+                if (data.top_losers && data.top_losers.length > 0) {
+                    losersEl.innerHTML = data.top_losers.map((t, i) => `
+                        <div class="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-gray-600 font-bold w-4">#${i+1}</span>
+                                <span class="text-white font-bold text-xs">${t.symbol}</span>
+                                <span class="text-[9px] ${t.direction === 'LONG' ? 'text-cyberGreen' : 'text-cyberRed'}">${t.direction}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-cyberRed font-bold">${t.pnl_pct.toFixed(1)}%</span>
+                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${t.max_roi.toFixed(1)}%)</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    losersEl.innerHTML = '<div class="text-gray-500 text-xs">Nenhum loss ainda.</div>';
+                }
+
+            } catch (err) {
+                console.error('Erro ao buscar analytics:', err);
+            }
+        }
+
+        // ==================== FETCH STATS & TRADES ====================
         async function fetchData() {
             try {
-                const statusFilter = document.getElementById("filter-status").value;
-                const activeOnly = statusFilter === "active";
+                const statusFilter = document.getElementById('filter-status').value;
+                const activeOnly = statusFilter === 'active';
                 
-                // Buscar estatísticas
-                const statsRes = await fetch("/api/sandbox/stats");
+                const statsRes = await fetch('/api/sandbox/stats');
                 if (statsRes.ok) {
                     const stats = await statsRes.json();
-                    // Atualizar contadores das 3 estratégias
                     const breakdown = stats.strategy_breakdown || {};
-                    const alphaCount = breakdown["ALPHA SHIELD"] ? breakdown["ALPHA SHIELD"].total : 0;
-                    const velocityCount = breakdown["VELOCITY FLOW"] ? breakdown["VELOCITY FLOW"].total : 0;
-                    const decorCount = breakdown["DECOR SHADOW"] ? breakdown["DECOR SHADOW"].total : 0;
+                    document.getElementById('count-alpha').innerText = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
+                    document.getElementById('count-velocity').innerText = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
+                    document.getElementById('count-decor').innerText = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
                     
-                    document.getElementById("count-alpha").innerText = alphaCount;
-                    document.getElementById("count-velocity").innerText = velocityCount;
-                    document.getElementById("count-decor").innerText = decorCount;
+                    const regime = stats.current_regime || 'NEUTRAL';
+                    const regimeBadge = document.getElementById('sandbox-regime-badge');
+                    const regimeValue = document.getElementById('sandbox-regime-value');
                     
-                    // Atualizar Regime
-                    const regime = stats.current_regime || "NEUTRAL";
-                    const regimeBadge = document.getElementById("sandbox-regime-badge");
-                    const regimeValue = document.getElementById("sandbox-regime-value");
-                    
-                    if (regime === "LATERAL") {
-                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange";
-                        regimeValue.innerText = "LATERAL (V.F PAUSADO | D.S ATIVO)";
-                    } else if (regime === "UP" || regime === "DOWN") {
-                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen";
+                    if (regime === 'LATERAL') {
+                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange';
+                        regimeValue.innerText = 'LATERAL (V.F PAUSADO | D.S ATIVO)';
+                    } else if (regime === 'UP' || regime === 'DOWN') {
+                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen';
                         regimeValue.innerText = `TENDÊNCIA ${regime} (V.F ATIVO | D.S PAUSADO)`;
                     } else {
-                        regimeBadge.className = "ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300";
+                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300';
                         regimeValue.innerText = regime;
                     }
 
-                    document.getElementById("stat-total").innerText = stats.total_trades;
-                    document.getElementById("stat-active").innerText = stats.active_trades;
-                    document.getElementById("stat-winrate").innerText = stats.win_rate + "%";
-                    document.getElementById("stat-pnl").innerText = (stats.total_pnl > 0 ? "+" : "") + stats.total_pnl.toFixed(2) + "%";
+                    document.getElementById('stat-total').innerText = stats.total_trades;
+                    document.getElementById('stat-active').innerText = stats.active_trades;
+                    document.getElementById('stat-winrate').innerText = stats.win_rate + '%';
+                    document.getElementById('stat-pnl').innerText = (stats.total_pnl > 0 ? '+' : '') + stats.total_pnl.toFixed(2) + '%';
                     const currentBalance = 100.0 + stats.total_pnl;
-                    document.getElementById("stat-balance").innerText = "$" + currentBalance.toFixed(2) + " USD";
-                    document.getElementById("stat-best").innerText = stats.best_strategy;
+                    document.getElementById('stat-balance').innerText = '$' + currentBalance.toFixed(2) + ' USD';
+                    document.getElementById('stat-best').innerText = stats.best_strategy;
                 }
 
-                // Buscar trades
                 const tradesRes = await fetch(`/api/sandbox/trades?active_only=${activeOnly}`);
                 if (tradesRes.ok) {
                     tradesData = await tradesRes.json();
                     renderTable(tradesData);
                 }
             } catch (err) {
-                console.error("Erro ao buscar dados do sandbox:", err);
+                console.error('Erro ao buscar dados do sandbox:', err);
             }
         }
 
+        // ==================== RENDER TABLE ====================
         function renderTable(trades) {
-            const tbody = document.getElementById("trades-table");
+            const tbody = document.getElementById('trades-table');
             if (!trades || trades.length === 0) {
                 tbody.innerHTML = `
                     <tr>
@@ -339,87 +627,68 @@
             }
 
             tbody.innerHTML = trades.map(t => {
-                const isLong = t.direction === "LONG";
+                const isLong = t.direction === 'LONG';
                 const directionBadge = isLong 
                     ? `<span class="px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen text-xs font-bold font-mono">LONG</span>`
                     : `<span class="px-2 py-0.5 rounded bg-cyberRed/10 border border-cyberRed/20 text-cyberRed text-xs font-bold font-mono">SHORT</span>`;
 
                 const isPartial = t.flash_state?.has_taken_partial;
                 let statusText, statusColor;
-                if (t.status === "ACTIVE") {
-                    statusText = isPartial ? "ATIVO (PARCIAL)" : "ATIVO";
-                    statusColor = isPartial ? "bg-cyberGreen/10 border-cyberGreen/20 text-cyberGreen" : "bg-cyberOrange/10 border-cyberOrange/20 text-cyberOrange";
-                } else if (t.status === "CLOSED_TRAILING") {
-                    statusText = isPartial ? "TRAILING (PARCIAL)" : "TRAILING";
-                    statusColor = "bg-cyberGreen/15 border-cyberGreen/30 text-cyberGreen";
-                } else if (t.status === "CLOSED_SL") {
-                    statusText = isPartial ? "FECHADO SL (PARCIAL)" : "FECHADO SL";
-                    statusColor = "bg-white/5 border-white/10 text-gray-400";
+                if (t.status === 'ACTIVE') {
+                    statusText = isPartial ? 'ATIVO (PARCIAL)' : 'ATIVO';
+                    statusColor = isPartial ? 'bg-cyberGreen/10 border-cyberGreen/20 text-cyberGreen' : 'bg-cyberOrange/10 border-cyberOrange/20 text-cyberOrange';
+                } else if (t.status === 'CLOSED_TRAILING') {
+                    statusText = isPartial ? 'TRAILING (PARCIAL)' : 'TRAILING';
+                    statusColor = 'bg-cyberGreen/15 border-cyberGreen/30 text-cyberGreen';
+                } else if (t.status === 'CLOSED_SL') {
+                    statusText = isPartial ? 'FECHADO SL (PARCIAL)' : 'FECHADO SL';
+                    statusColor = 'bg-white/5 border-white/10 text-gray-400';
                 } else {
-                    statusText = "FECHADO";
-                    statusColor = "bg-white/5 border-white/10 text-gray-400";
+                    statusText = 'FECHADO';
+                    statusColor = 'bg-white/5 border-white/10 text-gray-400';
                 }
                 
                 const statusBadge = `<span class="px-2 py-0.5 rounded border text-xs font-mono ${statusColor}">${statusText}</span>`;
+                const pnlClass = t.pnl_pct >= 0 ? 'text-cyberGreen font-bold' : 'text-cyberRed font-bold';
+                const pnlSign = t.pnl_pct > 0 ? '+' : '';
 
-                const pnlClass = t.pnl_pct >= 0 ? "text-cyberGreen font-bold" : "text-cyberRed font-bold";
-                const pnlSign = t.pnl_pct > 0 ? "+" : "";
-
-                const flashPhase = t.flash_state?.phase || "ESCADINHA";
-                const flashLevel = t.flash_state?.active_level || "INICIAL";
-                
+                const flashPhase = t.flash_state?.phase || 'ESCADINHA';
+                const flashLevel = t.flash_state?.active_level || 'INICIAL';
                 const stopRoi = t.flash_state?.stop_roi;
                 const stopRoiText = stopRoi !== undefined ? ` (${stopRoi >= 0 ? '+' : ''}${stopRoi.toFixed(0)}%)` : '';
 
-                // Dicionário de contratos conhecidos na OKX como fallback fixo
+                // Contract info
                 const okxStaticContracts = {
-                    "BTCUSDT": { ctVal: 0.01, minSz: 1 },
-                    "ETHUSDT": { ctVal: 0.1, minSz: 1 },
-                    "SOLUSDT": { ctVal: 1, minSz: 1 },
-                    "SANDUSDT": { ctVal: 10, minSz: 1 },
-                    "ADAUSDT": { ctVal: 100, minSz: 1 },
-                    "XRPUSDT": { ctVal: 10, minSz: 1 },
-                    "DOGEUSDT": { ctVal: 100, minSz: 1 },
-                    "AVAXUSDT": { ctVal: 1, minSz: 1 },
-                    "LINKUSDT": { ctVal: 1, minSz: 1 },
-                    "DOTUSDT": { ctVal: 1, minSz: 1 },
-                    "NEARUSDT": { ctVal: 10, minSz: 1 },
-                    "SUIUSDT": { ctVal: 10, minSz: 1 },
-                    "OPUSDT": { ctVal: 10, minSz: 1 },
-                    "ARBUSDT": { ctVal: 10, minSz: 1 },
-                    "APTUSDT": { ctVal: 1, minSz: 1 },
-                    "GALAUSDT": { ctVal: 100, minSz: 1 }
+                    BTCUSDT: { ctVal: 0.01, minSz: 1 }, ETHUSDT: { ctVal: 0.1, minSz: 1 },
+                    SOLUSDT: { ctVal: 1, minSz: 1 }, SANDUSDT: { ctVal: 10, minSz: 1 },
+                    ADAUSDT: { ctVal: 100, minSz: 1 }, XRPUSDT: { ctVal: 10, minSz: 1 },
+                    DOGEUSDT: { ctVal: 100, minSz: 1 }, AVAXUSDT: { ctVal: 1, minSz: 1 },
+                    LINKUSDT: { ctVal: 1, minSz: 1 }, DOTUSDT: { ctVal: 1, minSz: 1 },
+                    NEARUSDT: { ctVal: 10, minSz: 1 }, SUIUSDT: { ctVal: 10, minSz: 1 },
+                    OPUSDT: { ctVal: 10, minSz: 1 }, ARBUSDT: { ctVal: 10, minSz: 1 },
+                    APTUSDT: { ctVal: 1, minSz: 1 }, GALAUSDT: { ctVal: 100, minSz: 1 }
                 };
 
-                // Obter informações do contrato (priorizando dados da API, senão fallback estático)
                 let meta = t.contract_meta || {};
-                const sym = t.symbol.replace("-USDT", "").replace("USDT", "") + "USDT";
-                if ((!meta.ctVal || meta.ctVal === "?") && okxStaticContracts[sym]) {
-                    meta = {
-                        ctVal: okxStaticContracts[sym].ctVal,
-                        minSz: okxStaticContracts[sym].minSz
-                    };
+                const sym = t.symbol.replace('-USDT', '').replace('USDT', '') + 'USDT';
+                if ((!meta.ctVal || meta.ctVal === '?') && okxStaticContracts[sym]) {
+                    meta = { ctVal: okxStaticContracts[sym].ctVal, minSz: okxStaticContracts[sym].minSz };
                 }
 
                 let contractInfo = `<span class="text-gray-500 font-mono text-xs">N/A</span>`;
                 if (meta && (meta.ctVal || meta.minSz)) {
-                    const ctVal = meta.ctVal || "?";
-                    const minSz = meta.minSz || "?";
-                    
-                    let minNocional = "";
+                    const ctVal = meta.ctVal || '?';
+                    const minSz = meta.minSz || '?';
+                    let minNocional = '';
                     try {
                         const ctValNum = parseFloat(ctVal);
                         let minSzNum = parseFloat(minSz);
-                        if (isNaN(minSzNum)) {
-                            minSzNum = 1.0;
-                        }
+                        if (isNaN(minSzNum)) minSzNum = 1.0;
                         const price = parseFloat(t.entry_price) || 0;
                         if (!isNaN(ctValNum) && price > 0) {
-                            const val = ctValNum * minSzNum * price;
-                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nocional Mín: $${val.toFixed(2)}</div>`;
+                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nocional Mín: $${(ctValNum * minSzNum * price).toFixed(2)}</div>`;
                         }
                     } catch (e) {}
-
                     contractInfo = `
                         <div class="flex flex-col font-mono text-xs text-gray-300">
                             <div>Mín: <span class="text-white font-bold">${minSz}</span> contr.</div>
@@ -430,7 +699,7 @@
                 }
 
                 return `
-                    <tr class="hover:bg-white/[0.01] transition-all">
+                    <tr class="trade-row">
                         <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
                         <td class="p-4">${contractInfo}</td>
                         <td class="p-4 font-mono text-xs">
@@ -467,16 +736,15 @@
             }).join('');
         }
 
+        // ==================== MODAL ====================
         function showHistory(tradeId) {
             const trade = tradesData.find(t => t.id === tradeId);
             if (!trade) return;
-
-            document.getElementById("modal-trade-id").innerText = tradeId;
-            const content = document.getElementById("modal-content");
-            
+            document.getElementById('modal-trade-id').innerText = tradeId;
+            const content = document.getElementById('modal-content');
             const history = trade.flash_state?.history || [];
             if (history.length === 0) {
-                content.innerHTML = `<p class="text-gray-500 font-mono text-xs text-center">Nenhum evento registrado.</p>`;
+                content.innerHTML = '<p class="text-gray-500 font-mono text-xs text-center">Nenhum evento registrado.</p>';
             } else {
                 content.innerHTML = history.map((h, i) => `
                     <div class="flex gap-3 text-xs border-l-2 border-primary/30 pl-4 py-1 relative">
@@ -485,70 +753,59 @@
                     </div>
                 `).join('');
             }
-
-            document.getElementById("history-modal").classList.remove("hidden");
+            document.getElementById('history-modal').classList.remove('hidden');
         }
 
         function closeModal() {
-            document.getElementById("history-modal").classList.add("hidden");
+            document.getElementById('history-modal').classList.add('hidden');
         }
 
+        // ==================== ACTIONS ====================
         async function clearSandbox() {
-            if (!confirm("Tem certeza que deseja limpar todo o histórico do Sandbox?")) return;
+            if (!confirm('Tem certeza que deseja limpar todo o histórico do Sandbox?')) return;
             try {
-                const res = await fetch("/api/sandbox/clear", { method: "POST" });
-                if (res.ok) {
-                    fetchData();
-                }
+                const res = await fetch('/api/sandbox/clear', { method: 'POST' });
+                if (res.ok) fetchData();
             } catch (err) {
-                console.error("Erro ao limpar sandbox:", err);
+                console.error('Erro ao limpar sandbox:', err);
             }
         }
 
         function exportCSV() {
-            if (tradesData.length === 0) {
-                alert("Sem dados para exportar.");
-                return;
-            }
-            
-            let csv = "ID,Symbol,Strategy,Direction,Entry Price,Exit Price,Max ROI %,Final PnL %,Status,Opened At\n";
+            if (tradesData.length === 0) { alert('Sem dados para exportar.'); return; }
+            let csv = 'ID,Symbol,Strategy,Direction,Entry Price,Exit Price,Max ROI %,Final PnL %,Status,Opened At\n';
             tradesData.forEach(t => {
                 const date = new Date(t.opened_at * 1000).toISOString();
                 csv += `"${t.id}","${t.symbol}","${t.strategy}","${t.direction}",${t.entry_price},${t.current_price},${t.max_roi},${t.pnl_pct},"${t.status}","${date}"\n`;
             });
-
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-            const link = document.createElement("a");
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.setAttribute("download", `sandbox_trades_${Date.now()}.csv`);
+            link.setAttribute('download', `sandbox_trades_${Date.now()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
-        // Loop de atualização a cada 2 segundos
-        setInterval(fetchData, 2000);
-        
+        // ==================== PATTERNS ====================
         async function fetchPatterns() {
             try {
-                const res = await fetch("/api/sandbox/patterns");
+                const res = await fetch('/api/sandbox/patterns');
                 if (res.ok) {
                     const data = await res.json();
+                    document.getElementById('patterns-status').innerText = 
+                        data.insights.suggested_action.includes('Continuar') ? 'Coletando Dados' : 'Amostragem Madura';
                     
-                    // Atualiza status da amostragem
-                    const statusEl = document.getElementById("patterns-status");
-                    statusEl.innerText = data.insights.suggested_action.includes("Continuar") ? "Coletando Dados" : "Amostragem Madura";
-                    
-                    // Direção
                     const longVal = data.direction_performance.LONG;
                     const shortVal = data.direction_performance.SHORT;
-                    document.getElementById("pattern-long-val").innerHTML = `${longVal.win_rate}% WR <span class="text-xs text-gray-500">(${longVal.total} trades, ${longVal.pnl >= 0 ? '+' : ''}${longVal.pnl.toFixed(1)}% PnL)</span>`;
-                    document.getElementById("pattern-short-val").innerHTML = `${shortVal.win_rate}% WR <span class="text-xs text-gray-500">(${shortVal.total} trades, ${shortVal.pnl >= 0 ? '+' : ''}${shortVal.pnl.toFixed(1)}% PnL)</span>`;
+                    document.getElementById('pattern-long-val').innerHTML = 
+                        `${longVal.win_rate}% WR <span class="text-xs text-gray-500">(${longVal.total} trades, ${longVal.pnl >= 0 ? '+' : ''}${longVal.pnl.toFixed(1)}% PnL)</span>`;
+                    document.getElementById('pattern-short-val').innerHTML = 
+                        `${shortVal.win_rate}% WR <span class="text-xs text-gray-500">(${shortVal.total} trades, ${shortVal.pnl >= 0 ? '+' : ''}${shortVal.pnl.toFixed(1)}% PnL)</span>`;
                     
-                    // Whitelist
-                    const wlEl = document.getElementById("pattern-whitelist");
+                    const wlEl = document.getElementById('pattern-whitelist');
                     if (data.recommended_pairs.length === 0) {
-                        wlEl.innerHTML = `<div class="text-gray-500">Nenhum par qualificado ainda.</div>`;
+                        wlEl.innerHTML = '<div class="text-gray-500">Nenhum par qualificado ainda.</div>';
                     } else {
                         wlEl.innerHTML = data.recommended_pairs.slice(0, 5).map(p => `
                             <div class="flex justify-between items-center py-0.5 border-b border-white/5">
@@ -558,10 +815,9 @@
                         `).join('');
                     }
 
-                    // Blacklist
-                    const blEl = document.getElementById("pattern-blacklist");
+                    const blEl = document.getElementById('pattern-blacklist');
                     if (data.blacklist_candidates.length === 0) {
-                        blEl.innerHTML = `<div class="text-gray-500">Nenhum par crítico identificado.</div>`;
+                        blEl.innerHTML = '<div class="text-gray-500">Nenhum par crítico identificado.</div>';
                     } else {
                         blEl.innerHTML = data.blacklist_candidates.slice(0, 5).map(p => `
                             <div class="flex justify-between items-center py-0.5 border-b border-white/5">
@@ -572,15 +828,20 @@
                     }
                 }
             } catch (err) {
-                console.error("Erro ao carregar insights de padrões:", err);
+                console.error('Erro ao carregar insights de padrões:', err);
             }
         }
-        
-        // Loop de patterns a cada 5 segundos
-        setInterval(fetchPatterns, 5000);
 
+        // ==================== POLLING LOOPS ====================
+        // Inicializar
         fetchData();
         fetchPatterns();
+        fetchAnalytics();
+
+        // Polling
+        setInterval(fetchData, 2000);
+        setInterval(fetchPatterns, 5000);
+        setInterval(fetchAnalytics, 5000);
     </script>
 </body>
 </html>

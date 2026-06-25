@@ -303,6 +303,33 @@ async def get_sandbox_analytics():
         
         avg_loss_roi = round(sum(t.pnl_pct for t in losses) / len(losses), 2) if losses else 0
         avg_win_roi = round(sum(t.pnl_pct for t in wins) / len(wins), 2) if wins else 0
+
+        # [V113] Zero-PnL statistics — trades que fecharam exatamente no entry
+        zero_pnl_trades = [t for t in closed if t.pnl_pct == 0.0]
+        zero_pnl_count = len(zero_pnl_trades)
+        zero_pnl_percent = round(zero_pnl_count / len(closed) * 100, 1) if closed else 0
+        # Média de MaxROI dos trades com zero PnL (para dimensionar o impacto da escadinha)
+        zero_pnl_avg_maxroi = round(sum(t.max_roi for t in zero_pnl_trades) / zero_pnl_count, 1) if zero_pnl_count else 0
+        
+        # Top winners and losers
+        winners_sorted = sorted(wins, key=lambda t: t.pnl_pct, reverse=True)[:5]
+        losers_sorted = sorted(losses, key=lambda t: t.pnl_pct)[:5]
+        
+        top_winners = [{
+            "symbol": t.symbol,
+            "pnl_pct": t.pnl_pct,
+            "max_roi": t.max_roi,
+            "strategy": t.strategy,
+            "direction": t.direction
+        } for t in winners_sorted]
+        
+        top_losers = [{
+            "symbol": t.symbol,
+            "pnl_pct": t.pnl_pct,
+            "max_roi": t.max_roi,
+            "strategy": t.strategy,
+            "direction": t.direction
+        } for t in losers_sorted]
         
         return {
             "total_analyzed": len(closed),
@@ -316,6 +343,11 @@ async def get_sandbox_analytics():
             "avg_loss_roi": avg_loss_roi,
             "avg_win_roi": avg_win_roi,
             "risk_reward_ratio": round(abs(avg_win_roi / avg_loss_roi), 2) if avg_loss_roi != 0 else 0,
+            "zero_pnl_count": zero_pnl_count,
+            "zero_pnl_percent": zero_pnl_percent,
+            "zero_pnl_avg_maxroi": zero_pnl_avg_maxroi,
+            "top_winners": top_winners,
+            "top_losers": top_losers,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar analytics: {str(e)}")

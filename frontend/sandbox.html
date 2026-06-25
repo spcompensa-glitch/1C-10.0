@@ -112,7 +112,7 @@
                         <span id="badge-decor" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue">DECOR SHADOW: <span id="count-decor">0</span></span>
                     </span>
                 </h1>
-                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V113 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x)</p>
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Forward Testing Lab V113 | BANCA: $22.00 | MARGEM/TRADE: $0.50~$1.00 (50x) | 40% DA BANCA (~$8.80)</p>
             </div>
         </div>
         <div class="flex items-center gap-4">
@@ -133,7 +133,7 @@
             <span class="material-icons-round text-primary text-3xl mt-1">science</span>
             <div>
                 <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais</h3>
-                <p class="text-sm text-gray-400">Este Sandbox captura todos os sinais gerados em tempo real pelo Radar. Ordens simuladas com <strong>banca virtual de $100,00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2,00 USD por ativo</strong> (2% da banca). O <strong>FlashAgent</strong> monitora e atualiza os stops em tempo real.</p>
+                <p class="text-sm text-gray-400">Este Sandbox captura todos os sinais gerados em tempo real pelo Radar. Ordens simuladas com <strong>banca virtual de $22,00 USD</strong> (espelhando a conta real), <strong>alavancagem 50x</strong> e <strong>margem de $0,50 ~ $1,00 USD por ativo</strong> (~40% da banca = $8,80). O <strong>FlashAgent</strong> monitora e atualiza os stops em tempo real.</p>
             </div>
         </div>
 
@@ -597,7 +597,7 @@
                     document.getElementById('stat-active').innerText = stats.active_trades;
                     document.getElementById('stat-winrate').innerText = stats.win_rate + '%';
                     document.getElementById('stat-pnl').innerText = (stats.total_pnl > 0 ? '+' : '') + stats.total_pnl.toFixed(2) + '%';
-                    const currentBalance = 100.0 + stats.total_pnl;
+                    const currentBalance = 22.0 * (1 + stats.total_pnl / 100.0); // Banca real $22 + PnL proporcional
                     document.getElementById('stat-balance').innerText = '$' + currentBalance.toFixed(2) + ' USD';
                     document.getElementById('stat-best').innerText = stats.best_strategy;
                 }

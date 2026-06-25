@@ -115,7 +115,10 @@ class SandboxService:
         Verifica se o stop foi violado usando PREÇO CONSERVATIVO.
         Para LONG: usa o LOW dos últimos 120s (pega dips intra-ciclo)
         Para SHORT: usa o HIGH dos últimos 120s (pega pumps intra-ciclo)
-        Fallback para preço atual se conservative não estiver disponível.
+        Fallback: preço atual WS → REST → cache (espelha FlashAgent).
+
+        FIX (bug raiz LDOUSDT): antes, se WS retornava 0 em ambas as chamadas,
+        retornava False sem consultar REST/cache — stop nunca era detectado.
         """
         if stop_price <= 0:
             return False
@@ -130,8 +133,14 @@ class SandboxService:
         except Exception:
             pass
 
-        # Confirmação: preço atual
+        # Fallback 1: preço atual via WS
         current_price = okx_ws_public_service.get_current_price(symbol)
+        if current_price > 0:
+            return (side.lower() == "buy" and current_price <= stop_price) or \
+                   (side.lower() == "sell" and current_price >= stop_price)
+
+        # Fallback 2: REST + cache (FIX — antes este fallback não existia)
+        current_price = await self._get_current_price(symbol)
         if current_price <= 0:
             return False
         return (side.lower() == "buy" and current_price <= stop_price) or \

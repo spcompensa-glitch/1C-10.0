@@ -172,16 +172,12 @@ class SandboxService:
 
     def _calculate_adaptive_stop(self, entry_price: float, side: str, contract_meta: dict, is_ranging: bool) -> float:
         """
-        Calcula stop inicial adaptativo baseado no tick_size e volatilidade do ativo.
-        Em vez de fixo -40%/-20%, usa um stop adaptativo:
-        - Lateral: -15% ROI (mais apertado, mercado sem tendencia)
-        - Tendencia: -30% ROI (mais largo, respiro para oscilacoes)
+        [V113.2] Stop inicial FIXO de -5% ROI em ambos os regimes.
+        Aposta no timing de entrada do sistema: se errar, perde quase nada.
+        Se acertar, o trade corre livre sem travas prematuras.
         Arredondado pelo tick_size do contrato.
         """
-        if is_ranging:
-            stop_roi = -15.0
-        else:
-            stop_roi = -30.0
+        stop_roi = -5.0
 
         stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, 50.0)
 
@@ -333,7 +329,7 @@ class SandboxService:
             # Stop inicial ADAPTATIVO (nao mais fixo -40%/-20%)
             contract_meta = sig.get("contract_info") or {}
             stop_price = self._calculate_adaptive_stop(entry_price, side, contract_meta, is_ranging)
-            initial_stop_roi = -15.0 if is_ranging else -30.0
+            initial_stop_roi = -5.0  # [V113.2] Stop fixo -5% em ambos regimes
 
             # ==================== ENTRY SANITY CHECK ====================
             # Verifica se o preço de mercado atual já está além do stop
@@ -346,7 +342,7 @@ class SandboxService:
                     mkt_price = await self._get_rest_price(symbol)
                 if mkt_price > 0 and entry_price > 0:
                     immediate_roi = proj_service.calculate_roi(entry_price, mkt_price, side, 50.0)
-                    stale_threshold = initial_stop_roi * 0.7  # 70% do stop
+                    stale_threshold = max(initial_stop_roi * 0.7, -10.0)  # [V113.2] Floor -10% p/ evitar descartes por ruído de tick (com -5% stop, 70% = -3.5% = 0.07% price move — muito apertado)
                     if immediate_roi <= stale_threshold:
                         logger.warning(
                             f"🧪 [SANDBOX-STALE] {symbol} {strategy} {direction} descartado — "

@@ -45,12 +45,14 @@ async def get_sandbox_stats():
         
         wins = 0
         losses = 0
-        total_pnl_usd = 0.0  # Lucro acumulado em dólares com base em $2 de margem por trade
+        total_pnl_usd = 0.0  # [V113.2] Lucro acumulado em USD com margem média de $0.75
+        BANCA = 22.0
+        MARGEM_MEDIA = 0.75
         strategy_stats = {}
 
         for t in trades:
-            # PnL USD de cada trade: (ROI / 100) * $2.00 de margem
-            trade_pnl_usd = (t.pnl_pct / 100.0) * 2.0
+            # PnL USD: (ROI / 100) * $0.75 de margem (entre $0.50 e $1.00)
+            trade_pnl_usd = (t.pnl_pct / 100.0) * MARGEM_MEDIA
             
             # Somar no PnL total da banca
             total_pnl_usd += trade_pnl_usd
@@ -76,15 +78,15 @@ async def get_sandbox_stats():
             else:
                 strategy_stats[strat]["pnl_usd"] += trade_pnl_usd
 
-        # ROI da banca de $100.00: (total_pnl_usd / 100.0) * 100 = total_pnl_usd
-        bank_pnl_percent = total_pnl_usd
+        # [V113.2] ROI real da banca de $22.00: (total_pnl_usd / BANCA) * 100
+        bank_pnl_percent = (total_pnl_usd / BANCA) * 100.0
 
         win_rate = (wins / closed * 100.0) if closed > 0 else 0.0
         avg_pnl = (bank_pnl_percent / total) if total > 0 else 0.0
 
-        # Para cada estratégia, converter pnl_usd para o ROI equivalente da banca
+        # [V113.2] Converter pnl_usd de cada estratégia para % da banca $22.00
         for strat in strategy_stats:
-            strategy_stats[strat]["pnl"] = strategy_stats[strat]["pnl_usd"]
+            strategy_stats[strat]["pnl"] = (strategy_stats[strat]["pnl_usd"] / BANCA) * 100.0
 
         # Encontrar melhor estratégia baseada em PnL total
         best_strategy = "N/A"

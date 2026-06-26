@@ -391,7 +391,7 @@ class SandboxService:
                 )
                 continue
 
-            # [V117] Confirmação 5M — BLOQUEIA se ambos os candles fechados vão contra o sinal
+            # [V118.3] Confirmação 5M — exige maioria 2/3 dos candles alinhada com a direção do sinal
             tf_result = await self._check_5m_confirmation(symbol, side)
             if not tf_result.get("confirmed", True):
                 logger.info(
@@ -537,14 +537,15 @@ class SandboxService:
 
     async def _check_5m_confirmation(self, symbol: str, side: str) -> dict:
         """
-        [V116] Confirmação de entrada pelo TF de 5 minutos.
+        [V118.3] Confirmação de entrada pelo TF de 5 minutos com alinhamento de tendência.
 
-        Lógica (V117 — filtro real, não apenas score boost):
+        Lógica:
           - Busca os últimos 5 candles de 5m via OKX REST
-          - Avalia os 2 candles mais recentes FECHADOS (ignora candle aberto em formação)
-          - Para SHORT: BLOQUEIA apenas se AMBOS os 2 candles são bullish (0 bearish)
-          - Para LONG:  BLOQUEIA apenas se AMBOS os 2 candles são bearish (0 bullish)
-          - Se 1/2 confirma a direção: APROVA (threshold permissivo para não perder entradas legítimas)
+          - Avalia os 3 candles mais recentes FECHADOS (ignora candle aberto em formação)
+          - Para SHORT: BLOQUEIA se < 2 candles são bearish (0 ou 1 bearish = minoria)
+          - Para LONG:  BLOQUEIA se < 2 candles são bullish (0 ou 1 bullish = minoria)
+          - Exige maioria 2/3 para confirmar alinhamento com a direção do sinal
+          - Se aprovado: score_boost = +10 (3/3) ou +5 (2/3)
           - Fail-open: se API falhar ou candles insuficientes, APROVA sem bloquear
 
         Retorna dict:
@@ -559,12 +560,12 @@ class SandboxService:
         try:
             from services.okx_rest import okx_rest_service
             candles = await okx_rest_service.get_klines(symbol, interval="5", limit=5)
-            if not candles or len(candles) < 3:
+            if not candles or len(candles) < 4:
                 result["detail"] = "candles insuficientes — fail-open"
                 return result
 
-            # Ignora candle[0] que pode estar aberto; usa [1] e [2] (fechados)
-            closed = candles[1:3]
+            # Ignora candle[0] que pode estar aberto; usa [1], [2] e [3] (fechados)
+            closed = candles[1:4]
 
             bearish_count = 0
             bullish_count = 0
@@ -588,24 +589,30 @@ class SandboxService:
 
             dir_str = " + ".join(directions)
 
+            # Se todos DOJI/UNK, fail-open (não consegue determinar direção)
+            total_valid = bearish_count + bullish_count
+            if total_valid == 0:
+                result["detail"] = "candles sem direção definida — fail-open"
+                return result
+
             if is_short:
-                # SHORT: bloqueia só se TODOS os 2 candles fechados são bullish (0 bearish)
-                if bearish_count == 0 and bullish_count == 2:
+                # [V118.3] SHORT: exige maioria bearish (>= 2/3)
+                if bearish_count < 2:
                     result["confirmed"] = False
                     result["score_boost"] = 0.0
-                    result["detail"] = f"5m BLOCK SHORT — 2/2 bullish ({dir_str}): momentum contrário"
+                    result["detail"] = f"5m BLOCK SHORT — {bearish_count}/3 bearish ({dir_str}): 5M nao esta em SHORT"
                     return result
-                boost = 10.0 if bearish_count == 2 else (5.0 if bearish_count == 1 else 0.0)
-                label = "FORTE" if bearish_count == 2 else ("MODERADA" if bearish_count == 1 else "FRACA")
+                boost = 10.0 if bearish_count >= 3 else 5.0
+                label = "FORTE" if bearish_count >= 3 else "MODERADA"
             else:
-                # LONG: bloqueia só se TODOS os 2 candles fechados são bearish (0 bullish)
-                if bullish_count == 0 and bearish_count == 2:
+                # [V118.3] LONG: exige maioria bullish (>= 2/3)
+                if bullish_count < 2:
                     result["confirmed"] = False
                     result["score_boost"] = 0.0
-                    result["detail"] = f"5m BLOCK LONG — 2/2 bearish ({dir_str}): momentum contrário"
+                    result["detail"] = f"5m BLOCK LONG — {bullish_count}/3 bullish ({dir_str}): 5M nao esta em LONG"
                     return result
-                boost = 10.0 if bullish_count == 2 else (5.0 if bullish_count == 1 else 0.0)
-                label = "FORTE" if bullish_count == 2 else ("MODERADA" if bullish_count == 1 else "FRACA")
+                boost = 10.0 if bullish_count >= 3 else 5.0
+                label = "FORTE" if bullish_count >= 3 else "MODERADA"
 
             result["confirmed"] = True
             result["score_boost"] = boost

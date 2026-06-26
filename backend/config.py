@@ -248,7 +248,10 @@ class Settings(BaseSettings):
         # SUIUSDT: 4 trades com WR 25%, PnL -21.43%
         # TRXUSDT: 100% loss rate no sandbox
         # TIAUSDT: 100% loss rate no sandbox
-        'AAVEUSDT', 'CRVUSDT', 'SUIUSDT', 'TRXUSDT', 'TIAUSDT'
+        'AAVEUSDT', 'CRVUSDT', 'SUIUSDT', 'TRXUSDT', 'TIAUSDT',
+        # [V118] Sandbox: Pares 0% win rate em 5+ trades — blacklist temporária
+        # Para re-testar futuramente, remover daqui
+        'ONDOUSDT', 'LINKUSDT', 'AVAXUSDT', 'SOLUSDT', 'JUPUSDT'
     }
 
     # Fast API context

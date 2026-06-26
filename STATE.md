@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-25 (V116 — Sandbox 5M Confirmation + Captain Bugfix)*
+*Ultima atualizacao: 2026-06-26 (V118 — Regime Gating Removido + GARANTIA_5 + Filtro LONGS decorrelacionados)*
 
 ---
 
@@ -43,22 +43,20 @@
 
 ## Regime de Mercado
 
-O sistema opera exclusivamente com gating por regime ADX:
+**O regime gating foi removido** (V118). Todas as estrategias (VELOCITY FLOW, ALPHA SHIELD, DECOR SHADOW) operam em qualquer regime.
 
-| ADX | Regime | Estrategias Permitidas |
-|-----|--------|----------------------|
-| < 25 | LATERAL | DECOR SHADOW, DECOR_HUNTER |
-| >= 25 | TENDENCIA | VELOCITY FLOW, ALPHA SHIELD |
+O risco e mitigado por:
+- **GARANTIA_5**: stop → 0% aos +5% ROI (break-even antecipado)
+- **Filtro de LONGS**: apenas pares desgrudados do BTC (Pearson < 0.35) com gas (confidence >= 70)
 
-**Filtro de direcao BTC**: SMA 200 diaria determina se so LONG (acima) ou so SHORT (abaixo) sao permitidos.
+**MACRO-BLOCK**: LONGs aprovados pelo filtro de decorrelacao tambem furam o MACRO-BLOCK.
 
 ---
 
 ## Escadinha de Stops
 
-### Lateral (simplificada)
-- 5% ROI -> stop -10%
-- 10% ROI -> stop 0% (break-even)
+### Lateral (simplificada) — V118
+- 5% ROI -> stop 0% (GARANTIA_5 — break-even antecipado)
 - 15% ROI -> saida parcial 50%
 - 20%+ ROI -> trailing dinamico
 
@@ -128,40 +126,42 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - PnL calculado: `(ROI% / 100) * $0.75` por trade; total como % da banca $22
 - **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
 - **Monitoramento**: loop de 1s identico ao FlashAgent
-- **Estrategias aceitas por regime**:
-  - LATERAL (ADX < 25): ALPHA SHIELD, DECOR SHADOW
-  - TENDENCIA (ADX >= 25): VELOCITY FLOW, ALPHA SHIELD
+- **[V118] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
+- **[V118] LONGS filtrados**: apenas pares desgrudados do BTC (Pearson < 0.35) com gas (CVD/volume, confidence >= 70)
 - **Stop inicial adaptativo (V113.2)**:
   - Todos os regimes: **-5% ROI** (unificado)
   - Anterior: LATERAL -15%, TENDENCIA -30% (descontinuado)
-- **[V114] Cooldown pos stop-out**: 300s por simbolo apos qualquer `CLOSED_SL`
+- **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (600s se 2+ stops consecutivos na mesma direcao)
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
-- **[V116] Confirmacao 5M antes de abrir** (substituiu filtro 1M):
+- **[V117] Confirmacao 5M antes de abrir** (substituiu filtro 1M):
   - Busca 5 candles de 5M, verifica os 2 mais recentes FECHADOS
-  - SHORT: candles bearish (close < open) confirmam
-  - LONG: candles bullish (close > open) confirmam
-  - NAO bloqueia trade — apenas da boost de score (+5 ou +10)
-  - 0/2 = FRACA (+0), 1/2 = MODERADA (+5), 2/2 = FORTE (+10)
+  - SHORT: bloqueia se AMBOS os 2 candles sao bullish (0/2 bearish)
+  - LONG: bloqueia se AMBOS os 2 candles sao bearish (0/2 bullish)
+  - Se 1/2 confirma: aprovado com boost +5; 2/2: boost +10
   - fail-open se API falhar
 - **[V116] MACRO-BLOCK relaxado**:
-  - LATERAL (ADX < 25): MACRO-BLOCK desativado (DECOR SHADOW resistente a correlacao BTC)
+  - LATERAL (ADX < 25): MACRO-BLOCK desativado
   - TRENDING: sinais com score >= 80 furam MACRO-BLOCK (high_score_bypass)
+  - **[V118]**: LONGs aprovados pelo filtro de decorrelacao tambem furam MACRO-BLOCK
 - **Entry Sanity Check**: descarta sinais com ROI imediato ja < 70% do stop (floor -10%)
 - **Resolucao de preco**: WS -> REST -> cache (60s TTL)
 - **Conservative price**: HIGH/LOW dos ultimos 120s para capturar spikes intra-ciclo
 - **Escadinha**: usa `OrderProjectionService` identico ao sistema real
 - **Peak ROI**: persistido em cache + banco (sobrevive a reinicializacoes)
 - **Saida parcial**: +15% ROI em LATERAL -> 50% saida imediata; PnL = media 50/50
-- **Auto-blocklist**: pares com PnL < -20% E WR < 30% apos 5+ trades bloqueados em runtime
+- **[V118] Auto-blocklist**: pares com PnL < -15% E WR < 35% apos 3+ trades bloqueados em runtime (era 5+ trades, -20%, 30%)
 
-### Logs do Sandbox (V116)
+### Logs do Sandbox (V118)
 | Log | Significado |
 |-----|-------------|
 | `[SANDBOX-OPEN]` | Trade aberto |
 | `[SANDBOX-STALE]` | Entry defasado — descartado |
-| `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s iniciado apos stop-out |
+| `[SANDBOX-LONG-FILTER]` | LONG descartado — par nao esta desgrudado do BTC |
+| `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/600s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
-| `[SANDBOX-5M]` | Confirmacao 5M: boost de score aplicado |
+| `[SANDBOX-5M]` | Confirmacao 5M (+5/+10 block/boost) |
+| `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M contra o sinal |
+| `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%) |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
 

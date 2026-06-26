@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-25 (V116 — Sandbox 5M Confirmation + Captain Bugfix)*
+*Ultima atualizacao: 2026-06-26 (V118 — Regime Gating Removido + GARANTIA_5 + Filtro LONGS decorrelacionados)*
 
 ---
 
@@ -160,10 +160,16 @@ Niveis `ULTRA_*` a cada 200% ROI. Stop = gatilho - 200%.
 
 ### 5.1 Grade ADX
 
+**[V118] Regime gating removido.** VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime.
+
 | Condicao | Acao |
 |----------|------|
-| ADX < 25 | LATERAL: apenas DECOR SHADOW executado |
-| ADX >= 25 | TENDENCIA: apenas VELOCITY FLOW e ALPHA SHIELD |
+| ADX < 25 | LATERAL: todas as estrategias permitidas (risco mitigado pela escadinha GARANTIA_5) |
+| ADX >= 25 | TENDENCIA: todas as estrategias permitidas |
+
+**Filtro adicional V118 para LONGS:**
+- Apenas pares desgrudados do BTC (Pearson < 0.35) com gas (confidence >= 70)
+- LONGS aprovados tambem furam o MACRO-BLOCK
 
 ### 5.2 Direcao do BTC
 
@@ -449,7 +455,9 @@ firebase_service.update_radar_pulse(signals)
               |
               v
           _process_radar_signals()
-              |-- Filtro ADX/regime (mesmo atributo btc_adx do FlashAgent)
+              |-- [V118] Filtro ADX/regime: REMOVIDO — todas as estrategias livres
+              |-- [V118] Filtro LONGS: apenas pares desgrudados (Pearson < 0.35) com gas
+              |-- [V118] LONGs aprovados furam MACRO-BLOCK (decor_bypass)
               |-- Filtro macro BTC (SMA 200 diaria)
               |-- Filtro blocklist (ASSET_BLOCKLIST + auto-blocklist)
               |-- Filtro horario abertura US (13:30-14:30 UTC)
@@ -523,7 +531,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 - **Escadinha**: usa `OrderProjectionService.get_stop_ladder()` + `get_active_level()` — **identico ao FlashAgent real**.
 - **Saida parcial lateral**: ao atingir +15% ROI em regime LATERAL, registra `has_taken_partial=True`; PnL final = media 50/50.
 - **Confirmacao REST antes de fechar**: apos `stop_hit=True`, busca preco fresco via REST antes de persistir o fechamento.
-- **Auto-blocklist**: pares com PnL total < -20% E win rate < 30% apos 5+ trades sao bloqueados automaticamente em runtime. Verificado a cada 120s.
+- **Auto-blocklist [V118]**: pares com PnL total < -15% E win rate < 35% apos 3+ trades bloqueados automaticamente em runtime (era 5/20/30). Verificado a cada 120s.
 
 ### 15.7 Constantes do SandboxService (V113.2 / V114)
 
@@ -539,12 +547,12 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Stop inicial (todos os regimes) | **-5% ROI** | `sandbox_service.py` (V113.2) |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
-| [V116] Candles 5M para confirmacao | 5 candles, boost +5/+10, nao bloqueia | `sandbox_service.py` |
+| [V117] Candles 5M para confirmacao | 5 candles, 2 fechados, bloqueia se 0/2 confirmam | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
 | Placeholder banca (HTML) | **$22.00 USD** | `sandbox.html:158` |
 | Auto-blocklist check | 120s | `sandbox_service.py` |
-| Auto-blocklist criterio | PnL < -20% E WR < 30% apos 5+ trades | `sandbox_service.py` |
+| [V118] Auto-blocklist criterio | PnL < -15% E WR < 35% apos 3+ trades | `sandbox_service.py` |
 
 ### 15.8 Logs esperados no comportamento normal
 
@@ -576,6 +584,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Captain UnboundLocalError | V116 | `_run_user_execution_logic` crashava com `settings` nao importado. Fix: `from config import settings` no topo da funcao |
 | MACRO-BLOCK impossivel bypass | V116 | DECOR SHADOW bloqueada por pearson > 0.85 (bypass impossivel). Fix: MACRO-BLOCK desativado em LATERAL, high_score_bypass em TRENDING |
 | 1M-REJECT 100% sinais | V116 | Filtro 1M requeria 2/3 candles confirmando mas quase sempre 0/3 confirmavam. Fix: Substituido por 5M confirmation (boost, nao bloqueia) |
+| Regime gating + GARANTIA_5 + LONGS filter | V118 | 100% VELOCITY FLOW, LONGS perdendo, escadinha nao capturava lucro. Fix: regime gating removido, GARANTIA_5 (break-even +5%), LONGS exigem decorrelacao+gas, auto-blocklist mais agressivo |
 
 ---
 

@@ -248,14 +248,9 @@ class SandboxService:
                 pass
             is_ranging = (adx_val < 25)
 
-            if is_ranging:
-                if strategy not in ("DECOR SHADOW", "ALPHA SHIELD"):
-                    continue
-            else:
-                if strategy not in ("VELOCITY FLOW", "ALPHA SHIELD"):
-                    continue
+            # [V118] Regime gating removido — todas as estratégias (VF, AS, DS) livres em qualquer regime
 
-            # [V113] Check static + auto-blocklist
+            # [V118] Check static + auto-blocklist
             try:
                 from config import settings
                 static_blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
@@ -280,6 +275,34 @@ class SandboxService:
                         decor_bypass = True
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
+
+            # [V118] LONG trades exigem desgrudado do BTC (Pearson < 0.35) + GÁS (confidence >= 70)
+            if direction == "LONG":
+                decor_data = sig.get("decorrelation") or {}
+                is_decorrelated = decor_data.get("is_decorrelated", False)
+                pearson = decor_data.get("pearson", decor_data.get("correlation", 1.0))
+                decor_confidence = decor_data.get("confidence", 0.0)
+
+                # Se dados de decorrelação ausentes, tenta computar
+                if pearson >= 0.99 or not decor_data.get("signals"):
+                    try:
+                        from services.signal_generator import signal_generator
+                        d_res = await signal_generator.detect_btc_decorrelation(symbol)
+                        is_decorrelated = d_res.get("is_decorrelated", False)
+                        pearson = d_res.get("pearson", d_res.get("correlation", 1.0))
+                        decor_confidence = d_res.get("confidence", 0.0)
+                    except Exception:
+                        pass
+
+                if not is_decorrelated or pearson >= 0.35 or decor_confidence < 70:
+                    logger.info(
+                        f"🧪 [SANDBOX-LONG-FILTER] {symbol} {strategy} LONG descartado — "
+                        f"par não está desgrudado do BTC com gás suficiente: "
+                        f"decorrelated={is_decorrelated}, pearson={pearson:.2f}, confidence={decor_confidence:.0f}"
+                    )
+                    continue
+                # Se passou no filtro V118, também passa no MACRO-BLOCK
+                decor_bypass = True
 
             # [V117] Filtro de horário e ADX noturno
             # UTC 22h-08h = noite asiática/madrugada europeia — chop mesmo com ADX=TRENDING
@@ -599,13 +622,13 @@ class SandboxService:
     # ==================== AUTO-BLOCKLIST (V113) ====================
 
     async def _update_auto_blocklist(self):
-        """[V113] Varre trades fechados e bloqueia pares com performance crítica.
-        Critério: PnL total < -20% E win rate < 30% após 5+ trades fechados.
+        """[V118] Varre trades fechados e bloqueia pares com performance crítica.
+        Critério: PnL total < -15% E win rate < 35% após 3+ trades fechados.
         """
         try:
             all_trades = await database_service.get_sandbox_trades(active_only=False)
             closed = [t for t in all_trades if t.status != "ACTIVE"]
-            if len(closed) < 5:
+            if len(closed) < 3:
                 return
 
             pair_stats = {}
@@ -614,15 +637,21 @@ class SandboxService:
                 if sym not in pair_stats:
                     pair_stats[sym] = {"total": 0, "wins": 0, "pnl": 0.0}
                 pair_stats[sym]["total"] += 1
-                pair_stats[sym]["pnl"] += t.pnl_pct
-                if t.pnl_pct > 0:
+                # [V118] Garantir que pnl_pct seja float
+                try:
+                    pnl_val = float(t.pnl_pct or 0.0)
+                except (ValueError, TypeError):
+                    pnl_val = 0.0
+                pair_stats[sym]["pnl"] += pnl_val
+                if pnl_val > 0:
                     pair_stats[sym]["wins"] += 1
 
             newly_blocked = []
             for sym, stats in pair_stats.items():
-                if stats["total"] >= 5:
+                if stats["total"] >= 3:  # [V118] Reduzido de 5 para 3 trades
                     wr = (stats["wins"] / stats["total"]) * 100.0
-                    if stats["pnl"] < -20.0 and wr < 30.0:
+                    # [V118] Critério mais agressivo: PnL < -15% (era -20%) e WR < 35% (era 30%)
+                    if stats["pnl"] < -15.0 and wr < 35.0:
                         if sym not in self._auto_blocklist:
                             self._auto_blocklist.add(sym)
                             newly_blocked.append(sym)
@@ -758,10 +787,10 @@ class SandboxService:
             pnl_pct = current_roi
 
         # 9. Escadinha
-        # [V117] GARANTIA_10: degrau antecipado — +10% ROI → stop vai a 0% (break-even)
-        # Protege a largada rapidamente: se o preço mover +0.2% (50x) e cair, saímos empatados
-        # Rationale: se o trade vai de verdade, +10% ROI é só o começo (vai pro +100%, +200%...)
-        # Se voltar do +10% para o 0%, não faz sentido carregar — melhor resetar e esperar próxima
+        # [V118] GARANTIA_5: degrau antecipado — +5% ROI → stop vai a 0% (break-even)
+        # Protege a largada rapidamente: se o preço mover +0.1% (50x) e cair, saímos empatados
+        # Se o trade tem força, +5% ROI é só o começo (vai pro +100%, +200%, +1200%...)
+        # Se voltar do +5% para o 0%, pagamos só taxas e estamos prontos para re-tentar
         ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
 
@@ -769,16 +798,16 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        # [V117] GARANTIA_10 — break-even antecipado em +10% ROI
-        # Só aplica se ainda não passou do GARANTIA_10 (current_stop_roi < 0)
-        if max_roi >= 10.0 and current_stop_roi < 0.0:
+        # [V118] GARANTIA_5 — break-even antecipado em +5% ROI
+        # Só aplica se ainda não passou do GARANTIA_5 (current_stop_roi < 0)
+        if max_roi >= 5.0 and current_stop_roi < 0.0:
             new_stop_roi = 0.0  # break-even
             if new_stop_roi > current_stop_roi:
                 updated_stop_roi = new_stop_roi
-                updated_level_name = "GARANTIA_10"
+                updated_level_name = "GARANTIA_5"
                 updated_phase = "ESCADINHA"
-                history.append(f"[V117] GARANTIA_10: Break-even ativado a {max_roi:.1f}% ROI — stop → 0%")
-                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_10 ativado (max_roi={max_roi:.1f}%) — stop agora em 0% ROI")
+                history.append(f"[V118] GARANTIA_5: Break-even ativado a {max_roi:.1f}% ROI — stop → 0%")
+                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_5 ativado (max_roi={max_roi:.1f}%) — stop agora em 0% ROI")
 
         if active_level:
             new_stop_roi = active_level.stop_roi

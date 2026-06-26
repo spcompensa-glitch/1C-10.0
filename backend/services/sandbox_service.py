@@ -176,28 +176,161 @@ class SandboxService:
         rounded = (Decimal(str(price)) / tick).quantize(Decimal("1"), rounding=rounding) * tick
         return float(rounded.normalize())
 
-    # ==================== ADAPTIVE STOP ====================
+    # ==================== ADAPTIVE STOP (V119 — 30M Structural) ====================
 
-    def _calculate_adaptive_stop(self, entry_price: float, side: str, contract_meta: dict, is_ranging: bool) -> float:
+    async def _get_30m_structural_stop(self, symbol: str, entry_price: float, side: str) -> Optional[float]:
         """
-        [V118.4] Stop inicial adaptativo por regime:
-          - LATERAL (ADX < 25): -10% ROI (mercado lateral, mais espaço para evitar stops em chop)
-          - TRENDING (ADX >= 25): -15% ROI (tendência, pullbacks maiores precisam de mais folga)
+        [V119] Stop estrutural baseado no TF 30M.
+
+        Lógica:
+          - Busca 100 candles de 30M (~50h de dados)
+          - Para LONG: encontra swing lows (suportes) abaixo do entry
+          - Para SHORT: encontra swing highs (resistências) acima do entry
+          - Posiciona stop com buffer de 0.15% além do nível estrutural
+          - Se não encontrar swing válido: retorna None (fallback para % fixo)
+
+        Swing detection (lookback=2 para filtrar ruído):
+          - swing low: candle low < lows dos 2 candles vizinhos
+          - swing high: candle high > highs dos 2 candles vizinhos
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+            candles = await okx_rest_service.get_klines(symbol, interval="30", limit=100)
+            if not candles or len(candles) < 15:
+                logger.debug(f"[SANDBOX-V119] {symbol}: klines 30M insuficientes ({len(candles) if candles else 0}) — fallback")
+                return None
+
+            # OKX retorna mais recentes primeiro → inverter para ordem cronológica
+            candles = list(reversed(candles))
+
+            is_long = side.lower() in ("buy", "long", "b")
+            lookback = 2
+
+            if is_long:
+                # Encontrar swing lows (suportes) abaixo do entry
+                swing_lows = []
+                for i in range(lookback, len(candles) - lookback):
+                    try:
+                        low_prev = float(candles[i - lookback].get("low") or candles[i - lookback][3])
+                        low_curr = float(candles[i].get("low") or candles[i][3])
+                        low_next = float(candles[i + lookback].get("low") or candles[i + lookback][3])
+                        if low_curr < low_prev and low_curr < low_next and low_curr < entry_price:
+                            swing_lows.append(low_curr)
+                    except Exception:
+                        pass
+
+                if not swing_lows:
+                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: nenhum swing low abaixo de {entry_price:.4f}")
+                    return None
+
+                # [V119-FIX] Seleciona o swing low mais significativo (maior distância até o entry)
+                # para dar espaço real para o preço respirar
+                structural_level = max(swing_lows, key=lambda x: entry_price - x)
+                distance_pct = (entry_price - structural_level) / entry_price * 100
+                # Mínimo 0.3% de distância do entry para ser válido
+                if distance_pct < 0.3:
+                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low mais significativo muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    return None
+                buffer = structural_level * 0.0015  # 0.15% buffer abaixo do suporte
+                buffer = max(buffer, structural_level * 0.0005)  # mínimo 0.05% do nível estrutural
+                stop_price = structural_level - buffer
+                logger.debug(
+                    f"🧪 [SANDBOX-V119] {symbol} LONG: stop estrutural 30M="
+                    f"{stop_price:.4f} (swing_low={structural_level:.4f}, buffer={buffer:.6f}, "
+                    f"swing_lows_detectados={len(swing_lows)})"
+                )
+            else:
+                # Encontrar swing highs (resistências) acima do entry
+                swing_highs = []
+                for i in range(lookback, len(candles) - lookback):
+                    try:
+                        high_prev = float(candles[i - lookback].get("high") or candles[i - lookback][2])
+                        high_curr = float(candles[i].get("high") or candles[i][2])
+                        high_next = float(candles[i + lookback].get("high") or candles[i + lookback][2])
+                        if high_curr > high_prev and high_curr > high_next and high_curr > entry_price:
+                            swing_highs.append(high_curr)
+                    except Exception:
+                        pass
+
+                if not swing_highs:
+                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: nenhum swing high acima de {entry_price:.4f}")
+                    return None
+
+                # [V119-FIX] Seleciona o swing high mais significativo (maior distância até o entry)
+                # para dar espaço real para o preço respirar
+                structural_level = min(swing_highs, key=lambda x: x - entry_price)
+                distance_pct = (structural_level - entry_price) / entry_price * 100
+                # Mínimo 0.3% de distância do entry para ser válido
+                if distance_pct < 0.3:
+                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high mais significativo muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    return None
+                buffer = structural_level * 0.0015  # 0.15% buffer acima da resistência
+                buffer = max(buffer, structural_level * 0.0005)  # mínimo 0.05% do nível estrutural
+                stop_price = structural_level + buffer
+                logger.debug(
+                    f"🧪 [SANDBOX-V119] {symbol} SHORT: stop estrutural 30M="
+                    f"{stop_price:.4f} (swing_high={structural_level:.4f}, buffer={buffer:.6f}, "
+                    f"swing_highs_detectados={len(swing_highs)})"
+                )
+
+            return stop_price
+
+        except Exception as e:
+            logger.debug(f"[SANDBOX-V119] {symbol}: erro ao calcular stop estrutural 30M: {e} — fallback")
+            return None
+
+    async def _calculate_adaptive_stop(self, symbol: str, entry_price: float, side: str, contract_meta: dict, is_ranging: bool) -> Dict[str, Any]:
+        """
+        [V119] Stop inicial adaptativo baseado em estrutura 30M.
+
+        Prioridade:
+          1. Stop estrutural 30M (swing low/high + buffer)
+          2. Fallback: regime fixo — LATERAL -10%, TRENDING -15%
+
         GARANTIA_5 (escadinha): +5% ROI → stop vai a 0% (proteção rápida do capital).
         Arredondado pelo tick_size do contrato.
+
+        Retorna dict:
+          { "stop_price": float, "stop_roi": float, "source": str }
         """
-        stop_roi = -10.0 if is_ranging else -15.0
-
-        stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, 50.0)
-
-        # Arredondar por tick_size se disponível
+        leverage = 50.0
+        fallback_roi = -10.0 if is_ranging else -15.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
-        if tick_size > 0:
-            stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
 
-        return stop_price
+        # 1. Tentar stop estrutural 30M
+        structural_stop = await self._get_30m_structural_stop(symbol, entry_price, side)
+        if structural_stop and structural_stop > 0:
+            stop_price = structural_stop
+            # Verificar se o ROI resultante é razoável (entre -5% e -30%)
+            stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
+            if -30.0 <= stop_roi <= -5.0:
+                source = "structural_30m"
+                if tick_size > 0:
+                    stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
+                logger.info(
+                    f"🧪 [SANDBOX-V119] {symbol} stop estrutural 30M aprovado: "
+                    f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
+                )
+                return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
+            else:
+                logger.info(
+                    f"🧪 [SANDBOX-V119] {symbol} stop estrutural 30M rejeitado: "
+                    f"ROI={stop_roi:.1f}% fora do range [-30%, -5%] — usando fallback"
+                )
+
+        # 2. Fallback: regime fixo
+        stop_price = proj_service.raw_price_from_roi(entry_price, fallback_roi, side, leverage)
+        if tick_size > 0:
+            stop_price = self._round_stop_to_tick(stop_price, tick_size, side, fallback_roi)
+        stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
+        source = "regime_fixed"
+        logger.info(
+            f"🧪 [SANDBOX-V119] {symbol} usando fallback regime: "
+            f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
+        )
+        return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
 
     # ==================== SIGNAL PROCESSING ====================
 
@@ -405,11 +538,11 @@ class SandboxService:
 
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
-            # [V118.4] Stop inicial adaptativo por regime
+            # [V119] Stop inicial adaptativo baseado em estrutura 30M
             contract_meta = sig.get("contract_info") or {}
-            stop_price = self._calculate_adaptive_stop(entry_price, side, contract_meta, is_ranging)
-            # LATERAL: -10% / TRENDING: -15% — GARANTIA_5 na escadinha leva stop a 0% aos +5% ROI
-            initial_stop_roi = -10.0 if is_ranging else -15.0
+            stop_result = await self._calculate_adaptive_stop(symbol, entry_price, side, contract_meta, is_ranging)
+            stop_price = stop_result["stop_price"]
+            initial_stop_roi = stop_result["stop_roi"]
 
             # ==================== ENTRY SANITY CHECK ====================
             # Verifica se o preço de mercado atual já está além do stop
@@ -453,7 +586,7 @@ class SandboxService:
                     "active_level": "INICIAL",
                     "stop_roi": initial_stop_roi,
                     "regime": "LATERAL" if is_ranging else "TRENDING",
-                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} ({initial_stop_roi}% ROI)"]
+                    "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} ({initial_stop_roi}% ROI, source={stop_result['source']})"]
                 },
                 "contract_meta": contract_meta
             }
@@ -463,7 +596,7 @@ class SandboxService:
 
             logger.info(
                 f"🧪 [SANDBOX-OPEN] {symbol} {strategy} {direction} | "
-                f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi}%) | "
+                f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi:.1f}%, src={stop_result['source']}) | "
                 f"MktPrice={mkt_price:.4f} | TickSize={contract_meta.get('tickSize', 'N/A')}"
             )
 

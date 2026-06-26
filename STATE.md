@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-26 (V118.4 — Stop adaptativo por regime: LATERAL -10%, TRENDING -15%)*
+*Ultima atualizacao: 2026-06-26 (V119 — Stop estrutural 30M: swing low/high + buffer)*
 
 ---
 
@@ -128,9 +128,11 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **Monitoramento**: loop de 1s identico ao FlashAgent
 - **[V118] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
 - **[V118] LONGS filtrados**: apenas pares desgrudados do BTC (Pearson < 0.35) com gas (CVD/volume, confidence >= 70)
-- **[V118.4] Stop inicial adaptativo por regime**:
-  - **LATERAL (ADX < 25)**: **-10% ROI** (mais espaco em mercado lateral)
-  - **TRENDING (ADX >= 25)**: **-15% ROI** (mais folga para pullbacks em tendencia)
+- **[V119] Stop inicial estrutural 30M**:
+  - Busca 100 candles de 30M (~50h) e detecta swing low (LONG) / swing high (SHORT)
+  - Posiciona stop com buffer de 0.15% alem do nivel estrutural
+  - **Fallback**: regime fixo — LATERAL -10%, TRENDING -15% (se nenhum swing valido)
+  - **Guardrail**: ROI do stop deve estar entre -5% e -30% (senao usa fallback)
   - GARANTIA_5 (+5% ROI) leva stop a 0% (protecao rapida do capital)
 - **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (600s se 2+ stops consecutivos na mesma direcao)
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
@@ -162,6 +164,7 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 | `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/600s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
 | `[SANDBOX-5M]` | Confirmacao 5M (+5/+10 block/boost) |
+| `[SANDBOX-V119]` | Stop estrutural 30M calculado (swing level + buffer) |
 | `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M nao alinhado com direcao do sinal |
 | `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%) |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |

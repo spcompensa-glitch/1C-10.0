@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-26 (V118.4 — Stop adaptativo por regime: LATERAL -10%, TRENDING -15%)*
+*Ultima atualizacao: 2026-06-26 (V119 — Stop estrutural 30M: swing low/high + buffer)*
 
 ---
 
@@ -557,7 +557,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Leverage (sandbox) | 50x | `sandbox_service.py` |
 | Janela conservative price | 120s | `okx_ws_public.py:291` |
 | TTL cache de preco | 60s | `sandbox_service.py` |
-| [V118.4] Stop inicial adaptativo | LATERAL **-10%**, TRENDING **-15%** | `sandbox_service.py` |
+| [V119] Stop inicial estrutural 30M | Swing low/high + buffer 0.15% (fallback: LATERAL -10%, TRENDING -15%) | `sandbox_service.py` |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
 | [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
@@ -599,7 +599,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | 1M-REJECT 100% sinais | V116 | Filtro 1M requeria 2/3 candles confirmando mas quase sempre 0/3 confirmavam. Fix: Substituido por 5M confirmation (boost, nao bloqueia) |
 | Regime gating + GARANTIA_5 + LONGS filter | V118 | 100% VELOCITY FLOW, LONGS perdendo, escadinha nao capturava lucro. Fix: regime gating removido, GARANTIA_5 (break-even +5%), LONGS exigem decorrelacao+gas, auto-blocklist mais agressivo |
 | 5M muito permissivo (NEARUSDT stops) | V118.3 | V117 usava 2 candles e so bloqueava se 0/2 confirmavam — trades entravam contra o 5M. Fix: 3 candles com exigencia 2/3 de alinhamento com direcao do sinal |
-| Stop -5% muito apertado (stops precoces) | V118.4 | Stop fixo -5% em ambos regimes causava stops prematuralos. Fix: stop adaptativo LATERAL -10%, TRENDING -15%, GARANTIA_5 mantido |
+| Stop -10%/-15% ainda apertados (0% win rate sandbox) | V119 | Stops fixos nao respeitam estrutura 30M. Fix: stop estrutural baseado em swing low/high do TF 30M com buffer 0.15% |
 
 ---
 

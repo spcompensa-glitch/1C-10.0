@@ -30,9 +30,13 @@ class SandboxService:
         # [V113] Auto-blacklist runtime (pares bloqueados automaticamente)
         self._auto_blocklist: Set[str] = set()
 
-        # [V114] Cooldown pós stop-out: {symbol: timestamp_do_stop}
-        # Impede re-entry imediato no mesmo par após loss
-        self._stop_cooldown: Dict[str, float] = {}
+        # [V117] Cooldown pós stop-out: {(symbol, direction): timestamp_do_stop}
+        # Impede re-entry imediato no mesmo par+direção após loss
+        # Ex: ADAUSDT SHORT pode ter cooldown mas ADAUSDT LONG ainda entra
+        self._stop_cooldown: Dict[tuple, float] = {}
+
+        # [V117] Rastreio de stops consecutivos por direção: {(symbol, direction): count}
+        self._consecutive_stops: Dict[tuple, int] = {}
 
     def start(self):
         if self.is_running:
@@ -277,14 +281,28 @@ class SandboxService:
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            # [V113] Filtro horário — Abertura do mercado americano (13:30-14:30 UTC)
-            # NÃO bloqueia, apenas exige confirmação extra
+            # [V117] Filtro de horário e ADX noturno
+            # UTC 22h-08h = noite asiática/madrugada europeia — chop mesmo com ADX=TRENDING
+            # Durante esse horário, exige ADX >= 28 para entrar (filtra TRENDING falso)
+            # US open (13:30-14:30 UTC): exige ADX >= 28 em tendência, decor_bypass em lateral
             try:
                 now_utc = datetime.now(timezone.utc)
-                current_hour_decimal = now_utc.hour + now_utc.minute / 60.0
+                current_hour = now_utc.hour
+                current_hour_decimal = current_hour + now_utc.minute / 60.0
                 is_us_market_open = 13.5 <= current_hour_decimal < 14.5
+                is_night_session = current_hour >= 22 or current_hour < 8  # UTC 22h-08h
             except Exception:
                 is_us_market_open = False
+                is_night_session = False
+
+            # [V117] Horário noturno: exige ADX >= 28 para TRENDING (evita chop de madrugada)
+            if is_night_session and not is_ranging:
+                if adx_val < 28:
+                    logger.info(
+                        f"🧪 [SANDBOX-NIGHT-FILTER] {symbol} {strategy} descartado — "
+                        f"sessão noturna (UTC {now_utc.hour:02d}h) ADX {adx_val:.1f} < 28"
+                    )
+                    continue
 
             if is_us_market_open:
                 if is_ranging:
@@ -334,20 +352,29 @@ class SandboxService:
             if already_active:
                 continue
 
-            # [V114] Cooldown pós stop-out: impede re-entry no mesmo símbolo por 300s
-            COOLDOWN_SECS = 300.0
-            last_sl_ts = self._stop_cooldown.get(symbol, 0.0)
+            # [V117] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)
+            # 2 stops consecutivos SHORT → 10min; 1 stop → 5min
+            cooldown_key = (symbol, direction)
+            consecutive = self._consecutive_stops.get(cooldown_key, 0)
+            COOLDOWN_SECS = 600.0 if consecutive >= 2 else 300.0  # 10min se 2+ stops, senão 5min
+            last_sl_ts = self._stop_cooldown.get(cooldown_key, 0.0)
             elapsed = time.time() - last_sl_ts
             if elapsed < COOLDOWN_SECS:
                 remaining = int(COOLDOWN_SECS - elapsed)
                 logger.info(
-                    f"🧪 [SANDBOX-COOLDOWN] {symbol} em cooldown: {remaining}s restantes "
-                    f"após stop-out. Sinal ignorado."
+                    f"🧪 [SANDBOX-COOLDOWN] {symbol} {direction} em cooldown: {remaining}s restantes "
+                    f"(stops consecutivos: {consecutive}, cooldown: {int(COOLDOWN_SECS)}s)"
                 )
                 continue
 
-            # [V116] Confirmação 5M — boost de score, NÃO bloqueia trade
+            # [V117] Confirmação 5M — BLOQUEIA se ambos os candles fechados vão contra o sinal
             tf_result = await self._check_5m_confirmation(symbol, side)
+            if not tf_result.get("confirmed", True):
+                logger.info(
+                    f"🧪 [SANDBOX-5M-BLOCK] {symbol} {direction} bloqueado — "
+                    f"{tf_result.get('detail', '')}"
+                )
+                continue
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
@@ -488,39 +515,35 @@ class SandboxService:
         """
         [V116] Confirmação de entrada pelo TF de 5 minutos.
 
-        Lógica (usuario: "segundo candle em direção à ordem"):
+        Lógica (V117 — filtro real, não apenas score boost):
           - Busca os últimos 5 candles de 5m via OKX REST
-          - Conta os 2 candles mais recentes FECHADOS (ignora candle aberto)
-          - Para SHORT: candles bearish (close < open) confirmam
-          - Para LONG:  candles bullish (close > open) confirmam
+          - Avalia os 2 candles mais recentes FECHADOS (ignora candle aberto em formação)
+          - Para SHORT: BLOQUEIA apenas se AMBOS os 2 candles são bullish (0 bearish)
+          - Para LONG:  BLOQUEIA apenas se AMBOS os 2 candles são bearish (0 bullish)
+          - Se 1/2 confirma a direção: APROVA (threshold permissivo para não perder entradas legítimas)
+          - Fail-open: se API falhar ou candles insuficientes, APROVA sem bloquear
 
         Retorna dict:
           {
-            "confirmed": bool (True se ≥1 candle confirma — NÃO bloqueia),
-            "score_boost": float (0 a 10 — bônus de score baseado na confirmação),
-            "detail": str (descrição para log)
+            "confirmed": bool — False = BLOQUEIA o trade, True = APROVA
+            "score_boost": float — bônus informativo (0, +5 ou +10)
+            "detail": str — descrição para log
           }
-
-        Sandbox é lab de teste: NÃO bloqueia trade. Apenas dá boost de score
-        para trades com confirmação de 5m (dados mais limpos que 1m).
         """
-        result = {"confirmed": False, "score_boost": 0.0, "detail": ""}
+        result = {"confirmed": True, "score_boost": 0.0, "detail": ""}
 
         try:
             from services.okx_rest import okx_rest_service
-            # interval="5" = 5 minutos
             candles = await okx_rest_service.get_klines(symbol, interval="5", limit=5)
             if not candles or len(candles) < 3:
-                result["confirmed"] = True
                 result["detail"] = "candles insuficientes — fail-open"
                 return result
 
-            # Pega os 3 candles mais recentes (primeiros da lista = mais recentes)
-            # Candle[0] pode estar ABERTO (em formação) — ignoramos
-            # Usamos [1] e [2] (2 candles fechados mais recentes)
-            closed = candles[1:3] if len(candles) >= 3 else candles[:2]
+            # Ignora candle[0] que pode estar aberto; usa [1] e [2] (fechados)
+            closed = candles[1:3]
 
-            confirm_count = 0
+            bearish_count = 0
+            bullish_count = 0
             directions = []
             is_short = side.lower() in ("sell", "short", "s")
 
@@ -528,47 +551,43 @@ class SandboxService:
                 try:
                     o = float(c.get("open") or c[1])
                     cl = float(c.get("close") or c[4])
-                    candle_bearish = cl < o
-                    candle_bullish = cl > o
-
-                    if is_short and candle_bearish:
-                        confirm_count += 1
+                    if cl < o:
+                        bearish_count += 1
                         directions.append("BEAR")
-                    elif not is_short and candle_bullish:
-                        confirm_count += 1
+                    elif cl > o:
+                        bullish_count += 1
                         directions.append("BULL")
                     else:
-                        directions.append("AGAINST")
+                        directions.append("DOJI")
                 except Exception:
                     directions.append("UNK")
 
-            # Score boost: 0/2 = 0, 1/2 = +5, 2/2 = +10
-            if confirm_count == 2:
-                boost = 10.0
-                label = "FORTE"
-            elif confirm_count == 1:
-                boost = 5.0
-                label = "MODERADA"
-            else:
-                boost = 0.0
-                label = "FRACA"
+            dir_str = " + ".join(directions)
 
-            result["confirmed"] = True  # NÃO bloqueia nunca
+            if is_short:
+                # SHORT: bloqueia só se TODOS os 2 candles fechados são bullish (0 bearish)
+                if bearish_count == 0 and bullish_count == 2:
+                    result["confirmed"] = False
+                    result["score_boost"] = 0.0
+                    result["detail"] = f"5m BLOCK SHORT — 2/2 bullish ({dir_str}): momentum contrário"
+                    return result
+                boost = 10.0 if bearish_count == 2 else (5.0 if bearish_count == 1 else 0.0)
+                label = "FORTE" if bearish_count == 2 else ("MODERADA" if bearish_count == 1 else "FRACA")
+            else:
+                # LONG: bloqueia só se TODOS os 2 candles fechados são bearish (0 bullish)
+                if bullish_count == 0 and bearish_count == 2:
+                    result["confirmed"] = False
+                    result["score_boost"] = 0.0
+                    result["detail"] = f"5m BLOCK LONG — 2/2 bearish ({dir_str}): momentum contrário"
+                    return result
+                boost = 10.0 if bullish_count == 2 else (5.0 if bullish_count == 1 else 0.0)
+                label = "FORTE" if bullish_count == 2 else ("MODERADA" if bullish_count == 1 else "FRACA")
+
+            result["confirmed"] = True
             result["score_boost"] = boost
-            result["detail"] = (
-                f"5m confirm={confirm_count}/2 {label} "
-                f"({' + '.join(directions)}) boost=+{boost:.0f}"
-            )
+            result["detail"] = f"5m OK {label} ({dir_str}) boost=+{boost:.0f}"
 
-            if confirm_count >= 1:
-                logger.info(
-                    f"🧪 [SANDBOX-5M] {symbol} {side} — {result['detail']}"
-                )
-            else:
-                logger.debug(
-                    f"🧪 [SANDBOX-5M] {symbol} {side} — {result['detail']}"
-                )
-
+            logger.debug(f"🧪 [SANDBOX-5M] {symbol} {side} — {result['detail']}")
             return result
 
         except Exception as e:
@@ -739,6 +758,10 @@ class SandboxService:
             pnl_pct = current_roi
 
         # 9. Escadinha
+        # [V117] GARANTIA_10: degrau antecipado — +10% ROI → stop vai a 0% (break-even)
+        # Protege a largada rapidamente: se o preço mover +0.2% (50x) e cair, saímos empatados
+        # Rationale: se o trade vai de verdade, +10% ROI é só o começo (vai pro +100%, +200%...)
+        # Se voltar do +10% para o 0%, não faz sentido carregar — melhor resetar e esperar próxima
         ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
 
@@ -746,9 +769,20 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
+        # [V117] GARANTIA_10 — break-even antecipado em +10% ROI
+        # Só aplica se ainda não passou do GARANTIA_10 (current_stop_roi < 0)
+        if max_roi >= 10.0 and current_stop_roi < 0.0:
+            new_stop_roi = 0.0  # break-even
+            if new_stop_roi > current_stop_roi:
+                updated_stop_roi = new_stop_roi
+                updated_level_name = "GARANTIA_10"
+                updated_phase = "ESCADINHA"
+                history.append(f"[V117] GARANTIA_10: Break-even ativado a {max_roi:.1f}% ROI — stop → 0%")
+                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_10 ativado (max_roi={max_roi:.1f}%) — stop agora em 0% ROI")
+
         if active_level:
             new_stop_roi = active_level.stop_roi
-            if new_stop_roi > current_stop_roi:
+            if new_stop_roi > current_stop_roi and new_stop_roi > updated_stop_roi:
                 updated_stop_roi = new_stop_roi
                 updated_level_name = active_level.name
                 updated_phase = active_level.phase
@@ -825,10 +859,23 @@ class SandboxService:
                 history.append(f"[TRAILING] Stop atingido em {exit_price} — fechado lucrativo com +{final_pnl:.1f}% ROI")
             else:
                 history.append(f"Stop atingido em {exit_price} (SL configurado em {stop_price})")
-                # [V114] Registra cooldown: bloqueia re-entry no símbolo por 300s
+                # [V117] Cooldown por DIREÇÃO (symbol+direction)
+                # 2+ stops consecutivos mesma direção → 10min; 1 stop → 5min
                 clean_sym = symbol.replace(".P", "").upper()
-                self._stop_cooldown[clean_sym] = time.time()
-                logger.info(f"🧪 [SANDBOX-COOLDOWN-SET] {clean_sym} cooldown de 300s iniciado após stop-out.")
+                trade_dir = trade.direction  # "LONG" ou "SHORT"
+                cooldown_key = (clean_sym, trade_dir)
+                prev_consec = self._consecutive_stops.get(cooldown_key, 0)
+                self._consecutive_stops[cooldown_key] = prev_consec + 1
+                # Zera o contador da direção oposta (se era SHORT, limpa LONG e vice-versa)
+                opposite_dir = "LONG" if trade_dir == "SHORT" else "SHORT"
+                self._consecutive_stops[(clean_sym, opposite_dir)] = 0
+                self._stop_cooldown[cooldown_key] = time.time()
+                new_consec = self._consecutive_stops[cooldown_key]
+                cooldown_applied = 600 if new_consec >= 2 else 300
+                logger.info(
+                    f"🧪 [SANDBOX-COOLDOWN-SET] {clean_sym} {trade_dir} cooldown de {cooldown_applied}s "
+                    f"(stops consecutivos nesta direção: {new_consec})"
+                )
                 logger.warning(
                     f"📊 [SANDBOX-LOSS] {symbol} | Strategy={trade.strategy} | "
                     f"Dir={trade.direction} | Entry={entry_price:.4f} | "

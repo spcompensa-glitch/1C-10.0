@@ -670,13 +670,10 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
 @pytest.mark.asyncio
 async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
     """
-    Após um stop-out registrado via _stop_cooldown, um segundo sinal
-    para o mesmo símbolo deve ser descartado com [SANDBOX-COOLDOWN].
+    [V117] Após stop-out registrado via _stop_cooldown, um segundo sinal
+    para o MESMO símbolo+DIREÇÃO deve ser descartado com [SANDBOX-COOLDOWN].
 
-    Fluxo simulado:
-    1. Injeta timestamp de stop-out recente em _stop_cooldown
-    2. Envia sinal para o mesmo símbolo
-    3. Verifica que NENHUM trade foi aberto
+    Chave V117: (symbol, direction) — não mais apenas symbol.
     """
     import services.sandbox_service as svc_mod
     import services.okx_ws_public as ws_mod
@@ -689,13 +686,13 @@ async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
     monkeypatch.setattr(svc_mod, "database_service", db)
     monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
 
-    # Simula stop-out ocorrido agora (cooldown ativo)
-    sb._stop_cooldown["INJUSDT"] = time.time()  # stop-out "agora"
+    # [V117] Chave de cooldown agora é (symbol, direction)
+    sb._stop_cooldown[("INJUSDT", "SHORT")] = time.time()  # stop-out "agora"
 
-    # Mock do _check_1m_confirmation para não bloquear (fail-open)
-    async def fake_1m(*a, **kw):
-        return True
-    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
+    # Mock do _check_5m_confirmation para não bloquear (fail-open)
+    async def fake_5m(*a, **kw):
+        return {"confirmed": True, "score_boost": 0.0, "detail": "mock"}
+    monkeypatch.setattr(sb, "_check_5m_confirmation", fake_5m)
 
     signals = [{
         "symbol": "INJUSDT",
@@ -711,7 +708,7 @@ async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
 
     saved = list(db._trades.values())
     assert len(saved) == 0, (
-        f"Trade NÃO deveria ter sido aberto durante cooldown. "
+        f"Trade NÃO deveria ter sido aberto durante cooldown SHORT. "
         f"Trades abertos: {[t.id for t in saved]}"
     )
 
@@ -719,7 +716,8 @@ async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
 @pytest.mark.asyncio
 async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
     """
-    Após o cooldown expirar (> 300s), o sinal deve ser aceito normalmente.
+    [V117] Após o cooldown expirar (> 300s), o sinal deve ser aceito normalmente.
+    Teste usa chave (symbol, direction) conforme V117.
     """
     import services.sandbox_service as svc_mod
     import services.okx_ws_public as ws_mod
@@ -732,12 +730,12 @@ async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
     monkeypatch.setattr(svc_mod, "database_service", db)
     monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
 
-    # Simula cooldown expirado (301s atrás)
-    sb._stop_cooldown["INJUSDT"] = time.time() - 301.0
+    # [V117] Simula cooldown expirado (301s atrás) para a direção SHORT
+    sb._stop_cooldown[("INJUSDT", "SHORT")] = time.time() - 301.0
 
-    async def fake_1m(*a, **kw):
-        return True
-    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
+    async def fake_5m(*a, **kw):
+        return {"confirmed": True, "score_boost": 0.0, "detail": "mock"}
+    monkeypatch.setattr(sb, "_check_5m_confirmation", fake_5m)
 
     signals = [{
         "symbol": "INJUSDT",
@@ -765,8 +763,8 @@ async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
 @pytest.mark.asyncio
 async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
     """
-    [V116] Sandbox: filtro 5M dá boost de score, NÃO bloqueia trade.
-    Trade deve ser aceito independente da confirmação 5M.
+    [V117] Filtro 5M BLOQUEIA quando ambos os 2 candles fechados são bullish.
+    SHORT com 2/2 candles BULL → trade deve ser descartado.
     """
     import services.sandbox_service as svc_mod
     import services.okx_ws_public as ws_mod
@@ -780,17 +778,18 @@ async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
     monkeypatch.setattr(svc_mod, "database_service", db)
     monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
 
-    # Candles 5M: 2 bullish (confirmação FRACA para SHORT — mas trade é aceito)
-    bullish_5m = [
-        {"open": "4.20", "high": "4.25", "low": "4.18", "close": "4.24", "vol": "100"},
-        {"open": "4.18", "high": "4.22", "low": "4.17", "close": "4.21", "vol": "90"},
-        {"open": "4.16", "high": "4.20", "low": "4.15", "close": "4.19", "vol": "80"},
-        {"open": "4.14", "high": "4.17", "low": "4.13", "close": "4.16", "vol": "70"},
-        {"open": "4.12", "high": "4.15", "low": "4.11", "close": "4.14", "vol": "60"},
+    # Candles 5M: candle[0] = aberto (ignorado), candle[1] e [2] = ambos bullish
+    # -> SHORT deve ser bloqueado (2/2 bullish = momentum 100% contrário)
+    all_bullish_5m = [
+        {"open": "4.20", "close": "4.25"},  # candle[0] = aberto em formação (ignorado)
+        {"open": "4.18", "close": "4.22"},  # candle[1] = BULL (fechado)
+        {"open": "4.16", "close": "4.20"},  # candle[2] = BULL (fechado)
+        {"open": "4.14", "close": "4.18"},  # candle[3] extra
+        {"open": "4.12", "close": "4.16"},  # candle[4] extra
     ]
 
     async def fake_get_klines(symbol, interval="5", limit=5, *a, **kw):
-        return bullish_5m[:limit]
+        return all_bullish_5m[:limit]
 
     fake_rest = MagicMock()
     fake_rest.get_klines = fake_get_klines
@@ -802,16 +801,16 @@ async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
         "strategy": "VELOCITY FLOW",
         "price": 4.2300,
         "contract_info": {"maxLeverage": 50.0},
-        "id": "test_5m_confirm_001",
+        "id": "test_5m_block_001",
         "timestamp": 9999995,
     }]
 
     await sb._process_radar_signals(signals)
 
     saved = list(db._trades.values())
-    assert len(saved) == 1, (
-        f"Trade DEVERIA ter sido aceito (sandbox 5M não bloqueia, só boost). "
-        f"Trades: {len(saved)}"
+    assert len(saved) == 0, (
+        f"Trade NÃO deveria ter sido aberto — 5M 2/2 bullish bloqueia SHORT (V117). "
+        f"Trades abertos: {len(saved)}"
     )
 
 

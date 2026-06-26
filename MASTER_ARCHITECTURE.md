@@ -110,14 +110,15 @@ FleetAudit (Reconciliacao)
 
 ### 4.1 Regime LATERAL (ADX < 25)
 
-Degraus simplificados para mercado lateral. Protecao cedo contra falsos rompimentos.
+Degraus simplificados para mercado lateral. Protecao precoce e rápida com o GARANTIA_5 contra falsos rompimentos.
 
 | Gatilho ROI | Stop (ROI) | Nome | Status |
 |------------|-----------|------|--------|
-| 5% | -10% | SL_5 | ESCADINHA |
-| 10% | 0% | SL_BE | RISCO_ZERO |
-| 15% | 0% | SAIDA_PARCIAL | TRAILING |
-| 20%+ | Dinamico (-5% do pico) | TRAIL_20 | TRAILING |
+| 5% | 0% | GARANTIA_5 | ESCADINHA |
+| 15% | 5% | GARANTIA_15 | ESCADINHA |
+| 20% | 10% | GARANTIA_20 | ESCADINHA |
+| 30% | 20% | GARANTIA_30 | ESCADINHA |
+| 40%+ | Dinamico (-5% do pico) | TRAIL_40 | TRAILING |
 
 ### 4.2 Regime TENDENCIA (ADX >= 25)
 
@@ -125,11 +126,13 @@ Degraus progressivos para colher lucros em tendencia forte.
 
 | Gatilho ROI | Stop (ROI) | Nome | Status |
 |------------|-----------|------|--------|
-| 10% | 0% | BREAKEVEN | RISCO_ZERO |
-| 30% | 15% | LUCRO_INICIAL | RISCO_ZERO |
-| 45% | 30% | LUCRO_MEDIO | RISCO_ZERO |
-| 80% | 50% | LUCRO_GARANTIDO_80 | RISCO_ZERO |
-| 100% | 75% | LUCRO_GARANTIDO | RISCO_ZERO |
+| 5% | 0% | GARANTIA_5 | ESCADINHA |
+| 20% | 5% | GARANTIA_20 | ESCADINHA |
+| 30% | 15% | LUCRO_INICIAL | ESCADINHA |
+| 45% | 30% | LUCRO_MEDIO | ESCADINHA |
+| 60% | 50% | LUCRO_ALTO | ESCADINHA |
+| 80% | 65% | LUCRO_GARANTIDO_80 | ESCADINHA |
+| 100% | 75% | LUCRO_GARANTIDO | ESCADINHA |
 | 130% | 110% | SUCESSO_TOTAL | PROFIT_LOCK |
 | 150% | 110% | ALVO_150 | PROFIT_LOCK |
 | 200% | 150% | WAVE | TRAIL_LOCK |

@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-25 (V114 — Cooldown + Filtro 1M)*
+*Ultima atualizacao: 2026-06-25 (V116 — Sandbox 5M Confirmation + Captain Bugfix)*
 
 ---
 
@@ -455,7 +455,7 @@ firebase_service.update_radar_pulse(signals)
               |-- Filtro horario abertura US (13:30-14:30 UTC)
               |-- Deduplicacao por signal_id
               |-- [V114] Cooldown 300s pos stop-out por simbolo
-              |-- [V114] Confirmacao 1M (2/3 candles na direcao do sinal)
+              |-- [V116] Confirmacao 5M (boost de score, nao bloqueia)
               |-- Entry Sanity Check (preco defasado)
               |-- Stop adaptativo por regime
               +---> save_sandbox_trade()
@@ -498,17 +498,25 @@ Durante esse periodo, qualquer novo sinal para o mesmo par e descartado automati
 - Log `[SANDBOX-COOLDOWN-SET]` ao ativar; `[SANDBOX-COOLDOWN]` ao bloquear
 - **Objetivo**: eliminar re-entries em cadeia (INJUSDT tinha 11 stops seguidos, ATOMUSDT 4)
 
-### 15.5 [V114] Confirmacao 1M antes de abrir
+### 15.5 [V116] Confirmacao 5M antes de abrir
 
-Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via candles de 1 minuto.
+Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via candles de 5 minutos.
 
-- Metodo: `_check_1m_confirmation(symbol, side)`
-- Busca os 5 ultimos candles de 1M via `okx_rest_service.get_klines(symbol, interval="1", limit=5)`
+- Metodo: `_check_5m_confirmation(symbol, side)`
+- Busca os 5 ultimos candles de 5M via `okx_rest_service.get_klines(symbol, interval="5", limit=5)`
 - Usa o cache de 3min do `get_klines` (sem custo extra de API)
-- **SHORT**: exige >= 2 dos 3 candles mais recentes com `close < open` (bearish)
-- **LONG**: exige >= 2 dos 3 candles mais recentes com `close >= open` (bullish)
+- Analisa os **2 candles fechados mais recentes** (ignora candle aberto em formacao)
+- **SHORT**: candles bearish (close < open) confirmam
+- **LONG**: candles bullish (close > open) confirmam
+- **Nao bloqueia trade** — sandbox e lab de teste, apenas ajusta score
+- Boost: 0/2 = +0, 1/2 = +5, 2/2 = +10
 - Comportamento em falha de API: **fail-open** (aprova o trade, nao bloqueia por instabilidade)
-- Log `[SANDBOX-1M-REJECT]` ao rejeitar, com contagem de candles confirmados
+- Log `[SANDBOX-5M]` ao registrar confirmacao
+
+### 15.5.1 [V114] Confirmacao 1M (desativada no sandbox)
+
+O filtro 1M original (V114) foi substituido pelo filtro 5M (V116) por ser mais limpo e menos ruidoso.
+O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fluxo normal.
 
 ### 15.6 Gestao de stops (paridade FlashAgent)
 - **Peak ROI**: `max(current_roi, cached_peak, stored_peak)` — nao perde picos entre reinicializacoes.
@@ -531,7 +539,7 @@ Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via 
 | Stop inicial (todos os regimes) | **-5% ROI** | `sandbox_service.py` (V113.2) |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
-| [V114] Candles 1M para confirmacao | 5 candles, threshold 2/3 | `sandbox_service.py` |
+| [V116] Candles 5M para confirmacao | 5 candles, boost +5/+10, nao bloqueia | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
 | Placeholder banca (HTML) | **$22.00 USD** | `sandbox.html:158` |
@@ -550,7 +558,7 @@ Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via 
 | `[SANDBOX-PRICE-UNAVAILABLE]` | Preco indisponivel em WS + REST + cache — trade pulado |
 | `[SANDBOX-COOLDOWN-SET]` | Cooldown de 300s registrado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown (com segundos restantes) |
-| `[SANDBOX-1M-REJECT]` | Sinal rejeitado — momentum 1M nao confirma a direcao |
+| `[SANDBOX-5M]` | Confirmacao 5M: boost de score aplicado (+5 ou +10) |
 | `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica ou auto-blocklist |
 | `[SANDBOX-MACRO-BLOCK]` | Sinal bloqueado por filtro macro BTC (SMA 200) |
 | `[SANDBOX-OPEN-FILTER]` | Sinal bloqueado por filtro de abertura US (13:30-14:30 UTC) |
@@ -565,6 +573,9 @@ Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via 
 | Entry stale (MaxROI=0%) | `d92c28f` | Sandbox abria trades com preco de mercado ja alem do stop. Fix: Entry Sanity Check 70% do stop |
 | Re-entries em cadeia | `855fcec` | INJUSDT/ATOM abriam identicos apos stop-out imediato. Fix: Cooldown 300s por simbolo (V114) |
 | Entrada contra momentum | `855fcec` | Trades abriam com candles 1M indo na direcao oposta ao sinal. Fix: Confirmacao 1M 2/3 candles (V114) |
+| Captain UnboundLocalError | V116 | `_run_user_execution_logic` crashava com `settings` nao importado. Fix: `from config import settings` no topo da funcao |
+| MACRO-BLOCK impossivel bypass | V116 | DECOR SHADOW bloqueada por pearson > 0.85 (bypass impossivel). Fix: MACRO-BLOCK desativado em LATERAL, high_score_bypass em TRENDING |
+| 1M-REJECT 100% sinais | V116 | Filtro 1M requeria 2/3 candles confirmando mas quase sempre 0/3 confirmavam. Fix: Substituido por 5M confirmation (boost, nao bloqueia) |
 
 ---
 

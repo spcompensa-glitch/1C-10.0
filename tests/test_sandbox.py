@@ -759,14 +759,14 @@ async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Teste 15 – Filtro 1M: rejeita SHORT quando candles são majoritariamente bullish
+# Teste 15 – Confirmação 5M: trade é aceito com boost de score
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
     """
-    Quando os candles de 1M mostram momentum bullish (2/3 candles verdes),
-    um sinal SHORT deve ser rejeitado com [SANDBOX-1M-REJECT].
+    [V116] Sandbox: filtro 5M dá boost de score, NÃO bloqueia trade.
+    Trade deve ser aceito independente da confirmação 5M.
     """
     import services.sandbox_service as svc_mod
     import services.okx_ws_public as ws_mod
@@ -780,8 +780,8 @@ async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
     monkeypatch.setattr(svc_mod, "database_service", db)
     monkeypatch.setattr(svc_mod, "okx_ws_public_service", ws)
 
-    # Candles: 3 bullish (close > open) → SHORT deve ser rejeitado
-    bullish_candles = [
+    # Candles 5M: 2 bullish (confirmação FRACA para SHORT — mas trade é aceito)
+    bullish_5m = [
         {"open": "4.20", "high": "4.25", "low": "4.18", "close": "4.24", "vol": "100"},
         {"open": "4.18", "high": "4.22", "low": "4.17", "close": "4.21", "vol": "90"},
         {"open": "4.16", "high": "4.20", "low": "4.15", "close": "4.19", "vol": "80"},
@@ -789,10 +789,9 @@ async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
         {"open": "4.12", "high": "4.15", "low": "4.11", "close": "4.14", "vol": "60"},
     ]
 
-    async def fake_get_klines(symbol, interval="1", limit=5, *a, **kw):
-        return bullish_candles[:limit]
+    async def fake_get_klines(symbol, interval="5", limit=5, *a, **kw):
+        return bullish_5m[:limit]
 
-    # Monkeypatcha o okx_rest_service dentro do módulo sandbox_service
     fake_rest = MagicMock()
     fake_rest.get_klines = fake_get_klines
     monkeypatch.setattr(rest_mod, "okx_rest_service", fake_rest)
@@ -803,15 +802,15 @@ async def test_1m_filter_rejects_short_with_bullish_candles(monkeypatch):
         "strategy": "VELOCITY FLOW",
         "price": 4.2300,
         "contract_info": {"maxLeverage": 50.0},
-        "id": "test_1m_reject_001",
+        "id": "test_5m_confirm_001",
         "timestamp": 9999995,
     }]
 
     await sb._process_radar_signals(signals)
 
     saved = list(db._trades.values())
-    assert len(saved) == 0, (
-        f"Trade NÃO deveria ter sido aberto com candles 1M bullish para SHORT. "
+    assert len(saved) == 1, (
+        f"Trade DEVERIA ter sido aceito (sandbox 5M não bloqueia, só boost). "
         f"Trades: {len(saved)}"
     )
 
@@ -843,7 +842,7 @@ async def test_1m_filter_accepts_short_with_bearish_candles(monkeypatch):
         {"open": "4.18", "high": "4.21", "low": "4.16", "close": "4.17", "vol": "60"},  # vermelho
     ]
 
-    async def fake_get_klines(symbol, interval="1", limit=5, *a, **kw):
+    async def fake_get_klines(symbol, interval="5", limit=5, *a, **kw):
         return bearish_candles[:limit]
 
     fake_rest = MagicMock()
@@ -864,7 +863,7 @@ async def test_1m_filter_accepts_short_with_bearish_candles(monkeypatch):
 
     saved = list(db._trades.values())
     assert len(saved) == 1, (
-        f"Trade DEVERIA ter sido aberto com candles 1M bearish para SHORT. "
+        f"Trade DEVERIA ter sido aberto com candles 5M bearish para SHORT. "
         f"Trades: {len(saved)}"
     )
     assert saved[0].direction == "SHORT"

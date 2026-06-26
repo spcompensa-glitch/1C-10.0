@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-25 (V114 — Cooldown + Filtro 1M)*
+*Ultima atualizacao: 2026-06-25 (V116 — Sandbox 5M Confirmation + Captain Bugfix)*
 
 ---
 
@@ -136,11 +136,16 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - Anterior: LATERAL -15%, TENDENCIA -30% (descontinuado)
 - **[V114] Cooldown pos stop-out**: 300s por simbolo apos qualquer `CLOSED_SL`
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
-- **[V114] Confirmacao 1M antes de abrir**:
-  - Busca 5 candles de 1M, exige 2/3 mais recentes na direcao do sinal
-  - SHORT: 2+ candles bearish (close < open)
-  - LONG: 2+ candles bullish (close >= open)
+- **[V116] Confirmacao 5M antes de abrir** (substituiu filtro 1M):
+  - Busca 5 candles de 5M, verifica os 2 mais recentes FECHADOS
+  - SHORT: candles bearish (close < open) confirmam
+  - LONG: candles bullish (close > open) confirmam
+  - NAO bloqueia trade — apenas da boost de score (+5 ou +10)
+  - 0/2 = FRACA (+0), 1/2 = MODERADA (+5), 2/2 = FORTE (+10)
   - fail-open se API falhar
+- **[V116] MACRO-BLOCK relaxado**:
+  - LATERAL (ADX < 25): MACRO-BLOCK desativado (DECOR SHADOW resistente a correlacao BTC)
+  - TRENDING: sinais com score >= 80 furam MACRO-BLOCK (high_score_bypass)
 - **Entry Sanity Check**: descarta sinais com ROI imediato ja < 70% do stop (floor -10%)
 - **Resolucao de preco**: WS -> REST -> cache (60s TTL)
 - **Conservative price**: HIGH/LOW dos ultimos 120s para capturar spikes intra-ciclo
@@ -149,14 +154,14 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **Saida parcial**: +15% ROI em LATERAL -> 50% saida imediata; PnL = media 50/50
 - **Auto-blocklist**: pares com PnL < -20% E WR < 30% apos 5+ trades bloqueados em runtime
 
-### Logs do Sandbox (V114)
+### Logs do Sandbox (V116)
 | Log | Significado |
 |-----|-------------|
 | `[SANDBOX-OPEN]` | Trade aberto |
 | `[SANDBOX-STALE]` | Entry defasado — descartado |
 | `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
-| `[SANDBOX-1M-REJECT]` | Sinal rejeitado — momentum 1M contradiz direcao |
+| `[SANDBOX-5M]` | Confirmacao 5M: boost de score aplicado |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
 

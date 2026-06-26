@@ -1474,6 +1474,7 @@ class CaptainAgent(AIOSAgent):
 
     async def _run_user_execution_logic(self, username: str, credentials: dict, best_signal: dict):
         """Lógica de filtragem e execução original do Captain adaptada para o usuário."""
+        from config import settings
         symbol = str(best_signal.get("symbol", ""))
         score = float(best_signal.get("score", 0) or 0) if best_signal.get("score") is not None else 0
         side = best_signal.get("side", "Buy")
@@ -1665,7 +1666,7 @@ class CaptainAgent(AIOSAgent):
             lib_dna = await librarian_agent.get_asset_dna(symbol)
             nectar_seal = lib_dna.get("nectar_seal", "🛡️ VANGUARD")
 
-            # [V120] VANGUARD QUALITY FILTER — Ordem direta, score mínimo reduzido
+            # [V120] VANGUARD QUALITY FILTER — Score mínimo elevado para reduzir falsos positivos
             if "VANGUARD" in nectar_seal and score < 70 and not is_blitz and okx_rest_service.execution_mode != "PAPER":
                 msg = f"🛡️ [VANGUARD-QUALITY-BLOCK] {symbol} Score {score} < 70. Ativos Vanguard exigem confiança mínima. Abortando."
                 logger.warning(msg)
@@ -1754,7 +1755,6 @@ class CaptainAgent(AIOSAgent):
                     else:
                         allow_momentum = True # Se não for RANGING, Momentum é liberado
                         
-                    from config import settings
                     if settings.OKX_EXECUTION_MODE == "PAPER" and score >= 80:
                         allow_momentum = True
                     if not allow_momentum:

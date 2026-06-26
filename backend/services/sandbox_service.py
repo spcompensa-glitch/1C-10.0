@@ -205,6 +205,7 @@ class SandboxService:
 
     async def _process_radar_signals(self, signals: List[Dict[str, Any]]):
         """Processa sinais do radar com lock para evitar duplicatas por race condition."""
+        logger.info(f"🧪 [SANDBOX-DEBUG] _process_radar_signals chamado com {len(signals)} sinais")
         for sig in signals:
             raw_symbol = sig.get("symbol")
             if not raw_symbol:
@@ -303,12 +304,17 @@ class SandboxService:
                         )
                         continue
 
-            if not decor_bypass:
+            # [V115] MACRO-BLOCK relaxado:
+            #   - LATERAL (ADX<25): não aplica (DECOR SHADOW é resistente a BTC)
+            #   - TRENDING: permite sinais fortes (score >= 80) independente da macro
+            signal_score = sig.get("score", 0) or 0
+            high_score_bypass = signal_score >= 80
+            if not decor_bypass and not is_ranging and not high_score_bypass:
                 if macro_trend == "BEARISH" and direction == "LONG":
-                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH.")
+                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH (score={signal_score}).")
                     continue
                 elif macro_trend == "BULLISH" and direction == "SHORT":
-                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH.")
+                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH (score={signal_score}).")
                     continue
 
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
@@ -340,10 +346,10 @@ class SandboxService:
                 )
                 continue
 
-            # [V114] Confirmação 1M: exige que os candles de 1min confirmem a direção
-            tf_confirmed = await self._check_1m_confirmation(symbol, side)
-            if not tf_confirmed:
-                continue
+            # [V116] Confirmação 5M — boost de score, NÃO bloqueia trade
+            tf_result = await self._check_5m_confirmation(symbol, side)
+            score = float(sig.get("score", 0) or 0)
+            boosted_score = score + tf_result.get("score_boost", 0.0)
 
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
@@ -454,25 +460,122 @@ class SandboxService:
 
             is_short = side.lower() in ("sell", "short", "s")
             if is_short:
-                confirmed = bearish_count >= 2
+                # [V115] Sandbox: só rejeita se TODOS os 3 candles são bullish (0 bearish)
+                confirmed = bearish_count >= 1
                 if not confirmed:
                     logger.info(
-                        f"🧪 [SANDBOX-1M-REJECT] {symbol} SHORT — confirmação 1M insuficiente: "
-                        f"{bearish_count}/3 candles bearish (precisa ≥2)"
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} SHORT — todos os 3 candles 1M são bullish "
+                        f"({bullish_count}/3 bullish, {bearish_count}/3 bearish)"
                     )
                 return confirmed
             else:
-                confirmed = bullish_count >= 2
+                # [V115] Sandbox: só rejeita se TODOS os 3 candles são bearish (0 bullish)
+                confirmed = bullish_count >= 1
                 if not confirmed:
                     logger.info(
-                        f"🧪 [SANDBOX-1M-REJECT] {symbol} LONG — confirmação 1M insuficiente: "
-                        f"{bullish_count}/3 candles bullish (precisa ≥2)"
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} LONG — todos os 3 candles 1M são bearish "
+                        f"({bullish_count}/3 bullish, {bearish_count}/3 bearish)"
                     )
                 return confirmed
 
         except Exception as e:
             logger.debug(f"[SANDBOX-1M] {symbol}: falha ao checar confirmação 1M: {e} — aprovando")
             return True  # fail-open
+
+    # ==================== [V116] 5M CONFIRMATION FILTER ====================
+
+    async def _check_5m_confirmation(self, symbol: str, side: str) -> dict:
+        """
+        [V116] Confirmação de entrada pelo TF de 5 minutos.
+
+        Lógica (usuario: "segundo candle em direção à ordem"):
+          - Busca os últimos 5 candles de 5m via OKX REST
+          - Conta os 2 candles mais recentes FECHADOS (ignora candle aberto)
+          - Para SHORT: candles bearish (close < open) confirmam
+          - Para LONG:  candles bullish (close > open) confirmam
+
+        Retorna dict:
+          {
+            "confirmed": bool (True se ≥1 candle confirma — NÃO bloqueia),
+            "score_boost": float (0 a 10 — bônus de score baseado na confirmação),
+            "detail": str (descrição para log)
+          }
+
+        Sandbox é lab de teste: NÃO bloqueia trade. Apenas dá boost de score
+        para trades com confirmação de 5m (dados mais limpos que 1m).
+        """
+        result = {"confirmed": False, "score_boost": 0.0, "detail": ""}
+
+        try:
+            from services.okx_rest import okx_rest_service
+            # interval="5" = 5 minutos
+            candles = await okx_rest_service.get_klines(symbol, interval="5", limit=5)
+            if not candles or len(candles) < 3:
+                result["confirmed"] = True
+                result["detail"] = "candles insuficientes — fail-open"
+                return result
+
+            # Pega os 3 candles mais recentes (primeiros da lista = mais recentes)
+            # Candle[0] pode estar ABERTO (em formação) — ignoramos
+            # Usamos [1] e [2] (2 candles fechados mais recentes)
+            closed = candles[1:3] if len(candles) >= 3 else candles[:2]
+
+            confirm_count = 0
+            directions = []
+            is_short = side.lower() in ("sell", "short", "s")
+
+            for c in closed:
+                try:
+                    o = float(c.get("open") or c[1])
+                    cl = float(c.get("close") or c[4])
+                    candle_bearish = cl < o
+                    candle_bullish = cl > o
+
+                    if is_short and candle_bearish:
+                        confirm_count += 1
+                        directions.append("BEAR")
+                    elif not is_short and candle_bullish:
+                        confirm_count += 1
+                        directions.append("BULL")
+                    else:
+                        directions.append("AGAINST")
+                except Exception:
+                    directions.append("UNK")
+
+            # Score boost: 0/2 = 0, 1/2 = +5, 2/2 = +10
+            if confirm_count == 2:
+                boost = 10.0
+                label = "FORTE"
+            elif confirm_count == 1:
+                boost = 5.0
+                label = "MODERADA"
+            else:
+                boost = 0.0
+                label = "FRACA"
+
+            result["confirmed"] = True  # NÃO bloqueia nunca
+            result["score_boost"] = boost
+            result["detail"] = (
+                f"5m confirm={confirm_count}/2 {label} "
+                f"({' + '.join(directions)}) boost=+{boost:.0f}"
+            )
+
+            if confirm_count >= 1:
+                logger.info(
+                    f"🧪 [SANDBOX-5M] {symbol} {side} — {result['detail']}"
+                )
+            else:
+                logger.debug(
+                    f"🧪 [SANDBOX-5M] {symbol} {side} — {result['detail']}"
+                )
+
+            return result
+
+        except Exception as e:
+            result["confirmed"] = True  # fail-open
+            result["detail"] = f"erro: {e} — fail-open"
+            logger.debug(f"[SANDBOX-5M] {symbol}: {result['detail']}")
+            return result
 
     # ==================== AUTO-BLOCKLIST (V113) ====================
 

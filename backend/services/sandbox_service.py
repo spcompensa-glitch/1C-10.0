@@ -531,6 +531,14 @@ class SandboxService:
                 )
                 continue
 
+            # [V114] Confirmação 1M — garante que o momentum de 1 minuto não está na direção contrária
+            tf_1m_ok = await self._check_1m_confirmation(symbol, side)
+            if not tf_1m_ok:
+                logger.info(
+                    f"🧪 [SANDBOX-1M-BLOCK] {symbol} {direction} bloqueado por falta de momentum no TF 1M"
+                )
+                continue
+
             # [V118.3] Confirmação 5M — exige maioria 2/3 dos candles alinhada com a direção do sinal
             tf_result = await self._check_5m_confirmation(symbol, side)
             if not tf_result.get("confirmed", True):

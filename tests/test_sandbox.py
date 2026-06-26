@@ -739,6 +739,10 @@ async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
         return {"confirmed": True, "score_boost": 0.0, "detail": "mock"}
     monkeypatch.setattr(sb, "_check_5m_confirmation", fake_5m)
 
+    async def fake_1m(*a, **kw):
+        return True
+    monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
+
     signals = [{
         "symbol": "INJUSDT",
         "side": "Sell",

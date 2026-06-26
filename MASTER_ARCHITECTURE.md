@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-26 (V118 — Regime Gating Removido + GARANTIA_5 + Filtro LONGS decorrelacionados)*
+*Ultima atualizacao: 2026-06-26 (V118.3 — 5M confirmation exige maioria 2/3 alinhada com sinal)*
 
 ---
 
@@ -463,7 +463,7 @@ firebase_service.update_radar_pulse(signals)
               |-- Filtro horario abertura US (13:30-14:30 UTC)
               |-- Deduplicacao por signal_id
               |-- [V114] Cooldown 300s pos stop-out por simbolo
-              |-- [V116] Confirmacao 5M (boost de score, nao bloqueia)
+              |-- [V118.3] Confirmacao 5M (exige maioria 2/3 alinhada com direcao)
               |-- Entry Sanity Check (preco defasado)
               |-- Stop adaptativo por regime
               +---> save_sandbox_trade()
@@ -506,24 +506,34 @@ Durante esse periodo, qualquer novo sinal para o mesmo par e descartado automati
 - Log `[SANDBOX-COOLDOWN-SET]` ao ativar; `[SANDBOX-COOLDOWN]` ao bloquear
 - **Objetivo**: eliminar re-entries em cadeia (INJUSDT tinha 11 stops seguidos, ATOMUSDT 4)
 
-### 15.5 [V116] Confirmacao 5M antes de abrir
+### 15.5 [V118.3] Confirmacao 5M com alinhamento de tendencia
 
-Antes de abrir qualquer trade, o sandbox verifica o momentum de curto prazo via candles de 5 minutos.
+Antes de abrir qualquer trade, o sandbox verifica se o TF 5M esta alinhado com a direcao do sinal.
 
 - Metodo: `_check_5m_confirmation(symbol, side)`
 - Busca os 5 ultimos candles de 5M via `okx_rest_service.get_klines(symbol, interval="5", limit=5)`
 - Usa o cache de 3min do `get_klines` (sem custo extra de API)
-- Analisa os **2 candles fechados mais recentes** (ignora candle aberto em formacao)
-- **SHORT**: candles bearish (close < open) confirmam
-- **LONG**: candles bullish (close > open) confirmam
-- **Nao bloqueia trade** — sandbox e lab de teste, apenas ajusta score
-- Boost: 0/2 = +0, 1/2 = +5, 2/2 = +10
+- Analisa os **3 candles fechados mais recentes** (ignora candle aberto em formacao) = 15 min de dados
+- **Exige maioria 2/3 alinhada com a direcao do sinal**:
+  - **SHORT**: precisa de >= 2 bearish (close < open) de 3 candles
+  - **LONG**: precisa de >= 2 bullish (close > open) de 3 candles
+- Se aprovado: score_boost = +10 (3/3) ou +5 (2/3)
+- Se rejeitado: trade bloqueado com log `[SANDBOX-5M-BLOCK]`
+- Edge case: se todos os candles sao DOJI/UNK (sem direcao definida), fail-open (aprova)
 - Comportamento em falha de API: **fail-open** (aprova o trade, nao bloqueia por instabilidade)
 - Log `[SANDBOX-5M]` ao registrar confirmacao
 
+#### Motivo da mudanca V117 -> V118.3
+O filtro V117 usava 2 candles e bloqueava apenas se AMBOS iam contra o sinal (0/2 confirmando).
+Isso era muito permissivo: com apenas 1/2 confirmando (50%), trades entravam com o 5M indo contra
+(como NEARUSDT SHORT que bateu stop em segundos porque o 5M estava bullish).
+
+Com 3 candles e exigencia 2/3 (66%), o filtro agora bloqueia entradas onde o 5M nao esta claramente
+alinhado com a direcao do sinal.
+
 ### 15.5.1 [V114] Confirmacao 1M (desativada no sandbox)
 
-O filtro 1M original (V114) foi substituido pelo filtro 5M (V116) por ser mais limpo e menos ruidoso.
+O filtro 1M original (V114) foi substituido pelo filtro 5M (V116, depois V118.3) por ser mais limpo e menos ruidoso.
 O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fluxo normal.
 
 ### 15.6 Gestao de stops (paridade FlashAgent)
@@ -547,7 +557,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Stop inicial (todos os regimes) | **-5% ROI** | `sandbox_service.py` (V113.2) |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
-| [V117] Candles 5M para confirmacao | 5 candles, 2 fechados, bloqueia se 0/2 confirmam | `sandbox_service.py` |
+| [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
 | Placeholder banca (HTML) | **$22.00 USD** | `sandbox.html:158` |
@@ -585,6 +595,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | MACRO-BLOCK impossivel bypass | V116 | DECOR SHADOW bloqueada por pearson > 0.85 (bypass impossivel). Fix: MACRO-BLOCK desativado em LATERAL, high_score_bypass em TRENDING |
 | 1M-REJECT 100% sinais | V116 | Filtro 1M requeria 2/3 candles confirmando mas quase sempre 0/3 confirmavam. Fix: Substituido por 5M confirmation (boost, nao bloqueia) |
 | Regime gating + GARANTIA_5 + LONGS filter | V118 | 100% VELOCITY FLOW, LONGS perdendo, escadinha nao capturava lucro. Fix: regime gating removido, GARANTIA_5 (break-even +5%), LONGS exigem decorrelacao+gas, auto-blocklist mais agressivo |
+| 5M muito permissivo (NEARUSDT stops) | V118.3 | V117 usava 2 candles e so bloqueava se 0/2 confirmavam — trades entravam contra o 5M. Fix: 3 candles com exigencia 2/3 de alinhamento com direcao do sinal |
 
 ---
 

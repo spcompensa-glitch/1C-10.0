@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-26 (V118 — Regime Gating Removido + GARANTIA_5 + Filtro LONGS decorrelacionados)*
+*Ultima atualizacao: 2026-06-26 (V118.3 — 5M confirmation exige maioria 2/3 alinhada com sinal)*
 
 ---
 
@@ -133,12 +133,13 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - Anterior: LATERAL -15%, TENDENCIA -30% (descontinuado)
 - **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (600s se 2+ stops consecutivos na mesma direcao)
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
-- **[V117] Confirmacao 5M antes de abrir** (substituiu filtro 1M):
-  - Busca 5 candles de 5M, verifica os 2 mais recentes FECHADOS
-  - SHORT: bloqueia se AMBOS os 2 candles sao bullish (0/2 bearish)
-  - LONG: bloqueia se AMBOS os 2 candles sao bearish (0/2 bullish)
-  - Se 1/2 confirma: aprovado com boost +5; 2/2: boost +10
-  - fail-open se API falhar
+- **[V118.3] Confirmacao 5M com alinhamento de tendencia** (substituiu V117):
+  - Busca 5 candles de 5M, verifica os 3 mais recentes FECHADOS
+  - Exige maioria 2/3 alinhada com a direcao do sinal:
+    - SHORT: precisa de >= 2 bearish de 3 candles (senao BLOQUEIA)
+    - LONG: precisa de >= 2 bullish de 3 candles (senao BLOQUEIA)
+  - Score boost: 3/3 = +10 FORTE, 2/3 = +5 MODERADA
+  - fail-open se API falhar ou candles insuficientes
 - **[V116] MACRO-BLOCK relaxado**:
   - LATERAL (ADX < 25): MACRO-BLOCK desativado
   - TRENDING: sinais com score >= 80 furam MACRO-BLOCK (high_score_bypass)
@@ -160,7 +161,7 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 | `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/600s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
 | `[SANDBOX-5M]` | Confirmacao 5M (+5/+10 block/boost) |
-| `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M contra o sinal |
+| `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M nao alinhado com direcao do sinal |
 | `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%) |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |

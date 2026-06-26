@@ -271,34 +271,41 @@ class SandboxService:
 
                 if strategy == "DECOR SHADOW":
                     decor_data = sig.get("decorrelation") or {}
-                    if decor_data.get("is_decorrelated", False) and decor_data.get("pearson", 1.0) < 0.35:
+                    # [V118-FIX] Chaves reais do decorrelation: is_active (nao is_decorrelated), correlation (nao pearson)
+                    ds_decorrelated = decor_data.get("is_decorrelated", decor_data.get("is_active", False))
+                    ds_pearson = decor_data.get("pearson", decor_data.get("correlation", 1.0))
+                    if ds_decorrelated and ds_pearson < 0.35:
                         decor_bypass = True
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
             # [V118] LONG trades exigem desgrudado do BTC (Pearson < 0.35) + GÁS (confidence >= 70)
+            # [V118-FIX] O decorrelation data vem do _sync_radar_rtdb com as chaves:
+            #   is_active (NÃO is_decorrelated), score (NÃO confidence), correlation (NÃO pearson)
             if direction == "LONG":
                 decor_data = sig.get("decorrelation") or {}
-                is_decorrelated = decor_data.get("is_decorrelated", False)
+                # Fallback para ambas as nomenclaturas (signal_generator usa is_decorrelated, radar usa is_active)
+                is_decorrelated = decor_data.get("is_decorrelated", decor_data.get("is_active", False))
                 pearson = decor_data.get("pearson", decor_data.get("correlation", 1.0))
-                decor_confidence = decor_data.get("confidence", 0.0)
+                decor_confidence = decor_data.get("confidence", decor_data.get("score", 0.0))
 
-                # Se dados de decorrelação ausentes, tenta computar
+                # Se dados de decorrelação ausentes (pearson perto de 1.0 ou sem signals), tenta computar ao vivo
                 if pearson >= 0.99 or not decor_data.get("signals"):
                     try:
                         from services.signal_generator import signal_generator
                         d_res = await signal_generator.detect_btc_decorrelation(symbol)
-                        is_decorrelated = d_res.get("is_decorrelated", False)
+                        is_decorrelated = d_res.get("is_decorrelated", d_res.get("is_active", False))
                         pearson = d_res.get("pearson", d_res.get("correlation", 1.0))
-                        decor_confidence = d_res.get("confidence", 0.0)
+                        decor_confidence = d_res.get("confidence", d_res.get("score", 0.0))
                     except Exception:
                         pass
 
                 if not is_decorrelated or pearson >= 0.35 or decor_confidence < 70:
                     logger.info(
-                        f"🧪 [SANDBOX-LONG-FILTER] {symbol} {strategy} LONG descartado — "
-                        f"par não está desgrudado do BTC com gás suficiente: "
-                        f"decorrelated={is_decorrelated}, pearson={pearson:.2f}, confidence={decor_confidence:.0f}"
+                        f"🧪 [SANDBOX-V118-FILTER] {symbol} {strategy} LONG descartado — "
+                        f"decorrelated={is_decorrelated} pearson={pearson:.2f} conf={decor_confidence:.0f} "
+                        f"(raw keys: is_active={decor_data.get('is_active')}, score={decor_data.get('score')}, "
+                        f"correlation={decor_data.get('correlation')})"
                     )
                     continue
                 # Se passou no filtro V118, também passa no MACRO-BLOCK
@@ -363,6 +370,7 @@ class SandboxService:
             if entry_price <= 0.0:
                 entry_price = okx_ws_public_service.get_current_price(symbol)
                 if entry_price <= 0.0:
+                    logger.debug(f"🧪 [SANDBOX-NO-PRICE] {symbol} {strategy} {direction} sem preço — descartado (sig.price={sig.get('price')}, sig.currentPrice={sig.get('currentPrice')})")
                     continue
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
@@ -373,6 +381,7 @@ class SandboxService:
                 for t in active_trades
             )
             if already_active:
+                logger.debug(f"🧪 [SANDBOX-ALREADY-ACTIVE] {symbol} {strategy} {direction} já está ativo — ignorando sinal duplicado")
                 continue
 
             # [V117] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)

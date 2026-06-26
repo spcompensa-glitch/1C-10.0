@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-import uuid
+
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
 from typing import List, Dict, Any, Optional, Set
@@ -227,9 +227,12 @@ class SandboxService:
                 # para dar espaço real para o preço respirar
                 structural_level = max(swing_lows, key=lambda x: entry_price - x)
                 distance_pct = (entry_price - structural_level) / entry_price * 100
-                # Mínimo 0.3% de distância do entry para ser válido
+                # [V119.1] Distância mínima 0.3% e máxima 8% do entry
                 if distance_pct < 0.3:
-                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low mais significativo muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    return None
+                if distance_pct > 8.0:
+                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low muito distante ({distance_pct:.2f}% > 8%) — fallback")
                     return None
                 buffer = structural_level * 0.0015  # 0.15% buffer abaixo do suporte
                 buffer = max(buffer, structural_level * 0.0005)  # mínimo 0.05% do nível estrutural
@@ -260,9 +263,12 @@ class SandboxService:
                 # para dar espaço real para o preço respirar
                 structural_level = min(swing_highs, key=lambda x: x - entry_price)
                 distance_pct = (structural_level - entry_price) / entry_price * 100
-                # Mínimo 0.3% de distância do entry para ser válido
+                # [V119.1] Distância mínima 0.3% e máxima 8% do entry
                 if distance_pct < 0.3:
-                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high mais significativo muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                    return None
+                if distance_pct > 8.0:
+                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high muito distante ({distance_pct:.2f}% > 8%) — fallback")
                     return None
                 buffer = structural_level * 0.0015  # 0.15% buffer acima da resistência
                 buffer = max(buffer, structural_level * 0.0005)  # mínimo 0.05% do nível estrutural

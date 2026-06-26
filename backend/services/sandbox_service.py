@@ -649,14 +649,19 @@ class SandboxService:
             bullish_count = 0
             for c in recent:
                 try:
-                    o = float(c.get("open") or c[1])
-                    cl = float(c.get("close") or c[4])
+                    if isinstance(c, dict):
+                        o = float(c.get("open") or c.get("o") or 0.0)
+                        cl = float(c.get("close") or c.get("c") or 0.0)
+                    else:  # Lista/tupla nativa do OKX REST
+                        o = float(c[1])
+                        cl = float(c[4])
+                    
                     if cl < o:   # candle vermelho
                         bearish_count += 1
-                    elif cl >= o:  # candle verde ou doji
+                    else:        # candle verde ou doji
                         bullish_count += 1
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.debug(f"[SANDBOX-1M] Erro ao parsear candle 1M: {ex}")
 
             is_short = side.lower() in ("sell", "short", "s")
             if is_short:
@@ -723,8 +728,13 @@ class SandboxService:
 
             for c in closed:
                 try:
-                    o = float(c.get("open") or c[1])
-                    cl = float(c.get("close") or c[4])
+                    if isinstance(c, dict):
+                        o = float(c.get("open") or c.get("o") or 0.0)
+                        cl = float(c.get("close") or c.get("c") or 0.0)
+                    else:  # Lista/tupla nativa do OKX REST
+                        o = float(c[1])
+                        cl = float(c[4])
+                    
                     if cl < o:
                         bearish_count += 1
                         directions.append("BEAR")
@@ -733,7 +743,8 @@ class SandboxService:
                         directions.append("BULL")
                     else:
                         directions.append("DOJI")
-                except Exception:
+                except Exception as ex:
+                    logger.debug(f"[SANDBOX-5M] Erro ao parsear candle 5M: {ex}")
                     directions.append("UNK")
 
             dir_str = " + ".join(directions)

@@ -180,12 +180,13 @@ class SandboxService:
 
     def _calculate_adaptive_stop(self, entry_price: float, side: str, contract_meta: dict, is_ranging: bool) -> float:
         """
-        [V113.2] Stop inicial FIXO de -5% ROI em ambos os regimes.
-        Aposta no timing de entrada do sistema: se errar, perde quase nada.
-        Se acertar, o trade corre livre sem travas prematuras.
+        [V118.4] Stop inicial adaptativo por regime:
+          - LATERAL (ADX < 25): -10% ROI (mercado lateral, mais espaço para evitar stops em chop)
+          - TRENDING (ADX >= 25): -15% ROI (tendência, pullbacks maiores precisam de mais folga)
+        GARANTIA_5 (escadinha): +5% ROI → stop vai a 0% (proteção rápida do capital).
         Arredondado pelo tick_size do contrato.
         """
-        stop_roi = -5.0
+        stop_roi = -10.0 if is_ranging else -15.0
 
         stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, 50.0)
 
@@ -404,10 +405,11 @@ class SandboxService:
 
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
-            # Stop inicial ADAPTATIVO (nao mais fixo -40%/-20%)
+            # [V118.4] Stop inicial adaptativo por regime
             contract_meta = sig.get("contract_info") or {}
             stop_price = self._calculate_adaptive_stop(entry_price, side, contract_meta, is_ranging)
-            initial_stop_roi = -5.0  # [V113.2] Stop fixo -5% em ambos regimes
+            # LATERAL: -10% / TRENDING: -15% — GARANTIA_5 na escadinha leva stop a 0% aos +5% ROI
+            initial_stop_roi = -10.0 if is_ranging else -15.0
 
             # ==================== ENTRY SANITY CHECK ====================
             # Verifica se o preço de mercado atual já está além do stop

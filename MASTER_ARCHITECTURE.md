@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-26 (V118.3 — 5M confirmation exige maioria 2/3 alinhada com sinal)*
+*Ultima atualizacao: 2026-06-26 (V118.4 — Stop adaptativo por regime: LATERAL -10%, TRENDING -15%)*
 
 ---
 
@@ -465,7 +465,7 @@ firebase_service.update_radar_pulse(signals)
               |-- [V114] Cooldown 300s pos stop-out por simbolo
               |-- [V118.3] Confirmacao 5M (exige maioria 2/3 alinhada com direcao)
               |-- Entry Sanity Check (preco defasado)
-              |-- Stop adaptativo por regime
+              |-- [V118.4] Stop adaptativo por regime: LATERAL -10%, TRENDING -15%
               +---> save_sandbox_trade()
 ```
 
@@ -484,13 +484,16 @@ _check_stop_hit(side, stop_price, symbol):
 
 ### 15.3 Stop adaptativo por regime
 
-| Regime | ADX | Stop Inicial (V113.2) | Threshold Stale Entry |
+| Regime | ADX | Stop Inicial (V118.4) | Threshold Stale Entry |
 |--------|-----|----------------------|----------------------|
-| LATERAL | < 25 | **-5% ROI** (unificado) | ROI imediato < -3.5% (floor -10%) |
-| TENDENCIA | >= 25 | **-5% ROI** (unificado) | ROI imediato < -3.5% (floor -10%) |
+| LATERAL | < 25 | **-10% ROI** | ROI imediato < -7.0% (floor -10%) |
+| TENDENCIA | >= 25 | **-15% ROI** | ROI imediato < -10.5% (floor -10%) |
 
-> **Nota V113.2**: Stop inicial unificado em -5% para ambos os regimes.
-> O floor de -10% no threshold de stale entry evita descartes por ruido de tick.
+> **[V118.4]**: Stop inicial agora e adaptativo por regime (era fixo -5%).
+> - LATERAL: -10% ROI — evita stops em chop de lateral
+> - TRENDING: -15% ROI — pullbacks em tendencia precisam de mais espaco
+> GARANTIA_5 (+5% ROI na escadinha) leva o stop a 0% rapidamente, protegendo o capital.
+> O floor de -10% no stale threshold evita descartes agressivos em TRENDING.
 
 - Stop price calculado via `raw_price_from_roi()` com tick_size rounding (ROUND_CEILING para SHORT negativo).
 - Entry Sanity Check: se ROI imediato ao abrir ja ultrapassou 70% do stop (floor: -10%), o sinal e descartado com log `[SANDBOX-STALE]`.
@@ -554,7 +557,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Leverage (sandbox) | 50x | `sandbox_service.py` |
 | Janela conservative price | 120s | `okx_ws_public.py:291` |
 | TTL cache de preco | 60s | `sandbox_service.py` |
-| Stop inicial (todos os regimes) | **-5% ROI** | `sandbox_service.py` (V113.2) |
+| [V118.4] Stop inicial adaptativo | LATERAL **-10%**, TRENDING **-15%** | `sandbox_service.py` |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
 | [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
@@ -596,6 +599,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | 1M-REJECT 100% sinais | V116 | Filtro 1M requeria 2/3 candles confirmando mas quase sempre 0/3 confirmavam. Fix: Substituido por 5M confirmation (boost, nao bloqueia) |
 | Regime gating + GARANTIA_5 + LONGS filter | V118 | 100% VELOCITY FLOW, LONGS perdendo, escadinha nao capturava lucro. Fix: regime gating removido, GARANTIA_5 (break-even +5%), LONGS exigem decorrelacao+gas, auto-blocklist mais agressivo |
 | 5M muito permissivo (NEARUSDT stops) | V118.3 | V117 usava 2 candles e so bloqueava se 0/2 confirmavam — trades entravam contra o 5M. Fix: 3 candles com exigencia 2/3 de alinhamento com direcao do sinal |
+| Stop -5% muito apertado (stops precoces) | V118.4 | Stop fixo -5% em ambos regimes causava stops prematuralos. Fix: stop adaptativo LATERAL -10%, TRENDING -15%, GARANTIA_5 mantido |
 
 ---
 

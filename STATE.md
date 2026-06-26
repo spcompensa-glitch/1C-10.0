@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-26 (V118.3 — 5M confirmation exige maioria 2/3 alinhada com sinal)*
+*Ultima atualizacao: 2026-06-26 (V118.4 — Stop adaptativo por regime: LATERAL -10%, TRENDING -15%)*
 
 ---
 
@@ -128,9 +128,10 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **Monitoramento**: loop de 1s identico ao FlashAgent
 - **[V118] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
 - **[V118] LONGS filtrados**: apenas pares desgrudados do BTC (Pearson < 0.35) com gas (CVD/volume, confidence >= 70)
-- **Stop inicial adaptativo (V113.2)**:
-  - Todos os regimes: **-5% ROI** (unificado)
-  - Anterior: LATERAL -15%, TENDENCIA -30% (descontinuado)
+- **[V118.4] Stop inicial adaptativo por regime**:
+  - **LATERAL (ADX < 25)**: **-10% ROI** (mais espaco em mercado lateral)
+  - **TRENDING (ADX >= 25)**: **-15% ROI** (mais folga para pullbacks em tendencia)
+  - GARANTIA_5 (+5% ROI) leva stop a 0% (protecao rapida do capital)
 - **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (600s se 2+ stops consecutivos na mesma direcao)
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
 - **[V118.3] Confirmacao 5M com alinhamento de tendencia** (substituiu V117):

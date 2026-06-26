@@ -299,61 +299,63 @@ async def test_conservative_price_detects_short_stop_violation(monkeypatch):
 
     payload = db.updated.get(trade.id, {})
     assert payload.get("status") in ("CLOSED_SL", "CLOSED_TRAILING"), \
-        f"Conservative HIGH (0.2580) não detectou o stop do SHORT (~0.2537). " \
-        f"Status: {payload.get('status')}"
+        f"Conservative HIGH (0.2580) não detectou o stop do SHORT (~0.2537). Status: {payload.get('status')}"
 
 
 # ---------------------------------------------------------------------------
 # Teste 6 – Stop adaptativo LATERAL é mais apertado (-15%)
 # ---------------------------------------------------------------------------
 
-def test_adaptive_stop_ranging_is_tighter():
+@pytest.mark.asyncio
+async def test_adaptive_stop_ranging_is_tighter():
     """
-    [V113.2] Stop inicial UNIFICADO = -5% ROI em ambos os regimes (LATERAL e TENDENCIA).
-    Para entry=100, side=Buy, leverage=50:
-    price_offset = -5/(50*100) = -0.001 → stop = 99.9
-    O método _calculate_adaptive_stop usa -5% fixo em ambos os regimes.
+    [V119] Teste do stop de fallback lateral (-15% ROI).
     """
     sb = SandboxService()
     entry = 100.0
     side = "Buy"
 
-    ranging_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=True)
-    trending_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=False)
+    # Forçamos a falha estrutural mockando _get_30m_structural_stop para retornar None
+    async def mock_structural(*a, **kw):
+        return None
+    sb._get_30m_structural_stop = mock_structural
+
+    ranging_res = await sb._calculate_adaptive_stop("BTCUSDT", entry, side, {}, is_ranging=True)
+    ranging_stop = ranging_res["stop_price"]
 
     proj = OrderProjectionService()
-    expected = proj.raw_price_from_roi(entry, -5.0, side, 50.0)
+    expected = proj.raw_price_from_roi(entry, -15.0, side, 50.0)
 
     assert abs(ranging_stop - expected) < 0.01, \
-        f"Stop lateral esperado ~{expected:.4f} (-5% ROI), obtido {ranging_stop:.4f}"
-    assert abs(trending_stop - expected) < 0.01, \
-        f"Stop tendência esperado ~{expected:.4f} (-5% ROI), obtido {trending_stop:.4f}"
+        f"Stop lateral esperado ~{expected:.4f} (-15% ROI), obtido {ranging_stop:.4f}"
 
 
 # ---------------------------------------------------------------------------
-# Teste 7 – Stop adaptativo TENDÊNCIA é mais largo (-30%)
+# Teste 7 – Stop adaptativo TENDÊNCIA é mais largo (-25%)
 # ---------------------------------------------------------------------------
 
-def test_adaptive_stop_trending_is_wider():
+@pytest.mark.asyncio
+async def test_adaptive_stop_trending_is_wider():
     """
-    [V113.2] Stop inicial UNIFICADO = -5% ROI em ambos os regimes.
-    Para SHORT entry=100: stop = 100 + 5/(50*100) = 100.1
-    Ambos os regimes produzem o mesmo stop price (-5% ROI).
+    [V119] Teste do stop de fallback tendência (-25% ROI).
     """
     sb = SandboxService()
     entry = 100.0
     side = "Sell"
 
-    ranging_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=True)
-    trending_stop = sb._calculate_adaptive_stop(entry, side, {}, is_ranging=False)
+    # Forçamos a falha estrutural mockando _get_30m_structural_stop para retornar None
+    async def mock_structural(*a, **kw):
+        return None
+    sb._get_30m_structural_stop = mock_structural
+
+    trending_res = await sb._calculate_adaptive_stop("BTCUSDT", entry, side, {}, is_ranging=False)
+    trending_stop = trending_res["stop_price"]
 
     proj = OrderProjectionService()
-    expected = proj.raw_price_from_roi(entry, -5.0, side, 50.0)
+    expected = proj.raw_price_from_roi(entry, -25.0, side, 50.0)
 
-    assert abs(ranging_stop - expected) < 0.01, \
-        f"Stop lateral SHORT esperado ~{expected:.4f} (-5% ROI), obtido {ranging_stop:.4f}"
     assert abs(trending_stop - expected) < 0.01, \
-        f"Stop tendência SHORT esperado ~{expected:.4f} (-5% ROI), obtido {trending_stop:.4f}"
+        f"Stop tendência SHORT esperado ~{expected:.4f} (-25% ROI), obtido {trending_stop:.4f}"
 
 
 # ---------------------------------------------------------------------------

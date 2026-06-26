@@ -300,7 +300,7 @@ class SandboxService:
           { "stop_price": float, "stop_roi": float, "source": str }
         """
         leverage = 50.0
-        fallback_roi = -10.0 if is_ranging else -15.0
+        fallback_roi = -15.0 if is_ranging else -25.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
@@ -309,9 +309,9 @@ class SandboxService:
         structural_stop = await self._get_30m_structural_stop(symbol, entry_price, side)
         if structural_stop and structural_stop > 0:
             stop_price = structural_stop
-            # Verificar se o ROI resultante é razoável (entre -5% e -30%)
+            # Verificar se o ROI resultante é razoável (entre -10% e -40%)
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
-            if -30.0 <= stop_roi <= -5.0:
+            if -40.0 <= stop_roi <= -10.0:
                 source = "structural_30m"
                 if tick_size > 0:
                     stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
@@ -323,7 +323,7 @@ class SandboxService:
             else:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural 30M rejeitado: "
-                    f"ROI={stop_roi:.1f}% fora do range [-30%, -5%] — usando fallback"
+                    f"ROI={stop_roi:.1f}% fora do range [-40%, -10%] — usando fallback"
                 )
 
         # 2. Fallback: regime fixo

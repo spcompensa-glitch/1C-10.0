@@ -352,18 +352,10 @@ class SandboxService:
                         )
                         continue
 
-            # [V115] MACRO-BLOCK relaxado:
-            #   - LATERAL (ADX<25): não aplica (DECOR SHADOW é resistente a BTC)
-            #   - TRENDING: permite sinais fortes (score >= 80) independente da macro
-            signal_score = sig.get("score", 0) or 0
-            high_score_bypass = signal_score >= 80
-            if not decor_bypass and not is_ranging and not high_score_bypass:
-                if macro_trend == "BEARISH" and direction == "LONG":
-                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} LONG descartado em macro BEARISH (score={signal_score}).")
-                    continue
-                elif macro_trend == "BULLISH" and direction == "SHORT":
-                    logger.info(f"🧪 [SANDBOX-MACRO-BLOCK] {symbol} {strategy} SHORT descartado em macro BULLISH (score={signal_score}).")
-                    continue
+            # [V118] MACRO-BLOCK desativado no Sandbox
+            # Motivo: o V118 já protege LONGS com filtro de descorrelação (Pearson<0.35 + conf>=70).
+            # SHORTs não têm proteção equivalente mas o sandbox é simulação — sem risco real.
+            # O MACRO-BLOCK original (V115) ainda roda no sistema real (FlashAgent/Captain).
 
             entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
 

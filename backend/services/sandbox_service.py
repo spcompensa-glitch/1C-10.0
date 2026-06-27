@@ -676,20 +676,20 @@ class SandboxService:
 
             is_short = side.lower() in ("sell", "short", "s")
             if is_short:
-                # [V115] Sandbox: só rejeita se TODOS os 3 candles são bullish (0 bearish)
-                confirmed = bearish_count >= 1
+                # [V119] Sandbox: Exige maioria (pelo menos 2 de 3) de candles de 1M bearish para SHORT
+                confirmed = bearish_count >= 2
                 if not confirmed:
                     logger.info(
-                        f"🧪 [SANDBOX-1M-REJECT] {symbol} SHORT — todos os 3 candles 1M são bullish "
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} SHORT — minoria de momentum 1M bearish "
                         f"({bullish_count}/3 bullish, {bearish_count}/3 bearish)"
                     )
                 return confirmed
             else:
-                # [V115] Sandbox: só rejeita se TODOS os 3 candles são bearish (0 bullish)
-                confirmed = bullish_count >= 1
+                # [V119] Sandbox: Exige maioria (pelo menos 2 de 3) de candles de 1M bullish para LONG
+                confirmed = bullish_count >= 2
                 if not confirmed:
                     logger.info(
-                        f"🧪 [SANDBOX-1M-REJECT] {symbol} LONG — todos os 3 candles 1M são bearish "
+                        f"🧪 [SANDBOX-1M-REJECT] {symbol} LONG — minoria de momentum 1M bullish "
                         f"({bullish_count}/3 bullish, {bearish_count}/3 bearish)"
                     )
                 return confirmed

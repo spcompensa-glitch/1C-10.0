@@ -26,13 +26,13 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
-    # [V113.2] Escadinha RANGING — stop inicial -5%, sem travas prematuras
-    # O trade corre livre até +15% ROI, aí começa a proteção
-    # Aposta: se o sistema acertou a entrada, o par vai continuar a favor
-    StopLevel("ESCADINHA", "GARANTIA_15", 15.0, 5.0, "RISCO_BAIXO"),
-    StopLevel("ESCADINHA", "GARANTIA_20", 20.0, 10.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_30", 30.0, 20.0, "RISCO_ZERO"),
-    StopLevel("TRAILING", "TRAIL_40", 40.0, 30.0, "TRAIL_LOCK"),
+    # [V119] Escadinha RANGING Acelerada — Lucros rápidos no mercado lateral
+    # Garante lucros rápidos em pullbacks curtos e protege capital agressivamente
+    StopLevel("ESCADINHA", "GARANTIA_10", 10.0, 5.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_MEDIO", 20.0, 12.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_ALTO", 35.0, 25.0, "RISCO_ZERO"),
+    # Stop apertado em +48% assim que bate +50% ROI para forçar saída lucrativa
+    StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
@@ -170,13 +170,13 @@ class OrderProjectionService:
             else:
                 break
         
-        # Se estiver em Ranging e em trailing stop ativo (ROI >= 20%)
-        if is_ranging and active and active.phase == "TRAILING" and roi_percent >= 20.0:
+        # Se estiver em Ranging e em trailing stop ativo (ROI >= 50%)
+        if is_ranging and active and active.phase == "TRAILING" and roi_percent >= 50.0:
             active = StopLevel(
                 phase=active.phase,
                 name=active.name,
                 trigger_roi=active.trigger_roi,
-                stop_roi=round(roi_percent - 5.0, 2),
+                stop_roi=round(roi_percent - 2.0, 2), # Trailing stop apertado de 2% para fechar no pico
                 status_risco=active.status_risco
             )
         return active
@@ -190,7 +190,7 @@ class OrderProjectionService:
 
     def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False) -> str:
         if is_ranging:
-            if roi_percent >= 20.0:
+            if roi_percent >= 50.0:
                 return "TRAILING"
             if roi_percent >= 5.0:
                 return "ESCADINHA"

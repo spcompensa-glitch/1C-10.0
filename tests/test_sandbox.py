@@ -321,6 +321,12 @@ async def test_adaptive_stop_ranging_is_tighter():
         return None
     sb._get_30m_structural_stop = mock_structural
 
+    # Evitamos o ATR mockando get_klines no okx_rest_service para retornar vazio
+    from services.okx_rest import okx_rest_service
+    async def mock_klines(*a, **kw):
+        return []
+    okx_rest_service.get_klines = mock_klines
+
     ranging_res = await sb._calculate_adaptive_stop("BTCUSDT", entry, side, {}, is_ranging=True)
     ranging_stop = ranging_res["stop_price"]
 

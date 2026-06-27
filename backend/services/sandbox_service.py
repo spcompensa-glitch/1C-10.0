@@ -326,14 +326,64 @@ class SandboxService:
                     f"ROI={stop_roi:.1f}% fora do range [-40%, -10%] — usando fallback"
                 )
 
-        # 2. Fallback: regime fixo
+        # 2. [V119] Tentar fallback dinâmico por volatilidade ATR de 30M em mercado lateral
+        if is_ranging:
+            try:
+                from services.okx_rest import okx_rest_service
+                # Puxa os últimos 30 candles de 30M
+                candles = await okx_rest_service.get_klines(symbol, interval="30", limit=30)
+                if candles and len(candles) >= 15:
+                    # OKX retorna os mais novos primeiro, invertemos
+                    chronological = list(reversed(candles))
+                    tr_list = []
+                    for i in range(1, len(chronological)):
+                        high = float(chronological[i].get("high") or chronological[i][2])
+                        low = float(chronological[i].get("low") or chronological[i][3])
+                        prev_close = float(chronological[i-1].get("close") or chronological[i-1][4])
+                        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                        tr_list.append(tr)
+                    
+                    # Calcular ATR de 14 períodos
+                    atr = sum(tr_list[-14:]) / 14.0 if tr_list else 0.0
+                    if atr > 0:
+                        # Afasta o stop a uma distância de 1.5 * ATR em relação ao entry_price
+                        if side.lower() in ("buy", "long", "b"):
+                            stop_price = entry_price - (atr * 1.5)
+                        else:
+                            stop_price = entry_price + (atr * 1.5)
+                            
+                        stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
+                        
+                        # Trava o ROI de stop entre -10% e -30% para manter consistência de alavancagem
+                        if stop_roi > -10.0:
+                            stop_roi = -10.0
+                            stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                        elif stop_roi < -30.0:
+                            stop_roi = -30.0
+                            stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                            
+                        source = "volatility_atr"
+                        if tick_size > 0:
+                            stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
+                        # Re-calcula após arredondamento do tick
+                        stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
+                        
+                        logger.info(
+                            f"🧪 [SANDBOX-V119] {symbol} stop por volatilidade ATR (1.5x) aprovado: "
+                            f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
+                        )
+                        return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
+            except Exception as atr_err:
+                logger.warning(f"[SANDBOX-ATR] Falha ao calcular ATR para {symbol}: {atr_err}")
+
+        # 3. Fallback final: regime fixo
         stop_price = proj_service.raw_price_from_roi(entry_price, fallback_roi, side, leverage)
         if tick_size > 0:
             stop_price = self._round_stop_to_tick(stop_price, tick_size, side, fallback_roi)
         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
         source = "regime_fixed"
         logger.info(
-            f"🧪 [SANDBOX-V119] {symbol} usando fallback regime: "
+            f"🧪 [SANDBOX-V119] {symbol} usando fallback regime fixo: "
             f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
         )
         return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
@@ -992,16 +1042,16 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        # [V118] GARANTIA_5 — break-even antecipado em +5% ROI
-        # Só aplica se ainda não passou do GARANTIA_5 (current_stop_roi < 0)
-        if max_roi >= 5.0 and current_stop_roi < 0.0:
-            new_stop_roi = 0.0  # break-even
+        # [V119] GARANTIA_TAXAS — break-even antecipado em +3.5% ROI para proteger o capital
+        # Só aplica se ainda não passou do GARANTIA_TAXAS (current_stop_roi < 0)
+        if max_roi >= 3.5 and current_stop_roi < 0.0:
+            new_stop_roi = 1.5  # break-even + taxas da OKX
             if new_stop_roi > current_stop_roi:
                 updated_stop_roi = new_stop_roi
-                updated_level_name = "GARANTIA_5"
+                updated_level_name = "GARANTIA_TAXAS"
                 updated_phase = "ESCADINHA"
-                history.append(f"[V118] GARANTIA_5: Break-even ativado a {max_roi:.1f}% ROI — stop → 0%")
-                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_5 ativado (max_roi={max_roi:.1f}%) — stop agora em 0% ROI")
+                history.append(f"[V119] GARANTIA_TAXAS: Break-even ativado a {max_roi:.1f}% ROI — stop → 1.5%")
+                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TAXAS ativado (max_roi={max_roi:.1f}%) — stop agora em 1.5% ROI")
 
         if active_level:
             new_stop_roi = active_level.stop_roi

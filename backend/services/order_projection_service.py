@@ -26,12 +26,13 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
-    # [V119] Escadinha RANGING Acelerada — Lucros rápidos no mercado lateral
-    # Garante lucros rápidos em pullbacks curtos e protege capital agressivamente
-    StopLevel("ESCADINHA", "GARANTIA_10", 10.0, 5.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_MEDIO", 20.0, 12.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_ALTO", 35.0, 25.0, "RISCO_ZERO"),
-    # Stop apertado em +48% assim que bate +50% ROI para forçar saída lucrativa
+    # [V119] Escadinha RANGING Progressiva e Acelerada
+    # Garante cobertura de taxas rapidamente e trava lucros graduais no mercado lateral
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 3.5, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 9.5, 5.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 16.5, 10.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO", 27.5, 18.0, "RISCO_ZERO"),
+    # Trailing muito apertado em +48% assim que bate +50% ROI para travar lucro máximo
     StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 

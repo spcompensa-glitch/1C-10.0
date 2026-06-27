@@ -572,32 +572,35 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.error(f"Step 3: Agent sync error: {e}")
                 
-            # [SaaS V5.5.0] Inicialização de Serviços da OKX e Hermes Broker
+            # [V119] Isolação total do Hermes Broker para que não interfira no sistema principal
             try:
-                logger.info("🛰️ [SaaS] Inicializando novos serviços OKX e Hermes Broker...")
-                from services.hermes_broker import hermes_broker_service
+                logger.info("🛰️ [SaaS] Inicializando novos serviços OKX...")
                 from services.portfolio_guardian import portfolio_guardian
                 from services.okx_ws import okx_ws_service
                 
-                # 1. Inicia gRPC e MQTT do Hermes
-                await hermes_broker_service.start_mqtt()
-                await hermes_broker_service.start_grpc()
-                
-                # 2. Ativa escuta do Portfolio Guardian
+                # 1. Ativa escuta do Portfolio Guardian
                 portfolio_guardian.start()
                 
-                # 3. Conecta WebSocket privado da OKX Master
+                # 2. Conecta WebSocket privado da OKX Master
                 await okx_ws_service.start()
 
-                # 4. Inicializa o Sentinel Auditor (Caixa-Preta da 1CrypTen)
+                # 3. Inicializa o Sentinel Auditor (Caixa-Preta da 1CrypTen)
                 from services.sentinel_auditor import sentinel_auditor
                 await sentinel_auditor.start()
                 logger.info("🛡️ [SaaS] Sentinel Auditor ONLINE e reconciliando!")
+            except Exception as core_init_err:
+                logger.error(f"❌ [SaaS] Falha ao iniciar serviços CORE (OKX WS / Guardian / Auditor): {core_init_err}", exc_info=True)
 
-                logger.info("✅ [SaaS] OKX e Hermes Broker inicializados com SUCESSO!")
-            except Exception as saas_init_err:
-                logger.error(f"❌ [SaaS] Falha ao iniciar serviços OKX/Hermes: {saas_init_err}", exc_info=True)
-                
+            try:
+                logger.info("🪶 [SaaS-HERMES] Inicializando Hermes Broker de forma independente...")
+                from services.hermes_broker import hermes_broker_service
+                # Inicia gRPC e MQTT do Hermes
+                await hermes_broker_service.start_mqtt()
+                await hermes_broker_service.start_grpc()
+                logger.info("✅ [SaaS-HERMES] Hermes Broker inicializado com SUCESSO!")
+            except Exception as hermes_err:
+                logger.error(f"⚠️ [SaaS-HERMES-BLOCK] Falha ao iniciar Hermes Broker (Sistema Principal continua rodando): {hermes_err}")
+
             # 🧪 [V119] Sandbox Service isolado para resiliência de boot em caso de falha Protobuf/Hermes
             try:
                 from services.sandbox_service import sandbox_service
@@ -643,23 +646,28 @@ async def lifespan(app: FastAPI):
                 await redis_service.client.aclose()
                 
         # [SaaS V5.5.0] Desligamento seguro de novos serviços
+        # [V119] Desligamento isolado para resiliência a falhas de importação do Hermes
         try:
             from services.okx_ws import okx_ws_service
-            from services.hermes_broker import hermes_broker_service
-            
-            logger.info("🛑 [SaaS] Desligando serviços OKX WebSocket e Hermes Broker...")
+            logger.info("🛑 [SaaS] Desligando OKX WebSocket privado...")
             await okx_ws_service.stop()
+        except Exception as okx_stop_err:
+            logger.debug(f"Erro ao parar OKX WS privado: {okx_stop_err}")
+
+        try:
+            from services.hermes_broker import hermes_broker_service
+            logger.info("🛑 [SaaS] Desligando Hermes Broker...")
             await hermes_broker_service.stop_mqtt()
             await hermes_broker_service.stop_grpc()
-            # 🧪 Desliga o Sandbox Service
-            try:
-                from services.sandbox_service import sandbox_service
-                sandbox_service.stop()
-            except Exception:
-                pass
-            logger.info("✅ [SaaS] Serviços desativados com sucesso.")
-        except Exception as saas_err:
-            logger.error(f"Erro ao desligar serviços SaaS: {saas_err}")
+        except Exception as hermes_stop_err:
+            logger.debug(f"Erro ao parar Hermes Broker: {hermes_stop_err}")
+
+        try:
+            from services.sandbox_service import sandbox_service
+            logger.info("🛑 [SaaS] Desligando Sandbox Service...")
+            sandbox_service.stop()
+        except Exception as sb_stop_err:
+            logger.debug(f"Erro ao parar Sandbox Service: {sb_stop_err}")
         
         # [HERMES DASHBOARD v2] Desliga o Hermes Dashboard (dentro do try principal)
         if HERMES_DASHBOARD_ENABLED and hermes_dashboard_service:

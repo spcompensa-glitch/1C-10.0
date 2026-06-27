@@ -628,7 +628,7 @@ class OKXWSPublic:
                             if not channel or "data" not in data_okx:
                                 continue
                                 
-                            inst_id = data_okx["arg"]["instId"]
+                            inst_id = data_okx["arg"].get("instId", "")
 
                             # Injeta mensagem OKX bruta na fila (formato nativo).
                             # Os consumers (_process_*) convertem instId → símbolo legacy internamente.

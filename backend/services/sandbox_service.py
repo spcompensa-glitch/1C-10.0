@@ -388,7 +388,18 @@ class SandboxService:
                 pass
             is_ranging = (adx_val < 25)
 
-            # [V118] Regime gating removido — todas as estratégias (VF, AS, DS) livres em qualquer regime
+            # [V119] Restabelecimento do ADX Regime Gating no Sandbox
+            # Evita o ruído de rodar estratégias de tendência em mercado lateral e vice-versa
+            if is_ranging:
+                # Mercado Lateral: permite apenas DECOR SHADOW (e subsets)
+                if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
+                    logger.info(f"🧪 [SANDBOX-REGIME-BLOCK] {symbol} {strategy} descartado — regime LATERAL (ADX={adx_val:.1f} < 25) aceita apenas DECOR SHADOW")
+                    continue
+            else:
+                # Mercado em Tendência: permite apenas VELOCITY FLOW e ALPHA SHIELD
+                if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
+                    logger.info(f"🧪 [SANDBOX-REGIME-BLOCK] {symbol} {strategy} descartado — regime TENDENCIA (ADX={adx_val:.1f} >= 25) bloqueia DECOR SHADOW")
+                    continue
 
             # [V118] Check static + auto-blocklist
             try:

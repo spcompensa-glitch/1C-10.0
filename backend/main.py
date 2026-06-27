@@ -594,29 +594,17 @@ async def lifespan(app: FastAPI):
                 await sentinel_auditor.start()
                 logger.info("🛡️ [SaaS] Sentinel Auditor ONLINE e reconciliando!")
 
-                # 🧪 5. Inicializa o Sandbox Service
-                try:
-                    from services.sandbox_service import sandbox_service
-                    sandbox_service.start()
-                    logger.info("🧪 [SaaS] Sandbox Service ONLINE e monitorando!")
-                except Exception as sandbox_err:
-                    logger.error(f"❌ [SaaS] Falha ao iniciar Sandbox Service: {sandbox_err}")
-
-                # Diagnostico de execucao
-                try:
-                    from services.okx_service import okx_service as _oks
-                    logger.info(
-                        f"🔍 [SaaS-DIAG] Modo={settings.OKX_EXECUTION_MODE} "
-                        f"| MasterKey={'SIM' if settings.OKX_API_KEY_MASTER else 'NAO'} "
-                        f"| OKXKey={'SIM' if settings.OKX_API_KEY else 'NAO'} "
-                        f"| is_mock={getattr(_oks, 'is_mock', '?')}"
-                    )
-                except Exception as diag_err:
-                    logger.warning(f"⚠️ [SaaS-DIAG] Falha no diagnostico: {diag_err}")
-
                 logger.info("✅ [SaaS] OKX e Hermes Broker inicializados com SUCESSO!")
             except Exception as saas_init_err:
                 logger.error(f"❌ [SaaS] Falha ao iniciar serviços OKX/Hermes: {saas_init_err}", exc_info=True)
+                
+            # 🧪 [V119] Sandbox Service isolado para resiliência de boot em caso de falha Protobuf/Hermes
+            try:
+                from services.sandbox_service import sandbox_service
+                sandbox_service.start()
+                logger.info("🧪 [SaaS] Sandbox Service ONLINE e monitorando de forma resiliente!")
+            except Exception as sandbox_err:
+                logger.error(f"❌ [SaaS] Falha ao iniciar Sandbox Service: {sandbox_err}")
                 
             # 🆕 [HERMES DASHBOARD v2] Inicia o Hermes Web Dashboard como serviço paralelo
             if HERMES_DASHBOARD_ENABLED:

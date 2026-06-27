@@ -1118,7 +1118,7 @@ class SandboxService:
         if not existing_meta or not existing_meta.get("ctVal"):
             try:
                 from services.okx_rest import okx_rest_service
-                inst_info = okx_rest_service._instrument_cache.get(symbol) or okx_rest_service._instrument_cache.get(symbol + "-SWAP")
+                inst_info = await okx_rest_service.get_instrument_info(symbol)
                 if inst_info:
                     resolved_meta = {
                         "ctVal": float(inst_info.get("lotSizeFilter", {}).get("ctVal") or 1.0),

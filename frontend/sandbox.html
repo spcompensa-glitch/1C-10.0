@@ -330,7 +330,6 @@
                     <thead>
                         <tr class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
                             <th class="p-4">Ativo</th>
-                            <th class="p-4">Contrato OKX</th>
                             <th class="p-4">Estratégia</th>
                             <th class="p-4">Direção</th>
                             <th class="p-4">Entrada</th>
@@ -703,7 +702,6 @@
                 return `
                     <tr class="trade-row">
                         <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
-                        <td class="p-4">${contractInfo}</td>
                         <td class="p-4 font-mono text-xs">
                             <span class="px-2 py-0.5 rounded font-black ${
                                 t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :

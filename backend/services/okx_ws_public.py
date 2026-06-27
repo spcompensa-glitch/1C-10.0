@@ -202,6 +202,44 @@ class OKXWSPublic:
         except Exception as e:
             logger.error(f"Error processing ticker message: {e}")
 
+    async def _process_instrument(self, message):
+        """[V119] Processa mensagens do canal instruments para cachear ctVal, tickSize e lotSize dinamicamente."""
+        try:
+            data = message.get("data", [])
+            for inst in data:
+                inst_id = inst.get("instId", "")
+                if not inst_id:
+                    continue
+                # Converter instId (ex: BTC-USDT-SWAP) para símbolo legacy/normalizado (ex: BTCUSDT)
+                symbol = inst_id.replace("-SWAP", "").replace("-", "")
+                
+                tick_size = inst.get("tickSz", "0.01")
+                lot_size = inst.get("lotSz", "1.0")
+                min_sz = inst.get("minSz", "1.0")
+                ct_val = inst.get("ctVal", "1.0")
+                
+                info = {
+                    "priceFilter": {
+                        "tickSize": tick_size
+                    },
+                    "lotSizeFilter": {
+                        "qtyStep": lot_size,
+                        "minOrderQty": min_sz,
+                        "ctVal": ct_val
+                    },
+                    "leverageFilter": {
+                        "maxLeverage": "50.0"
+                    }
+                }
+                # Atualiza os dois caches para garantir paridade absoluta de acesso (com ou sem hífens)
+                from services.okx_rest import okx_rest_service
+                okx_rest_service._instrument_cache[symbol] = info
+                okx_rest_service._instrument_cache[inst_id] = info
+            
+            logger.debug(f"📊 [OKX-WS-INSTRUMENTS] Atualizados metadados para {len(data)} instrumentos.")
+        except Exception as e:
+            logger.error(f"Error processing instrument message: {e}")
+
     def get_current_price(self, symbol: str) -> float:
         """[V5.2.5] Returns the last known price for a symbol."""
         norm_sym = symbol.replace(".P", "").upper()
@@ -556,6 +594,9 @@ class OKXWSPublic:
                             {"channel": "books5", "instId": inst_id}
                         ])
                     
+                    # [V119] WS Instruments: canal dinâmico para evitar rate limits de especificações de contratos
+                    args_sub.append({"channel": "instruments", "instType": "SWAP"})
+                    
                     # Subscreve em blocos de no máximo 90 tópicos para evitar exceder limites por frame da OKX
                     chunk_size = 90
                     for i in range(0, len(args_sub), chunk_size):
@@ -564,7 +605,7 @@ class OKXWSPublic:
                         await ws.send(json.dumps(sub_req))
                         await asyncio.sleep(0.1)
                         
-                    logger.info(f"📡 [OKX-WS PUBLIC] Subscrições enviadas para {len(monitored)} símbolos.")
+                    logger.info(f"📡 [OKX-WS PUBLIC] Subscrições enviadas para {len(monitored)} símbolos + canal instruments.")
                     
                     # Iniciar loop de ping periódico
                     if self._okx_ping_task:
@@ -591,8 +632,13 @@ class OKXWSPublic:
 
                             # Injeta mensagem OKX bruta na fila (formato nativo).
                             # Os consumers (_process_*) convertem instId → símbolo legacy internamente.
-                            if channel in ("trades", "tickers", "books5"):
-                                _type_map = {"trades": "trade", "tickers": "ticker", "books5": "orderbook"}
+                            if channel in ("trades", "tickers", "books5", "instruments"):
+                                _type_map = {
+                                    "trades": "trade",
+                                    "tickers": "ticker",
+                                    "books5": "orderbook",
+                                    "instruments": "instrument"
+                                }
                                 await self.msg_queue.put({
                                     "_type": _type_map[channel],
                                     "arg": data_okx["arg"],
@@ -696,6 +742,8 @@ class OKXWSPublic:
                     await self._process_orderbook(message)
                 elif m_type == "ticker":
                     await self._process_ticker(message)
+                elif m_type == "instrument":
+                    await self._process_instrument(message)
                 
                 self.msg_queue.task_done()
             except Exception as e:

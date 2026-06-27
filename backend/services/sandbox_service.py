@@ -564,7 +564,22 @@ class SandboxService:
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
             # [V119] Stop inicial adaptativo baseado em estrutura 30M
+            # Tenta ler do cache do WS / Rest de instrumentos se o sinal vier com dados vazios
             contract_meta = sig.get("contract_info") or {}
+            if not contract_meta or not contract_meta.get("ctVal"):
+                try:
+                    from services.okx_rest import okx_rest_service
+                    inst_info = await okx_rest_service.get_instrument_info(symbol)
+                    if inst_info:
+                        contract_meta = {
+                            "ctVal": float(inst_info.get("lotSizeFilter", {}).get("ctVal") or 1.0),
+                            "lotSize": float(inst_info.get("lotSizeFilter", {}).get("qtyStep") or 1.0),
+                            "minQty": float(inst_info.get("lotSizeFilter", {}).get("minOrderQty") or 1.0),
+                            "tickSize": float(inst_info.get("priceFilter", {}).get("tickSize") or 0.01),
+                            "maxLeverage": 50.0
+                        }
+                except Exception as meta_err:
+                    logger.debug(f"[SANDBOX] Erro ao resolver metadados extras de contrato para {symbol}: {meta_err}")
             stop_result = await self._calculate_adaptive_stop(symbol, entry_price, side, contract_meta, is_ranging)
             stop_price = stop_result["stop_price"]
             initial_stop_roi = stop_result["stop_roi"]

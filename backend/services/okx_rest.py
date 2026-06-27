@@ -742,6 +742,12 @@ class OKXRest:
     @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return={})
     async def get_instrument_info(self, symbol: str):
         """Fetches precision and lot size filtering for a symbol with local caching."""
+        api_symbol = self._strip_p(symbol).replace(".P", "").upper()
+        # V119: Retorno antecipado se os metadados do contrato já estiverem cacheados pelo WebSocket
+        for cache_key in (api_symbol, symbol, symbol.replace(".P", "")):
+            if cache_key in self._instrument_cache:
+                return self._instrument_cache[cache_key]
+
         if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
             from services.okx_service import okx_service
             try:

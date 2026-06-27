@@ -38,6 +38,9 @@ class SandboxService:
         # [V117] Rastreio de stops consecutivos por direção: {(symbol, direction): count}
         self._consecutive_stops: Dict[tuple, int] = {}
 
+        # [V119] Registro do último timestamp em que o ADX esteve em tendência para o cooldown de transição fria
+        self._last_trending_ts: float = 0.0
+
     def start(self):
         if self.is_running:
             return
@@ -437,6 +440,23 @@ class SandboxService:
             except Exception:
                 pass
             is_ranging = (adx_val < 25)
+
+            # Atualiza o timestamp de última tendência se estiver acima de 25
+            if not is_ranging:
+                self._last_trending_ts = time.time()
+
+            # [V119] Transição Fria pós tendência: se mudou para lateral nas últimas 15 minutos (900s),
+            # bloqueia a entrada de sinais laterais (DECOR SHADOW) para esperar a volatilidade das altcoins assentar.
+            if is_ranging and strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
+                elapsed_since_trend = time.time() - self._last_trending_ts
+                if elapsed_since_trend < 900.0:
+                    remaining_transition = int(900.0 - elapsed_since_trend)
+                    logger.info(
+                        f"🧪 [SANDBOX-TRANSITION-BLOCK] {symbol} {strategy} bloqueado — "
+                        f"cooldown de transição fria ativo: {remaining_transition}s restantes "
+                        f"(última tendência em ADX={adx_val:.1f} ocorreu há {int(elapsed_since_trend)}s)"
+                    )
+                    continue
 
             # [V119] Restabelecimento do ADX Regime Gating no Sandbox
             # Evita o ruído de rodar estratégias de tendência em mercado lateral e vice-versa

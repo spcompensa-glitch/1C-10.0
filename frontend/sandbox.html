@@ -330,6 +330,7 @@
                     <thead>
                         <tr class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
                             <th class="p-4">Ativo</th>
+                            <th class="p-4">Contrato OKX</th>
                             <th class="p-4">Estratégia</th>
                             <th class="p-4">Direção</th>
                             <th class="p-4">Entrada</th>
@@ -690,9 +691,10 @@
                             minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nocional Mín: $${(ctValNum * minSzNum * price).toFixed(2)}</div>`;
                         }
                     } catch (e) {}
+                    const minSzLine = minSz !== '?' ? `<div>Mín: <span class="text-white font-bold">${minSz}</span> contr.</div>` : '';
                     contractInfo = `
                         <div class="flex flex-col font-mono text-xs text-gray-300">
-                            <div>Mín: <span class="text-white font-bold">${minSz}</span> contr.</div>
+                            ${minSzLine}
                             <div class="text-gray-400 text-[10px]">ctVal: ${ctVal}</div>
                             ${minNocional}
                         </div>
@@ -702,6 +704,7 @@
                 return `
                     <tr class="trade-row">
                         <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
+                        <td class="p-4">${contractInfo}</td>
                         <td class="p-4 font-mono text-xs">
                             <span class="px-2 py-0.5 rounded font-black ${
                                 t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :

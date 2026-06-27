@@ -1113,6 +1113,25 @@ class SandboxService:
             "flash_state": flash_state
         }
 
+        # [V119] Resolve dinamicamente os metadados do contrato para trades que foram abertos sem ele
+        existing_meta = trade.contract_meta or {}
+        if not existing_meta or not existing_meta.get("ctVal"):
+            try:
+                from services.okx_rest import okx_rest_service
+                inst_info = okx_rest_service._instrument_cache.get(symbol) or okx_rest_service._instrument_cache.get(symbol + "-SWAP")
+                if inst_info:
+                    resolved_meta = {
+                        "ctVal": float(inst_info.get("lotSizeFilter", {}).get("ctVal") or 1.0),
+                        "lotSize": float(inst_info.get("lotSizeFilter", {}).get("qtyStep") or 1.0),
+                        "minQty": float(inst_info.get("lotSizeFilter", {}).get("minOrderQty") or 1.0),
+                        "tickSize": float(inst_info.get("priceFilter", {}).get("tickSize") or 0.01),
+                        "maxLeverage": 50.0
+                    }
+                    update_payload["contract_meta"] = resolved_meta
+                    trade.contract_meta = resolved_meta  # atualiza em memória para a execução local do tick
+            except Exception as dyn_meta_err:
+                logger.debug(f"[SANDBOX] Erro ao resolver metadados dinâmicos de contrato no tick de {symbol}: {dyn_meta_err}")
+
         if is_closed:
             update_payload["closed_at"] = closed_at
             update_payload["current_price"] = exit_price

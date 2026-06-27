@@ -99,10 +99,11 @@ class FakeDB:
 class FakeWS:
     """Mock do okx_ws_public_service para uso via monkeypatch."""
 
-    def __init__(self, price=0.0, conservative_price=0.0, adx=30.0):
+    def __init__(self, price=100.0, conservative_price=None, adx=30.0):
         self._price = price
-        self._conservative_price = conservative_price
+        self._conservative_price = price if conservative_price is None else conservative_price
         self.btc_adx = adx
+        self.active_symbols = ["INJUSDT", "BTCUSDT", "LDOUSDT"]
 
     def get_current_price(self, symbol):
         return self._price
@@ -630,6 +631,11 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
         return True
     monkeypatch.setattr(sb, "_check_1m_confirmation", fake_1m)
 
+    # Mock do filtro 5M para passar com sucesso no teste
+    async def fake_5m(*a, **kw):
+        return {"confirmed": True, "score_boost": 0.0, "detail": "mock"}
+    monkeypatch.setattr(sb, "_check_5m_confirmation", fake_5m)
+
     # Mocka macro BEARISH → SHORT permitido
     async def fake_macro(*a, **kw):
         return {"above_200sma": False}
@@ -642,6 +648,9 @@ async def test_entry_sanity_check_accepts_fresh_signal(monkeypatch):
             monkeypatch.setattr(real_sg, "get_daily_macro_filter", fake_macro)
     except Exception:
         pass
+
+    # Força ADX = 30 no WebSocket para que a estratégia VELOCITY FLOW não seja barrada pelo regime do V119
+    ws.btc_adx = 30.0
 
     signals = [{
         "symbol": "INJUSDT",
@@ -690,6 +699,7 @@ async def test_cooldown_blocks_reentry_after_stop(monkeypatch):
 
     # [V117] Chave de cooldown agora é (symbol, direction)
     sb._stop_cooldown[("INJUSDT", "SHORT")] = time.time()  # stop-out "agora"
+    ws.btc_adx = 30.0
 
     # Mock do _check_5m_confirmation para não bloquear (fail-open)
     async def fake_5m(*a, **kw):
@@ -734,6 +744,7 @@ async def test_cooldown_allows_reentry_after_expiry(monkeypatch):
 
     # [V117] Simula cooldown expirado (301s atrás) para a direção SHORT
     sb._stop_cooldown[("INJUSDT", "SHORT")] = time.time() - 301.0
+    ws.btc_adx = 30.0
 
     async def fake_5m(*a, **kw):
         return {"confirmed": True, "score_boost": 0.0, "detail": "mock"}

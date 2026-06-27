@@ -48,7 +48,12 @@ async def get_sandbox_stats():
         total_pnl_usd = 0.0  # [V113.2] Lucro acumulado em USD com margem média de $0.75
         BANCA = 22.0
         MARGEM_MEDIA = 0.75
-        strategy_stats = {}
+        # [V119] Inicializa preventivamente as 3 estratégias para garantir telemetria consistente na UI
+        strategy_stats = {
+            "ALPHA SHIELD": {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0},
+            "VELOCITY FLOW": {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0},
+            "DECOR SHADOW": {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0}
+        }
 
         for t in trades:
             # PnL USD: (ROI / 100) * $0.75 de margem (entre $0.50 e $1.00)

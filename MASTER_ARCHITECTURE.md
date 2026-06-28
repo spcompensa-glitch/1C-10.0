@@ -548,8 +548,10 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 - **Saida parcial lateral**: ao atingir +15% ROI em regime LATERAL, registra `has_taken_partial=True`; PnL final = media 50/50.
 - **Confirmacao REST antes de fechar**: apos `stop_hit=True`, busca preco fresco via REST antes de persistir o fechamento.
 - **Auto-blocklist [V118]**: pares com PnL total < -15% E win rate < 35% apos 3+ trades bloqueados automaticamente em runtime (era 5/20/30). Verificado a cada 120s.
+- **Transicao Fria ADX [V119]**: Ao mudar do regime de tendência para lateral, bloqueia novos sinais laterais por 15min (900s) para estabilização de volatilidade.
+- **Espelhamento em Conta Real [V119]**: Se `OKX_API_KEY_MASTER` e `REAL` mode estiverem ativos, replica ordens a mercado, cruzadas e com 50x de alavancagem com qty dinâmico proporcional à banca real da OKX.
 
-### 15.7 Constantes do SandboxService (V113.2 / V114)
+### 15.7 Constantes do SandboxService (V119)
 
 | Constante | Valor | Localizacao |
 |-----------|-------|-------------|
@@ -563,6 +565,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | [V119] Stop inicial estrutural 30M | Swing low/high + buffer 0.15% (fallback: LATERAL -10%, TRENDING -15%) | `sandbox_service.py` |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
+| [V119] Cooldown transicao ADX | **900s (15 min)** do modo tendência para lateral (evita volatilidade residual) | `sandbox_service.py` |
 | [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
@@ -576,6 +579,9 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 |-----|-------------|
 | `[SANDBOX-OPEN]` | Trade aberto com Entry, SL, MktPrice, TickSize |
 | `[SANDBOX-STALE]` | Sinal descartado — entry defasado (ROI imediato < threshold) |
+| `[SANDBOX-TRANSITION-BLOCK]` | Sinal de contra-tendencia bloqueado por cooldown de transicao fria (900s) |
+| `[SANDBOX-MIRROR-OPEN]` | Replicando abertura da ordem simulada na conta real da OKX |
+| `[SANDBOX-MIRROR-CLOSE]` | Replicando fechamento/stop da ordem simulada na conta real da OKX |
 | `[SANDBOX-FLASH]` | Degrau da escadinha ativado |
 | `[SANDBOX-PARTIAL]` | Saida parcial 50% executada em lateral |
 | `[SANDBOX-LOSS]` | Trade fechado no stop (com ROI, Entry, Exit, MaxROI) |

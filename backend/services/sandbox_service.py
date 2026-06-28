@@ -713,12 +713,12 @@ class SandboxService:
                         from services.okx_rest import okx_rest_service
                         # Puxar saldo real da conta OKX
                         bal_data = await okx_rest_service.get_balance()
-                        balance = 22.0
+                        balance = 100.0
                         if bal_data and bal_data.get("retCode") == 0:
-                            balance = float(bal_data["result"].get("available", 22.0))
+                            balance = float(bal_data["result"].get("available", 100.0))
                             
-                        # Determinar tamanho de margem proporcional (teto de $1.00 e piso de $0.55 para banca real baixa)
-                        margin = max(0.55, min(1.00, round(balance * 0.03, 2)))
+                        # [V119] Determina margem proporcional do Founder Vision: 2% da banca por slot (com piso de $0.55 e teto de $2.00 para banca padrão de $100)
+                        margin = max(0.55, min(2.00, round(balance * 0.02, 2)))
                         ct_val = float(contract_meta.get("ctVal") or 1.0)
                         qty_step = float(contract_meta.get("lotSize") or 1.0)
                         

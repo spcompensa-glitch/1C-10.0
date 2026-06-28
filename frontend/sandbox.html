@@ -597,7 +597,7 @@
                     document.getElementById('stat-active').innerText = stats.active_trades;
                     document.getElementById('stat-winrate').innerText = stats.win_rate + '%';
                     document.getElementById('stat-pnl').innerText = (stats.total_pnl > 0 ? '+' : '') + stats.total_pnl.toFixed(2) + '%';
-                    const currentBalance = 22.0 * (1 + stats.total_pnl / 100.0); // Banca real $22 + PnL proporcional
+                    const currentBalance = 100.0 * (1 + stats.total_pnl / 100.0); // Banca real $100 + PnL proporcional
                     document.getElementById('stat-balance').innerText = '$' + currentBalance.toFixed(2) + ' USD';
                     document.getElementById('stat-best').innerText = stats.best_strategy;
                 }

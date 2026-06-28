@@ -704,6 +704,49 @@ class SandboxService:
             await database_service.save_sandbox_trade(trade_data)
             asyncio.create_task(okx_ws_public_service.sync_topics([symbol]))
 
+            # [V119] ESPELHAMENTO DE CONTAS REAL: Se chaves master de API reais estiverem configuradas,
+            # replica a ordem simulada do Sandbox na conta real da OKX como ordem a mercado
+            from config import settings
+            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+                async def execute_real_mirror_order():
+                    try:
+                        from services.okx_rest import okx_rest_service
+                        # Puxar saldo real da conta OKX
+                        bal_data = await okx_rest_service.get_balance()
+                        balance = 22.0
+                        if bal_data and bal_data.get("retCode") == 0:
+                            balance = float(bal_data["result"].get("available", 22.0))
+                            
+                        # Determinar tamanho de margem proporcional (teto de $1.00 e piso de $0.55 para banca real baixa)
+                        margin = max(0.55, min(1.00, round(balance * 0.03, 2)))
+                        ct_val = float(contract_meta.get("ctVal") or 1.0)
+                        qty_step = float(contract_meta.get("lotSize") or 1.0)
+                        
+                        # Qty = (margem * alavancagem) / (preço * ctVal)
+                        raw_qty = (margin * 50.0) / (entry_price * ct_val)
+                        import math
+                        qty = float(math.floor(raw_qty / qty_step) * qty_step)
+                        
+                        if qty > 0:
+                            # Executar place_atomic_order com os stops correspondentes à simulação
+                            logger.info(f"🔌 [SANDBOX-MIRROR-OPEN] Replicando ordem simulada de {symbol} ({direction}) na conta real OKX... Margem: ${margin:.2f}, Qty: {qty} contr, SL: {stop_price:.4f}")
+                            okx_side = "Buy" if direction == "LONG" else "Sell"
+                            res = await okx_rest_service.place_atomic_order(
+                                symbol=symbol,
+                                side=okx_side,
+                                qty=qty,
+                                sl_price=stop_price,
+                                leverage=50.0,
+                                margin_mode="cross" # margem cruzada
+                            )
+                            logger.info(f"🔌 [SANDBOX-MIRROR-OPEN-RESPONSE] Resposta da ordem real espelhada: {res}")
+                        else:
+                            logger.warning(f"🔌 [SANDBOX-MIRROR-OPEN-SKIP] Qty calculada foi zero para {symbol} (Margem: ${margin:.2f})")
+                    except Exception as mirror_err:
+                        logger.error(f"❌ [SANDBOX-MIRROR-OPEN-ERROR] Falha ao replicar ordem real de {symbol}: {mirror_err}")
+                
+                asyncio.create_task(execute_real_mirror_order())
+
             logger.info(
                 f"🧪 [SANDBOX-OPEN] {symbol} {strategy} {direction} | "
                 f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi:.1f}%, src={stop_result['source']}) | "
@@ -1163,6 +1206,32 @@ class SandboxService:
             else:
                 final_pnl = actual_exit_roi
             update_payload["pnl_pct"] = final_pnl
+
+            # [V119] ESPELHAMENTO DE CONTAS REAL: Se a ordem simulada do Sandbox fechar,
+            # liquida a posição correspondente na conta real da OKX imediatamente a mercado.
+            from config import settings
+            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+                async def execute_real_mirror_close():
+                    try:
+                        from services.okx_rest import okx_rest_service
+                        # side da ordem de fechamento é o oposto da ordem original
+                        # (Original LONG -> fecha vendendo; Original SHORT -> fecha comprando)
+                        close_side = "Sell" if trade.direction == "LONG" else "Buy"
+                        
+                        # Buscar posições reais abertas no book da OKX para fechar a quantidade exata
+                        # que está aberta
+                        logger.info(f"🔌 [SANDBOX-MIRROR-CLOSE] Solicitando fechamento real de posição para {symbol} na OKX...")
+                        success = await okx_rest_service.close_position(
+                            symbol=symbol,
+                            side=close_side,
+                            qty=0, # 0 indica fechar posição inteira a mercado na OKX
+                            reason=f"SANDBOX_MIRROR_{updated_level_name}"
+                        )
+                        logger.info(f"🔌 [SANDBOX-MIRROR-CLOSE-RESULT] Fechamento real espelhado de {symbol} executado: {success}")
+                    except Exception as close_mirror_err:
+                        logger.error(f"❌ [SANDBOX-MIRROR-CLOSE-ERROR] Falha ao liquidar espelho real de {symbol}: {close_mirror_err}")
+                
+                asyncio.create_task(execute_real_mirror_close())
 
             status = "CLOSED_TRAILING" if final_pnl > 0 else "CLOSED_SL"
             update_payload["status"] = status

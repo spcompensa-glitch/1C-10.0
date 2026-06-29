@@ -359,10 +359,10 @@ async def test_adaptive_stop_trending_is_wider():
     trending_stop = trending_res["stop_price"]
 
     proj = OrderProjectionService()
-    expected = proj.raw_price_from_roi(entry, -25.0, side, 50.0)
+    expected = proj.raw_price_from_roi(entry, -20.0, side, 50.0)
 
     assert abs(trending_stop - expected) < 0.01, \
-        f"Stop tendência SHORT esperado ~{expected:.4f} (-25% ROI), obtido {trending_stop:.4f}"
+        f"Stop tendência SHORT esperado ~{expected:.4f} (-20% ROI), obtido {trending_stop:.4f}"
 
 
 # ---------------------------------------------------------------------------

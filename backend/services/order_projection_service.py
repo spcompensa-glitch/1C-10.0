@@ -26,26 +26,25 @@ class StopLevel:
 
 
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
-    # [V119] Escadinha RANGING Progressiva e Acelerada
-    # Garante cobertura de taxas rapidamente e trava lucros graduais no mercado lateral
-    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 3.5, 1.5, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 9.5, 5.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 16.5, 10.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO", 27.5, 18.0, "RISCO_ZERO"),
+    # [V119] Escadinha RANGING Progressiva e Acelerada (Calibrada)
+    # Folga maior para evitar violinada precoce no lucro pequeno (+6% trigger, stop +1.5% break-even)
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 6.0, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 12.0, 5.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 20.0, 10.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO", 32.0, 18.0, "RISCO_ZERO"),
     # Trailing muito apertado em +48% assim que bate +50% ROI para travar lucro máximo
     StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
-    # [V113.2] Escadinha TRENDING — stop inicial -5%, sem travas prematuras
-    # O trade corre livre até +20% ROI, aí começa a proteção progressiva
-    # +60% → stop +50% garante metade do lucro nos grandes movimentos
-    StopLevel("ESCADINHA", "GARANTIA_20", 20.0, 5.0, "RISCO_BAIXO"),
-    StopLevel("ESCADINHA", "LUCRO_INICIAL", 30.0, 15.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_MEDIO", 45.0, 30.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_ALTO", 60.0, 50.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_GARANTIDO_80", 80.0, 65.0, "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "LUCRO_GARANTIDO", 100.0, 75.0, "RISCO_ZERO"),
+    # [V119] Escadinha TRENDING Progressiva e Calibrada
+    # O trade corre livre até +12% ROI antes de mover para break-even, evitando violinadas curtas
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 12.0, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_20", 25.0, 10.0, "RISCO_BAIXO"),
+    StopLevel("ESCADINHA", "LUCRO_INICIAL", 40.0, 20.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_MEDIO", 60.0, 40.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_ALTO", 80.0, 60.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_GARANTIDO_100", 100.0, 80.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "SUCESSO_TOTAL", 130.0, 110.0, "PROFIT_LOCK"),
     StopLevel("TRAILING", "ALVO_150", 150.0, 110.0, "PROFIT_LOCK"),
     StopLevel("TRAILING", "WAVE", 200.0, 150.0, "TRAIL_LOCK"),

@@ -312,8 +312,20 @@ class SandboxService:
         structural_stop = await self._get_30m_structural_stop(symbol, entry_price, side)
         if structural_stop and structural_stop > 0:
             stop_price = structural_stop
-            # Verificar se o ROI resultante é razoável (entre -10% e -40%)
+            # Verificar se o ROI resultante é razoável
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
+            
+            # [V119] Capping estrito de segurança de risco (Founder Vision):
+            # Limita a no máximo -15% de ROI em Ranging e -25% de ROI em Trending para proteger o capital
+            limit_roi = -15.0 if is_ranging else -25.0
+            if stop_roi < limit_roi:
+                logger.info(
+                    f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
+                    f"Ajustando para o teto rígido de {limit_roi:.1f}% ROI"
+                )
+                stop_roi = limit_roi
+                stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                
             if -40.0 <= stop_roi <= -10.0:
                 source = "structural_30m"
                 if tick_size > 0:

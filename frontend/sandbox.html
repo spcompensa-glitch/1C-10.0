@@ -338,6 +338,7 @@
                             <th class="p-4">Stop Loss</th>
                             <th class="p-4">ROI Máx</th>
                             <th class="p-4">ROI Atual</th>
+                            <th class="p-4">Lucro (USD)</th>
                             <th class="p-4">Fase Flash</th>
                             <th class="p-4">Status</th>
                             <th class="p-4 text-center">Histórico</th>
@@ -723,6 +724,9 @@
                         </td>
                         <td class="p-4 font-mono text-xs text-cyberGreen">+${t.max_roi.toFixed(1)}%</td>
                         <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${t.pnl_pct.toFixed(1)}%</td>
+                        <td class="p-4 font-mono text-xs ${pnlClass}">
+                            ${pnlSign}$${((t.pnl_pct / 100.0) * 2.00).toFixed(2)} USD
+                        </td>
                         <td class="p-4">
                             <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">
                                 ${flashPhase} - ${flashLevel}

@@ -495,6 +495,16 @@ class SandboxService:
             except Exception as e:
                 logger.warning(f"Erro ao verificar blocklist: {e}")
 
+            # [V119] Check de Segurança do Librarian DNA (Evita Memecoins, perdas consecutivas e excesso de alavancagem)
+            try:
+                from services.agents.librarian import librarian_agent
+                lib_dna = await librarian_agent.get_asset_dna(symbol)
+                if lib_dna.get("status") == "REJECTED":
+                    logger.warning(f"🛡️ [SANDBOX-LIBRARIAN-BLOCK] {symbol} negado pelo Librarian DNA: {lib_dna.get('reason')} - {lib_dna.get('advice')}")
+                    continue
+            except Exception as lib_err:
+                logger.warning(f"[SANDBOX-LIBRARIAN] Falha ao consultar Librarian DNA para {symbol}: {lib_err}")
+
             macro_trend = "BULLISH"
             decor_bypass = False
             try:

@@ -400,8 +400,8 @@ def test_tick_size_rounding_applied_to_stop():
 @pytest.mark.asyncio
 async def test_rest_confirmation_before_close(monkeypatch):
     """
-    Quando stop é atingido, _get_rest_price deve ser chamado para confirmação.
-    O preço REST substitui o preço de saída para garantir execução precisa.
+    [V119] Quando stop é atingido no Sandbox, ele fecha instantaneamente via WS
+    sem precisar enfileirar chamadas REST lentas de rede.
     """
     entry = 0.2522
     trade = _make_trade(
@@ -416,23 +416,12 @@ async def test_rest_confirmation_before_close(monkeypatch):
 
     sb = _build_sandbox_with_patches(monkeypatch, db, ws)
 
-    rest_calls = []
-
-    async def fake_rest_price(symbol):
-        rest_calls.append(symbol)
-        return 0.2580  # confirmação REST
-
-    monkeypatch.setattr(sb, "_get_rest_price", fake_rest_price)
-
     await sb._process_trade_tick(trade)
 
-    # 1. REST deve ter sido chamado
-    assert len(rest_calls) >= 1, \
-        "REST não foi chamado — confirmação antes do fechamento não ocorreu"
-    # 2. Trade deve ter fechado
+    # Trade deve ter fechado instantaneamente
     payload = db.updated.get(trade.id, {})
     assert payload.get("status") in ("CLOSED_SL", "CLOSED_TRAILING"), \
-        f"Trade não fechou após confirmação REST. Status: {payload.get('status')}"
+        f"Trade não fechou após cruzamento de preço. Status: {payload.get('status')}"
 
 
 # ---------------------------------------------------------------------------

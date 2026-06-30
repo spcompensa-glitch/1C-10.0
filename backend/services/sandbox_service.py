@@ -128,39 +128,53 @@ class SandboxService:
 
     async def _check_stop_hit(self, side: str, stop_price: float, symbol: str) -> bool:
         """
-        Verifica se o stop foi violado usando PREÇO CONSERVATIVO.
-        Para LONG: usa o LOW dos últimos 120s (pega dips intra-ciclo)
-        Para SHORT: usa o HIGH dos últimos 120s (pega pumps intra-ciclo)
-        Fallback: preço atual WS → REST → cache (espelha FlashAgent).
-
-        FIX (bug raiz LDOUSDT): antes, se WS retornava 0 em ambas as chamadas,
-        retornava False sem consultar REST/cache — stop nunca era detectado.
+        Verifica se o stop foi violado usando PREÇO CONSERVATIVO via WebSockets.
+        Janela de 30s para evitar delays no Sandbox.
+        Para LONG: usa o LOW dos últimos 30s (pega dips intra-ciclo)
+        Para SHORT: usa o HIGH dos últimos 30s (pega pumps intra-ciclo)
         """
         if stop_price <= 0:
             return False
 
+        norm_sym = symbol.replace(".P", "").upper()
+        check_price = 0.0
+
         try:
-            check_price = okx_ws_public_service.get_conservative_price(symbol, side)
-            if check_price > 0:
-                stop_hit = (side.lower() == "buy" and check_price <= stop_price) or \
-                           (side.lower() == "sell" and check_price >= stop_price)
-                if stop_hit:
-                    return True
+            # 1. Tenta usar a função padrão de preço conservativo com janela de 30 segundos
+            # se okx_ws_public_service suportar o parâmetro window_seconds
+            check_price = okx_ws_public_service.get_conservative_price(norm_sym, side)
+            
+            # Se for live com low_prices/high_prices populados, sobrescrevemos com a janela estrita de 30s
+            now = time.time()
+            if side.lower() == "buy":
+                low_data = okx_ws_public_service.low_prices.get(norm_sym)
+                if low_data and (now - low_data["ts"]) <= 30:
+                    current_price = okx_ws_public_service.get_current_price(norm_sym) or check_price
+                    check_price = min(current_price, low_data["low"])
+            else:
+                high_data = okx_ws_public_service.high_prices.get(norm_sym)
+                if high_data and (now - high_data["ts"]) <= 30:
+                    current_price = okx_ws_public_service.get_current_price(norm_sym) or check_price
+                    check_price = max(current_price, high_data["high"])
         except Exception:
             pass
 
-        # Fallback 1: preço atual via WS
-        current_price = okx_ws_public_service.get_current_price(symbol)
-        if current_price > 0:
-            return (side.lower() == "buy" and current_price <= stop_price) or \
-                   (side.lower() == "sell" and current_price >= stop_price)
+        # 2. Fallbacks sequenciais se o WebSocket retornar 0 (crucial para testes unitários com mock)
+        if check_price <= 0:
+            try:
+                # Fallback 1: Preço atual direto do WebSocket
+                check_price = okx_ws_public_service.get_current_price(symbol)
+                if check_price <= 0:
+                    # Fallback 2: Busca em cascata (REST -> Cache)
+                    check_price = await self._get_current_price(symbol)
+            except Exception:
+                pass
 
-        # Fallback 2: REST + cache (FIX — antes este fallback não existia)
-        current_price = await self._get_current_price(symbol)
-        if current_price <= 0:
-            return False
-        return (side.lower() == "buy" and current_price <= stop_price) or \
-               (side.lower() == "sell" and current_price >= stop_price)
+        if check_price > 0:
+            return (side.lower() == "buy" and check_price <= stop_price) or \
+                   (side.lower() == "sell" and check_price >= stop_price)
+
+        return False
 
     # ==================== TICK SIZE ROUNDING ====================
 
@@ -1168,11 +1182,9 @@ class SandboxService:
         if stop_price > 0:
             stop_hit = await self._check_stop_hit(side, stop_price, symbol)
             if stop_hit:
-                # Confirmacao REST antes de fechar
-                fresh_price = await self._get_rest_price(symbol)
-                if fresh_price > 0:
-                    current_price = fresh_price
-                    current_roi = proj_service.calculate_roi(entry_price, current_price, side, leverage)
+                # [V119] Sem confirmações REST lentas para o Sandbox. Fecha instantaneamente!
+                current_price = stop_price
+                current_roi = proj_service.calculate_roi(entry_price, current_price, side, leverage)
 
                 is_closed = True
                 should_run_blocklist = True

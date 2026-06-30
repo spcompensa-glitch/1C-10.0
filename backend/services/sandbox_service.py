@@ -303,7 +303,7 @@ class SandboxService:
           { "stop_price": float, "stop_roi": float, "source": str }
         """
         leverage = 50.0
-        fallback_roi = -15.0 if is_ranging else -25.0
+        fallback_roi = -12.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
@@ -316,8 +316,8 @@ class SandboxService:
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
             
             # [V119] Capping estrito de segurança de risco (Founder Vision):
-            # Limita a no máximo -15% de ROI em Ranging e -25% de ROI em Trending para proteger o capital
-            limit_roi = -15.0 if is_ranging else -25.0
+            # Limita a no máximo -12% de ROI para proteger o capital e evitar perdas volumosas
+            limit_roi = -12.0
             if stop_roi < limit_roi:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
@@ -369,12 +369,12 @@ class SandboxService:
                             
                         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
                         
-                        # Trava o ROI de stop entre -10% e -30% para manter consistência de alavancagem
+                        # Trava o ROI de stop a no máximo -12% para manter consistência de alavancagem
                         if stop_roi > -10.0:
                             stop_roi = -10.0
                             stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                        elif stop_roi < -30.0:
-                            stop_roi = -30.0
+                        elif stop_roi < -12.0:
+                            stop_roi = -12.0
                             stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                             
                         source = "volatility_atr"
@@ -610,10 +610,10 @@ class SandboxService:
                 continue
 
             # [V117] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)
-            # 2 stops consecutivos SHORT → 10min; 1 stop → 5min
+            # Aumentado para 3600s (1 hora) para evitar perdas sequenciais no mesmo ativo durante ressaca
             cooldown_key = (symbol, direction)
             consecutive = self._consecutive_stops.get(cooldown_key, 0)
-            COOLDOWN_SECS = 600.0 if consecutive >= 2 else 300.0  # 10min se 2+ stops, senão 5min
+            COOLDOWN_SECS = 3600.0 if consecutive >= 1 else 300.0  # 1 hora se tiver stopout, senão 5min
             last_sl_ts = self._stop_cooldown.get(cooldown_key, 0.0)
             elapsed = time.time() - last_sl_ts
             if elapsed < COOLDOWN_SECS:
@@ -1264,7 +1264,7 @@ class SandboxService:
                 self._consecutive_stops[(clean_sym, opposite_dir)] = 0
                 self._stop_cooldown[cooldown_key] = time.time()
                 new_consec = self._consecutive_stops[cooldown_key]
-                cooldown_applied = 600 if new_consec >= 2 else 300
+                cooldown_applied = 3600 if new_consec >= 1 else 300
                 logger.info(
                     f"🧪 [SANDBOX-COOLDOWN-SET] {clean_sym} {trade_dir} cooldown de {cooldown_applied}s "
                     f"(stops consecutivos nesta direção: {new_consec})"

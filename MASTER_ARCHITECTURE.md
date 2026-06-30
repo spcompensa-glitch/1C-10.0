@@ -556,20 +556,20 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Constante | Valor | Localizacao |
 |-----------|-------|-------------|
 | Ciclo de monitoramento | 1s | `sandbox_service.py` |
-| Banca virtual | **$22.00 USD** | `routes/sandbox.py:49` (`BANCA = 22.0`) |
-| Margem media por trade | **$0.75** | `routes/sandbox.py:50` (`MARGEM_MEDIA = 0.75`) |
-| Margem simulada OKX | Entre $0.50 e $1.00 | `routes/sandbox.py:54` |
+| Banca virtual | **$100.00 USD** | `routes/sandbox.py:49` (`BANCA = 100.0`) |
+| Margem media por trade | **$2.00** | `routes/sandbox.py:50` (`MARGEM_MEDIA = 2.0`) |
+| Margem simulada OKX | Proporcional a 2% (até $2.00) | `routes/sandbox.py:54` |
 | Leverage (sandbox) | 50x | `sandbox_service.py` |
 | Janela conservative price | 120s | `okx_ws_public.py:291` |
 | TTL cache de preco | 60s | `sandbox_service.py` |
-| [V119] Stop inicial estrutural 30M | Swing low/high + buffer 0.15% (fallback: LATERAL -10%, TRENDING -15%) | `sandbox_service.py` |
+| [V119] Stop inicial estrutural 30M | Swing low/high + buffer 0.15% (capping: UNIFICADO -12.0% ROI) | `sandbox_service.py` |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
-| [V114] Cooldown pos stop-out | **300s (5 min)** | `sandbox_service.py` |
+| [V119] Cooldown pos stop-out | **3600s (1 hora)** (impede re-entry consecutivo no mesmo par sob estresse) | `sandbox_service.py` |
 | [V119] Cooldown transicao ADX | **900s (15 min)** do modo tendência para lateral (evita volatilidade residual) | `sandbox_service.py` |
 | [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
-| Placeholder banca (HTML) | **$22.00 USD** | `sandbox.html:158` |
+| Placeholder banca (HTML) | **$100.00 USD** | `sandbox.html:158` |
 | Auto-blocklist check | 120s | `sandbox_service.py` |
 | [V118] Auto-blocklist criterio | PnL < -15% E WR < 35% apos 3+ trades | `sandbox_service.py` |
 

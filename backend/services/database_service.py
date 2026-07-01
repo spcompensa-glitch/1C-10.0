@@ -130,6 +130,9 @@ class SandboxTrade(Base):
     flash_state = Column(JSON, nullable=True)
     contract_meta = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # [V121] Phase Detector — Explosion Score + sinais que motivaram a entrada
+    explosion_score = Column(Float, default=0.0)
+    explosion_signals = Column(JSON, nullable=True)
 
 class RadarPulse(Base):
     __tablename__ = "radar_pulse"
@@ -273,7 +276,10 @@ class DatabaseService:
                         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
                         ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION"),
                         ("vault_cycles", "data", "JSONB"),
-                        ("vault_cycles", "updated_at", "TIMESTAMP")
+                        ("vault_cycles", "updated_at", "TIMESTAMP"),
+                        # [V121] Phase Detector — explosion score + signals no sandbox
+                        ("sandbox_trades", "explosion_score", "DOUBLE PRECISION"),
+                        ("sandbox_trades", "explosion_signals", "JSONB")
                     ]
                     for table, col, col_type in migrations:
                         try:

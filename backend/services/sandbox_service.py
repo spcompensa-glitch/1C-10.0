@@ -815,7 +815,10 @@ class SandboxService:
                     "regime": "LATERAL" if is_ranging else "TRENDING",
                     "history": [f"Abertura em {entry_price} com SL inicial em {stop_price} ({initial_stop_roi}% ROI, source={stop_result['source']})"]
                 },
-                "contract_meta": contract_meta
+                "contract_meta": contract_meta,
+                # [V121] Phase Detector — salva score e sinais junto com o trade
+                "explosion_score": explosion_score,
+                "explosion_signals": sig.get("explosion_signals", []),
             }
 
             await database_service.save_sandbox_trade(trade_data)

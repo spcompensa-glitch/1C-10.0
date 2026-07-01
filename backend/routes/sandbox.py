@@ -29,7 +29,9 @@ async def get_sandbox_trades(active_only: bool = Query(False, description="Filtr
                 "closed_at": t.closed_at,
                 "flash_state": t.flash_state,
                 "contract_meta": t.contract_meta,
-                "created_at": t.created_at.isoformat() if t.created_at else None
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "explosion_score": getattr(t, "explosion_score", 0) or 0,
+                "explosion_signals": getattr(t, "explosion_signals", []) or []
             })
         return result
     except Exception as e:

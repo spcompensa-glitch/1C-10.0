@@ -2133,7 +2133,27 @@ class OKXRest:
             except Exception as e:
                 logger.warning(f"Error fetching funding rate from OKX for {symbol}: {e}")
                 return 0.0
-                
+
+    async def get_funding_rate_history(self, symbol: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        [V120.1] Fetches historical funding rates from OKX.
+        Returns list of {"fundingRate": float, "fundingTime": int, "symbol": str}
+        """
+        try:
+            from services.okx_service import okx_service
+            inst_id = okx_service.to_okx_inst_id(symbol)
+            url = f"https://www.okx.com/api/v5/public/funding-rate-history?instId={inst_id}&limit={limit}"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        return data["data"]
+        except Exception as e:
+            logger.warning(f"Error fetching funding rate history from OKX for {symbol}: {e}")
+        return []
+
     async def set_trading_stop(self, category: str, symbol: str, stopLoss: str, slTriggerBy: str = None, tpslMode: str = None, positionIdx: int = None, side: str = None):
         """
         Sets the stop loss for a position.

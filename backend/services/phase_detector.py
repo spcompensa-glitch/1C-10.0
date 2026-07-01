@@ -248,6 +248,121 @@ class PhaseDetector:
         except Exception as e:
             logger.warning(f"[PHASE-DETECTOR] Erro na coleta periódica: {e}")
 
+    async def fetch_okx_historical_data(self, symbols: List[str] = None):
+        """
+        [V120.1] Busca dados históricos da OKX e popula o banco de dados.
+        Executar UMA VEZ no startup para ter histórico imediato.
+
+        Coleta:
+        - Klines 30M (20 candles = 10 horas) → BB Width, Volume, Range
+        - Funding Rate History (100 snapshots) → Funding Bonus
+        - OI atual → Open Interest
+        """
+        try:
+            from config import settings
+            from services.okx_rest import okx_rest_service
+
+            if not symbols:
+                symbols = list(set(
+                    getattr(settings, 'RADAR_WATCHLIST', []) +
+                    getattr(settings, 'DECOR_WATCHLIST', []) +
+                    getattr(settings, 'MASTER_CONTEXT_ASSETS', [])
+                ))
+
+            logger.info(f"📡 [PHASE-DETECTOR] Buscando dados históricos da OKX para {len(symbols)} pares...")
+
+            snapshots = []
+            for symbol in symbols:
+                try:
+                    # 1. Klines 30M (últimos 20 candles = 10 horas)
+                    candles = await okx_rest_service.get_klines(symbol, interval="30", limit=20)
+                    if candles and len(candles) >= 10:
+                        # OKX retorna mais novos primeiro, inverter
+                        chronological = list(reversed(candles))
+
+                        closes = [float(c.get("close") or c[4]) for c in chronological]
+                        highs = [float(c.get("high") or c[2]) for c in chronological]
+                        lows = [float(c.get("low") or c[3]) for c in chronological]
+                        volumes = [float(c.get("volCcy24h") or c.get("vol") or c[5]) for c in chronological]
+                        timestamps = [float(c.get("ts") or c[0]) / 1000.0 for c in chronological]
+
+                        # BB Width para cada candle
+                        for i in range(19, len(closes)):
+                            window = closes[i-19:i+1]
+                            sma = sum(window) / 20
+                            std = (sum((c - sma) ** 2 for c in window) / 20) ** 0.5
+                            bb_width = (4 * std / sma) * 100 if sma > 0 else 5.0
+                            snapshots.append({
+                                "symbol": symbol,
+                                "data_type": "BB_WIDTH",
+                                "value": bb_width,
+                                "timestamp": timestamps[i]
+                            })
+
+                        # Volume para cada candle
+                        for i, vol in enumerate(volumes):
+                            snapshots.append({
+                                "symbol": symbol,
+                                "data_type": "VOLUME",
+                                "value": vol,
+                                "timestamp": timestamps[i]
+                            })
+
+                        # Range para cada candle
+                        for i in range(len(highs)):
+                            range_pct = ((highs[i] - lows[i]) / lows[i]) * 100.0 if lows[i] > 0 else 0
+                            snapshots.append({
+                                "symbol": symbol,
+                                "data_type": "RANGE",
+                                "value": {"high": highs[i], "low": lows[i], "range_pct": range_pct},
+                                "timestamp": timestamps[i]
+                            })
+
+                    # 2. Funding Rate History (últimos 100 = ~33 horas se 20min interval)
+                    funding_data = await okx_rest_service.get_funding_rate_history(symbol, limit=100)
+                    if funding_data:
+                        for item in funding_data:
+                            rate = float(item.get("fundingRate", 0))
+                            ts = int(item.get("fundingTime", 0)) / 1000.0
+                            if ts > 0:
+                                snapshots.append({
+                                    "symbol": symbol,
+                                    "data_type": "FUNDING",
+                                    "value": rate,
+                                    "timestamp": ts
+                                })
+
+                    # 3. OI atual (já temos no cache)
+                    from services.okx_ws_public import okx_ws_public_service
+                    oi = okx_ws_public_service.oi_cache.get(symbol, 0)
+                    if oi and oi > 0:
+                        snapshots.append({
+                            "symbol": symbol,
+                            "data_type": "OI",
+                            "value": oi,
+                            "timestamp": time.time()
+                        })
+
+                except Exception as sym_err:
+                    logger.debug(f"[PHASE-DETECTOR] Erro ao buscar dados para {symbol}: {sym_err}")
+                    continue
+
+            # Salvar tudo no banco em batch
+            if snapshots:
+                from services.database_service import database_service
+                await database_service.save_phase_detector_batch(snapshots)
+                logger.info(
+                    f"✅ [PHASE-DETECTOR] {len(snapshots)} snapshots históricos salvos no banco "
+                    f"para {len(symbols)} pares"
+                )
+
+            # Recarregar em memória
+            self._loaded_from_db = False
+            await self.load_history_from_db()
+
+        except Exception as e:
+            logger.warning(f"[PHASE-DETECTOR] Erro ao buscar dados históricos: {e}")
+
     # ==================== OI TRACKING ====================
 
     def update_oi(self, symbol: str, oi_value: float):

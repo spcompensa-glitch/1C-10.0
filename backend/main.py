@@ -163,6 +163,15 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"⚠️ [PHASE-DETECTOR] Failed to load history: {e}")
 
+            # [V120.1] Fetch OKX historical data for Phase Detector (if DB is empty)
+            try:
+                from services.phase_detector import phase_detector
+                if not phase_detector._oi_history:  # Se não há dados em memória, buscar da OKX
+                    asyncio.create_task(phase_detector.fetch_okx_historical_data())
+                    logger.info("📡 [PHASE-DETECTOR] Fetching OKX historical data in background...")
+            except Exception as e:
+                logger.warning(f"⚠️ [PHASE-DETECTOR] Failed to schedule OKX data fetch: {e}")
+
             logger.info("Step 0.2: Initializing WebSocket Service...")
             websocket_service = importlib.import_module("services.websocket_service").websocket_service
             

@@ -16,10 +16,13 @@ Fase 2: Compressão (30min-2h)
 
 Fase 3: Detonação (5-30min)
   - Volume explode (confirmado pelo Explosion Score)
+
+[V120.1] Persistência: dados são salvos no PostgreSQL e carregados no startup.
 """
 
 import time
 import logging
+import asyncio
 from collections import deque
 from typing import Dict, Any, Optional, List
 
@@ -55,6 +58,124 @@ class PhaseDetector:
         self._last_oi_snapshot: Dict[str, float] = {}
         self._last_oi_ts: Dict[str, float] = {}
 
+        # [V120.1] Controle de persistência
+        self._db_buffer: List[Dict[str, Any]] = []
+        self._last_db_flush: float = 0.0
+        self._flush_interval: float = 300.0  # Salvar a cada 5 minutos
+        self._loaded_from_db: bool = False
+
+    # ==================== DATABASE PERSISTENCE (V120.1) ====================
+
+    async def load_history_from_db(self):
+        """
+        Carrega histórico do banco de dados na inicialização.
+        Chamar uma vez no startup do sistema.
+        """
+        if self._loaded_from_db:
+            return
+
+        try:
+            from services.database_service import database_service
+
+            # Símbolos ativos no watchlist (carrega para os mais relevantes)
+            from config import settings
+            active_symbols = list(set(
+                getattr(settings, 'RADAR_WATCHLIST', [])[:20] +
+                getattr(settings, 'DECOR_WATCHLIST', [])[:20]
+            ))
+
+            loaded_count = 0
+            for symbol in active_symbols:
+                # Carregar OI history (últimas 12h)
+                oi_data = await database_service.load_phase_detector_history(symbol, "OI", lookback_hours=12.0)
+                if oi_data:
+                    self._oi_history[symbol] = deque(maxlen=48)
+                    for item in oi_data:
+                        self._oi_history[symbol].append({"oi": item["value"], "ts": item["timestamp"]})
+                    if self._oi_history[symbol]:
+                        last = self._oi_history[symbol][-1]
+                        self._last_oi_snapshot[symbol] = last["oi"]
+                        self._last_oi_ts[symbol] = last["ts"]
+                    loaded_count += len(oi_data)
+
+                # Carregar CVD history (última 1h)
+                cvd_data = await database_service.load_phase_detector_history(symbol, "CVD", lookback_hours=1.0)
+                if cvd_data:
+                    self._cvd_price_history[symbol] = deque(maxlen=60)
+                    for item in cvd_data:
+                        self._cvd_price_history[symbol].append(item["value"])
+                    loaded_count += len(cvd_data)
+
+                # Carregar BB Width history (últimas 12h)
+                bb_data = await database_service.load_phase_detector_history(symbol, "BB_WIDTH", lookback_hours=12.0)
+                if bb_data:
+                    self._bb_width_history[symbol] = deque(maxlen=100)
+                    for item in bb_data:
+                        self._bb_width_history[symbol].append(item["value"])
+                    loaded_count += len(bb_data)
+
+                # Carregar Volume history (últimas 12h)
+                vol_data = await database_service.load_phase_detector_history(symbol, "VOLUME", lookback_hours=12.0)
+                if vol_data:
+                    self._volume_history[symbol] = deque(maxlen=100)
+                    for item in vol_data:
+                        self._volume_history[symbol].append(item["value"])
+                    loaded_count += len(vol_data)
+
+                # Carregar Range history (últimas 6h)
+                range_data = await database_service.load_phase_detector_history(symbol, "RANGE", lookback_hours=6.0)
+                if range_data:
+                    self._range_history[symbol] = deque(maxlen=20)
+                    for item in range_data:
+                        self._range_history[symbol].append(item["value"])
+                    loaded_count += len(range_data)
+
+            self._loaded_from_db = True
+            logger.info(
+                f"💾 [PHASE-DETECTOR] Histórico carregado do banco: {loaded_count} snapshots "
+                f"para {len(active_symbols)} símbolos"
+            )
+
+            # Limpar dados antigos (>24h)
+            await database_service.cleanup_old_phase_detector_data(max_age_hours=24.0)
+
+        except Exception as e:
+            logger.warning(f"[PHASE-DETECTOR] Erro ao carregar histórico do banco: {e}")
+            self._loaded_from_db = True  # Marcar como carregado mesmo com erro para não tentar de novo
+
+    def _queue_db_save(self, symbol: str, data_type: str, value: Any):
+        """
+        Adiciona snapshot ao buffer para salvar em batch.
+        Não bloqueia o loop principal.
+        """
+        self._db_buffer.append({
+            "symbol": symbol,
+            "data_type": data_type,
+            "value": value,
+            "timestamp": time.time()
+        })
+
+    async def flush_db_buffer(self):
+        """
+        Salva o buffer acumulado no banco de dados.
+        Chamar periodicamente (a cada 5 min).
+        """
+        if not self._db_buffer:
+            return
+
+        now = time.time()
+        if now - self._last_db_flush < self._flush_interval:
+            return
+
+        try:
+            from services.database_service import database_service
+            batch = self._db_buffer.copy()
+            self._db_buffer.clear()
+            self._last_db_flush = now
+            await database_service.save_phase_detector_batch(batch)
+        except Exception as e:
+            logger.debug(f"[PHASE-DETECTOR] Erro ao flush buffer: {e}")
+
     # ==================== OI TRACKING ====================
 
     def update_oi(self, symbol: str, oi_value: float):
@@ -71,6 +192,9 @@ class PhaseDetector:
         })
         self._last_oi_snapshot[symbol] = oi_value
         self._last_oi_ts[symbol] = now
+
+        # [V120.1] Queue para persistência no banco
+        self._queue_db_save(symbol, "OI", oi_value)
 
     def get_oi_change_pct(self, symbol: str, lookback_hours: float = 4.0) -> Optional[float]:
         """
@@ -110,11 +234,15 @@ class PhaseDetector:
         if symbol not in self._cvd_price_history:
             self._cvd_price_history[symbol] = deque(maxlen=60)
 
-        self._cvd_price_history[symbol].append({
+        snapshot = {
             "cvd": cvd,
             "price": price,
             "ts": time.time()
-        })
+        }
+        self._cvd_price_history[symbol].append(snapshot)
+
+        # [V120.1] Queue para persistência no banco
+        self._queue_db_save(symbol, "CVD", snapshot)
 
     def detect_cvd_divergence(self, symbol: str, lookback_minutes: int = 30) -> Dict[str, Any]:
         """
@@ -177,6 +305,9 @@ class PhaseDetector:
 
         self._volume_history[symbol].append(volume)
 
+        # [V120.1] Queue para persistência no banco
+        self._queue_db_save(symbol, "VOLUME", volume)
+
     def get_volume_trend(self, symbol: str, short_periods: int = 5, long_periods: int = 20) -> Dict[str, Any]:
         """
         Analisa tendência do volume.
@@ -228,6 +359,9 @@ class PhaseDetector:
 
         self._bb_width_history[symbol].append(bb_width)
 
+        # [V120.1] Queue para persistência no banco
+        self._queue_db_save(symbol, "BB_WIDTH", bb_width)
+
     def get_bb_width_percentile(self, symbol: str) -> Dict[str, Any]:
         """
         Calcula em que percentil o BB Width atual está vs histórico.
@@ -270,12 +404,16 @@ class PhaseDetector:
             self._range_history[symbol] = deque(maxlen=20)
 
         range_pct = ((high - low) / low) * 100.0 if low > 0 else 0
-        self._range_history[symbol].append({
+        snapshot = {
             "high": high,
             "low": low,
             "range_pct": range_pct,
             "ts": time.time()
-        })
+        }
+        self._range_history[symbol].append(snapshot)
+
+        # [V120.1] Queue para persistência no banco
+        self._queue_db_save(symbol, "RANGE", snapshot)
 
     def get_range_compression(self, symbol: str) -> Dict[str, Any]:
         """

@@ -155,6 +155,14 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.error(f"⚠️ Failed to init Auth DB: {e}")
 
+            # [V120.1] Load Phase Detector history from database
+            try:
+                from services.phase_detector import phase_detector
+                await phase_detector.load_history_from_db()
+                logger.info("✅ [PHASE-DETECTOR] History loaded from database.")
+            except Exception as e:
+                logger.warning(f"⚠️ [PHASE-DETECTOR] Failed to load history: {e}")
+
             logger.info("Step 0.2: Initializing WebSocket Service...")
             websocket_service = importlib.import_module("services.websocket_service").websocket_service
             
@@ -336,6 +344,17 @@ async def lifespan(app: FastAPI):
                             logger.error(f"❌ [THRESH-CAL] Error in calibration loop: {e}")
                 
                 asyncio.create_task(threshold_calibration_loop())
+
+                # [V120.1] Phase Detector — periodic DB flush
+                async def phase_detector_flush_loop():
+                    while True:
+                        try:
+                            await asyncio.sleep(300)  # A cada 5 minutos
+                            from services.phase_detector import phase_detector
+                            await phase_detector.flush_db_buffer()
+                        except Exception as e:
+                            logger.debug(f"[PHASE-DETECTOR] Flush error: {e}")
+                asyncio.create_task(phase_detector_flush_loop())
                 
                 # [V27.2] Trade Analyst - Performance Intelligence (KEPT)
                 from services.agents.trade_analyst import trade_analyst

@@ -142,6 +142,18 @@ class VaultCycle(Base):
     data = Column(JSON)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class PhaseDetectorHistory(Base):
+    """
+    [V120] Histórico do Phase Detector para persistência entre reinicializações.
+    Armazena snapshots de OI, CVD, BB Width, Volume e Range por símbolo.
+    """
+    __tablename__ = "phase_detector_history"
+    id = Column(Integer, primary_key=True)
+    symbol = Column(String, nullable=False, index=True)
+    data_type = Column(String, nullable=False, index=True)  # OI, CVD, BB_WIDTH, VOLUME, RANGE
+    value = Column(JSON, nullable=False)  # Dado serializado (dict ou float)
+    timestamp = Column(Float, nullable=False, index=True)  # Unix timestamp
+
 
 LEGACY_VAULT_CYCLE_FIELDS = (
     "sniper_wins",
@@ -992,5 +1004,93 @@ class DatabaseService:
             except Exception as e:
                 logger.error(f"Error clearing sandbox trades: {e}")
             return False
+
+    # ==================== PHASE DETECTOR HISTORY (V120) ====================
+
+    async def save_phase_detector_snapshot(self, symbol: str, data_type: str, value: Any, timestamp: float):
+        """
+        Salva um snapshot de dados do Phase Detector.
+        data_type: OI, CVD, BB_WIDTH, VOLUME, RANGE
+        """
+        async with self.AsyncSessionLocal() as session:
+            try:
+                obj = PhaseDetectorHistory(
+                    symbol=symbol,
+                    data_type=data_type,
+                    value=value,
+                    timestamp=timestamp
+                )
+                session.add(obj)
+                await session.commit()
+            except Exception as e:
+                logger.error(f"Error saving phase detector snapshot: {e}")
+
+    async def save_phase_detector_batch(self, snapshots: List[Dict[str, Any]]):
+        """
+        Salva múltiplos snapshots em batch (mais eficiente).
+        snapshots: [{"symbol": str, "data_type": str, "value": Any, "timestamp": float}, ...]
+        """
+        if not snapshots:
+            return
+        async with self.AsyncSessionLocal() as session:
+            try:
+                objects = [
+                    PhaseDetectorHistory(
+                        symbol=s["symbol"],
+                        data_type=s["data_type"],
+                        value=s["value"],
+                        timestamp=s["timestamp"]
+                    )
+                    for s in snapshots
+                ]
+                session.add_all(objects)
+                await session.commit()
+                logger.debug(f"💾 [PHASE-DETECTOR] {len(objects)} snapshots salvos no banco.")
+            except Exception as e:
+                logger.error(f"Error saving phase detector batch: {e}")
+
+    async def load_phase_detector_history(
+        self, 
+        symbol: str, 
+        data_type: str, 
+        lookback_hours: float = 12.0
+    ) -> List[Dict[str, Any]]:
+        """
+        Carrega histórico do Phase Detector para um símbolo e tipo de dado.
+        Retorna lista de {"value": Any, "timestamp": float} ordenada por timestamp.
+        """
+        async with self.AsyncSessionLocal() as session:
+            try:
+                cutoff = time.time() - (lookback_hours * 3600)
+                q = (
+                    select(PhaseDetectorHistory)
+                    .where(PhaseDetectorHistory.symbol == symbol)
+                    .where(PhaseDetectorHistory.data_type == data_type)
+                    .where(PhaseDetectorHistory.timestamp >= cutoff)
+                    .order_by(PhaseDetectorHistory.timestamp)
+                )
+                result = await session.execute(q)
+                rows = result.scalars().all()
+                return [{"value": r.value, "timestamp": r.timestamp} for r in rows]
+            except Exception as e:
+                logger.error(f"Error loading phase detector history: {e}")
+                return []
+
+    async def cleanup_old_phase_detector_data(self, max_age_hours: float = 24.0):
+        """
+        Remove dados antigos do Phase Detector (mais de 24h por padrão).
+        Manter apenas 24h de histórico para não crescer infinitamente.
+        """
+        async with self.AsyncSessionLocal() as session:
+            try:
+                cutoff = time.time() - (max_age_hours * 3600)
+                q = delete(PhaseDetectorHistory).where(PhaseDetectorHistory.timestamp < cutoff)
+                result = await session.execute(q)
+                await session.commit()
+                deleted = result.rowcount
+                if deleted > 0:
+                    logger.info(f"🧹 [PHASE-DETECTOR] {deleted} snapshots antigos removidos (> {max_age_hours}h)")
+            except Exception as e:
+                logger.error(f"Error cleaning phase detector history: {e}")
 
 database_service = DatabaseService()

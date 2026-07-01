@@ -3211,6 +3211,11 @@ class SignalGenerator:
                                 f"rec={explosion_result['recommendation']} "
                                 f"signals={explosion_result['total_signals'][:3]}"
                             )
+                        elif explosion_result["total_signals"]:
+                            logger.info(
+                                f"📊 [EXPLOSION-SCORE] {symbol} score={explosion_result['score']}/100 "
+                                f"rec={explosion_result['recommendation']} signals={explosion_result['total_signals'][:3]}"
+                            )
                     except Exception as exp_err:
                         logger.debug(f"[EXPLOSION-SCORE] Erro ao calcular para {symbol}: {exp_err}")
 

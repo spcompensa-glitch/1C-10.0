@@ -251,7 +251,16 @@ class Settings(BaseSettings):
         'AAVEUSDT', 'CRVUSDT', 'SUIUSDT', 'TRXUSDT', 'TIAUSDT',
         # [V118] Sandbox: Pares 0% win rate em 5+ trades — blacklist temporária
         # Para re-testar futuramente, remover daqui
-        'ONDOUSDT', 'LINKUSDT', 'AVAXUSDT', 'SOLUSDT', 'JUPUSDT'
+        'ONDOUSDT', 'LINKUSDT', 'AVAXUSDT', 'SOLUSDT', 'JUPUSDT',
+        # [V120] Sandbox: Pares com performance extremamente negativa (131 trades analisados)
+        # ADAUSDT: 57% WR, -55.68% PnL (6 losses, avg -13.93%)
+        # GALAUSDT: 60% WR, -40.59% PnL (4 losses, avg -13.5%)
+        # ARBUSDT: 0% WR, -24.67% PnL (2 losses)
+        # OPUSDT: 33% WR, -22.68% PnL (2 losses)
+        # POLUSDT: 69% WR mas -12.44% PnL (5 losses, avg -12.44%)
+        'ADAUSDT', 'GALAUSDT', 'ARBUSDT', 'OPUSDT', 'POLUSDT',
+        # [V120] NEARUSDT: 70% WR mas -25.38% PnL — losses muito grandes (-14.99% avg) destroem os wins
+        'NEARUSDT'
     }
 
     # Fast API context

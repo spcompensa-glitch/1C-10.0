@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-06-26 (V119 — Stop estrutural 30M: swing low/high + buffer)*
+*Ultima atualizacao: 2026-07-01 (V120 — Otimizacao Sandbox: R:R, LONGs, multi-strategia, margem adaptativa)*
 
 ---
 
@@ -458,17 +458,19 @@ firebase_service.update_radar_pulse(signals)
               |
               v
           _process_radar_signals()
-              |-- [V118] Filtro ADX/regime: REMOVIDO — todas as estrategias livres
-              |-- [V118] Filtro LONGS: apenas pares desgrudados (Pearson < 0.35) com gas
-              |-- [V118] LONGs aprovados furam MACRO-BLOCK (decor_bypass)
+              |-- [V120] Filtro ADX/regime: REMOVIDO — todas as estrategias livres (VELOCITY, ALPHA, DECOR)
+              |-- [V120] Filtro LONGS: relaxado (Pearson < 0.50 OU confidence >= 60)
+              |-- [V120] LONGs aprovados furam MACRO-BLOCK (decor_bypass)
+              |-- [V120] Asian Session Penalty: ADX >= 32 entre 23h-01h UTC
               |-- Filtro macro BTC (SMA 200 diaria)
-              |-- Filtro blocklist (ASSET_BLOCKLIST + auto-blocklist)
+              |-- Filtro blocklist (ASSET_BLOCKLIST + auto-blocklist + V120 blacklist)
               |-- Filtro horario abertura US (13:30-14:30 UTC)
               |-- Deduplicacao por signal_id
               |-- [V114] Cooldown 300s pos stop-out por simbolo
               |-- [V118.3] Confirmacao 5M (exige maioria 2/3 alinhada com direcao)
               |-- Entry Sanity Check (preco defasado)
-              |-- [V118.4] Stop adaptativo por regime: LATERAL -10%, TRENDING -15%
+              |-- [V120] Stop adaptativo por regime: LATERAL -8%, TRENDING -10%
+              |-- [V120] Margem adaptativa por win rate do par ($1.00-$2.50)
               +---> save_sandbox_trade()
 ```
 
@@ -487,16 +489,18 @@ _check_stop_hit(side, stop_price, symbol):
 
 ### 15.3 Stop adaptativo por regime
 
-| Regime | ADX | Stop Inicial (V118.4) | Threshold Stale Entry |
+| Regime | ADX | Stop Inicial (V120) | Threshold Stale Entry |
 |--------|-----|----------------------|----------------------|
-| LATERAL | < 25 | **-10% ROI** | ROI imediato < -7.0% (floor -10%) |
-| TENDENCIA | >= 25 | **-15% ROI** | ROI imediato < -10.5% (floor -10%) |
+| LATERAL | < 25 | **-8% ROI** | ROI imediato < -5.6% (floor -10%) |
+| TENDENCIA | >= 25 | **-10% ROI** | ROI imediato < -7.0% (floor -10%) |
 
-> **[V118.4]**: Stop inicial agora e adaptativo por regime (era fixo -5%).
-> - LATERAL: -10% ROI — evita stops em chop de lateral
-> - TRENDING: -15% ROI — pullbacks em tendencia precisam de mais espaco
+> **[V120]**: Stops otimizados para melhorar Risk/Reward de 0.61 para ~1.0.
+> - LATERAL: -8% ROI (era -10%) — menor stop = loss menor
+> - TRENDING: -10% ROI (era -15%) — pullbacks precisam de espaço mas menos que antes
+> - Capping de segurança: -10% ROI máximo (era -12%)
 > GARANTIA_5 (+5% ROI na escadinha) leva o stop a 0% rapidamente, protegendo o capital.
-> O floor de -10% no stale threshold evita descartes agressivos em TRENDING.
+> GARANTIA_TAXAS (+3% ROI) ativa break-even com 1.5% para cobrir taxas.
+> O floor de -10% no stale threshold evita descartes agressivos.
 
 - Stop price calculado via `raw_price_from_roi()` com tick_size rounding (ROUND_CEILING para SHORT negativo).
 - Entry Sanity Check: se ROI imediato ao abrir ja ultrapassou 70% do stop (floor: -10%), o sinal e descartado com log `[SANDBOX-STALE]`.
@@ -551,27 +555,34 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 - **Transicao Fria ADX [V119]**: Ao mudar do regime de tendência para lateral, bloqueia novos sinais laterais por 15min (900s) para estabilização de volatilidade.
 - **Espelhamento em Conta Real [V119]**: Se `OKX_API_KEY_MASTER` e `REAL` mode estiverem ativos, replica ordens a mercado, cruzadas e com 50x de alavancagem com qty dinâmico proporcional à banca real da OKX.
 
-### 15.7 Constantes do SandboxService (V119)
+### 15.7 Constantes do SandboxService (V120)
 
 | Constante | Valor | Localizacao |
 |-----------|-------|-------------|
 | Ciclo de monitoramento | 1s | `sandbox_service.py` |
 | Banca virtual | **$100.00 USD** | `routes/sandbox.py:49` (`BANCA = 100.0`) |
 | Margem media por trade | **$2.00** | `routes/sandbox.py:50` (`MARGEM_MEDIA = 2.0`) |
-| Margem simulada OKX | Proporcional a 2% (até $2.00) | `routes/sandbox.py:54` |
+| Margem adaptativa | **$1.00-$2.50** (por win rate do par) | `sandbox_service.py:_get_adaptive_margin()` |
 | Leverage (sandbox) | 50x | `sandbox_service.py` |
 | Janela conservative price | 120s | `okx_ws_public.py:291` |
 | TTL cache de preco | 60s | `sandbox_service.py` |
-| [V119] Stop inicial estrutural 30M | Swing low/high + buffer 0.15% (capping: UNIFICADO -12.0% ROI) | `sandbox_service.py` |
+| [V120] Stop inicial LATERAL | **-8% ROI** (era -10%) | `sandbox_service.py` |
+| [V120] Stop inicial TRENDING | **-10% ROI** (era -15%) | `sandbox_service.py` |
+| [V120] Capping stop | **-10% ROI** (era -12%) | `sandbox_service.py` |
 | Threshold stale entry | 70% do stop (floor -10%) | `sandbox_service.py` |
 | [V119] Cooldown pos stop-out | **3600s (1 hora)** (impede re-entry consecutivo no mesmo par sob estresse) | `sandbox_service.py` |
 | [V119] Cooldown transicao ADX | **900s (15 min)** do modo tendência para lateral (evita volatilidade residual) | `sandbox_service.py` |
 | [V118.3] Candles 5M para confirmacao | 3 fechados (5 buscados), exige 2/3 alinhados com direcao | `sandbox_service.py` |
+| [V120] Filtro LONGS | Pearson < 0.50 OU confidence >= 60 (era AND com 0.35/70) | `sandbox_service.py` |
+| [V120] Asian Session Penalty | ADX >= 32 entre 23h-01h UTC | `sandbox_service.py` |
+| [V120] GARANTIA_TAXAS | +3.0% ROI (era +3.5%) | `sandbox_service.py` |
+| [V120] Partial TP TRENDING | +25% ROI (novo, era só LATERAL +15%) | `sandbox_service.py` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
 | Placeholder banca (HTML) | **$100.00 USD** | `sandbox.html:158` |
 | Auto-blocklist check | 120s | `sandbox_service.py` |
 | [V118] Auto-blocklist criterio | PnL < -15% E WR < 35% apos 3+ trades | `sandbox_service.py` |
+| [V120] Static blocklist novos | ADA, GALA, ARB, OP, POL, NEAR | `config.py:ASSET_BLOCKLIST` |
 
 ### 15.8 Logs esperados no comportamento normal
 
@@ -593,6 +604,8 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | `[SANDBOX-MACRO-BLOCK]` | Sinal bloqueado por filtro macro BTC (SMA 200) |
 | `[SANDBOX-OPEN-FILTER]` | Sinal bloqueado por filtro de abertura US (13:30-14:30 UTC) |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado automaticamente por performance critica |
+| `[SANDBOX-V120-LONG]` | LONG descartado — filtro de decorrelação relaxado não atendido |
+| `[SANDBOX-ASIAN-PENALTY]` | Sinal bloqueado — sessão asiática (23h-01h UTC) com ADX < 32 |
 
 ### 15.9 Bugs corrigidos (historial)
 
@@ -609,6 +622,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Regime gating + GARANTIA_5 + LONGS filter | V118 | 100% VELOCITY FLOW, LONGS perdendo, escadinha nao capturava lucro. Fix: regime gating removido, GARANTIA_5 (break-even +5%), LONGS exigem decorrelacao+gas, auto-blocklist mais agressivo |
 | 5M muito permissivo (NEARUSDT stops) | V118.3 | V117 usava 2 candles e so bloqueava se 0/2 confirmavam — trades entravam contra o 5M. Fix: 3 candles com exigencia 2/3 de alinhamento com direcao do sinal |
 | Stop -10%/-15% ainda apertados (0% win rate sandbox) | V119 | Stops fixos nao respeitam estrutura 30M. Fix: stop estrutural baseado em swing low/high do TF 30M com buffer 0.15% |
+| R:R 0.61, 100% SHORT, 0% ALPHA/DECOR | V120 | Stops muito largos (-12%/-15%), regime gating bloqueava estratégias, filtro LONG too restritivo. Fix: stops -8%/-10%, regime gating removido, filtro LONG relaxado (OR), Asian penalty, margem adaptativa, partial TP em TRENDING |
 
 ---
 

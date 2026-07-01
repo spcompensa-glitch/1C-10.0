@@ -304,11 +304,14 @@ class SandboxService:
 
     async def _calculate_adaptive_stop(self, symbol: str, entry_price: float, side: str, contract_meta: dict, is_ranging: bool) -> Dict[str, Any]:
         """
-        [V119] Stop inicial adaptativo baseado em estrutura 30M.
+        [V120] Stop inicial adaptativo baseado em estrutura 30M + otimização de R:R.
 
         Prioridade:
           1. Stop estrutural 30M (swing low/high + buffer)
-          2. Fallback: regime fixo — LATERAL -10%, TRENDING -15%
+          2. Fallback: regime fixo — LATERAL -8%, TRENDING -10%
+
+        [V120] Redução de stops para melhorar Risk/Reward de 0.61 para ~1.0.
+        Stops menores = losses menores = mais trades lucrativos.
 
         GARANTIA_5 (escadinha): +5% ROI → stop vai a 0% (proteção rápida do capital).
         Arredondado pelo tick_size do contrato.
@@ -317,7 +320,10 @@ class SandboxService:
           { "stop_price": float, "stop_roi": float, "source": str }
         """
         leverage = 50.0
-        fallback_roi = -12.0
+        # [V120] Stops otimizados para melhorar R:R de 0.61 para ~1.0
+        # LATERAL: -8% (era -12%) — menor stop = loss menor
+        # TRENDING: -10% (era -15%) — pullbacks precisam de espaço mas menos que antes
+        fallback_roi = -8.0 if is_ranging else -10.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
@@ -329,9 +335,9 @@ class SandboxService:
             # Verificar se o ROI resultante é razoável
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
             
-            # [V119] Capping estrito de segurança de risco (Founder Vision):
-            # Limita a no máximo -12% de ROI para proteger o capital e evitar perdas volumosas
-            limit_roi = -12.0
+            # [V120] Capping estrito de segurança de risco (Founder Vision):
+            # Limita a no máximo -10% de ROI para proteger o capital e evitar perdas volumosas
+            limit_roi = -10.0
             if stop_roi < limit_roi:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
@@ -383,13 +389,21 @@ class SandboxService:
                             
                         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
                         
-                        # Trava o ROI de stop a no máximo -12% para manter consistência de alavancagem
-                        if stop_roi > -10.0:
-                            stop_roi = -10.0
-                            stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                        elif stop_roi < -12.0:
-                            stop_roi = -12.0
-                            stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                        # [V120] Trava o ROI de stop para manter consistência: LATERAL -8%, TRENDING -10%
+                        if is_ranging:
+                            if stop_roi > -6.0:
+                                stop_roi = -6.0
+                                stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                            elif stop_roi < -8.0:
+                                stop_roi = -8.0
+                                stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                        else:
+                            if stop_roi > -8.0:
+                                stop_roi = -8.0
+                                stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
+                            elif stop_roi < -10.0:
+                                stop_roi = -10.0
+                                stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                             
                         source = "volatility_atr"
                         if tick_size > 0:
@@ -416,6 +430,47 @@ class SandboxService:
             f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
         )
         return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
+
+    # ==================== POSITION SIZING (V120) ====================
+
+    async def _get_adaptive_margin(self, symbol: str, base_balance: float) -> float:
+        """
+        [V120] Margem adaptativa baseada no win rate histórico do par.
+
+        Lógica:
+          - Pares com WR > 80%: margem $2.50 (confiança alta)
+          - Pares com WR > 70%: margem $2.00 (padrão)
+          - Pares com WR > 60%: margem $1.50 (moderado)
+          - Pares com WR < 60%: margem $1.00 (conservador)
+          - Pares sem dados: margem $2.00 (padrão)
+
+        Retorna margem em USD.
+        """
+        try:
+            all_trades = await database_service.get_sandbox_trades(active_only=False)
+            symbol_trades = [t for t in all_trades if t.symbol == symbol and t.status != "ACTIVE"]
+
+            if len(symbol_trades) < 3:
+                return 2.00  # padrão sem dados suficientes
+
+            wins = sum(1 for t in symbol_trades if t.pnl_pct > 0)
+            win_rate = (wins / len(symbol_trades)) * 100.0
+
+            if win_rate >= 80:
+                margin = 2.50
+            elif win_rate >= 70:
+                margin = 2.00
+            elif win_rate >= 60:
+                margin = 1.50
+            else:
+                margin = 1.00
+
+            logger.debug(f"[SANDBOX-V120] {symbol} margem adaptativa: ${margin:.2f} (WR={win_rate:.1f}%, trades={len(symbol_trades)})")
+            return margin
+
+        except Exception as e:
+            logger.debug(f"[SANDBOX-V120] Erro ao calcular margem adaptativa para {symbol}: {e} — usando padrão $2.00")
+            return 2.00
 
     # ==================== SIGNAL PROCESSING ====================
 
@@ -484,18 +539,11 @@ class SandboxService:
                     )
                     continue
 
-            # [V119] Restabelecimento do ADX Regime Gating no Sandbox
-            # Evita o ruído de rodar estratégias de tendência em mercado lateral e vice-versa
-            if is_ranging:
-                # Mercado Lateral: permite apenas DECOR SHADOW (e subsets)
-                if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
-                    logger.info(f"🧪 [SANDBOX-REGIME-BLOCK] {symbol} {strategy} descartado — regime LATERAL (ADX={adx_val:.1f} < 25) aceita apenas DECOR SHADOW")
-                    continue
-            else:
-                # Mercado em Tendência: permite apenas VELOCITY FLOW e ALPHA SHIELD
-                if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
-                    logger.info(f"🧪 [SANDBOX-REGIME-BLOCK] {symbol} {strategy} descartado — regime TENDENCIA (ADX={adx_val:.1f} >= 25) bloqueia DECOR SHADOW")
-                    continue
+            # [V120] Regime gating REMOVIDO no Sandbox — todas as estratégias operam em qualquer regime.
+            # Motivo: dados mostram 100% SHORT e apenas VELOCITY FLOW ativo. ALPHA SHIELD e DECOR SHADOW
+            # tinham 0 trades porque o regime gating as bloqueava. O risco é mitigado pela escadinha
+            # (GARANTIA_5 a 5% ROI) e pelo filtro de LONGs (decorrelação + gas).
+            # O regime gating original ainda roda no sistema real (FlashAgent/Captain).
 
             # [V118] Check static + auto-blocklist
             try:
@@ -536,7 +584,11 @@ class SandboxService:
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            # [V118] LONG trades exigem desgrudado do BTC (Pearson < 0.35) + GÁS (confidence >= 70)
+            # [V120] LONG trades: filtro relaxado para permitir mais LONGs
+            # Motivo: dados mostram 0% LONG (131 trades, todos SHORT). O filtro original era muito
+            # restritivo (pearson < 0.35 AND confidence >= 70). Agora usa OR para mais flexibilidade:
+            # - pearson < 0.50 (era 0.35) — aceita pares moderadamente descorrelacionados
+            # - OU confidence >= 60 (era 70) — aceita confiança moderada
             # [V118-FIX] O decorrelation data vem do _sync_radar_rtdb com as chaves:
             #   is_active (NÃO is_decorrelated), score (NÃO confidence), correlation (NÃO pearson)
             if direction == "LONG":
@@ -557,30 +609,49 @@ class SandboxService:
                     except Exception:
                         pass
 
-                if not is_decorrelated or pearson >= 0.35 or decor_confidence < 70:
+                # [V120] Filtro relaxado: OR em vez de AND
+                # Aceita LONG se: pearson < 0.50 OU confidence >= 60
+                passes_pearson = pearson < 0.50
+                passes_confidence = decor_confidence >= 60
+                if not (passes_pearson or passes_confidence):
                     logger.info(
-                        f"🧪 [SANDBOX-V118-FILTER] {symbol} {strategy} LONG descartado — "
-                        f"decorrelated={is_decorrelated} pearson={pearson:.2f} conf={decor_confidence:.0f} "
-                        f"(raw keys: is_active={decor_data.get('is_active')}, score={decor_data.get('score')}, "
+                        f"🧪 [SANDBOX-V120-LONG] {symbol} {strategy} LONG descartado — "
+                        f"pearson={pearson:.2f} (< 0.50={passes_pearson}) conf={decor_confidence:.0f} (>= 60={passes_confidence}) "
+                        f"(raw: is_active={decor_data.get('is_active')}, score={decor_data.get('score')}, "
                         f"correlation={decor_data.get('correlation')})"
                     )
                     continue
-                # Se passou no filtro V118, também passa no MACRO-BLOCK
+                # Se passou no filtro V120, também passa no MACRO-BLOCK
                 decor_bypass = True
 
             # [V117] Filtro de horário e ADX noturno
             # UTC 22h-08h = noite asiática/madrugada europeia — chop mesmo com ADX=TRENDING
             # Durante esse horário, exige ADX >= 28 para entrar (filtra TRENDING falso)
             # US open (13:30-14:30 UTC): exige ADX >= 28 em tendência, decor_bypass em lateral
+            # [V120] Asian Session Penalty (23h-01h UTC): losses concentrados nesse horário
+            # Exige ADX >= 32 (mais restritivo) para reduzir perdas em liquidez baixa
             try:
                 now_utc = datetime.now(timezone.utc)
                 current_hour = now_utc.hour
                 current_hour_decimal = current_hour + now_utc.minute / 60.0
                 is_us_market_open = 13.5 <= current_hour_decimal < 14.5
                 is_night_session = current_hour >= 22 or current_hour < 8  # UTC 22h-08h
+                # [V120] Asian session penalty: 23h-01h UTC (pico de losses)
+                is_asian_penalty = current_hour in (23, 0, 1)
             except Exception:
                 is_us_market_open = False
                 is_night_session = False
+                is_asian_penalty = False
+
+            # [V120] Asian Session Penalty: exige ADX >= 32 em tendência (mais restritivo que noturno normal)
+            # Motivo: 25% dos losses (13/52) acontecem entre 23h-01h UTC com avg loss -13.15%
+            if is_asian_penalty and not is_ranging:
+                if adx_val < 32:
+                    logger.info(
+                        f"🧪 [SANDBOX-ASIAN-PENALTY] {symbol} {strategy} descartado — "
+                        f"sessão asiática (UTC {now_utc.hour:02d}h) ADX {adx_val:.1f} < 32 (penalidade ativa)"
+                    )
+                    continue
 
             # [V117] Horário noturno: exige ADX >= 28 para TRENDING (evita chop de madrugada)
             if is_night_session and not is_ranging:
@@ -753,8 +824,8 @@ class SandboxService:
                         if bal_data and bal_data.get("retCode") == 0:
                             balance = float(bal_data["result"].get("available", 100.0))
                             
-                        # [V119] Determina margem proporcional do Founder Vision: 2% da banca por slot (com piso de $0.55 e teto de $2.00 para banca padrão de $100)
-                        margin = max(0.55, min(2.00, round(balance * 0.02, 2)))
+                        # [V120] Margem adaptativa baseada no win rate histórico do par
+                        margin = await self._get_adaptive_margin(symbol, balance)
                         ct_val = float(contract_meta.get("ctVal") or 1.0)
                         qty_step = float(contract_meta.get("lotSize") or 1.0)
                         
@@ -1114,14 +1185,18 @@ class SandboxService:
             pass
         is_ranging = (adx_val < 25)
 
-        # 7. Partial TP (lateral, +15%)
-        if is_ranging and max_roi >= 15.0 and not has_taken_partial:
-            has_taken_partial = True
-            partial_roi = max(15.0, current_roi)
-            flash_state["has_taken_partial"] = True
-            flash_state["partial_roi"] = partial_roi
-            history.append(f"Saida Parcial de 50% executada a {partial_roi:.1f}% ROI")
-            logger.info(f"🧪 [SANDBOX-PARTIAL] {symbol} parcial de 50% a {partial_roi:.1f}% ROI")
+        # 7. Partial TP — saída parcial para proteger lucro
+        # [V120] expandido: LATERAL +15% ROI (original) + TRENDING +25% ROI (novo)
+        # Motivo: apenas 1/131 trades chegou ao TRAILING. Saída parcial antecipada protege lucro.
+        if not has_taken_partial:
+            partial_threshold = 15.0 if is_ranging else 25.0
+            if max_roi >= partial_threshold:
+                has_taken_partial = True
+                partial_roi = max(partial_threshold, current_roi)
+                flash_state["has_taken_partial"] = True
+                flash_state["partial_roi"] = partial_roi
+                history.append(f"Saida Parcial de 50% executada a {partial_roi:.1f}% ROI (regime={'LATERAL' if is_ranging else 'TRENDING'})")
+                logger.info(f"🧪 [SANDBOX-PARTIAL] {symbol} parcial de 50% a {partial_roi:.1f}% ROI (regime={'LATERAL' if is_ranging else 'TRENDING'})")
 
         # 8. PnL
         if has_taken_partial:
@@ -1141,15 +1216,15 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        # [V119] GARANTIA_TAXAS — break-even antecipado em +3.5% ROI para proteger o capital
-        # Só aplica se ainda não passou do GARANTIA_TAXAS (current_stop_roi < 0)
-        if max_roi >= 3.5 and current_stop_roi < 0.0:
+        # [V120] GARANTIA_TAXAS — break-even antecipado em +3.0% ROI para proteger o capital
+        # [V119] Só aplica se ainda não passou do GARANTIA_TAXAS (current_stop_roi < 0)
+        if max_roi >= 3.0 and current_stop_roi < 0.0:
             new_stop_roi = 1.5  # break-even + taxas da OKX
             if new_stop_roi > current_stop_roi:
                 updated_stop_roi = new_stop_roi
                 updated_level_name = "GARANTIA_TAXAS"
                 updated_phase = "ESCADINHA"
-                history.append(f"[V119] GARANTIA_TAXAS: Break-even ativado a {max_roi:.1f}% ROI — stop → 1.5%")
+                history.append(f"[V120] GARANTIA_TAXAS: Break-even ativado a {max_roi:.1f}% ROI — stop → 1.5%")
                 logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TAXAS ativado (max_roi={max_roi:.1f}%) — stop agora em 1.5% ROI")
 
         if active_level:

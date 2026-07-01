@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-06-26 (V119 — Stop estrutural 30M: swing low/high + buffer)*
+*Ultima atualizacao: 2026-07-01 (V120 — Otimizacao Sandbox: R:R, LONGs, multi-strategia, margem adaptativa)*
 
 ---
 
@@ -121,20 +121,22 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 ## Sandbox — Forward Testing Lab
 
 - **URL**: https://1crypten.space/sandbox
-- **Banca Virtual**: **$22.00 USD** | Margem media: **$0.75/trade** (entre $0.50 e $1.00) | Leverage: 50x
-  - Objetivo: espelhar a banca real do usuario na OKX ($22 USD)
-  - PnL calculado: `(ROI% / 100) * $0.75` por trade; total como % da banca $22
+- **Banca Virtual**: **$100.00 USD** | Margem media: **$2.00/trade** (adaptativa $1.00-$2.50) | Leverage: 50x
+  - Objetivo: espelhar a banca real do usuario na OKX
+  - PnL calculado: `(ROI% / 100) * $2.00` por trade; total como % da banca $100
 - **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
 - **Monitoramento**: loop de 1s identico ao FlashAgent
-- **[V118] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
-- **[V118] LONGS filtrados**: apenas pares desgrudados do BTC (Pearson < 0.35) com gas (CVD/volume, confidence >= 70)
-- **[V119] Stop inicial estrutural 30M**:
-  - Busca 100 candles de 30M (~50h) e detecta swing low (LONG) / swing high (SHORT)
-  - Posiciona stop com buffer de 0.15% alem do nivel estrutural
-  - **Fallback**: regime fixo — LATERAL -10%, TRENDING -15% (se nenhum swing valido)
-  - **Guardrail**: ROI do stop deve estar entre -5% e -30% (senao usa fallback)
+- **[V120] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
+- **[V120] LONGS filtro relaxado**: Pearson < 0.50 OU confidence >= 60 (era AND com 0.35/70)
+- **[V120] Stop inicial otimizado para R:R**:
+  - LATERAL: **-8% ROI** (era -10%)
+  - TRENDING: **-10% ROI** (era -15%)
+  - Capping: **-10% ROI** max (era -12%)
+  - Busca estrutural 30M (swing low/high + buffer 0.15%) com fallback para regime fixo
   - GARANTIA_5 (+5% ROI) leva stop a 0% (protecao rapida do capital)
-- **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (600s se 2+ stops consecutivos na mesma direcao)
+  - GARANTIA_TAXAS (+3% ROI) ativa break-even com 1.5% para cobrir taxas
+- **[V120] Asian Session Penalty**: ADX >= 32 exigido entre 23h-01h UTC (pico de losses)
+- **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (3600s se 1+ stops consecutivos)
   - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
 - **[V118.3] Confirmacao 5M com alinhamento de tendencia** (substituiu V117):
   - Busca 5 candles de 5M, verifica os 3 mais recentes FECHADOS
@@ -146,29 +148,34 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **[V116] MACRO-BLOCK relaxado**:
   - LATERAL (ADX < 25): MACRO-BLOCK desativado
   - TRENDING: sinais com score >= 80 furam MACRO-BLOCK (high_score_bypass)
-  - **[V118]**: LONGs aprovados pelo filtro de decorrelacao tambem furam MACRO-BLOCK
+  - **[V120]**: LONGs aprovados pelo filtro de decorrelacao tambem furam MACRO-BLOCK
 - **Entry Sanity Check**: descarta sinais com ROI imediato ja < 70% do stop (floor -10%)
 - **Resolucao de preco**: WS -> REST -> cache (60s TTL)
 - **Conservative price**: HIGH/LOW dos ultimos 120s para capturar spikes intra-ciclo
 - **Escadinha**: usa `OrderProjectionService` identico ao sistema real
 - **Peak ROI**: persistido em cache + banco (sobrevive a reinicializacoes)
-- **Saida parcial**: +15% ROI em LATERAL -> 50% saida imediata; PnL = media 50/50
-- **[V118] Auto-blocklist**: pares com PnL < -15% E WR < 35% apos 3+ trades bloqueados em runtime (era 5+ trades, -20%, 30%)
+- **[V120] Saida parcial**: +15% ROI em LATERAL + **+25% ROI em TRENDING** -> 50% saida imediata; PnL = media 50/50
+- **[V118] Auto-blocklist**: pares com PnL < -15% E WR < 35% apos 3+ trades bloqueados em runtime
+- **[V120] Static blocklist**: ADAUSDT, GALAUSDT, ARBUSDT, OPUSDT, POLUSDT, NEARUSDT (performance extrema negativa)
+- **[V120] Margem adaptativa**: $1.00 (WR<60%) / $1.50 (WR>=60%) / $2.00 (WR>=70%) / $2.50 (WR>=80%)
 
-### Logs do Sandbox (V118)
+### Logs do Sandbox (V120)
 | Log | Significado |
 |-----|-------------|
 | `[SANDBOX-OPEN]` | Trade aberto |
 | `[SANDBOX-STALE]` | Entry defasado — descartado |
-| `[SANDBOX-LONG-FILTER]` | LONG descartado — par nao esta desgrudado do BTC |
-| `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/600s iniciado apos stop-out |
+| `[SANDBOX-V120-LONG]` | LONG descartado — filtro de decorrelação não atendido |
+| `[SANDBOX-ASIAN-PENALTY]` | Sinal bloqueado — sessão asiática (23h-01h UTC) com ADX < 32 |
+| `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/3600s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
 | `[SANDBOX-5M]` | Confirmacao 5M (+5/+10 block/boost) |
 | `[SANDBOX-V119]` | Stop estrutural 30M calculado (swing level + buffer) |
 | `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M nao alinhado com direcao do sinal |
-| `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%) |
+| `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%, GARANTIA_TAXAS aos +3%) |
+| `[SANDBOX-PARTIAL]` | Saida parcial 50% executada (LATERAL +15% ou TRENDING +25%) |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
+| `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica |
 
 ---
 

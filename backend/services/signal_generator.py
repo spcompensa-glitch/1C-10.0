@@ -3205,19 +3205,15 @@ class SignalGenerator:
                             low=_low,
                             oi_value=_oi
                         )
-                        if explosion_result["score"] >= 40:
-                            logger.info(
-                                f"💥 [EXPLOSION-SCORE] {symbol} score={explosion_result['score']}/100 "
-                                f"rec={explosion_result['recommendation']} "
-                                f"signals={explosion_result['total_signals'][:3]}"
-                            )
-                        elif explosion_result["total_signals"]:
-                            logger.info(
-                                f"📊 [EXPLOSION-SCORE] {symbol} score={explosion_result['score']}/100 "
-                                f"rec={explosion_result['recommendation']} signals={explosion_result['total_signals'][:3]}"
-                            )
+                        # [V120.2] Log incondicional — sempre aparece para confirmar execução
+                        logger.info(
+                            f"💥 [EXPLOSION-SCORE] {symbol} score={explosion_result['score']}/100 "
+                            f"rec={explosion_result['recommendation']} "
+                            f"signals={explosion_result['total_signals'][:3]} "
+                            f"oi_cache={len(phase_detector._oi_history.get(symbol, []))}"
+                        )
                     except Exception as exp_err:
-                        logger.debug(f"[EXPLOSION-SCORE] Erro ao calcular para {symbol}: {exp_err}")
+                        logger.info(f"💥 [EXPLOSION-SCORE] {symbol} ERRO: {exp_err}")
 
                     # [V110.960] Classifica a estratégia do sinal seguindo a Hierarquia Consensual
                     raw_class = "SWING"

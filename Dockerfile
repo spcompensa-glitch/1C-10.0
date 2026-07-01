@@ -1,5 +1,5 @@
 # Use official Python runtime as a parent image
-# Build trigger: 2026-06-03 (V110.708 Resilient Auth endpoints)
+# Build trigger: 2026-07-01 (V120.1 Phase Detector + OKX Historical Data)
 FROM python:3.12-slim
 
 # Set environment variables

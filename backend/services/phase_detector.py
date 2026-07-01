@@ -77,11 +77,12 @@ class PhaseDetector:
         try:
             from services.database_service import database_service
 
-            # Símbolos ativos no watchlist (carrega para os mais relevantes)
+            # Todos os pares monitorados (RADAR + DECOR + MASTER)
             from config import settings
             active_symbols = list(set(
-                getattr(settings, 'RADAR_WATCHLIST', [])[:20] +
-                getattr(settings, 'DECOR_WATCHLIST', [])[:20]
+                getattr(settings, 'RADAR_WATCHLIST', []) +
+                getattr(settings, 'DECOR_WATCHLIST', []) +
+                getattr(settings, 'MASTER_CONTEXT_ASSETS', [])
             ))
 
             loaded_count = 0
@@ -175,6 +176,77 @@ class PhaseDetector:
             await database_service.save_phase_detector_batch(batch)
         except Exception as e:
             logger.debug(f"[PHASE-DETECTOR] Erro ao flush buffer: {e}")
+
+    async def collect_periodic_data(self):
+        """
+        [V120.1] Coleta periódica de dados para todos os pares monitorados.
+        Executa a cada 15 minutos para manter o histórico atualizado.
+        Coleta: OI, CVD, BB Width, Volume, Range para cada par.
+        """
+        try:
+            from config import settings
+            from services.okx_rest import okx_rest_service
+            from services.okx_ws_public import okx_ws_public_service
+
+            # Todos os pares monitorados (RADAR + DECOR + MASTER)
+            all_symbols = list(set(
+                getattr(settings, 'RADAR_WATCHLIST', []) +
+                getattr(settings, 'DECOR_WATCHLIST', []) +
+                getattr(settings, 'MASTER_CONTEXT_ASSETS', [])
+            ))
+
+            collected = 0
+            for symbol in all_symbols:
+                try:
+                    # 1. OI (Open Interest)
+                    oi = okx_ws_public_service.oi_cache.get(symbol, 0)
+                    if oi and oi > 0:
+                        self.update_oi(symbol, oi)
+                        collected += 1
+
+                    # 2. CVD e Price
+                    cvd = okx_ws_public_service.get_cvd_score_time(symbol, 300) or 0
+                    price = okx_ws_public_service.get_current_price(symbol) or 0
+                    if price > 0:
+                        self.update_cvd_price(symbol, cvd, price)
+                        collected += 1
+
+                    # 3. BB Width (precisa de klines)
+                    candles = await okx_rest_service.get_klines(symbol, interval="30", limit=20)
+                    if candles and len(candles) >= 20:
+                        closes = [float(c.get("close") or c[4]) for c in reversed(candles)]
+                        # BB simples: média ± 2*std
+                        if len(closes) >= 20:
+                            sma = sum(closes[-20:]) / 20
+                            std = (sum((c - sma) ** 2 for c in closes[-20:]) / 20) ** 0.5
+                            bb_width = (4 * std / sma) * 100 if sma > 0 else 5.0
+                            self.update_bb_width(symbol, bb_width)
+                            collected += 1
+
+                            # 4. Volume
+                            volumes = [float(c.get("volCcy24h") or c.get("vol") or c[5]) for c in reversed(candles)]
+                            if volumes:
+                                self.update_volume(symbol, volumes[-1])
+                                collected += 1
+
+                            # 5. Range
+                            highs = [float(c.get("high") or c[2]) for c in reversed(candles)]
+                            lows = [float(c.get("low") or c[3]) for c in reversed(candles)]
+                            if highs and lows:
+                                self.update_range(symbol, highs[-1], lows[-1])
+                                collected += 1
+
+                except Exception as sym_err:
+                    logger.debug(f"[PHASE-DETECTOR] Erro ao coletar dados para {symbol}: {sym_err}")
+                    continue
+
+            logger.info(
+                f"📡 [PHASE-DETECTOR] Coleta periódica concluída: {collected} snapshots "
+                f"para {len(all_symbols)} símbolos"
+            )
+
+        except Exception as e:
+            logger.warning(f"[PHASE-DETECTOR] Erro na coleta periódica: {e}")
 
     # ==================== OI TRACKING ====================
 

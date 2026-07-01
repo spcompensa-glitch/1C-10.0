@@ -355,6 +355,17 @@ async def lifespan(app: FastAPI):
                         except Exception as e:
                             logger.debug(f"[PHASE-DETECTOR] Flush error: {e}")
                 asyncio.create_task(phase_detector_flush_loop())
+
+                # [V120.1] Phase Detector — periodic data collection (15 min)
+                async def phase_detector_collect_loop():
+                    while True:
+                        try:
+                            await asyncio.sleep(900)  # A cada 15 minutos
+                            from services.phase_detector import phase_detector
+                            await phase_detector.collect_periodic_data()
+                        except Exception as e:
+                            logger.debug(f"[PHASE-DETECTOR] Collect error: {e}")
+                asyncio.create_task(phase_detector_collect_loop())
                 
                 # [V27.2] Trade Analyst - Performance Intelligence (KEPT)
                 from services.agents.trade_analyst import trade_analyst

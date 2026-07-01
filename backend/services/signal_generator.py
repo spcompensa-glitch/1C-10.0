@@ -12,6 +12,7 @@ from services.okx_ws_public import okx_ws_public_service
 from services.vault_service import vault_service
 from services.execution_protocol import execution_protocol
 from services.agents.oracle_agent import oracle_agent
+from services.phase_detector import phase_detector
 from config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -3181,6 +3182,38 @@ class SignalGenerator:
                     except Exception as sq_err:
                         logger.error(f"Erro ao avaliar setup MOLA para {symbol}: {sq_err}")
 
+                    # [V120] EXPLOSION SCORE — Detecção de Fase 1 (Acumulação) + Fase 2 (Compressão)
+                    # Calcula score composto para todas as estratégias (VELOCITY, ALPHA, DECOR)
+                    explosion_result = {"score": 0, "recommendation": "NO_SIGNAL", "total_signals": []}
+                    try:
+                        # Coleta dados necessários
+                        _cvd = okx_ws_public_service.get_cvd_score_time(symbol, 300) or 0
+                        _price = okx_ws_public_service.get_current_price(symbol) or 0
+                        _volume = float(volumes_30m[-1]) if volumes_30m else 0
+                        _bb_w = asset_bb_width if asset_bb_width else 5.0
+                        _high = float(highs_30m[-1]) if highs_30m else 0
+                        _low = float(lows_30m[-1]) if lows_30m else 0
+                        _oi = okx_ws_public_service.oi_cache.get(symbol, 0) if hasattr(okx_ws_public_service, 'oi_cache') else 0
+
+                        explosion_result = phase_detector.calculate_explosion_score(
+                            symbol=symbol,
+                            cvd=_cvd,
+                            price=_price,
+                            volume=_volume,
+                            bb_width=_bb_w,
+                            high=_high,
+                            low=_low,
+                            oi_value=_oi
+                        )
+                        if explosion_result["score"] >= 40:
+                            logger.info(
+                                f"💥 [EXPLOSION-SCORE] {symbol} score={explosion_result['score']}/100 "
+                                f"rec={explosion_result['recommendation']} "
+                                f"signals={explosion_result['total_signals'][:3]}"
+                            )
+                    except Exception as exp_err:
+                        logger.debug(f"[EXPLOSION-SCORE] Erro ao calcular para {symbol}: {exp_err}")
+
                     # [V110.960] Classifica a estratégia do sinal seguindo a Hierarquia Consensual
                     raw_class = "SWING"
                     if is_lrt_play:
@@ -3718,6 +3751,7 @@ class SignalGenerator:
                             f"Funding: {trigger_result.get('funding_rate', 0)*100:.4f}% | "
                             f"Room: {move_room_pct:.1f}%"
                             + (f" | ⚡ SHADOW" if is_stretched else "")
+                            + (f" | 💥 EXPLOSION={explosion_result.get('score', 0)}" if explosion_result.get('score', 0) >= 40 else "")
                         ),
                         "indicators": {
                             "cvd": round(cvd_val, 4),
@@ -3750,6 +3784,11 @@ class SignalGenerator:
                             "atr_2h": macro_2h.get('atr_2h', 0),
                             # [V25.1] New Entry Confirmation Protocol data
                             "funding_rate": trigger_result.get('funding_rate', 0),
+                            # [V120] Explosion Score — Fase 1 (Acumulação) + Fase 2 (Compressão)
+                            "explosion_score": explosion_result.get("score", 0),
+                            "explosion_phase1": explosion_result.get("phase1", {}).get("score", 0),
+                            "explosion_phase2": explosion_result.get("phase2", {}).get("score", 0),
+                            "explosion_signals": explosion_result.get("total_signals", [])[:5],
                             "trigger_type": trigger_result.get('trigger_type'),
                             "trigger_confidence": trigger_result.get('confidence', 0),
                             "volume_confirmed": trigger_result.get('volume_confirmed', False),

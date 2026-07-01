@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-01 (V120 — Otimizacao Sandbox: R:R, LONGs, multi-strategia, margem adaptativa)*
+*Ultima atualizacao: 2026-07-01 (V120.1 — Phase Detector: deteccao de Fase 1+2 para explosao de precos)*
 
 ---
 
@@ -38,6 +38,7 @@
 | PortfolioGuardian | DESATIVADO | Heartbeat apenas |
 | SentinelAgent | ATIVO | Failsafe de posicoes |
 | **SandboxService** | **ATIVO** | **Forward Testing Lab — espelha sistema real, ciclo 1s** |
+| **PhaseDetector** | **ATIVO** | **Deteccao Fase 1+2 (Acumulacao + Compressao) — Explosion Score** |
 
 ---
 
@@ -176,6 +177,8 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
 | `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica |
+| `[SANDBOX-EXPLOSION-BLOCK]` | Trade bloqueado — explosion_score < 20 (sem evidencia de Fase 1+2) |
+| `[EXPLOSION-SCORE]` | Explosion Score calculado para um simbolo |
 
 ---
 

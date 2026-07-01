@@ -63,6 +63,40 @@ O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
 | **AIService** | `agents/ai_service.py` | Cascade de IA: DeepSeek -> Gemini -> OpenRouter |
 | **SandboxService** | `services/sandbox_service.py` | Forward Testing Lab. Espelha o sistema real com escadinha, stops adaptativos e fallback de preco. Ciclo 1s. |
 
+### 2.5 Phase Detector (V120 — Explosao de Precos)
+
+| Componente | Arquivo | Funcao |
+|------------|---------|--------|
+| **PhaseDetector** | `services/phase_detector.py` | Deteccao de Fase 1 (Acumulacao) e Fase 2 (Compressao) para antecipar movimentos explosivos 4-10% |
+
+**Por que existe:** O sistema so detectava Fase 3 (detonacao). Muitas vezes o preco ja explodia antes do sinal ser gerado. Agora detectamos as fases anteriores para entrar mais cedo.
+
+**Fase 1 — Acumulacao (institucional oculto):**
+- OI Divergence: preco cai mas OI sobe (peso 25)
+- CVD Divergence: preco cai mas CVD sobe (peso 30)
+- Volume Trend: volume medio > 1.2x da media (peso 20)
+- Funding negativo: < -0.05% (peso 15)
+- Choch Detection: ruptureura de strutura (peso 10)
+- Score >= 40 = Fase 1 detectada
+
+**Fase 2 — Compressao (mola comprimida):**
+- BB Width: percentil < 25% (peso 30)
+- Range Compression: range近期 < 0.7x da media (peso 35)
+- Volume Dry-up: volume < 0.8x da media (peso 25)
+- Score >= 50 = Fase 2 detectada
+
+**Explosion Score (composto):**
+- Formula: (Phase1 + Phase2 + Funding Bonus) / 3.33
+- Funding Bonus: se funding < -0.1% ou > +0.15%, +20 pontos
+- Score >= 60 = sinal de ENTRADA recomendado
+- Score 40-59 = sinal de ALERTA (preparar entrada)
+- Score < 40 = sem sinal
+
+**Integracao com as 3 estrategias:**
+- VELOCITY FLOW: explosion_score alimenta confianca
+- ALPHA SHIELD: explosion_score confirma DVAP/MOLA/FAS
+- DECOR SHADOW: explosion_score detecta divergencias com compressao
+
 ---
 
 ## 3. Fluxo de Execucao

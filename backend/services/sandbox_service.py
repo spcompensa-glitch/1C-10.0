@@ -738,6 +738,16 @@ class SandboxService:
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
+            # [V120] Explosion Score Filter — Filtra sinais com score muito baixo
+            # Score < 20 = sem evidência de acumulação/compressão = maior chance de falso sinal
+            explosion_score = float(sig.get("explosion_score", 0) or 0)
+            if explosion_score > 0 and explosion_score < 20:
+                logger.info(
+                    f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
+                    f"explosion_score={explosion_score:.0f} < 20 (sem evidência de Fase 1+2)"
+                )
+                continue
+
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
             # [V119] Stop inicial adaptativo baseado em estrutura 30M

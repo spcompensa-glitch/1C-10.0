@@ -83,3 +83,7 @@ Smart_Money_Decoded.pdf
 *.pdf
 tmp/
 
+# Hermes (removido do sistema V120.4)
+hermes-agent/
+hermes-app/
+

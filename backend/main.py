@@ -111,9 +111,9 @@ logger = logging.getLogger("1CRYPTEN-MAIN")
 logger.info(f"BASE_DIR: {BASE_DIR}")
 logger.info(f"FRONTEND_DIR: {FRONTEND_DIR}")
 
-# [HERMES DASHBOARD V2] Serviço do Hermes Web Dashboard
+# [HERMES DASHBOARD V2] Serviço do Hermes Web Dashboard — DESABILITADO V120.4
 hermes_dashboard_service = None
-HERMES_DASHBOARD_ENABLED = os.getenv("HERMES_DASHBOARD_ENABLED", "true").lower() in ("true", "1", "t", "yes")
+HERMES_DASHBOARD_ENABLED = False  # Hermes removido do sistema
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -298,11 +298,14 @@ async def lifespan(app: FastAPI):
                 except ImportError as ie:
                     logger.warning(f"⚠️ [V5.4.0] HeatMonitor Agent not found, skipping: {ie}")
 
-                # 🆕 [HERMES] Compliance & Telemetry Agent
-                from services.agents.hermes_agent import hermes_agent
-                await kernel.register_agent(hermes_agent)
-                await hermes_agent.start()
-                logger.info("🟢 [HERMES] Compliance & Telemetry Agent ONLINE — Monitorando docs vs código vs runtime.")
+                # 🆕 [HERMES] Compliance & Telemetry Agent — DESABILITADO V120.4
+                try:
+                    from services.agents.hermes_agent import hermes_agent
+                    await kernel.register_agent(hermes_agent)
+                    await hermes_agent.start()
+                    logger.info("🟢 [HERMES] Compliance & Telemetry Agent ONLINE — Monitorando docs vs código vs runtime.")
+                except Exception as hermes_agent_err:
+                    logger.warning(f"⚠️ [HERMES] Agent desabilitado: {hermes_agent_err}")
 
                 # 🧬 [V5.5.0] Sniper Sieve - O Funil de 200 Ativos
                 try:
@@ -630,15 +633,8 @@ async def lifespan(app: FastAPI):
             except Exception as core_init_err:
                 logger.error(f"❌ [SaaS] Falha ao iniciar serviços CORE (OKX WS / Guardian / Auditor): {core_init_err}", exc_info=True)
 
-            try:
-                logger.info("🪶 [SaaS-HERMES] Inicializando Hermes Broker de forma independente...")
-                from services.hermes_broker import hermes_broker_service
-                # Inicia gRPC e MQTT do Hermes
-                await hermes_broker_service.start_mqtt()
-                await hermes_broker_service.start_grpc()
-                logger.info("✅ [SaaS-HERMES] Hermes Broker inicializado com SUCESSO!")
-            except Exception as hermes_err:
-                logger.error(f"⚠️ [SaaS-HERMES-BLOCK] Falha ao iniciar Hermes Broker (Sistema Principal continua rodando): {hermes_err}")
+            # [HERMES] Broker DESABILITADO V120.4 — removido do sistema
+            logger.info("⏭️ [SaaS-HERMES] Hermes Broker desabilitado (V120.4).")
 
             # 🧪 [V119] Sandbox Service isolado para resiliência de boot em caso de falha Protobuf/Hermes
             try:
@@ -693,13 +689,8 @@ async def lifespan(app: FastAPI):
         except Exception as okx_stop_err:
             logger.debug(f"Erro ao parar OKX WS privado: {okx_stop_err}")
 
-        try:
-            from services.hermes_broker import hermes_broker_service
-            logger.info("🛑 [SaaS] Desligando Hermes Broker...")
-            await hermes_broker_service.stop_mqtt()
-            await hermes_broker_service.stop_grpc()
-        except Exception as hermes_stop_err:
-            logger.debug(f"Erro ao parar Hermes Broker: {hermes_stop_err}")
+        # [HERMES] Broker e Dashboard DESABILITADOS V120.4
+        logger.info("⏭️ [SaaS] Hermes Broker e Dashboard desabilitados.")
 
         try:
             from services.sandbox_service import sandbox_service
@@ -707,14 +698,6 @@ async def lifespan(app: FastAPI):
             sandbox_service.stop()
         except Exception as sb_stop_err:
             logger.debug(f"Erro ao parar Sandbox Service: {sb_stop_err}")
-        
-        # [HERMES DASHBOARD v2] Desliga o Hermes Dashboard (dentro do try principal)
-        if HERMES_DASHBOARD_ENABLED and hermes_dashboard_service:
-            try:
-                await hermes_dashboard_service.stop()
-                logger.info("🪶 [HERMES DASHBOARD v2] Hermes Dashboard desligado.")
-            except Exception as hd_stop_err:
-                logger.warning(f"⚠️ [HERMES DASHBOARD v2] Erro ao desligar: {hd_stop_err}")
     except Exception as shutdown_err:
         logger.error(f"Error during shutdown: {shutdown_err}")
     
@@ -735,7 +718,6 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://1crypten.space",
     "https://www.1crypten.space",
-    "https://1crypten-hermes-agent-production.up.railway.app",
 ]
 
 # Process and append custom backend CORS origins

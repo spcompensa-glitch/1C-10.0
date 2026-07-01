@@ -1543,8 +1543,9 @@ class CaptainAgent(AIOSAgent):
                     pass
 
                 if is_ranging_mode:
-                    # Em mercado LATERAL, apenas DECOR SHADOW é permitida
-                    if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
+                    # [V120] Em mercado LATERAL, DECOR SHADOW e ALPHA SHIELD são permitidas
+                    # ALPHA SHIELD (DVAP/MOLA/FAS) opera em qualquer regime — stops menores (-8%) mitigam risco
+                    if strategy not in ("DECOR SHADOW", "DECOR_HUNTER", "ALPHA SHIELD"):
                         msg = f"[TREND_FOCUS] {symbol} ({strategy}) bloqueado em mercado LATERAL (ADX < 25)."
                         logger.info(msg)
                         await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")

@@ -3512,7 +3512,7 @@ class SignalGenerator:
                     elif 14 <= hour_utc < 21:  # Sessão US — maior volume, melhores tendências
                         final_score += 5
                     final_score = max(10, min(99, final_score))
-                    if is_dvap_play or is_lrt_play or is_fas_play:
+                    if is_dvap_play or is_lrt_play or is_fas_play or is_mola_play:
                         final_score = 98
                         logger.info(f"💎 [PRIORITY STRATEGY BOOST] final_score forcado para {final_score} ({strategy_class}) para garantir execucao imediata!")
                     

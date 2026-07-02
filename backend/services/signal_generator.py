@@ -3742,6 +3742,10 @@ class SignalGenerator:
                         "execution_style": "ATTACK" if market_regime.get("adx", 20) >= 28 else "AMBUSH",
                         "current_adx": market_regime.get("adx", 20),
                         "strategy_class": strategy_class,
+                        "explosion_score": explosion_result.get("score", 0),
+                        "explosion_phase1": explosion_result.get("phase1", {}).get("score", 0),
+                        "explosion_phase2": explosion_result.get("phase2", {}).get("score", 0),
+                        "explosion_signals": explosion_result.get("total_signals", [])[:5],
                         "is_elite": True if (is_dvap_play or is_mola_play) else (signal_layer == "SNIPER"),
                         "reasoning": (
                             f"{'💎 DVAP REVERSAL | ' if is_dvap_play else ''}"

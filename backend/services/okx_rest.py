@@ -1650,14 +1650,14 @@ class OKXRest:
                     data = response.json()
                     if data.get("code") == "0" and data.get("data"):
                         ob = data["data"][0]
-                            # OKX retorna bids/asks como [[px, sz, ...], ...]
-                            bids = [[float(b[0]), float(b[1])] for b in ob.get("bids", [])]
+                        # OKX retorna bids/asks como [[px, sz, ...], ...]
+                        bids = [[float(b[0]), float(b[1])] for b in ob.get("bids", [])]
                         asks = [[float(a[0]), float(a[1])] for a in ob.get("asks", [])]
                         return {
                             "b": bids,
                             "a": asks
                         }
-                        return {"b": [], "a": []}
+                    return {"b": [], "a": []}
         except Exception as e:
             logger.error(f"Error fetching orderbook from OKX for {symbol}: {e}")
             return {"b": [], "a": []}

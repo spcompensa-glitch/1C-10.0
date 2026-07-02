@@ -741,6 +741,12 @@ class SandboxService:
             # [V120] Explosion Score Filter — Filtra sinais com score muito baixo
             # Score < 20 = sem evidência de acumulação/compressão = maior chance de falso sinal
             explosion_score = float(sig.get("explosion_score", 0) or 0)
+            explosion_signals_raw = sig.get("explosion_signals", [])
+            if explosion_score > 0:
+                logger.info(
+                    f"🧪 [SANDBOX-EXPLOSION-DEBUG] {symbol} explosion_score={explosion_score:.0f} "
+                    f"signals={explosion_signals_raw[:3]}"
+                )
             if explosion_score > 0 and explosion_score < 20:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "

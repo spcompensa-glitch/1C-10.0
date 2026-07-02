@@ -23,7 +23,7 @@ def get_slot_type(slot_id: int) -> str:
 
 class BankrollManager:
     def __init__(self):
-        self.max_slots = settings.MAX_SLOTS  # [V111.0] até 40 slots
+        self.max_slots = settings.MAX_SLOTS  # [V121] lê do config.py (cap = MAX_SLOTS)
         self.risk_cap = settings.RISK_CAP_PERCENT  # 40% da banca (invariante)
         self.margin_per_slot = 0.10  # legacy (substituído por margin_per_trade dinâmico)
         self.initial_slots = 1
@@ -1336,10 +1336,10 @@ class BankrollManager:
                     margin_per_trade = 0.50
                 
                 if okx_rest_service.execution_mode == "PAPER":
-                    dynamic_max_slots = 40
+                    dynamic_max_slots = settings.MAX_SLOTS
                 else:
                     max_slots_by_risk = int((balance * self.risk_cap) / margin_per_trade)
-                    dynamic_max_slots = min(40, max(1, max_slots_by_risk))
+                    dynamic_max_slots = min(settings.MAX_SLOTS, max(1, max_slots_by_risk))
 
                 if self.strict_single_order_mode:
                     max_total_slots = 1

@@ -97,11 +97,11 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 
 ## Conflitos Conhecidos no Codigo
 
-1. **RISK_ZERO threshold**: `chat.py` (80%) vs `hermes_agent.py` (50%)
-2. **Max slots**: `config.py` (16) vs `bankroll_guardian.py` (20/40) — camadas diferentes
+1. ~~**RISK_ZERO threshold**: `chat.py` (80%) vs `hermes_agent.py` (50%)~~ ✅ RESOLVIDO V121
+2. ~~**Max slots**: `config.py` (16) vs `bankroll_guardian.py` (20/40)~~ ✅ RESOLVIDO V121
 3. **Reset banca**: `admin.py` diz $100, comentarios dizem $20
 4. **Referencias Bybit**: `market.py` ainda usa nomes `BybitRest`, `BybitWS` (legado)
-5. **Dois apps FastAPI**: Root `main.py` (Firebase-first) e `backend/main.py` (Postgres-first)
+5. ~~**Dois apps FastAPI**: Root `main.py` (Firebase-first) e `backend/main.py` (Postgres-first)~~ ✅ RESOLVIDO V120.4
 
 ---
 

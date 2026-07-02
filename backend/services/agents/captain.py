@@ -679,7 +679,7 @@ class CaptainAgent(AIOSAgent):
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2
                 else:
-                    max_total_slots = 20  # Hard limit: ELITE (tendência) + DECOR_HUNTER (paralelo)
+                    max_total_slots = settings.MAX_SLOTS  # [V121] Lê do config.py (SSOT unificado)
 
                 # [V110.116] Heartbeat Log
                 if not hasattr(self, "_last_heartbeat") or (time.time() - self._last_heartbeat) > 300:
@@ -1564,7 +1564,7 @@ class CaptainAgent(AIOSAgent):
                             self.active_tocaias.discard(symbol)
                             return
 
-            max_allowed_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
+            max_allowed_slots = settings.MAX_SLOTS  # [V121] Lê do config.py (SSOT unificado)
             
             if occupied_count >= max_allowed_slots:
                 # logger.debug(f"⏭️ [V120] Usuário {username} sem slots disponíveis.")

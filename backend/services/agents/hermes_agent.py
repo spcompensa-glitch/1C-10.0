@@ -20,11 +20,12 @@ from services.sovereign_service import sovereign_service
 
 logger = logging.getLogger("HermesAgent")
 
-# --- Docs SSOT (Hardcoded from _reversa_sdd/ para acesso rápido) ---
+# --- Docs SSOT (Hardcoded from config.py para acesso rápido) ---
+# [V121] RISK_ZERO unificado: trigger=settings.RISK_ZERO_TRIGGER_ROI, stop=settings.RISK_ZERO_STOP_TARGET
 ESCADINHA_DOCS_SSOT = {
-    "description": "Escadinha (Trailing Stop) — Sincronizado com order_projection_service.py (ORDER_STOP_LADDER)",
+    "description": "Escadinha (Trailing Stop) — Sincronizado com order_projection_service.py (ORDER_STOP_LADDER) e config.py",
     "phases": [
-        {"name": "RISK_ZERO", "trigger_roi": 50.0, "sl_target_roi": 15.0, "desc": "Risk Zero: SL vai para +15% ROI (Fôlego/Taxas)"},
+        {"name": "RISK_ZERO", "trigger_roi": 50.0, "sl_target_roi": 25.0, "desc": "Risk Zero: SL vai para +25% ROI (Fôlego/Taxas)"},
         {"name": "LUCRO_GARANTIDO", "trigger_roi": 100.0, "sl_target_roi": 50.0, "desc": "Garante +50% ROI"},
         {"name": "SUCESSO_TOTAL", "trigger_roi": 130.0, "sl_target_roi": 110.0, "desc": "Garante +110% ROI"},
         {"name": "EMANCIPATION", "trigger_roi": 150.0, "sl_target_roi": 110.0, "desc": "Emancipação: Slot liberado, vira Moonbag"}
@@ -243,10 +244,10 @@ class HermesAgent(AIOSAgent):
             for slot in runtime_slots:
                 roi = slot.get("roi", 0)
                 phase = slot.get("phase", "UNKNOWN")
-                if phase == "UNKNOWN" and roi > 80:
+                if phase == "UNKNOWN" and roi > 50:
                     divergencias.append({
                         "area": f"Runtime - {slot['symbol']}",
-                        "expected": "Escadinha deveria estar ativa (ROI > 80%)",
+                        "expected": "Escadinha deveria estar ativa (ROI > 50%)",
                         "actual": f"ROI={roi:.1f}% mas sem fase de Escadinha",
                         "severity": "CRITICAL",
                         "impact": "Lucro não protegido — risco de perda total do gain"

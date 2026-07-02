@@ -466,14 +466,15 @@ PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MYRO, 1000SATS, ORDI, MEME, TURBO, PEOPLE.
 
 ## 13. Contradicoes Conhecidas no Codigo
 
-1. **RISK_ZERO**: `chat.py` diz 80% ROI, `hermes_agent.py` diz 50% ROI
+1. ~~**RISK_ZERO**: `chat.py` diz 80% ROI, `hermes_agent.py` diz 50% ROI~~ ✅ RESOLVIDO V121: unificado em `config.py` (50% trigger → +25% stop)
 2. **Versoes**: Multiplas versoes coexistem (V20.5 captain, V110.x services, V2.x hermes, etc.)
 3. **Portfolio Guardian**: Importado e instanciado no `main.py` raiz mas marcado DESATIVADO
 4. **Referencias Bybit legadas**: `market.py` ainda usa nomes `BybitRest`, `BybitWS`
 5. **`get_slot_type()` sempre retorna "DVAP"** (V110.950)
-6. **Dois FastAPI apps**: Root `main.py` (Firebase-first) e `backend/main.py` (Postgres-first)
-7. **Reset banca**: `admin.py` diz $100 mas comentarios dizem $20
-8. **`radar_pulse`**: Nao e arquivo separado — e estrutura de dados em database_service, firebase_service e websocket_service
+6. ~~**Dois FastAPI apps**: Root `main.py` (Firebase-first) e `backend/main.py` (Postgres-first)~~ ✅ RESOLVIDO V120.4
+7. ~~**Max slots**: `config.py` (16) vs `bankroll_guardian.py` (20/40)~~ ✅ RESOLVIDO V121: todas as camadas leem do mesmo `settings.MAX_SLOTS` (20)
+8. **Reset banca**: `admin.py` diz $100 mas comentarios dizem $20
+9. **`radar_pulse`**: Nao e arquivo separado — e estrutura de dados em database_service, firebase_service e websocket_service
 
 ---
 

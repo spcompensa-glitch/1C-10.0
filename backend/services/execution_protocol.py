@@ -18,15 +18,17 @@ V15.0 Changes:
 import logging
 import time
 from typing import Tuple, Optional, Dict, Any
+from config import settings
 
 logger = logging.getLogger("ExecutionProtocol")
 
 
 # V14.1 Stabilization Protocol Phases
 # [V110.23.3] DEEP CLEAN: SAFE phase removed to allow maximum breathing room until 70% ROI.
+# [V121] RISK_ZERO lê do config.py (SSOT unificado)
 SMART_SL_PHASES = {
     "PHASE_SAFE":         {"trigger_roi": 0.0,   "stop_roi": -40.0,  "icon": "🔴", "color": "red",     "label": "INICIAL"},
-    "PHASE_RISK_ZERO":    {"trigger_roi": 50.0,  "stop_roi": 25.0,   "icon": "🛡️", "color": "green",   "label": "RISK_ZERO"},
+    "PHASE_RISK_ZERO":    {"trigger_roi": settings.RISK_ZERO_TRIGGER_ROI,  "stop_roi": settings.RISK_ZERO_STOP_TARGET,   "icon": "🛡️", "color": "green",   "label": "RISK_ZERO"},
     "PHASE_LUCRO_80":     {"trigger_roi": 80.0,  "stop_roi": 50.0,   "icon": "⚖️", "color": "cyan",    "label": "LUCRO_80"},
     "PHASE_PROFIT_LOCK":  {"trigger_roi": 100.0, "stop_roi": 75.0,   "icon": "🔒", "color": "blue",    "label": "PROFIT_LOCK"},
     "PHASE_MEGA_PULSE":   {"trigger_roi": 130.0, "stop_roi": 110.0,  "icon": "💎", "color": "diamond", "label": "MEGA_PULSE"}

@@ -308,42 +308,31 @@ class OKXRest:
                 logger.error(f"❌ [PAPER] Failed to save global state: {e}")
 
     def normalize_symbol(self, symbol: str) -> str:
-        """
-        [V6.0] Robust Mapping: Standardizes symbols for Bybit V5 API.
-        Strips .P suffix, ensures upper case, and prevents common mapping errors.
-        """
+        """[V121] Normaliza símbolo: remove .P, uppercase, garante USDT/USDC."""
         if not symbol: return ""
         norm = symbol.strip().upper()
         if norm.endswith(".P"):
             norm = norm[:-2]
         
-        # Security Guard: Ensure it ends with USDT (or USDC)
         if not (norm.endswith("USDT") or norm.endswith("USDC")):
-            # Fallback: if it's just 'BTC', return 'BTCUSDT'
             if norm: norm = f"{norm}USDT"
             
         return norm
 
     def _strip_p(self, symbol: str) -> str:
-        """Standardizes symbols for Bybit API calls."""
+        """Remove sufixo .P do símbolo."""
         return self.normalize_symbol(symbol)
 
     def get_session(self, api_key: str = None, api_secret: str = None, username: str = None):
-        """
-        [V120] Retorna uma sessão HTTP da Bybit para o usuário.
-        Se credenciais forem fornecidas, cria uma sessão específica.
-        Caso contrário, usa a sessão global do admin.
-        """
+        """[V121] Retorna uma sessão HTTP OKX para o usuário."""
         if self.execution_mode == "PAPER":
-            return None # Paper mode não usa sessão real (motor interno)
+            return None
 
-        # 1. Se for para um usuário específico (Multitenancy)
         if api_key and api_secret and username:
-            # Reutiliza sessão do cache se existir
             if username in self._user_sessions:
                 return self._user_sessions[username]
             
-            logger.info(f"🔌 [V120] Criando sessão Bybit privada para: @{username}")
+            logger.info(f"🔌 [V120] Criando sessão OKX privada para: @{username}")
             session = HTTP(
                 testnet=settings.OKX_TESTNET,
                 api_key=api_key.strip(),
@@ -910,38 +899,29 @@ class OKXRest:
             }
 
     async def round_price(self, symbol: str, price: float) -> float:
-        """
-        Rounds the price to the nearest tickSize allowed by Bybit.
-        Essential for avoiding 10001 errors and ensuring 'Maker' precision.
-        """
+        """[V121] Arredonda o preço para o tickSize permitido pela OKX."""
         return await self.format_precision(symbol, price)
 
     async def format_precision(self, symbol: str, price: float) -> float:
-        """
-        [V5.2.5] Precision Engine: Normaliza preços baseado no tickSize real da Bybit.
-        """
+        """[V121] Precision Engine: Normaliza preços baseado no tickSize real da OKX."""
         if price <= 0: return price
         
         info = await self.get_instrument_info(symbol)
         tick_size_str = info.get("priceFilter", {}).get("tickSize")
         
         if not tick_size_str:
-            return price # Fallback
+            return price
             
         from decimal import Decimal, ROUND_HALF_UP
         tick_size = Decimal(tick_size_str)
         price_dec = Decimal(str(price))
         
-        # Formula: round(price / tickSize) * tickSize
         rounded = (price_dec / tick_size).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * tick_size
         
-        # Normalize to remove trailing zeros and convert back to float
         return float(rounded.normalize())
 
     async def round_qty(self, symbol: str, qty: float) -> float:
-        """
-        [V53.0] Precisão de Quantidade: Normaliza quantidades baseado no qtyStep da Bybit.
-        """
+        """[V121] Precisão de Quantidade: Normaliza quantidades baseado no qtyStep da OKX."""
         if qty <= 0: return qty
         
         info = await self.get_instrument_info(symbol)
@@ -961,10 +941,7 @@ class OKXRest:
 
     @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return={"retCode": -1, "retMsg": "Circuit Breaker Active"})
     async def set_leverage(self, symbol: str, leverage: int = 50):
-        """
-        🚀 V12.0: Ajusta a alavancagem para o símbolo antes de abrir a ordem.
-        Garante que a margem calculada corresponda à alavancagem real na OKX/Bybit.
-        """
+        """[V121] Ajusta a alavancagem para o símbolo antes de abrir a ordem."""
         api_symbol = self._strip_p(symbol)
 
         if settings.OKX_API_KEY_MASTER and self.execution_mode != "PAPER":
@@ -977,7 +954,6 @@ class OKXRest:
         
         if self.execution_mode == "PAPER":
             logger.info(f"[PAPER] Setting leverage for {api_symbol} to {leverage}x")
-            # Update leverage in existing paper position if it exists
             pos = next((p for p in self.paper_positions if p["symbol"] == api_symbol), None)
             if pos:
                 pos["leverage"] = str(leverage)
@@ -985,23 +961,13 @@ class OKXRest:
             return {"retCode": 0, "result": {}}
 
         try:
-            # Use synchronize thread for pybit call
-            response = await asyncio.to_thread(self.session.set_leverage,
-                category=self.category,
-                symbol=api_symbol,
-                buyLeverage=str(leverage),
-                sellLeverage=str(leverage)
-            )
-            
-            # Note: Bybit returns 110043 if leverage is already set to the same value
-            if response.get("retCode") == 110043:
-                logger.debug(f"Leverage for {symbol} already at {leverage}x.")
-                return response
-                
-            logger.info(f"Leverage set for {symbol} to {leverage}x: {response}")
-            return response
+            from services.okx_service import okx_service
+            response = await okx_service.set_leverage(symbol, leverage, mgn_mode="cross")
+            if response and response.get("code") == "0":
+                return {"retCode": 0, "result": {}}
+            logger.info(f"Leverage set for {symbol} to {leverage}x via OKX.")
+            return response or {"retCode": 0, "result": {}}
         except Exception as e:
-            # Common error: "leverage not modified" or similar, we log but don't block
             logger.warning(f"Failed to set leverage for {symbol}: {e}")
             return {"retCode": -1, "retMsg": str(e)}
 
@@ -1656,26 +1622,21 @@ class OKXRest:
             except Exception as okx_err:
                 logger.debug(f"[OKX-TRADE-HISTORY] Falha ao ler da OKX: {okx_err}")
 
-            # 2. Fallback resiliente para Bybit (se a OKX falhar)
+            # 2. Gate.io fallback p/ trades públicos (OKX primário falhou)
             try:
-                api_symbol = self._strip_p(symbol)
-                resp = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self.session.get_public_trade_history,
-                        category=self.category,
-                        symbol=api_symbol,
-                        limit=limit
-                    ),
-                    timeout=4.0
-                )
-                return resp.get("result", {}).get("list", [])
-            except Exception as e:
-                # Ocultar o warning espalhafatoso se for 403 comum de IP dos EUA da Bybit
-                if "403" in str(e) or "ip is from the usa" in str(e).lower() or "rate limit" in str(e).lower():
-                    logger.debug(f"Bybit trade fallback skipped (IP blocked or limited): {e}")
+                gate_sym = symbol.replace(".P", "").upper()
+                if gate_sym.endswith("USDT"):
+                    gate_sym = gate_sym[:-4] + "_USDT"
                 else:
-                    logger.warning(f"Error fetching public trades fallback for {symbol}: {e}")
-                return []
+                    gate_sym = gate_sym + "_USDT"
+                gate_url = f"https://api.gateio.ws/api/v4/futures/usdt/trades?contract={gate_sym}&limit={limit}"
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    resp = await client.get(gate_url)
+                    if resp.status_code == 200:
+                        return resp.json()
+            except Exception as e:
+                logger.debug(f"Gate.io trade fallback failed for {symbol}: {e}")
+            return []
 
     async def get_orderbook(self, symbol: str, limit: int = 50) -> dict:
         """[V12.0] Fetches L2 orderbook for localized depth analysis from OKX public API."""
@@ -1689,15 +1650,14 @@ class OKXRest:
                     data = response.json()
                     if data.get("code") == "0" and data.get("data"):
                         ob = data["data"][0]
-                        # OKX retorna bids/asks como [[px, sz, ...], ...]
-                        # Bybit espera: {"b": [[px, sz], ...], "a": [[px, sz], ...]}
-                        bids = [[float(b[0]), float(b[1])] for b in ob.get("bids", [])]
+                            # OKX retorna bids/asks como [[px, sz, ...], ...]
+                            bids = [[float(b[0]), float(b[1])] for b in ob.get("bids", [])]
                         asks = [[float(a[0]), float(a[1])] for a in ob.get("asks", [])]
                         return {
                             "b": bids,
                             "a": asks
                         }
-            return {"b": [], "a": []}
+                        return {"b": [], "a": []}
         except Exception as e:
             logger.error(f"Error fetching orderbook from OKX for {symbol}: {e}")
             return {"b": [], "a": []}
@@ -1868,8 +1828,7 @@ class OKXRest:
                         data = response.json()
                         if data.get("code") == "0" and data.get("data"):
                             okx_candles = data.get("data", [])
-                            # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
-                            # Bybit espera: [start_time, open, high, low, close, volume, turnover]
+                            # OKX retorna: [ts, o, h, l, c, volCcy, volCcyQuote, confirm]
                             formatted = []
                             for c in okx_candles:
                                 if len(c) >= 5:
@@ -1904,7 +1863,7 @@ class OKXRest:
         except Exception as e:
             logger.error(f"Error fetching klines from OKX public API for {symbol}: {e}")
 
-        # 5. FALLBACK DE ALTA DISPONIBILIDADE: Gate.io & Bybit APIs
+        # 5. FALLBACK DE ALTA DISPONIBILIDADE: Gate.io API
         logger.warning(f"⚠️ [OKX-REST KLINES FALLBACK] Ativando contingência de candles para {symbol} (Intervalo: {interval})")
         
         # A. Tentar via Gate.io (Livre de Geoblock de IPs americanos do Railway)
@@ -2011,7 +1970,6 @@ class OKXRest:
                     if data.get("code") == "0" and data.get("data"):
                         oi_val = data["data"][0].get("oi", "0")
                         ts = data["data"][0].get("ts", str(int(time.time() * 1000)))
-                        # Retorna lista compatível com Bybit
                         return [{"openInterest": oi_val, "timestamp": ts}]
         except Exception as e:
             logger.error(f"Error fetching OI history from OKX for {symbol}: {e}")

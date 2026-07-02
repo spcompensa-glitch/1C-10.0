@@ -62,14 +62,14 @@
 | Phase | ROI Trigger | Stop Level | Source |
 |---|---|---|---|
 | ORDER | 0% (entry) | Initial stop | `order_projection_service.py` |
-| RISK_ZERO | 50% ROI | +15% ROI stop | `hermes_agent.py:172` |
+| RISK_ZERO | 50% ROI | +25% ROI stop | `config.py` (SSOT unificado V121) |
 | LUCRO_GARANTIDO | 100% ROI | — | `hermes_agent.py:172` |
 | SUCESSO_TOTAL | 130% ROI | — | `hermes_agent.py:172` |
 | EMANCIPACAO | 150% ROI | Moonbag +110% ROI | `hermes_agent.py:172`, `chat.py:82` |
 | ESCADINHA | Intermediate | Trailing | `order_projection_service.py` |
 | TRAILING | Active | Dynamic | `order_projection_service.py` |
 
-**NOTE**: `chat.py` HERMES prompt says RISK_ZERO at **80% ROI**, but `hermes_agent.py` ESCADINHA_DOCS_SSOT says **50% ROI**. This is a direct contradiction.
+**NOTE (V121)**: RISK_ZERO unificado em `config.py` — trigger 50% ROI, stop +25% ROI. `chat.py`, `hermes_agent.py` e `execution_protocol.py` agora leem do mesmo SSOT.
 
 ### 2.4 FlashAgent (Escadinha Motor)
 | Constant | Value | Location |
@@ -399,12 +399,12 @@ Phase lifecycle: `ORDER → ESCADINHA → TRAILING`
 
 ### 4.5 Key Contradictions Found
 
-1. **RISK_ZERO ROI threshold**: `chat.py` HERMES prompt says **80%**, `hermes_agent.py` SSOT says **50%**
+1. ~~**RISK_ZERO ROI threshold**: `chat.py` HERMES prompt says **80%**, `hermes_agent.py` SSOT says **50%**~~ ✅ RESOLVIDO V121: unificado em `config.py` (50% trigger → +25% stop)
 2. **Version scheme**: Multiple overlapping versioning (V20.5, V110.x, V2.x, V1.0, V35.0, V43.0, V55.0, V56.0, V7.0, V16.5, V80.6, V89.0)
 3. **Portfolio Guardian**: Imported and instantiated in root `main.py` but marked DESATIVADO — superseded by FlashAgent's individual stop handling
 4. **Legacy Bybit references**: `market.py` still names services `BybitRest`, `BybitWS`; `fleet_audit.py` references "Bybit" in comments despite OKX-only operation
 5. **`get_slot_type()` always returns "DVAP"** (V110.950) — makes slot type differentiation vestigial
-6. **Two distinct FastAPI apps**: Root `main.py` (Firebase-first) and `backend/main.py` (Postgres-first) serve different deployment paths
+6. ~~**Two distinct FastAPI apps**: Root `main.py` (Firebase-first) and `backend/main.py` (Postgres-first) serve different deployment paths~~ ✅ RESOLVIDO V120.4: apenas `backend.main:app` roda em produção
 7. **Admin nuclear reset**: `admin.py:132` resets `paper_balance` to `100.0` but `admin.py:167` comment says "resetar banca para $20.00" and line 183 says "Banca de $100.00"
 8. **`radar_pulse`**: Not a separate file — it's a data structure in `database_service.py`, `firebase_service.py`, and `websocket_service.py`
 

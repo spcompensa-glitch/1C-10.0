@@ -263,7 +263,11 @@ class Settings(BaseSettings):
         # POLUSDT: 69% WR mas -12.44% PnL (5 losses, avg -12.44%)
         'ADAUSDT', 'GALAUSDT', 'ARBUSDT', 'OPUSDT', 'POLUSDT',
         # [V120] NEARUSDT: 70% WR mas -25.38% PnL — losses muito grandes (-14.99% avg) destroem os wins
-        'NEARUSDT'
+        'NEARUSDT',
+        # [V122] Sandbox 137 trades: performance negativa consistente
+        # GMXUSDT: 50% WR, -17.7% ROI — choppy, sem tendência clara
+        # PYTHUSDT: 33% WR, -17.6% ROI — falsos breakouts, baixa liquidez
+        'GMXUSDT', 'PYTHUSDT'
     }
 
     # Fast API context

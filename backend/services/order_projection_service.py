@@ -28,7 +28,7 @@ class StopLevel:
 ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     # [V119] Escadinha RANGING Progressiva e Acelerada (Calibrada)
     # Folga maior para evitar violinada precoce no lucro pequeno (+6% trigger, stop +1.5% break-even)
-    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 6.0, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 8.0, 2.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 12.0, 5.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 20.0, 10.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO", 32.0, 18.0, "RISCO_ZERO"),
@@ -39,7 +39,7 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
     # [V119] Escadinha TRENDING Progressiva e Calibrada
     # O trade corre livre até +12% ROI antes de mover para break-even, evitando violinadas curtas
-    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 12.0, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS", 14.0, 2.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "GARANTIA_20", 25.0, 10.0, "RISCO_BAIXO"),
     StopLevel("ESCADINHA", "LUCRO_INICIAL", 40.0, 20.0, "RISCO_ZERO"),
     StopLevel("ESCADINHA", "LUCRO_MEDIO", 60.0, 40.0, "RISCO_ZERO"),

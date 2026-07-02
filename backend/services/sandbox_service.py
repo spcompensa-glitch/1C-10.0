@@ -584,13 +584,9 @@ class SandboxService:
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            # [V120] LONG trades: filtro relaxado para permitir mais LONGs
-            # Motivo: dados mostram 0% LONG (131 trades, todos SHORT). O filtro original era muito
-            # restritivo (pearson < 0.35 AND confidence >= 70). Agora usa OR para mais flexibilidade:
-            # - pearson < 0.50 (era 0.35) — aceita pares moderadamente descorrelacionados
-            # - OU confidence >= 60 (era 70) — aceita confiança moderada
-            # [V118-FIX] O decorrelation data vem do _sync_radar_rtdb com as chaves:
-            #   is_active (NÃO is_decorrelated), score (NÃO confidence), correlation (NÃO pearson)
+            # [V122] LONG trades: restrição em tendência de BTC
+            # Se BTC em QUEDA (bear), exige pearson < 0.30 (decorrelação forte) para LONG
+            # Se BTC em ALTA ou lateral, mantém filtro relaxado (pearson < 0.50 OU conf >= 60)
             if direction == "LONG":
                 decor_data = sig.get("decorrelation") or {}
                 # Fallback para ambas as nomenclaturas (signal_generator usa is_decorrelated, radar usa is_active)
@@ -609,32 +605,44 @@ class SandboxService:
                     except Exception:
                         pass
 
-                # [V120] Filtro relaxado: OR em vez de AND
-                # Aceita LONG se: pearson < 0.50 OU confidence >= 60
-                passes_pearson = pearson < 0.50
-                passes_confidence = decor_confidence >= 60
-                if not (passes_pearson or passes_confidence):
-                    logger.info(
-                        f"🧪 [SANDBOX-V120-LONG] {symbol} {strategy} LONG descartado — "
-                        f"pearson={pearson:.2f} (< 0.50={passes_pearson}) conf={decor_confidence:.0f} (>= 60={passes_confidence}) "
-                        f"(raw: is_active={decor_data.get('is_active')}, score={decor_data.get('score')}, "
-                        f"correlation={decor_data.get('correlation')})"
-                    )
-                    continue
+                # [V122] Lógica adaptativa: BTC bearish → filtro mais restritivo
+                if btc_trend == "BEAR":
+                    # Queda: só LONG com decorrelação forte (pearson < 0.30)
+                    passes_pearson = pearson < 0.30
+                    passes_confidence = decor_confidence >= 70
+                    if not (passes_pearson or passes_confidence):
+                        logger.info(
+                            f"🧪 [SANDBOX-V122-LONG-BEAR] {symbol} {strategy} LONG descartado — "
+                            f"BTC BEAR + pearson={pearson:.2f} (< 0.30={passes_pearson}) "
+                            f"conf={decor_confidence:.0f} (>= 70={passes_confidence})"
+                        )
+                        continue
+                else:
+                    # Alta/lateral: filtro relaxado (OR)
+                    passes_pearson = pearson < 0.50
+                    passes_confidence = decor_confidence >= 60
+                    if not (passes_pearson or passes_confidence):
+                        logger.info(
+                            f"🧪 [SANDBOX-V122-LONG] {symbol} {strategy} LONG descartado — "
+                            f"pearson={pearson:.2f} (< 0.50={passes_pearson}) "
+                            f"conf={decor_confidence:.0f} (>= 60={passes_confidence})"
+                        )
+                        continue
                 # Se passou no filtro V120, também passa no MACRO-BLOCK
                 decor_bypass = True
 
             # [V117] Filtro de horário e ADX noturno
             # UTC 22h-08h = noite asiática/madrugada europeia — chop mesmo com ADX=TRENDING
             # Durante esse horário, exige ADX >= 28 para entrar (filtra TRENDING falso)
-            # US open (13:30-14:30 UTC): exige ADX >= 28 em tendência, decor_bypass em lateral
+            # [V122] US market: bloqueio total 13:00-14:30 UTC (5 losses concentrados no horário)
             # [V120] Asian Session Penalty (23h-01h UTC): losses concentrados nesse horário
             # Exige ADX >= 32 (mais restritivo) para reduzir perdas em liquidez baixa
             try:
                 now_utc = datetime.now(timezone.utc)
                 current_hour = now_utc.hour
                 current_hour_decimal = current_hour + now_utc.minute / 60.0
-                is_us_market_open = 13.5 <= current_hour_decimal < 14.5
+                # [V122] US market: bloqueio total 13:00-14:30 UTC (antes 13:5-14:5)
+                is_us_market_open = 13.0 <= current_hour_decimal < 14.5
                 is_night_session = current_hour >= 22 or current_hour < 8  # UTC 22h-08h
                 # [V120] Asian session penalty: 23h-01h UTC (pico de losses)
                 is_asian_penalty = current_hour in (23, 0, 1)
@@ -664,19 +672,18 @@ class SandboxService:
 
             if is_us_market_open:
                 if is_ranging:
-                    # Em lateral durante abertura: só entra se tiver decor_bypass
-                    if strategy == "DECOR SHADOW" and not decor_bypass:
-                        logger.info(
-                            f"🧪 [SANDBOX-OPEN-FILTER] {symbol} {strategy} descartado — "
-                            f"abertura US (13:30-14:30) sem decor_bypass"
-                        )
-                        continue
+                    # [V122] US market 13:00-14:30 UTC: sem entradas em lateral
+                    logger.info(
+                        f"🧪 [SANDBOX-US-BLOCK] {symbol} {strategy} descartado — "
+                        f"abertura US ({now_utc.hour:02d}:{now_utc.minute:02d} UTC) lateral bloqueada"
+                    )
+                    continue
                 else:
                     # Em tendência durante abertura: exige ADX mais alto
                     if adx_val < 28:
                         logger.info(
                             f"🧪 [SANDBOX-OPEN-FILTER] {symbol} {strategy} descartado — "
-                            f"abertura US (13:30-14:30) ADX {adx_val:.1f} < 28"
+                            f"abertura US ({now_utc.hour:02d}:{now_utc.minute:02d} UTC) ADX {adx_val:.1f} < 28"
                         )
                         continue
 
@@ -694,6 +701,19 @@ class SandboxService:
                     continue
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
+            # [V122] Máximo 3 trades simultâneos por símbolo (qualquer direção/estratégia)
+            # INJUSDT apareceu ~20 vezes no sandbox — over-trading destrói lucro
+            symbol_active_count = sum(
+                1 for t in active_trades
+                if t.symbol.replace(".P", "").upper() == symbol
+            )
+            if symbol_active_count >= 3:
+                logger.info(
+                    f"🧪 [SANDBOX-MAX-PER-SYMBOL] {symbol} já tem {symbol_active_count} trades ativos — "
+                    f"máximo 3 por par (evitar over-trading)"
+                )
+                continue
+
             already_active = any(
                 t.symbol.replace(".P", "").upper() == symbol
                 and t.strategy == strategy
@@ -1235,9 +1255,10 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        # [V120] GARANTIA_TAXAS — break-even antecipado em +3.0% ROI para proteger o capital
+        # [V122] GARANTIA_TAXAS — break-even em +8.0% ROI para dar espaço ao trade respirar
+        # Antes era +3.0% (muito cedo, travava lucro antes do trade desenvolver)
         # [V119] Só aplica se ainda não passou do GARANTIA_TAXAS (current_stop_roi < 0)
-        if max_roi >= 3.0 and current_stop_roi < 0.0:
+        if max_roi >= 8.0 and current_stop_roi < 0.0:
             new_stop_roi = 1.5  # break-even + taxas da OKX
             if new_stop_roi > current_stop_roi:
                 updated_stop_roi = new_stop_roi

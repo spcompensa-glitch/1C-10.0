@@ -609,7 +609,8 @@ class SandboxService:
                         pass
 
                 # [V122] Lógica adaptativa: BTC bearish → filtro mais restritivo
-                if btc_trend == "BEAR":
+                btc_trend = btc_macro.get("trend", "sideways").upper() if isinstance(btc_macro, dict) else "SIDEWAYS"
+                if btc_trend in ("BEAR", "BEARISH"):
                     # Queda: só LONG com decorrelação forte (pearson < 0.30)
                     passes_pearson = pearson < 0.30
                     passes_confidence = decor_confidence >= 70

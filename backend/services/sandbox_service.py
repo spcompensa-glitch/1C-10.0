@@ -276,9 +276,12 @@ class SandboxService:
                     logger.debug(f"[SANDBOX-V119] {symbol} SHORT: nenhum swing high acima de {entry_price:.4f}")
                     return None
 
-                # [V119-FIX] Seleciona o swing high mais significativo (maior distância até o entry)
-                # para dar espaço real para o preço respirar
-                structural_level = min(swing_highs, key=lambda x: x - entry_price)
+                # [V122-FIX] Seleciona o swing high mais significativo (MAIOR distância até o entry)
+                # para dar espaço real para o preço respirar no SHORT.
+                # CORREÇÃO: era min() (swing high mais próximo = stop fraco), agora max() (mais robusto).
+                # O swing high mais distante representa a resistência estrutural mais forte,
+                # onde o preço precisaria ir para realmente invalidar o setup SHORT.
+                structural_level = max(swing_highs, key=lambda x: x - entry_price)
                 distance_pct = (structural_level - entry_price) / entry_price * 100
                 # [V119.1] Distância mínima 0.3% e máxima 8% do entry
                 if distance_pct < 0.3:
@@ -758,21 +761,36 @@ class SandboxService:
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
-            # [V120] Explosion Score Filter — Filtra sinais com score muito baixo
-            # Score < 20 = sem evidência de acumulação/compressão = maior chance de falso sinal
+            # [V122] Explosion Score obrigatório >= 30 — score=0 (dado ausente) também bloqueia.
+            # Antes: só bloqueava se score > 0 AND score < 20 → score=0 (ATOMUSDT) entrava livre.
+            # Agora: qualquer score abaixo de 30 bloqueia (sem evidência de Fase 1+2 = sem entrada).
+            # Motivo: ATOMUSDT entrou 3x com score=0, -41.2% ROI total, 0% WR.
             explosion_score = float(sig.get("explosion_score", 0) or 0)
-            explosion_signals_raw = sig.get("explosion_signals", [])
-            if explosion_score > 0:
-                logger.info(
-                    f"🧪 [SANDBOX-EXPLOSION-DEBUG] {symbol} explosion_score={explosion_score:.0f} "
-                    f"signals={explosion_signals_raw[:3]}"
-                )
-            if explosion_score > 0 and explosion_score < 20:
+            EXPLOSION_SCORE_MIN = 30
+            if explosion_score < EXPLOSION_SCORE_MIN:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
-                    f"explosion_score={explosion_score:.0f} < 20 (sem evidência de Fase 1+2)"
+                    f"explosion_score={explosion_score:.0f} < {EXPLOSION_SCORE_MIN} "
+                    f"(sem evidência de Fase 1+2; score=0 = dado ausente também bloqueia)"
                 )
                 continue
+
+            # [V122] DECOR SHADOW exige evidência de Fase 2 (compressão).
+            # DECOR SHADOW é estratégia de reversão de exaustão — por definição precisa de compressão.
+            # Sem BB comprimido + range compression = sem setup. Preço pode continuar caindo livremente.
+            # P2: prefixo nos explosion_signals indica sinais de Fase 2 do PhaseDetector.
+            if strategy == "DECOR SHADOW":
+                explosion_signals_list = sig.get("explosion_signals") or []
+                phase2_signals = [s for s in explosion_signals_list if str(s).startswith("P2:")]
+                if len(phase2_signals) < 1:
+                    logger.info(
+                        f"🧪 [SANDBOX-DECOR-PHASE2-BLOCK] {symbol} DECOR SHADOW bloqueado — "
+                        f"sem evidência de Fase 2 (compressão BB/Range). "
+                        f"signals={explosion_signals_list[:5]}"
+                    )
+                    continue
+
+
 
             trade_id = f"sb_{symbol}_{strategy}_{int(time.time())}"
 
@@ -1255,17 +1273,30 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        # [V122] GARANTIA_TAXAS — break-even em +8.0% ROI para dar espaço ao trade respirar
-        # Antes era +3.0% (muito cedo, travava lucro antes do trade desenvolver)
-        # [V119] Só aplica se ainda não passou do GARANTIA_TAXAS (current_stop_roi < 0)
+        # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
+        # Antes: stop fixo em +1.5% quando max_roi >= 8% → fechava em +2% mesmo com pico de +21%.
+        # Agora: stop = 60% do pico → trade com pico +21% tem stop em +12.6% (não +1.5%).
+        # Formula: stop = max(1.5, max_roi * 0.60)
+        #   pico  +8%  → stop  +4.8%
+        #   pico +10%  → stop  +6.0%
+        #   pico +15%  → stop  +9.0%
+        #   pico +21%  → stop +12.6%   (SEIUSDT: capturia +12.6% ao invés de +2.1%)
+        #   pico +29%  → stop +17.4%   (BCHUSDT: mantém runway até subir mais)
+        # Só aplica se ainda não passou do break-even (current_stop_roi < 0)
         if max_roi >= 8.0 and current_stop_roi < 0.0:
-            new_stop_roi = 1.5  # break-even + taxas da OKX
-            if new_stop_roi > current_stop_roi:
-                updated_stop_roi = new_stop_roi
-                updated_level_name = "GARANTIA_TAXAS"
+            trail_stop_roi = max(1.5, round(max_roi * 0.60, 1))  # mínimo +1.5% (cobre taxas)
+            if trail_stop_roi > current_stop_roi:
+                updated_stop_roi = trail_stop_roi
+                updated_level_name = "GARANTIA_TRAIL"
                 updated_phase = "ESCADINHA"
-                history.append(f"[V120] GARANTIA_TAXAS: Break-even ativado a {max_roi:.1f}% ROI — stop → 1.5%")
-                logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TAXAS ativado (max_roi={max_roi:.1f}%) — stop agora em 1.5% ROI")
+                history.append(
+                    f"[V122] GARANTIA_TRAIL: trailing ativado a {max_roi:.1f}% pico "
+                    f"— stop → {trail_stop_roi:.1f}% ROI (60% do pico)"
+                )
+                logger.info(
+                    f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TRAIL ativado "
+                    f"(max_roi={max_roi:.1f}%) — stop agora em {trail_stop_roi:.1f}% ROI"
+                )
 
         if active_level:
             new_stop_roi = active_level.stop_roi

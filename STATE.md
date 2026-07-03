@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-01 (V120.1 — Phase Detector: deteccao de Fase 1+2 para explosao de precos)*
+*Ultima atualizacao: 2026-07-03 (V122+ — 4 fixes cirúrgicos no Sandbox: swing_high bug, explosion_score obrigatório, GARANTIA_TRAIL, DECOR SHADOW Fase 2)*
 
 ---
 
@@ -127,8 +127,12 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - PnL calculado: `(ROI% / 100) * $2.00` por trade; total como % da banca $100
 - **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
 - **Monitoramento**: loop de 1s identico ao FlashAgent
-- **[V120] Estrategias**: regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime
+- **[V120] Regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime**
 - **[V120] LONGS filtro relaxado**: Pearson < 0.50 OU confidence >= 60 (era AND com 0.35/70)
+- **[V122] Bug fix swing_high SHORT**: era `min()` (stop fraco), agora `max()` (stop robusto no swing mais distante)
+- **[V122] Explosion Score obrigatório >= 30**: score=0 (dado ausente) também bloqueia (antes score=0 entrava livre)
+- **[V122] GARANTIA_TRAIL**: trailing dinâmico a 60% do pico (antes: stop fixo +1.5% — perdia 90% dos ganhos)
+- **[V122] DECOR SHADOW exige Fase 2**: ao menos 1 sinal P2: (BB comprimido ou Range compression) obrigatório
 - **[V120] Stop inicial otimizado para R:R**:
   - LATERAL: **-8% ROI** (era -10%)
   - TRENDING: **-10% ROI** (era -15%)

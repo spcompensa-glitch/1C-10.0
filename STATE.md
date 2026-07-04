@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-03 (V122+ — 4 fixes cirúrgicos no Sandbox: swing_high bug, explosion_score obrigatório, GARANTIA_TRAIL, DECOR SHADOW Fase 2)*
+*Ultima atualizacao: 2026-07-04 (V123 — 7 correções críticas no Sandbox: regime gating, stop distance, VOL_DRY, mirror desativado, explosion_score, conservative window, fail-safe)*
 
 ---
 
@@ -44,7 +44,9 @@
 
 ## Regime de Mercado
 
-**O regime gating foi removido** (V118). Todas as estrategias (VELOCITY FLOW, ALPHA SHIELD, DECOR SHADOW) operam em qualquer regime.
+**[V123] Regime gating RESTAURADO no Sandbox** — DECOR SHADOW opera APENAS em LATERAL (ADX < 25).
+- Motivo: DECOR SHADOW é estratégia de reversão/exaustão — em TRENDING, o preço pode continuar caindo livremente.
+- ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
 
 O risco e mitigado por:
 - **GARANTIA_5**: stop → 0% aos +5% ROI (break-even antecipado)
@@ -127,16 +129,19 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - PnL calculado: `(ROI% / 100) * $2.00` por trade; total como % da banca $100
 - **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
 - **Monitoramento**: loop de 1s identico ao FlashAgent
-- **[V120] Regime gating REMOVIDO — VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime**
-- **[V120] LONGS filtro relaxado**: Pearson < 0.50 OU confidence >= 60 (era AND com 0.35/70)
+- **[V123] Regime gating RESTAURADO** — DECOR SHADOW opera APENAS em LATERAL (ADX < 25). ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
+- **[V123] Distância mínima do stop: 0.5% no preço** (era 0.3% — muito apertado). 0.5% com 50x = -25% ROI mínimo.
+- **[V123] DECOR SHADOW bloqueado com VOL_DRY** — volume seco = sem força institucional para reversão.
+- **[V123] Espelhamento real DESATIVADO** — sandbox ainda em validação. Reativar após WR > 55% em 50+ trades.
+- **[V123] Explosion Score mínimo: 50** (era 30 — muito permissivo). Exige evidência forte de Fase 1+2.
+- **[V123] Conservative price window: 120s** (era 30s — sandbox era 4x mais sensível que FlashAgent).
+- **[V123] Filtros 1M/5M fail-safe** (era fail-open) — falha na API BLOQUEIA entrada, não aprova.
 - **[V122] Bug fix swing_high SHORT**: era `min()` (stop fraco), agora `max()` (stop robusto no swing mais distante)
-- **[V122] Explosion Score obrigatório >= 30**: score=0 (dado ausente) também bloqueia (antes score=0 entrava livre)
 - **[V122] GARANTIA_TRAIL**: trailing dinâmico a 60% do pico (antes: stop fixo +1.5% — perdia 90% dos ganhos)
 - **[V122] DECOR SHADOW exige Fase 2**: ao menos 1 sinal P2: (BB comprimido ou Range compression) obrigatório
 - **[V120] Stop inicial otimizado para R:R**:
-  - LATERAL: **-8% ROI** (era -10%)
-  - TRENDING: **-10% ROI** (era -15%)
-  - Capping: **-10% ROI** max (era -12%)
+  - Fallback: **-25% ROI** (0.5% no preço com 50x) — dá espaço para o preço respirar
+  - Capping estrutural: **-30% ROI** max (0.6% no preço)
   - Busca estrutural 30M (swing low/high + buffer 0.15%) com fallback para regime fixo
   - GARANTIA_5 (+5% ROI) leva stop a 0% (protecao rapida do capital)
   - GARANTIA_TAXAS (+3% ROI) ativa break-even com 1.5% para cobrir taxas
@@ -149,7 +154,7 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
     - SHORT: precisa de >= 2 bearish de 3 candles (senao BLOQUEIA)
     - LONG: precisa de >= 2 bullish de 3 candles (senao BLOQUEIA)
   - Score boost: 3/3 = +10 FORTE, 2/3 = +5 MODERADA
-  - fail-open se API falhar ou candles insuficientes
+  - **[V123] fail-safe**: falha na API BLOQUEIA entrada (era fail-open)
 - **[V116] MACRO-BLOCK relaxado**:
   - LATERAL (ADX < 25): MACRO-BLOCK desativado
   - TRENDING: sinais com score >= 80 furam MACRO-BLOCK (high_score_bypass)
@@ -164,24 +169,26 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **[V120] Static blocklist**: ADAUSDT, GALAUSDT, ARBUSDT, OPUSDT, POLUSDT, NEARUSDT (performance extrema negativa)
 - **[V120] Margem adaptativa**: $1.00 (WR<60%) / $1.50 (WR>=60%) / $2.00 (WR>=70%) / $2.50 (WR>=80%)
 
-### Logs do Sandbox (V120)
+### Logs do Sandbox (V123)
 | Log | Significado |
 |-----|-------------|
 | `[SANDBOX-OPEN]` | Trade aberto |
 | `[SANDBOX-STALE]` | Entry defasado — descartado |
-| `[SANDBOX-V120-LONG]` | LONG descartado — filtro de decorrelação não atendido |
+| `[SANDBOX-REGIME-BLOCK]` | DECOR SHADOW bloqueado — opera apenas em LATERAL |
+| `[SANDBOX-DECOR-VOLDRY-BLOCK]` | DECOR SHADOW bloqueado — volume seco (VOL_DRY) |
+| `[SANDBOX-V123-LONG]` | LONG descartado — filtro de decorrelação não atendido |
 | `[SANDBOX-ASIAN-PENALTY]` | Sinal bloqueado — sessão asiática (23h-01h UTC) com ADX < 32 |
 | `[SANDBOX-COOLDOWN-SET]` | Cooldown 300s/3600s iniciado apos stop-out |
 | `[SANDBOX-COOLDOWN]` | Sinal bloqueado — simbolo em cooldown |
 | `[SANDBOX-5M]` | Confirmacao 5M (+5/+10 block/boost) |
-| `[SANDBOX-V119]` | Stop estrutural 30M calculado (swing level + buffer) |
+| `[SANDBOX-V123]` | Stop estrutural 30M calculado (swing level + buffer) |
 | `[SANDBOX-5M-BLOCK]` | Trade bloqueado — 5M nao alinhado com direcao do sinal |
 | `[SANDBOX-FLASH]` | Degrau da escadinha (GARANTIA_5 aos +5%, GARANTIA_TAXAS aos +3%) |
 | `[SANDBOX-PARTIAL]` | Saida parcial 50% executada (LATERAL +15% ou TRENDING +25%) |
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
 | `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica |
-| `[SANDBOX-EXPLOSION-BLOCK]` | Trade bloqueado — explosion_score < 20 (sem evidencia de Fase 1+2) |
+| `[SANDBOX-EXPLOSION-BLOCK]` | Trade bloqueado — explosion_score < 50 (sem evidencia forte de Fase 1+2) |
 | `[EXPLOSION-SCORE]` | Explosion Score calculado para um simbolo |
 
 ---

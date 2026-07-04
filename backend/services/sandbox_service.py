@@ -129,9 +129,9 @@ class SandboxService:
     async def _check_stop_hit(self, side: str, stop_price: float, symbol: str) -> bool:
         """
         Verifica se o stop foi violado usando PREÇO CONSERVATIVO via WebSockets.
-        Janela de 30s para evitar delays no Sandbox.
-        Para LONG: usa o LOW dos últimos 30s (pega dips intra-ciclo)
-        Para SHORT: usa o HIGH dos últimos 30s (pega pumps intra-ciclo)
+        [V123] Janela de 120s (paridade com FlashAgent) — evita fechamentos prematuros.
+        Para LONG: usa o LOW dos últimos 120s (pega dips intra-ciclo)
+        Para SHORT: usa o HIGH dos últimos 120s (pega pumps intra-ciclo)
         """
         if stop_price <= 0:
             return False
@@ -140,20 +140,19 @@ class SandboxService:
         check_price = 0.0
 
         try:
-            # 1. Tenta usar a função padrão de preço conservativo com janela de 30 segundos
-            # se okx_ws_public_service suportar o parâmetro window_seconds
+            # 1. Tenta usar a função padrão de preço conservativo (janela de 120s no WS)
             check_price = okx_ws_public_service.get_conservative_price(norm_sym, side)
             
-            # Se for live com low_prices/high_prices populados, sobrescrevemos com a janela estrita de 30s
+            # Se for live com low_prices/high_prices populados, sobrescrevemos com a janela de 120s
             now = time.time()
             if side.lower() == "buy":
                 low_data = okx_ws_public_service.low_prices.get(norm_sym)
-                if low_data and (now - low_data["ts"]) <= 30:
+                if low_data and (now - low_data["ts"]) <= 120:
                     current_price = okx_ws_public_service.get_current_price(norm_sym) or check_price
                     check_price = min(current_price, low_data["low"])
             else:
                 high_data = okx_ws_public_service.high_prices.get(norm_sym)
-                if high_data and (now - high_data["ts"]) <= 30:
+                if high_data and (now - high_data["ts"]) <= 120:
                     current_price = okx_ws_public_service.get_current_price(norm_sym) or check_price
                     check_price = max(current_price, high_data["high"])
         except Exception:
@@ -244,9 +243,10 @@ class SandboxService:
                 # para dar espaço real para o preço respirar
                 structural_level = max(swing_lows, key=lambda x: entry_price - x)
                 distance_pct = (entry_price - structural_level) / entry_price * 100
-                # [V119.1] Distância mínima 0.3% e máxima 8% do entry
-                if distance_pct < 0.3:
-                    logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                # [V123] Distância mínima 0.5% e máxima 8% do entry (era 0.3% — muito apertado)
+                # 0.5% no preço com 50x = -25% ROI mínimo — dá espaço para o preço respirar
+                if distance_pct < 0.5:
+                    logger.debug(f"[SANDBOX-V123] {symbol} LONG: swing low muito próximo ({distance_pct:.2f}% < 0.5%) — fallback")
                     return None
                 if distance_pct > 8.0:
                     logger.debug(f"[SANDBOX-V119] {symbol} LONG: swing low muito distante ({distance_pct:.2f}% > 8%) — fallback")
@@ -283,9 +283,10 @@ class SandboxService:
                 # onde o preço precisaria ir para realmente invalidar o setup SHORT.
                 structural_level = max(swing_highs, key=lambda x: x - entry_price)
                 distance_pct = (structural_level - entry_price) / entry_price * 100
-                # [V119.1] Distância mínima 0.3% e máxima 8% do entry
-                if distance_pct < 0.3:
-                    logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high muito próximo ({distance_pct:.2f}% < 0.3%) — fallback")
+                # [V123] Distância mínima 0.5% e máxima 8% do entry (era 0.3% — muito apertado)
+                # 0.5% no preço com 50x = -25% ROI mínimo — dá espaço para o preço respirar
+                if distance_pct < 0.5:
+                    logger.debug(f"[SANDBOX-V123] {symbol} SHORT: swing high muito próximo ({distance_pct:.2f}% < 0.5%) — fallback")
                     return None
                 if distance_pct > 8.0:
                     logger.debug(f"[SANDBOX-V119] {symbol} SHORT: swing high muito distante ({distance_pct:.2f}% > 8%) — fallback")
@@ -323,10 +324,10 @@ class SandboxService:
           { "stop_price": float, "stop_roi": float, "source": str }
         """
         leverage = 50.0
-        # [V120] Stops otimizados para melhorar R:R de 0.61 para ~1.0
-        # LATERAL: -8% (era -12%) — menor stop = loss menor
-        # TRENDING: -10% (era -15%) — pullbacks precisam de espaço mas menos que antes
-        fallback_roi = -8.0 if is_ranging else -10.0
+        # [V123] Stops otimizados com distância mínima de 0.5% no preço
+        # 0.5% no preço com 50x = -25% ROI — dá espaço para o preço respirar
+        # Antes: LATERAL -8% (0.16% preço), TRENDING -10% (0.20% preço) — muito apertado
+        fallback_roi = -25.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
@@ -338,9 +339,10 @@ class SandboxService:
             # Verificar se o ROI resultante é razoável
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
             
-            # [V120] Capping estrito de segurança de risco (Founder Vision):
-            # Limita a no máximo -10% de ROI para proteger o capital e evitar perdas volumosas
-            limit_roi = -10.0
+            # [V123] Capping estrito de segurança de risco (Founder Vision):
+            # Limita a no máximo -30% de ROI para proteger o capital e evitar perdas volumosas
+            # 30% ROI com 50x = 0.6% no preço — mínimo 0.5% para dar espaço
+            limit_roi = -30.0
             if stop_roi < limit_roi:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
@@ -349,19 +351,19 @@ class SandboxService:
                 stop_roi = limit_roi
                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                 
-            if -40.0 <= stop_roi <= -10.0:
+            if -40.0 <= stop_roi <= -25.0:
                 source = "structural_30m"
                 if tick_size > 0:
                     stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
                 logger.info(
-                    f"🧪 [SANDBOX-V119] {symbol} stop estrutural 30M aprovado: "
+                    f"🧪 [SANDBOX-V123] {symbol} stop estrutural 30M aprovado: "
                     f"{stop_price:.4f} (ROI={stop_roi:.1f}%, source={source})"
                 )
                 return {"stop_price": stop_price, "stop_roi": stop_roi, "source": source}
             else:
                 logger.info(
-                    f"🧪 [SANDBOX-V119] {symbol} stop estrutural 30M rejeitado: "
-                    f"ROI={stop_roi:.1f}% fora do range [-40%, -10%] — usando fallback"
+                    f"🧪 [SANDBOX-V123] {symbol} stop estrutural 30M rejeitado: "
+                    f"ROI={stop_roi:.1f}% fora do range [-40%, -25%] — usando fallback"
                 )
 
         # 2. [V119] Tentar fallback dinâmico por volatilidade ATR de 30M em mercado lateral
@@ -392,20 +394,20 @@ class SandboxService:
                             
                         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
                         
-                        # [V120] Trava o ROI de stop para manter consistência: LATERAL -8%, TRENDING -10%
+                        # [V123] Trava o ROI de stop para manter consistência: mínimo -25% (0.5% no preço com 50x)
                         if is_ranging:
-                            if stop_roi > -6.0:
-                                stop_roi = -6.0
+                            if stop_roi > -25.0:
+                                stop_roi = -25.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -8.0:
-                                stop_roi = -8.0
+                            elif stop_roi < -40.0:
+                                stop_roi = -40.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                         else:
-                            if stop_roi > -8.0:
-                                stop_roi = -8.0
+                            if stop_roi > -25.0:
+                                stop_roi = -25.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -10.0:
-                                stop_roi = -10.0
+                            elif stop_roi < -40.0:
+                                stop_roi = -40.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                             
                         source = "volatility_atr"
@@ -542,11 +544,16 @@ class SandboxService:
                     )
                     continue
 
-            # [V120] Regime gating REMOVIDO no Sandbox — todas as estratégias operam em qualquer regime.
-            # Motivo: dados mostram 100% SHORT e apenas VELOCITY FLOW ativo. ALPHA SHIELD e DECOR SHADOW
-            # tinham 0 trades porque o regime gating as bloqueava. O risco é mitigado pela escadinha
-            # (GARANTIA_5 a 5% ROI) e pelo filtro de LONGs (decorrelação + gas).
-            # O regime gating original ainda roda no sistema real (FlashAgent/Captain).
+            # [V123] Regime gating RESTAURADO — DECOR SHADOW é estratégia de reversão/exaustão,
+            # opera APENAS em LATERAL. Em TRENDING, o preço pode continuar caindo livremente.
+            # Dados mostraram 2 DECOR SHADOW LONGs em TRENDING → direto para stop-loss.
+            # ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
+            if strategy == "DECOR SHADOW" and not is_ranging:
+                logger.info(
+                    f"🧪 [SANDBOX-REGIME-BLOCK] {symbol} {strategy} bloqueado — "
+                    f"DECOR SHADOW opera apenas em LATERAL (ADX={adx_val:.1f} = TRENDING)"
+                )
+                continue
 
             # [V118] Check static + auto-blocklist
             try:
@@ -762,12 +769,11 @@ class SandboxService:
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
-            # [V122] Explosion Score obrigatório >= 30 — score=0 (dado ausente) também bloqueia.
-            # Antes: só bloqueava se score > 0 AND score < 20 → score=0 (ATOMUSDT) entrava livre.
-            # Agora: qualquer score abaixo de 30 bloqueia (sem evidência de Fase 1+2 = sem entrada).
-            # Motivo: ATOMUSDT entrou 3x com score=0, -41.2% ROI total, 0% WR.
+            # [V123] Explosion Score obrigatório >= 50 — score=0 (dado ausente) também bloqueia.
+            # Antes: score >= 30 (muito permissivo). ATOMUSDT entrou com score=59 mas VOL_DRY.
+            # Agora: score >= 50 (exige evidência forte de Fase 1+2).
             explosion_score = float(sig.get("explosion_score", 0) or 0)
-            EXPLOSION_SCORE_MIN = 30
+            EXPLOSION_SCORE_MIN = 50
             if explosion_score < EXPLOSION_SCORE_MIN:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
@@ -787,6 +793,18 @@ class SandboxService:
                     logger.info(
                         f"🧪 [SANDBOX-DECOR-PHASE2-BLOCK] {symbol} DECOR SHADOW bloqueado — "
                         f"sem evidência de Fase 2 (compressão BB/Range). "
+                        f"signals={explosion_signals_list[:5]}"
+                    )
+                    continue
+
+                # [V123] DECOR SHADOW bloqueado com VOL_DRY — volume seco = sem força institucional
+                # Sem volume, o preço pode continuar caindo livremente sem suporte.
+                # ATOMUSDT entrou com P2:VOL_DRY ratio=0.00 e foi direto para stop-loss.
+                has_vol_dry = any("VOL_DRY" in str(s) for s in explosion_signals_list)
+                if has_vol_dry:
+                    logger.info(
+                        f"🧪 [SANDBOX-DECOR-VOLDRY-BLOCK] {symbol} DECOR SHADOW bloqueado — "
+                        f"volume seco (VOL_DRY detectado). Sem força institucional para reversão. "
                         f"signals={explosion_signals_list[:5]}"
                     )
                     continue
@@ -869,10 +887,13 @@ class SandboxService:
             await database_service.save_sandbox_trade(trade_data)
             asyncio.create_task(okx_ws_public_service.sync_topics([symbol]))
 
-            # [V119] ESPELHAMENTO DE CONTAS REAL: Se chaves master de API reais estiverem configuradas,
-            # replica a ordem simulada do Sandbox na conta real da OKX como ordem a mercado
+            # [V123] ESPELHAMENTO DE CONTAS REAL DESATIVADO — Sandbox ainda em validação
+            # Motivo: 2 DECOR SHADOW LONGs em TRENDING → direto para stop-loss
+            # Reativar apenas após sandbox atingir WR > 55% em 50+ trades
+            # Para reativar: definir SANDBOX_MIRROR_ENABLED = True
+            SANDBOX_MIRROR_ENABLED = False
             from config import settings
-            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+            if SANDBOX_MIRROR_ENABLED and settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
                 async def execute_real_mirror_order():
                     try:
                         from services.okx_rest import okx_rest_service
@@ -988,8 +1009,8 @@ class SandboxService:
                 return confirmed
 
         except Exception as e:
-            logger.debug(f"[SANDBOX-1M] {symbol}: falha ao checar confirmação 1M: {e} — aprovando")
-            return True  # fail-open
+            logger.warning(f"[SANDBOX-1M] {symbol}: falha ao checar confirmação 1M: {e} — BLOQUEANDO (fail-safe)")
+            return False  # [V123] fail-safe: falha na API = bloqueia entrada (era fail-open)
 
     # ==================== [V116] 5M CONFIRMATION FILTER ====================
 
@@ -1086,9 +1107,9 @@ class SandboxService:
             return result
 
         except Exception as e:
-            result["confirmed"] = True  # fail-open
-            result["detail"] = f"erro: {e} — fail-open"
-            logger.debug(f"[SANDBOX-5M] {symbol}: {result['detail']}")
+            result["confirmed"] = False  # [V123] fail-safe: falha na API = bloqueia entrada (era fail-open)
+            result["detail"] = f"erro: {e} — BLOQUEANDO (fail-safe)"
+            logger.warning(f"[SANDBOX-5M] {symbol}: {result['detail']}")
             return result
 
     # ==================== AUTO-BLOCKLIST (V113) ====================
@@ -1394,10 +1415,11 @@ class SandboxService:
                 final_pnl = actual_exit_roi
             update_payload["pnl_pct"] = final_pnl
 
-            # [V119] ESPELHAMENTO DE CONTAS REAL: Se a ordem simulada do Sandbox fechar,
-            # liquida a posição correspondente na conta real da OKX imediatamente a mercado.
+            # [V123] ESPELHAMENTO DE CONTAS REAL DESATIVADO — Sandbox ainda em validação
+            # Para reativar: definir SANDBOX_MIRROR_ENABLED = True
+            SANDBOX_MIRROR_ENABLED = False
             from config import settings
-            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+            if SANDBOX_MIRROR_ENABLED and settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
                 async def execute_real_mirror_close():
                     try:
                         from services.okx_rest import okx_rest_service

@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-07-01 (V120 — Otimizacao Sandbox: R:R, LONGs, multi-strategia, margem adaptativa)*
+*Ultima atualizacao: 2026-07-04 (V123 — Sandbox: regime gating restaurado, stop distance 0.5%, VOL_DRY block, mirror desativado, explosion_score 50, conservative window 120s, fail-safe)*
 
 ---
 
@@ -197,12 +197,14 @@ Niveis `ULTRA_*` a cada 200% ROI. Stop = gatilho - 200%.
 
 ### 5.1 Grade ADX
 
-**[V118] Regime gating removido.** VELOCITY FLOW, ALPHA SHIELD e DECOR SHADOW operam em qualquer regime.
+**[V123] Regime gating RESTAURADO no Sandbox.** DECOR SHADOW opera APENAS em LATERAL (ADX < 25).
+- Motivo: DECOR SHADOW é estratégia de reversão/exaustão — em TRENDING, o preço pode continuar caindo livremente.
+- ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
 
 | Condicao | Acao |
 |----------|------|
-| ADX < 25 | LATERAL: todas as estrategias permitidas (risco mitigado pela escadinha GARANTIA_5) |
-| ADX >= 25 | TENDENCIA: todas as estrategias permitidas |
+| ADX < 25 | LATERAL: todas as estrategias permitidas |
+| ADX >= 25 | TENDENCIA: apenas VELOCITY FLOW e ALPHA SHIELD (DECOR SHADOW bloqueado) |
 
 **Filtro adicional V118 para LONGS:**
 - Apenas pares desgrudados do BTC (Pearson < 0.35) com gas (confidence >= 70)

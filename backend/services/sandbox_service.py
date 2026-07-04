@@ -1263,16 +1263,22 @@ class SandboxService:
             pnl_pct = current_roi
 
         # 9. Escadinha
-        # [V118] GARANTIA_5: degrau antecipado — +5% ROI → stop vai a 0% (break-even)
-        # Protege a largada rapidamente: se o preço mover +0.1% (50x) e cair, saímos empatados
-        # Se o trade tem força, +5% ROI é só o começo (vai pro +100%, +200%, +1200%...)
-        # Se voltar do +5% para o 0%, pagamos só taxas e estamos prontos para re-tentar
-        ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
-        active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
-
+        # [V122.5-FOLGA] GARANTIA_5 com folga: ao atingir +5% ROI, o stop vai para -1.5% ROI (em vez de 0%).
+        # Isso dá uma margem extra de 1.5% para o preço respirar em pullbacks rápidos e continuar subindo,
+        # mas reduz o risco inicial (que era de -10% ROI) em 85% para proteger o capital.
         updated_stop_roi = current_stop_roi
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
+
+        if max_roi >= 5.0 and current_stop_roi < -1.5:
+            updated_stop_roi = -1.5
+            updated_level_name = "GARANTIA_5_FOLGA"
+            updated_phase = "ESCADINHA"
+            history.append(f"GARANTIA_5 com folga ativada: max_roi={max_roi:.1f}% -> stop subiu para -1.5% ROI")
+            logger.info(f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_5 com folga: stop movido para -1.5% ROI")
+
+        ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
+        active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
 
         # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
         # Antes: stop fixo em +1.5% quando max_roi >= 8% → fechava em +2% mesmo com pico de +21%.

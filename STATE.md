@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-04 (V123 — 7 correções críticas no Sandbox: regime gating, stop distance, VOL_DRY, mirror desativado, explosion_score, conservative window, fail-safe)*
+*Ultima atualizacao: 2026-07-04 (V123.1 — Recalibração dos filtros do Sandbox: explosion_score 50→35, cooldown 3600s→1800s no 1º stop, VOL_DRY condicional ao score)*
 
 ---
 
@@ -129,13 +129,10 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - PnL calculado: `(ROI% / 100) * $2.00` por trade; total como % da banca $100
 - **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
 - **Monitoramento**: loop de 1s identico ao FlashAgent
+- **[V123.1] Explosion Score mínimo: 35** (V123 havia elevado para 50 — estava paralisando o sistema em mercados com BTC plano/lateral. Valor calibrado da V119.)
+- **[V123.1] Cooldown pós stop-out: 1800s (30min) no 1º stop**, 3600s (1h) se 2+ stops consecutivos. (Antes: 3600s mesmo no 1º stop — bloqueava reentradas mesmo após mudança de regime.)
+- **[V123.1] VOL_DRY no DECOR SHADOW: condicional ao explosion_score** — score >= 45 permite entrada (compressão de preço já é evidência). Score < 45 + VOL_DRY = bloqueio total.
 - **[V123] Regime gating RESTAURADO** — DECOR SHADOW opera APENAS em LATERAL (ADX < 25). ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
-- **[V123] Distância mínima do stop: 0.5% no preço** (era 0.3% — muito apertado). 0.5% com 50x = -25% ROI mínimo.
-- **[V123] DECOR SHADOW bloqueado com VOL_DRY** — volume seco = sem força institucional para reversão.
-- **[V123] Espelhamento real DESATIVADO** — sandbox ainda em validação. Reativar após WR > 55% em 50+ trades.
-- **[V123] Explosion Score mínimo: 50** (era 30 — muito permissivo). Exige evidência forte de Fase 1+2.
-- **[V123] Conservative price window: 120s** (era 30s — sandbox era 4x mais sensível que FlashAgent).
-- **[V123] Filtros 1M/5M fail-safe** (era fail-open) — falha na API BLOQUEIA entrada, não aprova.
 - **[V122] Bug fix swing_high SHORT**: era `min()` (stop fraco), agora `max()` (stop robusto no swing mais distante)
 - **[V122] GARANTIA_TRAIL**: trailing dinâmico a 60% do pico (antes: stop fixo +1.5% — perdia 90% dos ganhos)
 - **[V122] DECOR SHADOW exige Fase 2**: ao menos 1 sinal P2: (BB comprimido ou Range compression) obrigatório
@@ -146,8 +143,8 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
   - GARANTIA_5 (+5% ROI) leva stop a 0% (protecao rapida do capital)
   - GARANTIA_TAXAS (+3% ROI) ativa break-even com 1.5% para cobrir taxas
 - **[V120] Asian Session Penalty**: ADX >= 32 exigido entre 23h-01h UTC (pico de losses)
-- **[V114] Cooldown pos stop-out**: 300s por simbolo+direcao apos `CLOSED_SL` (3600s se 1+ stops consecutivos)
-  - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos)
+- **[V123.1] Cooldown pos stop-out: 1800s (30min)** no 1º stop; **3600s (1h)** se 2+ stops consecutivos por simbolo+direcao apos `CLOSED_SL`
+  - Objetivo: eliminar re-entries em cadeia (INJUSDT 11x, ATOM 4x consecutivos) sem bloquear reentradas legais apos mudanca de regime
 - **[V118.3] Confirmacao 5M com alinhamento de tendencia** (substituiu V117):
   - Busca 5 candles de 5M, verifica os 3 mais recentes FECHADOS
   - Exige maioria 2/3 alinhada com a direcao do sinal:
@@ -188,7 +185,9 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 | `[SANDBOX-LOSS]` | Trade fechado no stop |
 | `[SANDBOX-AUTO-BLOCKLIST]` | Par bloqueado por performance critica |
 | `[SANDBOX-BLOCKLIST]` | Simbolo bloqueado por blocklist estatica |
-| `[SANDBOX-EXPLOSION-BLOCK]` | Trade bloqueado — explosion_score < 50 (sem evidencia forte de Fase 1+2) |
+| `[SANDBOX-EXPLOSION-BLOCK]` | Trade bloqueado — explosion_score < 35 (sem evidência mínima de Fase 1+2) |
+| `[SANDBOX-DECOR-VOLDRY-BLOCK]` | DECOR SHADOW bloqueado — VOL_DRY + explosion_score < 45 |
+| `[SANDBOX-DECOR-VOLDRY-ALLOW]` | DECOR SHADOW permitido com VOL_DRY — explosion_score >= 45 (compressão forte compensa) |
 | `[EXPLOSION-SCORE]` | Explosion Score calculado para um simbolo |
 
 ---

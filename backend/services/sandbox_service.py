@@ -735,11 +735,13 @@ class SandboxService:
                 logger.debug(f"🧪 [SANDBOX-ALREADY-ACTIVE] {symbol} {strategy} {direction} já está ativo — ignorando sinal duplicado")
                 continue
 
-            # [V117] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)
-            # Aumentado para 3600s (1 hora) para evitar perdas sequenciais no mesmo ativo durante ressaca
+            # [V123.1] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)
+            # Calibrado: 1800s (30min) no 1º stop, 3600s (1h) em stops consecutivos (>= 2)
+            # Motivo: 3600s era excessivo — bloqueava o ativo por 1h inteira no 1º erro,
+            # impedindo o sistema de reentrar mesmo após mudança de regime de mercado.
             cooldown_key = (symbol, direction)
             consecutive = self._consecutive_stops.get(cooldown_key, 0)
-            COOLDOWN_SECS = 3600.0 if consecutive >= 1 else 300.0  # 1 hora se tiver stopout, senão 5min
+            COOLDOWN_SECS = 3600.0 if consecutive >= 2 else 1800.0  # 30min no 1º stop, 1h em stops seguidos
             last_sl_ts = self._stop_cooldown.get(cooldown_key, 0.0)
             elapsed = time.time() - last_sl_ts
             if elapsed < COOLDOWN_SECS:
@@ -769,11 +771,11 @@ class SandboxService:
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
-            # [V123] Explosion Score obrigatório >= 50 — score=0 (dado ausente) também bloqueia.
-            # Antes: score >= 30 (muito permissivo). ATOMUSDT entrou com score=59 mas VOL_DRY.
-            # Agora: score >= 50 (exige evidência forte de Fase 1+2).
+            # [V123.1] Explosion Score obrigatório >= 35 — score=0 (dado ausente) também bloqueia.
+            # V123 havia elevado para 50 mas estava excessivamente restritivo em mercados laterais/BTC plano.
+            # Voltando ao valor calibrado da V119 (>= 35): exige evidência mínima de Fase 1+2 sem paralisar.
             explosion_score = float(sig.get("explosion_score", 0) or 0)
-            EXPLOSION_SCORE_MIN = 50
+            EXPLOSION_SCORE_MIN = 35
             if explosion_score < EXPLOSION_SCORE_MIN:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
@@ -797,17 +799,24 @@ class SandboxService:
                     )
                     continue
 
-                # [V123] DECOR SHADOW bloqueado com VOL_DRY — volume seco = sem força institucional
-                # Sem volume, o preço pode continuar caindo livremente sem suporte.
-                # ATOMUSDT entrou com P2:VOL_DRY ratio=0.00 e foi direto para stop-loss.
+                # [V123.1] DECOR SHADOW com VOL_DRY — bloqueio condicional ao explosion_score.
+                # Se explosion_score >= 45 (compressão forte de BB/Range), permite a entrada mesmo com VOL_DRY:
+                # a compressão de preço já é evidência suficiente. Score < 45 + VOL_DRY = bloqueio total.
+                # ATOMUSDT entrou com score=59 mas VOL_DRY ratio=0.00 — caso que ainda será bloqueado.
                 has_vol_dry = any("VOL_DRY" in str(s) for s in explosion_signals_list)
-                if has_vol_dry:
+                if has_vol_dry and explosion_score < 45:
                     logger.info(
                         f"🧪 [SANDBOX-DECOR-VOLDRY-BLOCK] {symbol} DECOR SHADOW bloqueado — "
-                        f"volume seco (VOL_DRY detectado). Sem força institucional para reversão. "
+                        f"volume seco (VOL_DRY) + explosion_score={explosion_score:.0f} < 45. "
                         f"signals={explosion_signals_list[:5]}"
                     )
                     continue
+                if has_vol_dry and explosion_score >= 45:
+                    logger.info(
+                        f"🧪 [SANDBOX-DECOR-VOLDRY-ALLOW] {symbol} DECOR SHADOW permitido com VOL_DRY — "
+                        f"explosion_score={explosion_score:.0f} >= 45 (compressão forte compensa). "
+                        f"signals={explosion_signals_list[:5]}"
+                    )
 
 
 

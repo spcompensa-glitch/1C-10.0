@@ -75,7 +75,37 @@ async def get_banca_data(request: Request):
     try:
         status = await firebase_service.get_banca_status(username=username)
         if not status or status.get("saldo_total", 0) == 0:
-            return {"saldo_total": 100.0, "risco_real_percent": 0.0, "slots_disponiveis": 4, "status": "DEFAULT_PAPER"}
+            status = {"saldo_total": 100.0, "risco_real_percent": 0.0, "slots_disponiveis": 4, "status": "DEFAULT_PAPER"}
+        
+        # Consulta direta em tempo real do saldo real OKX
+        from config import settings
+        api_key = settings.OKX_API_KEY_MASTER or settings.OKX_API_KEY
+        secret_key = settings.OKX_API_SECRET_MASTER or settings.OKX_API_SECRET
+        passphrase = settings.OKX_PASSPHRASE_MASTER or getattr(settings, "OKX_PASSPHRASE", None)
+        
+        if api_key and secret_key and passphrase:
+            try:
+                import httpx
+                from services.okx_service import okx_service
+                request_path = "/api/v5/account/balance"
+                url = "https://www.okx.com" + request_path
+                headers = okx_service._get_headers(
+                    "GET", request_path,
+                    custom_key=api_key,
+                    custom_secret=secret_key,
+                    custom_passphrase=passphrase
+                )
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    response = await client.get(url, headers=headers)
+                    if response.status_code == 200:
+                        res_data = response.json()
+                        if res_data.get("code") == "0" and res_data.get("data"):
+                            real_val = float(res_data["data"][0].get("totalEq", 0.0))
+                            if real_val > 0:
+                                status["saldo_real_okx"] = real_val
+            except Exception as e:
+                logger.error(f"Erro ao obter saldo real em tempo real para a API: {e}")
+                
         return status
     except Exception as e:
         logger.error(f"Error fetching banca: {e}")

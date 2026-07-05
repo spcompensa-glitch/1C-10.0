@@ -1634,27 +1634,19 @@ class BankrollManager:
                     if api_key and secret_key and passphrase:
                         try:
                             import httpx
-                            import hmac
-                            import hashlib
-                            import base64
-                            import datetime
+                            from services.okx_service import okx_service
                             
                             request_path = "/api/v5/account/balance"
                             url = "https://www.okx.com" + request_path
                             
-                            # Gerar assinatura OKX manual
-                            now = datetime.datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
-                            message = now + "GET" + request_path
-                            mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(message, encoding='utf8'), digestmod=hashlib.sha256)
-                            sign = base64.b64encode(mac.digest()).decode('utf-8')
-                            
-                            headers = {
-                                "OK-ACCESS-KEY": api_key,
-                                "OK-ACCESS-SIGN": sign,
-                                "OK-ACCESS-TIMESTAMP": now,
-                                "OK-ACCESS-PASSPHRASE": passphrase,
-                                "Content-Type": "application/json"
-                            }
+                            # Gerar cabeçalhos autenticados oficiais
+                            headers = okx_service._get_headers(
+                                "GET", 
+                                request_path,
+                                custom_key=api_key,
+                                custom_secret=secret_key,
+                                custom_passphrase=passphrase
+                            )
                             
                             async with httpx.AsyncClient(timeout=5.0) as client:
                                 response = await client.get(url, headers=headers)

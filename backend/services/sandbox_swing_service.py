@@ -287,6 +287,7 @@ class SandboxSwingService:
             await db.update_swing_trade(trade.id, {
                 "current_price": current,
                 "current_roi":   round(roi, 2),
+                "pnl_pct":       round(roi, 2),
                 "max_roi":       round(peak, 2),
                 "stop_loss":     stop_price,
                 "blitz_unit":    new_unit,

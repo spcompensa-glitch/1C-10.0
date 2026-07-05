@@ -1,17 +1,22 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-05 (V123.2 — Sandbox Swing Lab adicionado com Cross-Block de ativos e exibição do saldo real OKX no Cockpit)*
+*Ultima atualizacao: 2026-07-05 (V123.3 — Contingência de logs da Vault, injeção em tempo real e blindagem de saldo OKX no Cockpit)*
 
 ---
 
 ## Resumo
 
 - **Estado**: OPERACIONAL (producao OKX + sandbox simultaneos)
-- **Versao do codigo**: V110.x (multiplas versoes por agente — ver MASTER_ARCHITECTURE.md secao 13)
+- **Versao do codigo**: V123.3
 - **Exchange**: OKX (Portfolio Margin)
 - **Deploy**: Railway + Docker
 
 ---
+
+## Novidades V123.3
+- **Contingência de Histórico (Vault)**: Se uma posição real legítima fechar na OKX (como AVAXUSDT) e a chamada de PnL fechado da API falhar ou atrasar, o `sync_slots_with_exchange` não deletará mais o slot sem logar. O backend agora calcula uma estimativa de PnL em tempo real com base no preço atual e grava o encerramento com sucesso na Vault.
+- **Injeção de Saldo Real OKX**: O endpoint `/api/banca/data` agora consulta em tempo real a exchange master usando as chaves reais via `okx_service._get_headers` homologado (prevenindo erros de HMAC/fuso horário) e retorna `saldo_real_okx` no payload autenticado (`USER_MODE`).
+- **Blindagem do Cockpit**: O hook `useBancaRT` no frontend (`cockpit.html`) agora é blindado para reter o último saldo real positivo válido. Isso evita que transmissões em background do WebSocket (que enviam dados zerados ou parciais de simulação do Guardião) sobresscrevam a banca real na UI.
 
 ## Componentes Ativos
 

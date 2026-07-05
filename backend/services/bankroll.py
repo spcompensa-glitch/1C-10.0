@@ -931,6 +931,37 @@ class BankrollManager:
                                 exit_price = float(last_pnl.get("avgExitPrice", 0))
                                 qty = float(last_pnl.get("qty", 0))
                                 order_id = last_pnl.get("orderId", f"manual_{int(time.time())}")
+                            else:
+                                logger.info(f"Sync [REAL]: PnL para {symbol} nao retornado pela API. Gerando estimativa local para o Vault.")
+                                entry_price = float(slot.get("entry_price", 0))
+                                current_stop = float(slot.get("current_stop", 0))
+                                qty = float(slot.get("qty", 0))
+                                entry_margin = float(slot.get("entry_margin", 0))
+                                leverage = float(slot.get("leverage", 50))
+                                side = slot.get("side", "Buy")
+                                
+                                from services.okx_ws_public import okx_ws_public_service
+                                exit_price = okx_ws_public_service.get_current_price(symbol)
+                                if exit_price <= 0:
+                                    exit_price = current_stop if current_stop > 0 else entry_price
+                                
+                                side_norm = (side or "").lower()
+                                if side_norm == "buy":
+                                    price_diff_pct = (exit_price - entry_price) / entry_price if entry_price > 0 else 0
+                                else:
+                                    price_diff_pct = (entry_price - exit_price) / entry_price if entry_price > 0 else 0
+                                
+                                pnl_pct = price_diff_pct * leverage * 100
+                                pnl_val = entry_margin * (pnl_pct / 100)
+                                order_id = slot.get("order_id") or slot.get("genesis_id") or f"est_{symbol.replace('.P','')}_{int(time.time())}"
+                                
+                                last_pnl = {
+                                    "closedPnl": pnl_val,
+                                    "avgExitPrice": exit_price,
+                                    "qty": qty,
+                                    "orderId": order_id,
+                                    "side": side
+                                }
                                 
                                 entry_price = float(slot.get("entry_price", 0))
                                 current_stop = float(slot.get("current_stop", 0))
@@ -1596,19 +1627,42 @@ class BankrollManager:
                         okx_rest_service.paper_balance = db_balance
                     calculated_equity = paper_snapshot["calculated_equity"]
                     reported_real_okx = 0.0
-                    if settings.OKX_API_KEY_MASTER:
+                    api_key = settings.OKX_API_KEY_MASTER or settings.OKX_API_KEY
+                    secret_key = settings.OKX_API_SECRET_MASTER or settings.OKX_API_SECRET
+                    passphrase = settings.OKX_PASSPHRASE_MASTER or getattr(settings, "OKX_PASSPHRASE", None)
+                    
+                    if api_key and secret_key and passphrase:
                         try:
                             import httpx
-                            from services.okx_service import okx_service
+                            import hmac
+                            import hashlib
+                            import base64
+                            import datetime
+                            
                             request_path = "/api/v5/account/balance"
-                            url = okx_service.base_url + request_path
-                            headers = okx_service._get_headers("GET", request_path)
+                            url = "https://www.okx.com" + request_path
+                            
+                            # Gerar assinatura OKX manual
+                            now = datetime.datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
+                            message = now + "GET" + request_path
+                            mac = hmac.new(bytes(secret_key, encoding='utf8'), bytes(message, encoding='utf8'), digestmod=hashlib.sha256)
+                            sign = base64.b64encode(mac.digest()).decode('utf-8')
+                            
+                            headers = {
+                                "OK-ACCESS-KEY": api_key,
+                                "OK-ACCESS-SIGN": sign,
+                                "OK-ACCESS-TIMESTAMP": now,
+                                "OK-ACCESS-PASSPHRASE": passphrase,
+                                "Content-Type": "application/json"
+                            }
+                            
                             async with httpx.AsyncClient(timeout=5.0) as client:
                                 response = await client.get(url, headers=headers)
                                 if response.status_code == 200:
                                     res_data = response.json()
                                     if res_data.get("code") == "0" and res_data.get("data"):
                                         reported_real_okx = float(res_data["data"][0].get("totalEq", 0.0))
+                                        logger.info(f"💰 [OKX-REAL-BALANCE] Saldo real obtido com sucesso: ${reported_real_okx:.2f}")
                         except Exception as real_bal_err:
                             logger.error(f"❌ [BANKROLL-STATUS] Erro ao obter saldo real para status: {real_bal_err}")
                     logger.info(

@@ -174,8 +174,20 @@ class FirebaseService:
                 )
                 if user_doc.exists:
                     data = user_doc.to_dict()
+                    
+                    real_okx = 0.0
+                    try:
+                        from services.database_service import database_service
+                        db_status = await database_service.get_banca_status()
+                        if db_status:
+                            real_okx = float(db_status.get("saldo_real_okx") or 0.0)
+                    except Exception:
+                        pass
+                        
                     return {
                         "saldo_total": float(data.get("bankroll_balance", 100.0)),
+                        "configured_balance": float(data.get("bankroll_balance", 100.0)),
+                        "saldo_real_okx": real_okx,
                         "risco_real_percent": 0.0,
                         "slots_disponiveis": 4,
                         "status": "USER_MODE"

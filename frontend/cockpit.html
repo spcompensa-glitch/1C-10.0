@@ -1334,7 +1334,14 @@
                 const handlePacket = (e) => {
                     const message = e.detail;
                     if (message.type === 'banca_status' && message.data) {
-                        setBanca(message.data);
+                        setBanca(prev => {
+                            const newData = { ...message.data };
+                            const prevVal = prev ? Number(prev.saldo_real_okx) : 0;
+                            if ((!newData.saldo_real_okx || Number(newData.saldo_real_okx) <= 0) && prevVal > 0) {
+                                newData.saldo_real_okx = prevVal;
+                            }
+                            return newData;
+                        });
                         localStorage.setItem('banca_cache', JSON.stringify(message.data));
                     }
                 };
@@ -1345,7 +1352,13 @@
                         if (res.ok) {
                             const val = await res.json();
                             if (val && val.saldo_total !== undefined) {
-                                setBanca(val);
+                                setBanca(prev => {
+                                    const prevVal = prev ? Number(prev.saldo_real_okx) : 0;
+                                    if ((!val.saldo_real_okx || Number(val.saldo_real_okx) <= 0) && prevVal > 0) {
+                                        val.saldo_real_okx = prevVal;
+                                    }
+                                    return val;
+                                });
                                 localStorage.setItem('banca_cache', JSON.stringify(val));
                             }
                         }

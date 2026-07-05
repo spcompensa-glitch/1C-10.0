@@ -921,7 +921,6 @@
             return (
                 <section className="premium-card p-6 space-y-6">
                     <div className="flex justify-between items-start">
-                        <div className="space-y-1">
                             <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Patrimônio Líquido</h2>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-black text-white font-mono">${liveEquity.toFixed(2)}</span>
@@ -929,7 +928,12 @@
                                     {liveTotalProfit >= 0 ? '+' : ''}{liveTotalProfit.toFixed(2)}
                                 </span>
                             </div>
-                        </div>
+                            {banca.saldo_real_okx > 0 && (
+                                <div className="text-[10px] text-accent font-semibold flex items-center gap-1 mt-1 font-mono uppercase tracking-wider">
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                                    Saldo Real OKX: ${banca.saldo_real_okx.toFixed(2)}
+                                </div>
+                            )}
                         <div className="text-right">
                              <div className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-white/5 border border-white/10 ${rankColor}`}>
                                 {fleetRank}

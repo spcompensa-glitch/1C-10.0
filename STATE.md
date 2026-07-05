@@ -1,6 +1,6 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-04 (V123.1 — Recalibração dos filtros do Sandbox: explosion_score 50→35, cooldown 3600s→1800s no 1º stop, VOL_DRY condicional ao score)*
+*Ultima atualizacao: 2026-07-05 (V123.2 — Sandbox Swing Lab adicionado com Cross-Block de ativos e exibição do saldo real OKX no Cockpit)*
 
 ---
 
@@ -124,11 +124,12 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 ## Sandbox — Forward Testing Lab
 
 - **URL**: https://1crypten.space/sandbox
-- **Banca Virtual**: **$100.00 USD** | Margem media: **$2.00/trade** (adaptativa $1.00-$2.50) | Leverage: 50x
-  - Objetivo: espelhar a banca real do usuario na OKX
-  - PnL calculado: `(ROI% / 100) * $2.00` por trade; total como % da banca $100
-- **Hook de sinais**: `firebase_service.update_radar_pulse()` dispara `on_radar_pulse()` a cada ciclo do Radar
-- **Monitoramento**: loop de 1s identico ao FlashAgent
+- **Banca Virtual (Scalping Lab)**: **$100.00 USD** | Margem: **$2.00/trade** (50x) | Trailing & Escadinha
+- **Banca Virtual (Swing Lab - NOVO)**: **$100.00 USD** | Margem: **$1.00/trade** (50x) | Doutrina das 10 Extrações (+95%/+180%/+270%)
+- **[V123.2] Cross-Block de Ativos**: Se um ativo estiver aberto no Swing Lab (Blitz), ele não pode ser aberto no Scalping Lab (Radar) e vice-versa. Evita posições conflitantes simultâneas na mesma moeda.
+- **[V123.2] Espelhamento de Operações Reais**: O Swing Lab espelha de forma passiva todas as ordens executadas pelo `BlitzSniperAgent` do Cockpit em sua banca paralela simulada de $100.
+- **Monitoramento**: Loop de 1s para o Scalping e Loop de 1s dedicado para o Swing (Doutrina de Stops)
+
 - **[V123.1] Explosion Score mínimo: 35** (V123 havia elevado para 50 — estava paralisando o sistema em mercados com BTC plano/lateral. Valor calibrado da V119.)
 - **[V123.1] Cooldown pós stop-out: 1800s (30min) no 1º stop**, 3600s (1h) se 2+ stops consecutivos. (Antes: 3600s mesmo no 1º stop — bloqueava reentradas mesmo após mudança de regime.)
 - **[V123.1] VOL_DRY no DECOR SHADOW: condicional ao explosion_score** — score >= 45 permite entrada (compressão de preço já é evidência). Score < 45 + VOL_DRY = bloqueio total.

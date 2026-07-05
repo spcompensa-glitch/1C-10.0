@@ -712,6 +712,21 @@ class SandboxService:
                     continue
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
+
+            # [Swing Lab] Cross-Block: bloqueia ativo se ja esta ativo no Swing Lab
+            # Simula conta real futura onde as duas estrategias compartilham capital
+            try:
+                swing_active = await database_service.get_swing_trades(active_only=True)
+                swing_symbols = {t.symbol.replace(".P", "").upper() for t in swing_active}
+                if symbol in swing_symbols:
+                    logger.debug(
+                        f"🧪 [SCALP-CROSS-BLOCK] {symbol} esta ativo no Swing Lab — "
+                        f"Scalping Lab bloqueado para evitar conflito de posicao."
+                    )
+                    continue
+            except Exception as cb_err:
+                logger.warning(f"[SCALP-CROSS-BLOCK] Falha ao verificar Swing Lab: {cb_err}")
+
             # [V122] Máximo 3 trades simultâneos por símbolo (qualquer direção/estratégia)
             # INJUSDT apareceu ~20 vezes no sandbox — over-trading destrói lucro
             symbol_active_count = sum(

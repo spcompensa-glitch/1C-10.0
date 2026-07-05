@@ -134,6 +134,40 @@ class SandboxTrade(Base):
     explosion_score = Column(Float, default=0.0)
     explosion_signals = Column(JSON, nullable=True)
 
+class SandboxSwingTrade(Base):
+    """
+    [Swing Lab] Espelha as ordens reais do BlitzSniperAgent em uma banca virtual paralela.
+    Separado do SandboxTrade (Scalping) para permitir refinação independente das duas inteligências.
+    Cross-Block: o mesmo ativo não pode estar ativo nesta tabela E em sandbox_trades simultaneamente.
+    """
+    __tablename__ = "sandbox_swing_trades"
+    id              = Column(String, primary_key=True)         # Ex: "swing_BTCUSDT_1720000000"
+    symbol          = Column(String, nullable=False)
+    strategy        = Column(String, nullable=True, default="BLITZ_SNIPER")
+    direction       = Column(String, nullable=False)           # "LONG" | "SHORT"
+    entry_price     = Column(Float, nullable=False)
+    current_price   = Column(Float, nullable=False)
+    stop_loss       = Column(Float, nullable=True)
+    target          = Column(Float, nullable=True)
+    max_roi         = Column(Float, default=0.0)
+    current_roi     = Column(Float, default=0.0)
+    pnl_pct         = Column(Float, default=0.0)
+    status          = Column(String, default="ACTIVE")         # ACTIVE | CLOSED_SL | CLOSED_TRAILING | EMANCIPATED
+    opened_at       = Column(Float, nullable=False)
+    closed_at       = Column(Float, nullable=True)
+    flash_state     = Column(JSON, nullable=True)              # {phase, active_level, stop_roi, history}
+    contract_meta   = Column(JSON, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    # Campos extras Blitz M30
+    blitz_score     = Column(Float, default=0.0)               # Score do BlitzSniperAgent (0-100)
+    fib_zone        = Column(String, nullable=True)            # Ex: "0.618-0.786"
+    sma_cross       = Column(String, nullable=True)            # "UP" | "DOWN" | "NONE"
+    cvd_value       = Column(Float, default=0.0)               # Cumulative Volume Delta
+    volume_ratio    = Column(Float, default=0.0)               # Volume relativo (1.5 = 1.5x média)
+    pa_pattern      = Column(String, nullable=True)            # Ex: "Bullish Engulf M30"
+    reasons         = Column(JSON, nullable=True)              # Lista de strings do raciocínio
+    blitz_unit      = Column(Integer, default=0)               # 0=inicial, 1=+100% ROI, 2=+200%, 3=+300%
+
 class RadarPulse(Base):
     __tablename__ = "radar_pulse"
     id = Column(Integer, primary_key=True)
@@ -279,7 +313,16 @@ class DatabaseService:
                         ("vault_cycles", "updated_at", "TIMESTAMP"),
                         # [V121] Phase Detector — explosion score + signals no sandbox
                         ("sandbox_trades", "explosion_score", "DOUBLE PRECISION"),
-                        ("sandbox_trades", "explosion_signals", "JSONB")
+                        ("sandbox_trades", "explosion_signals", "JSONB"),
+                        # [Swing Lab] Colunas extras do BlitzSniperAgent
+                        ("sandbox_swing_trades", "blitz_score", "DOUBLE PRECISION"),
+                        ("sandbox_swing_trades", "fib_zone", "TEXT"),
+                        ("sandbox_swing_trades", "sma_cross", "TEXT"),
+                        ("sandbox_swing_trades", "cvd_value", "DOUBLE PRECISION"),
+                        ("sandbox_swing_trades", "volume_ratio", "DOUBLE PRECISION"),
+                        ("sandbox_swing_trades", "pa_pattern", "TEXT"),
+                        ("sandbox_swing_trades", "reasons", "JSONB"),
+                        ("sandbox_swing_trades", "blitz_unit", "INTEGER")
                     ]
                     for table, col, col_type in migrations:
                         try:
@@ -1009,6 +1052,71 @@ class DatabaseService:
                 return True
             except Exception as e:
                 logger.error(f"Error clearing sandbox trades: {e}")
+            return False
+
+    # =========================================================================
+    # ████  SANDBOX SWING TRADES (Swing Lab — BlitzSniperAgent)  ████
+    # =========================================================================
+
+    async def save_swing_trade(self, trade_data: dict):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                obj = await session.get(SandboxSwingTrade, trade_data.get("id"))
+                if not obj:
+                    obj = SandboxSwingTrade(**trade_data)
+                    session.add(obj)
+                    await session.commit()
+                    logger.info(f"[SWING-LAB] Trade {trade_data.get('id')} salvo no Postgres.")
+                    return True
+            except Exception as e:
+                logger.error(f"Error saving swing trade: {e}")
+            return False
+
+    async def get_swing_trades(self, active_only: bool = False):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                if active_only:
+                    q = select(SandboxSwingTrade).where(SandboxSwingTrade.status == "ACTIVE").order_by(desc(SandboxSwingTrade.opened_at))
+                else:
+                    q = select(SandboxSwingTrade).order_by(desc(SandboxSwingTrade.opened_at))
+                res = await session.execute(q)
+                return res.scalars().all()
+            except Exception as e:
+                logger.error(f"Error getting swing trades: {e}")
+            return []
+
+    async def get_swing_trade(self, trade_id: str):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                return await session.get(SandboxSwingTrade, trade_id)
+            except Exception as e:
+                logger.error(f"Error getting swing trade {trade_id}: {e}")
+            return None
+
+    async def update_swing_trade(self, trade_id: str, data: dict):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                obj = await session.get(SandboxSwingTrade, trade_id)
+                if obj:
+                    for k, v in data.items():
+                        if hasattr(obj, k):
+                            setattr(obj, k, v)
+                    await session.commit()
+                    return True
+            except Exception as e:
+                logger.error(f"Error updating swing trade {trade_id}: {e}")
+            return False
+
+    async def clear_swing_trades(self):
+        async with self.AsyncSessionLocal() as session:
+            try:
+                q = delete(SandboxSwingTrade)
+                await session.execute(q)
+                await session.commit()
+                logger.info("[SWING-LAB] Swing trades cleared.")
+                return True
+            except Exception as e:
+                logger.error(f"Error clearing swing trades: {e}")
             return False
 
     # ==================== PHASE DETECTOR HISTORY (V120) ====================

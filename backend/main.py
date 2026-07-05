@@ -638,9 +638,17 @@ async def lifespan(app: FastAPI):
             try:
                 from services.sandbox_service import sandbox_service
                 sandbox_service.start()
-                logger.info("🧪 [SaaS] Sandbox Service ONLINE e monitorando de forma resiliente!")
+                logger.info("[SaaS] Sandbox Service (Scalping Lab) ONLINE!")
             except Exception as sandbox_err:
-                logger.error(f"❌ [SaaS] Falha ao iniciar Sandbox Service: {sandbox_err}")
+                logger.error(f"Falha ao iniciar Sandbox Service: {sandbox_err}")
+
+            # [Swing Lab] SandboxSwingService — espelha ordens reais do BlitzSniperAgent
+            try:
+                from services.sandbox_swing_service import sandbox_swing_service
+                await sandbox_swing_service.start()
+                logger.info("[SWING-LAB] SandboxSwingService (Swing Lab) ONLINE!")
+            except Exception as swing_err:
+                logger.error(f"Falha ao iniciar SandboxSwingService: {swing_err}")
 
             logger.info("✅ All background services started successfully!")
         except Exception as e:
@@ -676,10 +684,17 @@ async def lifespan(app: FastAPI):
 
         try:
             from services.sandbox_service import sandbox_service
-            logger.info("🛑 [SaaS] Desligando Sandbox Service...")
+            logger.info("[SaaS] Desligando Sandbox Service...")
             sandbox_service.stop()
         except Exception as sb_stop_err:
             logger.debug(f"Erro ao parar Sandbox Service: {sb_stop_err}")
+
+        try:
+            from services.sandbox_swing_service import sandbox_swing_service
+            logger.info("[SWING-LAB] Desligando SandboxSwingService...")
+            await sandbox_swing_service.stop()
+        except Exception as sw_stop_err:
+            logger.debug(f"Erro ao parar SandboxSwingService: {sw_stop_err}")
     except Exception as shutdown_err:
         logger.error(f"Error during shutdown: {shutdown_err}")
     

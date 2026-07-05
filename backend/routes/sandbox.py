@@ -370,3 +370,183 @@ async def clear_sandbox():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar sandbox: {str(e)}")
 
+
+# =============================================================================
+# SWING LAB — Endpoints BlitzSniperAgent (BLITZ_30M)
+# =============================================================================
+
+@router.get("/swing/trades")
+async def get_swing_trades(active_only: bool = Query(False)):
+    """Lista os trades do Swing Lab (BLITZ_30M)."""
+    try:
+        trades = await database_service.get_swing_trades(active_only=active_only)
+        result = []
+        for t in trades:
+            result.append({
+                "id":           t.id,
+                "symbol":       t.symbol,
+                "strategy":     t.strategy,
+                "direction":    t.direction,
+                "entry_price":  t.entry_price,
+                "current_price":t.current_price,
+                "stop_loss":    t.stop_loss,
+                "target":       t.target,
+                "max_roi":      t.max_roi,
+                "current_roi":  t.current_roi,
+                "pnl_pct":      t.pnl_pct,
+                "status":       t.status,
+                "opened_at":    t.opened_at,
+                "closed_at":    t.closed_at,
+                "flash_state":  t.flash_state,
+                "contract_meta":t.contract_meta,
+                "created_at":   t.created_at.isoformat() if t.created_at else None,
+                # Campos Blitz extras
+                "blitz_score":  getattr(t, "blitz_score", 0) or 0,
+                "fib_zone":     getattr(t, "fib_zone", None),
+                "sma_cross":    getattr(t, "sma_cross", None),
+                "cvd_value":    getattr(t, "cvd_value", 0) or 0,
+                "volume_ratio": getattr(t, "volume_ratio", 0) or 0,
+                "pa_pattern":   getattr(t, "pa_pattern", None),
+                "reasons":      getattr(t, "reasons", []) or [],
+                "blitz_unit":   getattr(t, "blitz_unit", 0) or 0,
+            })
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar trades do Swing Lab: {str(e)}")
+
+
+@router.get("/swing/stats")
+async def get_swing_stats():
+    """Estatísticas do Swing Lab (Win Rate, R:R, ROI, banca virtual)."""
+    try:
+        trades = await database_service.get_swing_trades(active_only=False)
+        BANCA  = 100.0
+        MARGEM = 1.0   # $1/trade para o Blitz
+
+        total  = len(trades)
+        active = sum(1 for t in trades if t.status == "ACTIVE")
+        closed = total - active
+
+        wins   = 0
+        losses = 0
+        total_pnl_usd = 0.0
+        win_pnls  = []
+        loss_pnls = []
+        symbol_stats: dict = {}
+
+        for t in trades:
+            if t.status == "ACTIVE":
+                continue
+            pnl = float(t.pnl_pct or 0)
+            pnl_usd = (pnl / 100.0) * MARGEM
+            total_pnl_usd += pnl_usd
+
+            sym = t.symbol.replace(".P", "").upper()
+            if sym not in symbol_stats:
+                symbol_stats[sym] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+            symbol_stats[sym]["total"] += 1
+            symbol_stats[sym]["pnl"] += pnl
+
+            if pnl > 0:
+                wins += 1
+                win_pnls.append(pnl)
+                symbol_stats[sym]["wins"] += 1
+            elif pnl < 0:
+                losses += 1
+                loss_pnls.append(pnl)
+                symbol_stats[sym]["losses"] += 1
+
+        win_rate  = round((wins / closed * 100), 2) if closed > 0 else 0.0
+        avg_win   = round(sum(win_pnls) / len(win_pnls), 2) if win_pnls else 0.0
+        avg_loss  = round(sum(loss_pnls) / len(loss_pnls), 2) if loss_pnls else 0.0
+        rr        = round(abs(avg_win / avg_loss), 2) if avg_loss != 0 else 0.0
+        bank_roi  = round((total_pnl_usd / BANCA) * 100, 2)
+        balance   = round(BANCA + total_pnl_usd, 2)
+
+        best_sym  = max(symbol_stats, key=lambda s: symbol_stats[s]["pnl"], default=None) if symbol_stats else None
+
+        return {
+            "total_trades":    total,
+            "active_trades":   active,
+            "closed_trades":   closed,
+            "wins":            wins,
+            "losses":          losses,
+            "win_rate":        win_rate,
+            "avg_win":         avg_win,
+            "avg_loss":        avg_loss,
+            "risk_reward":     rr,
+            "total_pnl_usd":   round(total_pnl_usd, 2),
+            "bank_roi_pct":    bank_roi,
+            "virtual_balance": balance,
+            "banca_base":      BANCA,
+            "best_symbol":     best_sym,
+            "symbol_breakdown":symbol_stats,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao calcular stats do Swing Lab: {str(e)}")
+
+
+@router.get("/swing/analytics")
+async def get_swing_analytics():
+    """Analytics detalhado do Swing Lab: distribuição de losses, top wins/losses."""
+    try:
+        trades = await database_service.get_swing_trades(active_only=False)
+        MARGEM = 1.0
+
+        closed_trades = [t for t in trades if t.status != "ACTIVE"]
+        losses = [t for t in closed_trades if float(t.pnl_pct or 0) < 0]
+        wins   = [t for t in closed_trades if float(t.pnl_pct or 0) > 0]
+
+        # Distribuição de losses por hora UTC
+        loss_by_hour = {str(h): 0 for h in range(24)}
+        for t in losses:
+            try:
+                import datetime as _dt
+                hr = str(_dt.datetime.utcfromtimestamp(t.opened_at).hour)
+                loss_by_hour[hr] = loss_by_hour.get(hr, 0) + 1
+            except Exception:
+                pass
+
+        # Top 5 wins/losses por ROI
+        top_wins = sorted(wins, key=lambda t: float(t.pnl_pct or 0), reverse=True)[:5]
+        top_losses = sorted(losses, key=lambda t: float(t.pnl_pct or 0))[:5]
+
+        def fmt_trade(t):
+            return {
+                "symbol":   t.symbol,
+                "direction":t.direction,
+                "pnl_pct":  round(float(t.pnl_pct or 0), 2),
+                "max_roi":  round(float(t.max_roi or 0), 2),
+                "blitz_unit": getattr(t, "blitz_unit", 0),
+                "blitz_score": getattr(t, "blitz_score", 0),
+                "status":   t.status,
+            }
+
+        win_pnls  = [float(t.pnl_pct or 0) for t in wins]
+        loss_pnls = [float(t.pnl_pct or 0) for t in losses]
+        avg_win   = round(sum(win_pnls) / len(win_pnls), 2) if win_pnls else 0
+        avg_loss  = round(sum(loss_pnls) / len(loss_pnls), 2) if loss_pnls else 0
+        rr        = round(abs(avg_win / avg_loss), 2) if avg_loss != 0 else 0
+
+        return {
+            "total_analyzed": len(closed_trades),
+            "risk_reward":    rr,
+            "avg_win":        avg_win,
+            "avg_loss":       avg_loss,
+            "loss_by_hour":   loss_by_hour,
+            "top_wins":       [fmt_trade(t) for t in top_wins],
+            "top_losses":     [fmt_trade(t) for t in top_losses],
+            "total_losses":   len(losses),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar analytics do Swing Lab: {str(e)}")
+
+
+@router.post("/swing/clear")
+async def clear_swing_trades():
+    """Limpa todos os trades do Swing Lab."""
+    try:
+        success = await database_service.clear_swing_trades()
+        return {"success": success, "message": "Swing Lab resetado com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao limpar Swing Lab: {str(e)}")

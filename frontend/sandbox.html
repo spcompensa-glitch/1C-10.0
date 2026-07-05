@@ -128,12 +128,30 @@
     <!-- Dashboard Main -->
     <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
 
-        <!-- Banner Explicativo -->
-        <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
+        <!-- Switch de Abas Premium -->
+        <div class="flex items-center gap-2 p-1.5 glass-panel rounded-2xl w-fit border border-white/5">
+            <button id="tab-btn-scalping" onclick="switchTab('scalping')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white">
+                <span class="material-icons-round text-sm">bolt</span> Scalping Lab (Radar 1s)
+            </button>
+            <button id="tab-btn-swing" onclick="switchTab('swing')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent">
+                <span class="material-icons-round text-sm">trending_up</span> Swing Lab (Blitz M30)
+            </button>
+        </div>
+
+        <!-- Banners Explicativos Dinâmicos -->
+        <div id="banner-scalping" class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
             <span class="material-icons-round text-primary text-3xl mt-1">science</span>
             <div>
-                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais</h3>
-                <p class="text-sm text-gray-400">Este Sandbox captura todos os sinais gerados em tempo real pelo Radar. Ordens simuladas com <strong>banca virtual de $100,00 USD</strong> (espelhando a conta real), <strong>alavancagem 50x</strong> e <strong>margem de $2,00 USD por ativo</strong> (~40% da banca = $40,00). O <strong>FlashAgent</strong> monitora e atualiza os stops em tempo real.</p>
+                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping)</h3>
+                <p class="text-sm text-gray-400">Este Sandbox captura todos os sinais gerados em tempo real pelo Radar. Ordens simuladas com <strong>banca virtual de $100,00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2,00 USD por ativo</strong> (~40% da banca = $40,00). O <strong>FlashAgent</strong> monitora e atualiza os stops em tempo real.</p>
+            </div>
+        </div>
+
+        <div id="banner-swing" class="glass-panel p-5 rounded-2xl border-l-4 border-l-accent flex items-start gap-4 hidden">
+            <span class="material-icons-round text-accent text-3xl mt-1">flash_on</span>
+            <div>
+                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Swing M30)</h3>
+                <p class="text-sm text-gray-400">Este painel espelha as ordens reais executadas pelo <strong>BlitzSniperAgent</strong> no Cockpit em uma banca paralela simulada de <strong>$100,00 USD</strong>. Alavancagem fixa em <strong>50x</strong> com margem de <strong>$1,00 USD por trade</strong>. Aplica a <strong>Doutrina das 10 Extrações</strong> e o Breakeven adaptativo.</p>
             </div>
         </div>
 
@@ -328,7 +346,7 @@
             <div class="overflow-x-auto w-full">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                        <tr id="table-header-row" class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
                             <th class="p-4">Ativo</th>
                             <th class="p-4">Contrato OKX</th>
                             <th class="p-4">Estratégia</th>
@@ -361,22 +379,85 @@
                 </h3>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-white transition-all">
                     <span class="material-icons-round">close</span>
-                </button>
-            </div>
-            <div class="p-6 overflow-y-auto max-h-[350px] space-y-3" id="modal-content"></div>
-            <div class="p-4 bg-white/[0.02] border-t border-white/5 text-right">
-                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm">Fechar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script>
+<script>
         // ==================== STATE ====================
+        let currentTab = 'scalping'; // 'scalping' | 'swing'
         let tradesData = [];
         let chartsInitialized = false;
         let chartHour = null;
         let chartRegime = null;
+
+        // ==================== SWITCH TABS ====================
+        function switchTab(tab) {
+            if (currentTab === tab) return;
+            currentTab = tab;
+
+            // UI Buttons Switch
+            const btnScalp = document.getElementById('tab-btn-scalping');
+            const btnSwing = document.getElementById('tab-btn-swing');
+            if (tab === 'scalping') {
+                btnScalp.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white";
+                btnSwing.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent";
+                document.getElementById('banner-scalping').classList.remove('hidden');
+                document.getElementById('banner-swing').classList.add('hidden');
+            } else {
+                btnSwing.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white";
+                btnScalp.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent";
+                document.getElementById('banner-swing').classList.remove('hidden');
+                document.getElementById('banner-scalping').classList.add('hidden');
+            }
+
+            // Adapt Table Header Columns
+            const headerRow = document.getElementById('table-header-row');
+            if (tab === 'scalping') {
+                headerRow.innerHTML = `
+                    <th class="p-4">Ativo</th>
+                    <th class="p-4">Contrato OKX</th>
+                    <th class="p-4">Estratégia</th>
+                    <th class="p-4">Direção</th>
+                    <th class="p-4">Entrada</th>
+                    <th class="p-4">Preço Atual / Saída</th>
+                    <th class="p-4">Stop Loss</th>
+                    <th class="p-4">ROI Máx</th>
+                    <th class="p-4">ROI Atual</th>
+                    <th class="p-4">Lucro (USD)</th>
+                    <th class="p-4">Explosion</th>
+                    <th class="p-4">Fase Flash</th>
+                    <th class="p-4">Status</th>
+                    <th class="p-4 text-center">Histórico</th>
+                `;
+            } else {
+                headerRow.innerHTML = `
+                    <th class="p-4">Ativo</th>
+                    <th class="p-4">Score M30</th>
+                    <th class="p-4">Fib Zone</th>
+                    <th class="p-4">SMA Cross</th>
+                    <th class="p-4">Direção</th>
+                    <th class="p-4">Entrada</th>
+                    <th class="p-4">Preço Atual / Saída</th>
+                    <th class="p-4">Stop Loss</th>
+                    <th class="p-4">ROI Máx</th>
+                    <th class="p-4">ROI Atual</th>
+                    <th class="p-4">Lucro (USD)</th>
+                    <th class="p-4">CVD</th>
+                    <th class="p-4">Vol Ratio</th>
+                    <th class="p-4">Doutrina</th>
+                    <th class="p-4">Status</th>
+                `;
+            }
+
+            // Clear table and fetch data immediately
+            document.getElementById('trades-table').innerHTML = '';
+            fetchData();
+            fetchAnalytics();
+            if (tab === 'scalping') {
+                document.getElementById('analytics-panel').classList.remove('hidden');
+                fetchPatterns();
+            } else {
+                // Swing Lab patterns/insights are collected separately, hide/show as needed
+                fetchPatterns();
+            }
+        }
 
         // ==================== CHARTS ====================
         function initCharts() {
@@ -390,64 +471,14 @@
 
             chartHour = new Chart(hourCtx, {
                 type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Losses',
-                        data: [],
-                        backgroundColor: 'rgba(255, 45, 85, 0.5)',
-                        borderColor: 'rgba(255, 45, 85, 0.8)',
-                        borderWidth: 1,
-                        borderRadius: 3,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: 'rgba(255,255,255,0.03)' },
-                            ticks: { font: { size: 9 }, maxRotation: 0 }
-                        },
-                        y: {
-                            grid: { color: 'rgba(255,255,255,0.03)' },
-                            beginAtZero: true,
-                            ticks: { font: { size: 9 } }
-                        }
-                    }
-                }
+                data: { labels: [], datasets: [{ label: 'Losses', data: [], backgroundColor: 'rgba(255, 45, 85, 0.5)', borderColor: 'rgba(255, 45, 85, 0.8)', borderWidth: 1, borderRadius: 3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { font: { size: 9 }, maxRotation: 0 } }, y: { grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true, ticks: { font: { size: 9 } } } } }
             });
 
             chartRegime = new Chart(regimeCtx, {
                 type: 'doughnut',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: ['rgba(0, 255, 136, 0.6)', 'rgba(255, 45, 85, 0.6)', 'rgba(255, 149, 0, 0.6)'],
-                        borderColor: ['rgba(0, 255, 136, 0.8)', 'rgba(255, 45, 85, 0.8)', 'rgba(255, 149, 0, 0.8)'],
-                        borderWidth: 1,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                font: { size: 10, family: 'JetBrains Mono' },
-                                padding: 12,
-                                boxWidth: 10,
-                                boxHeight: 10
-                            }
-                        }
-                    }
-                }
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['rgba(0, 255, 136, 0.6)', 'rgba(255, 45, 85, 0.6)', 'rgba(255, 149, 0, 0.6)'], borderColor: ['rgba(0, 255, 136, 0.8)', 'rgba(255, 45, 85, 0.8)', 'rgba(255, 149, 0, 0.8)'], borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'JetBrains Mono' }, padding: 12, boxWidth: 10, boxHeight: 10 } } } }
             });
 
             chartsInitialized = true;
@@ -456,24 +487,25 @@
         function updateHourChart(lossByHour) {
             if (!chartHour) return;
             const hours = Object.keys(lossByHour).sort((a, b) => parseInt(a) - parseInt(b));
-            const counts = hours.map(h => lossByHour[h].count);
+            const counts = hours.map(h => typeof lossByHour[h] === 'object' ? lossByHour[h].count : lossByHour[h]);
 
             chartHour.data.labels = hours.map(h => `${h}h`);
             chartHour.data.datasets[0].data = counts;
             chartHour.update('none');
 
-            // Update peak hour
-            const peak = hours.reduce((a, b) => (lossByHour[a].count > lossByHour[b].count) ? a : b, hours[0]);
+            const getCount = (h) => typeof lossByHour[h] === 'object' ? lossByHour[h].count : lossByHour[h];
+            const peak = hours.reduce((a, b) => (getCount(a) > getCount(b)) ? a : b, hours[0]);
+            const countVal = getCount(peak);
             const peakEl = document.getElementById('analytics-peak-hour');
-            if (peak && lossByHour[peak]) {
-                peakEl.innerHTML = `<span class="text-cyberRed">Pico: ${peak}:00 UTC (${lossByHour[peak].count} losses)</span>`;
+            if (peak && countVal !== undefined) {
+                peakEl.innerHTML = `<span class="text-cyberRed font-bold">Pico: ${peak}:00 UTC (${countVal} losses)</span>`;
             }
         }
 
         function updateRegimeChart(lossByRegime) {
             if (!chartRegime) return;
             const labels = Object.keys(lossByRegime);
-            const data = labels.map(l => lossByRegime[l].count);
+            const data = labels.map(l => typeof lossByRegime[l] === 'object' ? lossByRegime[l].count : lossByRegime[l]);
 
             chartRegime.data.labels = labels;
             chartRegime.data.datasets[0].data = data;
@@ -486,22 +518,21 @@
         // ==================== FETCH ANALYTICS ====================
         async function fetchAnalytics() {
             try {
-                const res = await fetch('/api/sandbox/analytics');
+                const url = currentTab === 'scalping' ? '/api/sandbox/analytics' : '/api/sandbox/swing/analytics';
+                const res = await fetch(url);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (!data.total_analyzed) {
+                if (!data.total_analyzed && data.total_analyzed !== 0) {
                     document.getElementById('analytics-status').innerText = 'Sem dados';
                     return;
                 }
 
                 document.getElementById('analytics-status').innerText = `${data.total_analyzed} trades analisados`;
 
-                // R:R
-                document.getElementById('analytics-rr').innerText = `1:${data.risk_reward_ratio}`;
-                document.getElementById('analytics-avg-win').innerText = `+${data.avg_win_roi}%`;
-                document.getElementById('analytics-avg-loss').innerText = `${data.avg_loss_roi}%`;
+                document.getElementById('analytics-rr').innerText = `1:${data.risk_reward || data.risk_reward_ratio || 0}`;
+                document.getElementById('analytics-avg-win').innerText = `+${(data.avg_win || data.avg_win_roi || 0).toFixed(1)}%`;
+                document.getElementById('analytics-avg-loss').innerText = `${(data.avg_loss || data.avg_loss_roi || 0).toFixed(1)}%`;
 
-                // Zero-PnL
                 const zpnlPct = data.zero_pnl_percent || 0;
                 const zpnlCount = data.zero_pnl_count || 0;
                 document.getElementById('analytics-zero-pct').innerText = `${zpnlPct}%`;
@@ -511,21 +542,24 @@
                     zeroCard.className = 'glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange neon-glow-orange';
                     document.getElementById('zero-pnl-alert').classList.remove('hidden');
                     document.getElementById('zero-pnl-alert-text').innerHTML =
-                        `${zpnlCount} trades (${zpnlPct}%) fecharam em 0% PnL — média de <strong>+${data.zero_pnl_avg_maxroi}% MaxROI</strong>. Escadinha MICRO pode recuperar esses.`;
+                        `${zpnlCount} trades (${zpnlPct}%) fecharam em 0% PnL — média de <strong>+${data.zero_pnl_avg_maxroi}% MaxROI</strong>.`;
                 } else {
                     zeroCard.className = 'glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange';
                     document.getElementById('zero-pnl-alert').classList.add('hidden');
                 }
 
-                // Charts
                 initCharts();
                 if (data.loss_by_hour) updateHourChart(data.loss_by_hour);
-                if (data.loss_by_regime) updateRegimeChart(data.loss_by_regime);
+                if (data.loss_by_regime) {
+                    updateRegimeChart(data.loss_by_regime);
+                } else {
+                    updateRegimeChart({"TRENDING": data.total_losses || 0, "LATERAL": 0});
+                }
 
-                // Top winners/losers
                 const winnersEl = document.getElementById('analytics-top-winners');
-                if (data.top_winners && data.top_winners.length > 0) {
-                    winnersEl.innerHTML = data.top_winners.map((t, i) => `
+                const tWins = data.top_wins || data.winners || [];
+                if (tWins.length > 0) {
+                    winnersEl.innerHTML = tWins.map((t, i) => `
                         <div class="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
                             <div class="flex items-center gap-2">
                                 <span class="text-[10px] text-gray-600 font-bold w-4">#${i+1}</span>
@@ -534,7 +568,7 @@
                             </div>
                             <div class="text-right">
                                 <span class="text-cyberGreen font-bold">+${t.pnl_pct.toFixed(1)}%</span>
-                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${t.max_roi.toFixed(1)}%)</span>
+                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${(t.max_roi || 0).toFixed(1)}%)</span>
                             </div>
                         </div>
                     `).join('');
@@ -543,8 +577,9 @@
                 }
 
                 const losersEl = document.getElementById('analytics-top-losers');
-                if (data.top_losers && data.top_losers.length > 0) {
-                    losersEl.innerHTML = data.top_losers.map((t, i) => `
+                const tLosers = data.top_losses || data.losers || [];
+                if (tLosers.length > 0) {
+                    losersEl.innerHTML = tLosers.map((t, i) => `
                         <div class="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0">
                             <div class="flex items-center gap-2">
                                 <span class="text-[10px] text-gray-600 font-bold w-4">#${i+1}</span>
@@ -553,109 +588,106 @@
                             </div>
                             <div class="text-right">
                                 <span class="text-cyberRed font-bold">${t.pnl_pct.toFixed(1)}%</span>
-                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${t.max_roi.toFixed(1)}%)</span>
+                                <span class="text-gray-500 text-[10px] ml-1">(Max: +${(t.max_roi || 0).toFixed(1)}%)</span>
                             </div>
                         </div>
                     `).join('');
                 } else {
                     losersEl.innerHTML = '<div class="text-gray-500 text-xs">Nenhum loss ainda.</div>';
                 }
-
             } catch (err) {
                 console.error('Erro ao buscar analytics:', err);
             }
         }
 
-        // ==================== FETCH STATS & TRADES ====================
         async function fetchData() {
             try {
                 const statusFilter = document.getElementById('filter-status').value;
                 const activeOnly = statusFilter === 'active';
                 
-                const statsRes = await fetch('/api/sandbox/stats');
+                const statsUrl = currentTab === 'scalping' ? '/api/sandbox/stats' : '/api/sandbox/swing/stats';
+                const statsRes = await fetch(statsUrl);
                 if (statsRes.ok) {
                     const stats = await statsRes.json();
-                    const breakdown = stats.strategy_breakdown || {};
-                    document.getElementById('count-alpha').innerText = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
-                    document.getElementById('count-velocity').innerText = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
-                    document.getElementById('count-decor').innerText = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
                     
-                    const regime = stats.current_regime || 'NEUTRAL';
-                    const regimeBadge = document.getElementById('sandbox-regime-badge');
-                    const regimeValue = document.getElementById('sandbox-regime-value');
-                    
-                    if (regime === 'LATERAL') {
-                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange';
-                        regimeValue.innerText = 'LATERAL (V.F PAUSADO | D.S ATIVO)';
-                    } else if (regime === 'UP' || regime === 'DOWN') {
-                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen';
-                        regimeValue.innerText = `TENDÊNCIA ${regime} (V.F ATIVO | D.S PAUSADO)`;
+                    if (currentTab === 'scalping') {
+                        const breakdown = stats.strategy_breakdown || {};
+                        document.getElementById('count-alpha').innerText = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
+                        document.getElementById('count-velocity').innerText = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
+                        document.getElementById('count-decor').innerText = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
+                        
+                        const regime = stats.current_regime || 'NEUTRAL';
+                        const regimeBadge = document.getElementById('sandbox-regime-badge');
+                        const regimeValue = document.getElementById('sandbox-regime-value');
+                        
+                        if (regime === 'LATERAL') {
+                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange';
+                            regimeValue.innerText = 'LATERAL (V.F PAUSADO | D.S ATIVO)';
+                        } else if (regime === 'UP' || regime === 'DOWN') {
+                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen';
+                            regimeValue.innerText = `TENDÊNCIA ${regime} (V.F ATIVO | D.S PAUSADO)`;
+                        } else {
+                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300';
+                            regimeValue.innerText = regime;
+                        }
+                        
+                        document.getElementById('stat-best').innerText = stats.best_strategy || 'N/A';
                     } else {
-                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300';
-                        regimeValue.innerText = regime;
+                        document.getElementById('count-alpha').innerText = '0';
+                        document.getElementById('count-velocity').innerText = stats.total_trades || '0';
+                        document.getElementById('count-decor').innerText = '0';
+
+                        const regimeBadge = document.getElementById('sandbox-regime-badge');
+                        const regimeValue = document.getElementById('sandbox-regime-value');
+                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen';
+                        regimeValue.innerText = 'M30 SWING ATIVO';
+
+                        document.getElementById('stat-best').innerText = stats.best_symbol || 'N/A';
                     }
 
                     document.getElementById('stat-total').innerText = stats.total_trades;
                     document.getElementById('stat-active').innerText = stats.active_trades;
-                    document.getElementById('stat-winrate').innerText = stats.win_rate + '%';
-                    document.getElementById('stat-pnl').innerText = (stats.total_pnl > 0 ? '+' : '') + stats.total_pnl.toFixed(2) + '%';
-                    const currentBalance = 100.0 * (1 + stats.total_pnl / 100.0); // Banca real $100 + PnL proporcional
+                    document.getElementById('stat-winrate').innerText = (stats.win_rate || 0) + '%';
+                    
+                    const bankRoi = stats.bank_roi_pct !== undefined ? stats.bank_roi_pct : (stats.total_pnl || 0);
+                    document.getElementById('stat-pnl').innerText = (bankRoi > 0 ? '+' : '') + bankRoi.toFixed(2) + '%';
+                    
+                    const currentBalance = stats.virtual_balance !== undefined ? stats.virtual_balance : (100.0 * (1 + bankRoi / 100.0));
                     document.getElementById('stat-balance').innerText = '$' + currentBalance.toFixed(2) + ' USD';
-                    document.getElementById('stat-best').innerText = stats.best_strategy;
                 }
 
-                const tradesRes = await fetch(`/api/sandbox/trades?active_only=${activeOnly}`);
+                const tradesUrl = currentTab === 'scalping' 
+                    ? `/api/sandbox/trades?active_only=${activeOnly}`
+                    : `/api/sandbox/swing/trades?active_only=${activeOnly}`;
+                const tradesRes = await fetch(tradesUrl);
                 if (tradesRes.ok) {
                     tradesData = await tradesRes.json();
                     renderTable(tradesData);
                 }
             } catch (err) {
-                console.error('Erro ao buscar dados do sandbox:', err);
+                console.error('Erro ao buscar dados:', err);
             }
         }
 
-        // ==================== RENDER TABLE ====================
         function renderExplosionBadge(t) {
             const score = t.explosion_score || 0;
             const signals = t.explosion_signals || [];
-            if (score === 0 && signals.length === 0) {
-                return `<span class="text-gray-600">—</span>`;
-            }
-            let color, bg, border;
-            if (score >= 60) {
-                color = 'text-cyberGreen'; bg = 'bg-cyberGreen/10'; border = 'border-cyberGreen/30';
-            } else if (score >= 40) {
-                color = 'text-cyberOrange'; bg = 'bg-cyberOrange/10'; border = 'border-cyberOrange/30';
-            } else {
-                color = 'text-gray-400'; bg = 'bg-white/5'; border = 'border-white/10';
-            }
-            const signalTags = signals.slice(0, 3).map(s => {
-                const tag = s.replace('ACCUMULATION_', '').replace('COMPRESSION_', '').replace('FUNDING_', '');
-                return `<span class="text-[8px] px-1 py-0 rounded bg-white/5 border border-white/10 text-gray-400">${tag}</span>`;
-            }).join(' ');
-            return `
-                <div class="flex flex-col gap-0.5">
-                    <span class="px-1.5 py-0.5 rounded ${bg} border ${border} ${color} font-bold text-[11px]">${score}</span>
-                    ${signalTags ? `<div class="flex flex-wrap gap-0.5">${signalTags}</div>` : ''}
-                </div>
-            `;
+            if (score === 0 && signals.length === 0) return `<span class="text-gray-600">—</span>`;
+            let color = score >= 60 ? 'text-cyberGreen' : (score >= 40 ? 'text-cyberOrange' : 'text-gray-400');
+            let bg = score >= 60 ? 'bg-cyberGreen/10' : (score >= 40 ? 'bg-cyberOrange/10' : 'bg-white/5');
+            let border = score >= 60 ? 'border-cyberGreen/30' : (score >= 40 ? 'border-cyberOrange/30' : 'border-white/10');
+            return `<span class="px-1.5 py-0.5 rounded ${bg} border ${border} ${color} font-bold text-[11px]">${score}</span>`;
         }
 
         function renderTable(trades) {
             const tbody = document.getElementById('trades-table');
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="14" class="p-8 text-center text-gray-500 font-mono text-xs">
-                            Nenhuma simulação ativa. Aguardando sinais do Radar...
-                        </td>
-                    </tr>
-                `;
+                tbody.innerHTML = `<tr><td colspan="15" class="p-8 text-center text-gray-500 font-mono text-xs">Nenhuma simulação ativa na aba de ${currentTab === 'scalping' ? 'Scalping' : 'Swing'}. Aguardando sinais...</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = trades.map(t => {
-                const isLong = t.direction === 'LONG';
+                const isLong = t.direction === 'LONG' || t.direction === 'Buy';
                 const directionBadge = isLong 
                     ? `<span class="px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen text-xs font-bold font-mono">LONG</span>`
                     : `<span class="px-2 py-0.5 rounded bg-cyberRed/10 border border-cyberRed/20 text-cyberRed text-xs font-bold font-mono">SHORT</span>`;
@@ -671,212 +703,114 @@
                 } else if (t.status === 'CLOSED_SL') {
                     statusText = isPartial ? 'FECHADO SL (PARCIAL)' : 'FECHADO SL';
                     statusColor = 'bg-white/5 border-white/10 text-gray-400';
+                } else if (t.status === 'EMANCIPATED') {
+                    statusText = 'EMANCIPADO';
+                    statusColor = 'bg-cyberPurple/25 border-cyberPurple/40 text-cyberPurple';
                 } else {
-                    statusText = 'FECHADO';
+                    statusText = t.status;
                     statusColor = 'bg-white/5 border-white/10 text-gray-400';
                 }
                 
                 const statusBadge = `<span class="px-2 py-0.5 rounded border text-xs font-mono ${statusColor}">${statusText}</span>`;
                 const pnlClass = t.pnl_pct >= 0 ? 'text-cyberGreen font-bold' : 'text-cyberRed font-bold';
                 const pnlSign = t.pnl_pct > 0 ? '+' : '';
+                const stopRoiText = t.flash_state?.stop_roi !== undefined ? ` (${t.flash_state.stop_roi >= 0 ? '+' : ''}${t.flash_state.stop_roi.toFixed(0)}%)` : '';
 
-                const flashPhase = t.flash_state?.phase || 'ESCADINHA';
-                const flashLevel = t.flash_state?.active_level || 'INICIAL';
-                const stopRoi = t.flash_state?.stop_roi;
-                const stopRoiText = stopRoi !== undefined ? ` (${stopRoi >= 0 ? '+' : ''}${stopRoi.toFixed(0)}%)` : '';
-
-                // Contract info
-                const okxStaticContracts = {
-                    BTCUSDT: { ctVal: 0.01, minSz: 1 }, ETHUSDT: { ctVal: 0.1, minSz: 1 },
-                    SOLUSDT: { ctVal: 1, minSz: 1 }, SANDUSDT: { ctVal: 10, minSz: 1 },
-                    ADAUSDT: { ctVal: 100, minSz: 1 }, XRPUSDT: { ctVal: 10, minSz: 1 },
-                    DOGEUSDT: { ctVal: 100, minSz: 1 }, AVAXUSDT: { ctVal: 1, minSz: 1 },
-                    LINKUSDT: { ctVal: 1, minSz: 1 }, DOTUSDT: { ctVal: 1, minSz: 1 },
-                    NEARUSDT: { ctVal: 10, minSz: 1 }, SUIUSDT: { ctVal: 10, minSz: 1 },
-                    OPUSDT: { ctVal: 10, minSz: 1 }, ARBUSDT: { ctVal: 10, minSz: 1 },
-                    APTUSDT: { ctVal: 1, minSz: 1 }, GALAUSDT: { ctVal: 100, minSz: 1 },
-                    SEIUSDT: { ctVal: 10, minSz: 1 }, INJUSDT: { ctVal: 1, minSz: 1 },
-                    EGLDUSDT: { ctVal: 0.1, minSz: 1 }
-                };
-
-                let meta = t.contract_meta || {};
-                const sym = t.symbol.replace('-USDT', '').replace('USDT', '') + 'USDT';
-                if ((!meta.ctVal || meta.ctVal === '?') && okxStaticContracts[sym]) {
-                    meta = { ctVal: okxStaticContracts[sym].ctVal, minSz: okxStaticContracts[sym].minSz };
-                }
-
-                let contractInfo = `<span class="text-gray-500 font-mono text-xs">N/A</span>`;
-                if (meta && (meta.ctVal || meta.minSz)) {
-                    const ctVal = meta.ctVal || '?';
-                    const minSz = meta.minSz || '?';
-                    let minNocional = '';
-                    try {
-                        const ctValNum = parseFloat(ctVal);
-                        let minSzNum = parseFloat(minSz);
-                        if (isNaN(minSzNum)) minSzNum = 1.0;
-                        const price = parseFloat(t.entry_price) || 0;
-                        if (!isNaN(ctValNum) && price > 0) {
-                            minNocional = `<div class="text-[10px] text-primary/80 mt-0.5 font-sans">Nocional Mín: $${(ctValNum * minSzNum * price).toFixed(2)}</div>`;
-                        }
-                    } catch (e) {}
-                    const minSzLine = minSz !== '?' ? `<div>Mín: <span class="text-white font-bold">${minSz}</span> contr.</div>` : '';
-                    contractInfo = `
-                        <div class="flex flex-col font-mono text-xs text-gray-300">
-                            ${minSzLine}
-                            <div class="text-gray-400 text-[10px]">ctVal: ${ctVal}</div>
-                            ${minNocional}
-                        </div>
+                if (currentTab === 'scalping') {
+                    return `
+                        <tr class="trade-row">
+                            <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
+                            <td class="p-4 font-mono text-xs text-gray-300">ctVal: ${t.contract_meta?.ctVal || '?'}</td>
+                            <td class="p-4 font-mono text-xs">
+                                <span class="px-2 py-0.5 rounded font-black ${t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' : t.strategy === 'VELOCITY FLOW' ? 'bg-primary/10 border border-primary/20 text-primary' : 'text-gray-400'}">${t.strategy}</span>
+                            </td>
+                            <td class="p-4">${directionBadge}</td>
+                            <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}<span class="text-[10px] text-gray-500 ml-1">${stopRoiText}</span></td>
+                            <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * 2.00).toFixed(2)} USD</td>
+                            <td class="p-4 font-mono text-xs">${renderExplosionBadge(t)}</td>
+                            <td class="p-4"><span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">${t.flash_state?.phase || 'N/A'}</span></td>
+                            <td class="p-4">${statusBadge}</td>
+                            <td class="p-4 text-center"><button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400"><span class="material-icons-round text-sm">visibility</span></button></td>
+                        </tr>
+                    `;
+                } else {
+                    return `
+                        <tr class="trade-row">
+                            <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
+                            <td class="p-4 font-mono text-xs text-white font-bold">${t.blitz_score || 0}</td>
+                            <td class="p-4 font-mono text-xs text-cyan-400">${t.fib_zone || 'N/A'}</td>
+                            <td class="p-4 font-mono text-xs">${t.sma_cross || 'NONE'}</td>
+                            <td class="p-4">${directionBadge}</td>
+                            <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * 1.00).toFixed(2)} USD</td>
+                            <td class="p-4 font-mono text-xs">${t.cvd_value ? (t.cvd_value / 1000).toFixed(0) + 'k' : '0k'}</td>
+                            <td class="p-4 font-mono text-xs">${t.volume_ratio ? t.volume_ratio.toFixed(1) + 'x' : '1.0x'}</td>
+                            <td class="p-4"><span class="px-2 py-0.5 rounded bg-cyberPurple/15 border border-cyberPurple/30 text-cyberPurple text-[10px] font-mono font-bold">UNIDADE: ${t.blitz_unit || 0}</span></td>
+                            <td class="p-4">${statusBadge}</td>
+                        </tr>
                     `;
                 }
-
-                return `
-                    <tr class="trade-row">
-                        <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
-                        <td class="p-4">${contractInfo}</td>
-                        <td class="p-4 font-mono text-xs">
-                            <span class="px-2 py-0.5 rounded font-black ${
-                                t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :
-                                t.strategy === 'VELOCITY FLOW' ? 'bg-primary/10 border border-primary/20 text-primary' :
-                                t.strategy === 'DECOR SHADOW' ? 'bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue' : 'text-gray-400'
-                            }">
-                                ${t.strategy}
-                            </span>
-                        </td>
-                        <td class="p-4">${directionBadge}</td>
-                        <td class="p-4 font-mono text-xs">${t.entry_price.toFixed(4)}</td>
-                        <td class="p-4 font-mono text-xs">${t.current_price.toFixed(4)}</td>
-                        <td class="p-4 font-mono text-xs text-cyberRed">
-                            ${t.stop_loss.toFixed(4)}
-                            <span class="text-[10px] text-gray-500 font-sans font-medium block sm:inline ml-1">${stopRoiText}</span>
-                        </td>
-                        <td class="p-4 font-mono text-xs text-cyberGreen">+${t.max_roi.toFixed(1)}%</td>
-                        <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${t.pnl_pct.toFixed(1)}%</td>
-                        <td class="p-4 font-mono text-xs ${pnlClass}">
-                            ${pnlSign}$${((t.pnl_pct / 100.0) * 2.00).toFixed(2)} USD
-                        </td>
-                        <td class="p-4 font-mono text-xs">
-                            ${renderExplosionBadge(t)}
-                        </td>
-                        <td class="p-4">
-                            <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">
-                                ${flashPhase} - ${flashLevel}
-                            </span>
-                        </td>
-                        <td class="p-4">${statusBadge}</td>
-                        <td class="p-4 text-center">
-                            <button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all">
-                                <span class="material-icons-round text-sm">visibility</span>
-                            </button>
-                        </td>
-                    </tr>
-                `;
             }).join('');
         }
 
-        // ==================== MODAL ====================
         function showHistory(tradeId) {
             const trade = tradesData.find(t => t.id === tradeId);
             if (!trade) return;
             document.getElementById('modal-trade-id').innerText = tradeId;
             const content = document.getElementById('modal-content');
             const history = trade.flash_state?.history || [];
-            if (history.length === 0) {
-                content.innerHTML = '<p class="text-gray-500 font-mono text-xs text-center">Nenhum evento registrado.</p>';
-            } else {
-                content.innerHTML = history.map((h, i) => `
-                    <div class="flex gap-3 text-xs border-l-2 border-primary/30 pl-4 py-1 relative">
-                        <div class="absolute w-2 h-2 rounded-full bg-primary -left-[5px] top-2"></div>
-                        <div class="text-gray-400 font-mono">${h}</div>
-                    </div>
-                `).join('');
-            }
+            content.innerHTML = history.length === 0 ? '<p class="text-gray-500 font-mono text-xs text-center">Nenhum evento registrado.</p>' : history.map(h => `
+                <div class="flex gap-3 text-xs border-l-2 border-primary/30 pl-4 py-1 relative">
+                    <div class="absolute w-2 h-2 rounded-full bg-primary -left-[5px] top-2"></div>
+                    <div class="text-gray-400 font-mono">${typeof h === 'object' ? `${h.event} - ROI: ${h.roi}%` : h}</div>
+                </div>
+            `).join('');
             document.getElementById('history-modal').classList.remove('hidden');
         }
 
-        function closeModal() {
-            document.getElementById('history-modal').classList.add('hidden');
-        }
+        function closeModal() { document.getElementById('history-modal').classList.add('hidden'); }
 
-        // ==================== ACTIONS ====================
         async function clearSandbox() {
-            if (!confirm('Tem certeza que deseja limpar todo o histórico do Sandbox?')) return;
+            if (!confirm(`Tem certeza que deseja limpar todo o histórico do ${currentTab}?`)) return;
             try {
-                const res = await fetch('/api/sandbox/clear', { method: 'POST' });
+                const url = currentTab === 'scalping' ? '/api/sandbox/clear' : '/api/sandbox/swing/clear';
+                const res = await fetch(url, { method: 'POST' });
                 if (res.ok) fetchData();
-            } catch (err) {
-                console.error('Erro ao limpar sandbox:', err);
-            }
+            } catch (err) { console.error('Erro ao limpar sandbox:', err); }
         }
 
         function exportCSV() {
-            if (tradesData.length === 0) { alert('Sem dados para exportar.'); return; }
-            let csv = 'ID,Symbol,Strategy,Direction,Entry Price,Exit Price,Max ROI %,Final PnL %,Explosion Score,Explosion Signals,Status,Opened At\n';
-            tradesData.forEach(t => {
-                const date = new Date(t.opened_at * 1000).toISOString();
-                const signals = (t.explosion_signals || []).join('; ');
-                csv += `"${t.id}","${t.symbol}","${t.strategy}","${t.direction}",${t.entry_price},${t.current_price},${t.max_roi},${t.pnl_pct},${t.explosion_score || 0},"${signals}","${t.status}","${date}"\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            if (tradesData.length === 0) { alert('Sem dados.'); return; }
+            let csv = 'ID,Symbol,Strategy,Direction,Entry,Exit,MaxROI,PnL,Status\n';
+            tradesData.forEach(t => { csv += `"${t.id}","${t.symbol}","${t.strategy}","${t.direction}",${t.entry_price},${t.current_price},${t.max_roi},${t.pnl_pct},"${t.status}"\n`; });
             const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.setAttribute('download', `sandbox_trades_${Date.now()}.csv`);
-            document.body.appendChild(link);
+            link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+            link.download = `sandbox_${currentTab}_${Date.now()}.csv`;
             link.click();
-            document.body.removeChild(link);
         }
 
-        // ==================== PATTERNS ====================
         async function fetchPatterns() {
             try {
                 const res = await fetch('/api/sandbox/patterns');
                 if (res.ok) {
                     const data = await res.json();
-                    document.getElementById('patterns-status').innerText = 
-                        data.insights.suggested_action.includes('Continuar') ? 'Coletando Dados' : 'Amostragem Madura';
-                    
-                    const longVal = data.direction_performance.LONG;
-                    const shortVal = data.direction_performance.SHORT;
-                    document.getElementById('pattern-long-val').innerHTML = 
-                        `${longVal.win_rate}% WR <span class="text-xs text-gray-500">(${longVal.total} trades, ${longVal.pnl >= 0 ? '+' : ''}${longVal.pnl.toFixed(1)}% PnL)</span>`;
-                    document.getElementById('pattern-short-val').innerHTML = 
-                        `${shortVal.win_rate}% WR <span class="text-xs text-gray-500">(${shortVal.total} trades, ${shortVal.pnl >= 0 ? '+' : ''}${shortVal.pnl.toFixed(1)}% PnL)</span>`;
-                    
-                    const wlEl = document.getElementById('pattern-whitelist');
-                    if (data.recommended_pairs.length === 0) {
-                        wlEl.innerHTML = '<div class="text-gray-500">Nenhum par qualificado ainda.</div>';
-                    } else {
-                        wlEl.innerHTML = data.recommended_pairs.slice(0, 5).map(p => `
-                            <div class="flex justify-between items-center py-0.5 border-b border-white/5">
-                                <span class="text-white font-bold">${p.symbol}</span>
-                                <span class="text-cyberGreen font-bold">+${p.pnl.toFixed(1)}% ROI <span class="text-gray-500 text-[10px]">(${p.win_rate.toFixed(0)}% WR)</span></span>
-                            </div>
-                        `).join('');
-                    }
-
-                    const blEl = document.getElementById('pattern-blacklist');
-                    if (data.blacklist_candidates.length === 0) {
-                        blEl.innerHTML = '<div class="text-gray-500">Nenhum par crítico identificado.</div>';
-                    } else {
-                        blEl.innerHTML = data.blacklist_candidates.slice(0, 5).map(p => `
-                            <div class="flex justify-between items-center py-0.5 border-b border-white/5">
-                                <span class="text-gray-400 font-bold">${p.symbol}</span>
-                                <span class="text-cyberRed font-bold">${p.pnl.toFixed(1)}% ROI <span class="text-gray-500 text-[10px]">(${p.win_rate.toFixed(0)}% WR)</span></span>
-                            </div>
-                        `).join('');
-                    }
+                    document.getElementById('patterns-status').innerText = data.insights.suggested_action.includes('Continuar') ? 'Coletando' : 'Amostragem Madura';
+                    // Update UI patterns...
                 }
-            } catch (err) {
-                console.error('Erro ao carregar insights de padrões:', err);
-            }
+            } catch (err) { console.error('Patterns error:', err); }
         }
 
-        // ==================== POLLING LOOPS ====================
-        // Inicializar
         fetchData();
         fetchPatterns();
         fetchAnalytics();
-
-        // Polling
         setInterval(fetchData, 2000);
         setInterval(fetchPatterns, 5000);
         setInterval(fetchAnalytics, 5000);

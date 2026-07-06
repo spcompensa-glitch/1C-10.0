@@ -414,7 +414,8 @@ class OKXService:
             }
             # Remove qualquer posição duplicada se existir
             self._mock_positions = [p for p in self._mock_positions if p["instId"] != inst_id]
-            self._mock_positions.append(mock_pos)            return {
+            self._mock_positions.append(mock_pos)
+            return {
                 "code": "0",
                 "msg": "success",
                 "data": [{"clOrdId": cl_ord_id, "ordId": f"okx_ord_{int(time.time())}", "sCode": "0", "sMsg": "success"}]

@@ -1566,15 +1566,15 @@ class SandboxService:
                             )
                             self._mirror_consecutive_failures = 0
                         else:
-                        self._mirror_consecutive_failures += 1
-                        if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
-                            self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
-                            logger.warning(
-                                f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] Close: {self._mirror_consecutive_failures} falhas — pausa {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                            self._mirror_consecutive_failures += 1
+                            if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
+                                self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
+                                logger.warning(
+                                    f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] Close: {self._mirror_consecutive_failures} falhas — pausa {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                                )
+                            logger.error(
+                                f"❌ [SANDBOX-MIRROR-CLOSE-FALHA] {symbol} | Fails={self._mirror_consecutive_failures}"
                             )
-                        logger.error(
-                            f"❌ [SANDBOX-MIRROR-CLOSE-FALHA] {symbol} | Fails={self._mirror_consecutive_failures}"
-                        )
                     except Exception as close_mirror_err:
                         self._mirror_consecutive_failures += 1
                         if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:

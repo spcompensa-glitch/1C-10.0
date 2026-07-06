@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import time
 
 from datetime import datetime, timezone
@@ -40,6 +41,13 @@ class SandboxService:
 
         # [V119] Registro do último timestamp em que o ADX esteve em tendência para o cooldown de transição fria
         self._last_trending_ts: float = 0.0
+
+        # [V124.1] Mirror Circuit Breaker — previne spam de ordens se OKX retornar erro repetido
+        self._mirror_consecutive_failures: int = 0
+        self._mirror_circuit_open_until: float = 0.0  # timestamp quando o circuit breaker fecha
+        self._mirror_mode_logged: bool = False
+        self.MIRROR_CIRCUIT_BREAKER_THRESHOLD: int = 3  # falhas consecutivas antes de abrir o circuito
+        self.MIRROR_CIRCUIT_BREAKER_COOLDOWN: float = 300.0  # 5 minutos de pausa
 
     def start(self):
         if self.is_running:
@@ -911,49 +919,132 @@ class SandboxService:
             await database_service.save_sandbox_trade(trade_data)
             asyncio.create_task(okx_ws_public_service.sync_topics([symbol]))
 
-            # [V123] ESPELHAMENTO DE CONTAS REAL DESATIVADO — Sandbox ainda em validação
-            # Motivo: 2 DECOR SHADOW LONGs em TRENDING → direto para stop-loss
-            # Reativar apenas após sandbox atingir WR > 55% em 50+ trades
-            # Para reativar: definir SANDBOX_MIRROR_ENABLED = True
-            SANDBOX_MIRROR_ENABLED = False
+            # [V124] ESPELHAMENTO DE CONTAS REAL ATIVADO — Todas as ordens reais com 50x
+            # 40% da banca, margem $0.50-$1.00 por trade, contract info real da OKX
             from config import settings
-            if SANDBOX_MIRROR_ENABLED and settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+                # [V124.1] Log claro indicando que o mirror real está ATIVO
+                if not self._mirror_mode_logged:
+                    self._mirror_mode_logged = True
+                    logger.info(
+                        f"🔌 [V124-MIRROR] ═══ MIRROR REAL ATIVADO ═══ | "
+                        f"OKX_EXECUTION_MODE={settings.OKX_EXECUTION_MODE} | "
+                        f"Circuit Breaker: {self.MIRROR_CIRCUIT_BREAKER_THRESHOLD} falhas → pausa de {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                    )
+
                 async def execute_real_mirror_order():
                     try:
-                        from services.okx_rest import okx_rest_service
-                        # Puxar saldo real da conta OKX
-                        bal_data = await okx_rest_service.get_balance()
-                        balance = 100.0
-                        if bal_data and bal_data.get("retCode") == 0:
-                            balance = float(bal_data["result"].get("available", 100.0))
-                            
-                        # [V120] Margem adaptativa baseada no win rate histórico do par
-                        margin = await self._get_adaptive_margin(symbol, balance)
-                        ct_val = float(contract_meta.get("ctVal") or 1.0)
-                        qty_step = float(contract_meta.get("lotSize") or 1.0)
+                        from services.okx_service import okx_service
                         
-                        # Qty = (margem * alavancagem) / (preço * ctVal)
+                        # [V124.1] CIRCUIT BREAKER — verificar se está em pausa por falhas repetidas
+                        now = time.time()
+                        if now < self._mirror_circuit_open_until:
+                            remaining = int(self._mirror_circuit_open_until - now)
+                            logger.warning(
+                                f"🔌 [SANDBOX-MIRROR-BLOCKED] Circuit breaker ATIVO — "
+                                f"{self._mirror_consecutive_failures} falhas consecutivas. "
+                                f"Retomando em {remaining}s"
+                            )
+                            return
+
+                        # 1. Buscar saldo real da conta OKX
+                        balance = await okx_service.get_wallet_balance()
+                        if balance <= 0:
+                            logger.warning(
+                                f"⚠️ [SANDBOX-MIRROR] Saldo real indisponível ou zero para {symbol} — pulando ordem"
+                            )
+                            return
+
+                        # 2. Buscar contract info real da OKX (ctVal, lotSize, minSz)
+                        details = await okx_service.get_instrument_details(symbol)
+                        ct_val = float(details.get("ctVal", "1.0"))
+                        lot_size = float(details.get("lotSize", "1.0"))
+                        min_sz = float(details.get("minSz", "1.0"))
+
+                        # 3. Calcular margem: 40% da banca / 16 slots, range $0.50-$1.00
+                        raw_margin = (balance * 0.40) / 16.0
+                        margin = max(0.50, min(1.00, round(raw_margin, 2)))
+
+                        # 4. Calcular qty: (margin * leverage) / (price * ctVal) arredondado para lotSize
                         raw_qty = (margin * 50.0) / (entry_price * ct_val)
-                        import math
-                        qty = float(math.floor(raw_qty / qty_step) * qty_step)
-                        
+                        qty = float(math.floor(raw_qty / lot_size) * lot_size)
+
+                        # 5. Garantir qty mínimo do contrato
+                        if qty < min_sz:
+                            qty = min_sz
+
+                        # [V124.1] LOG DETALHADO para debug em produção
+                        notional = qty * entry_price * ct_val
+                        logger.info(
+                            f"🔌 [SANDBOX-MIRROR-OPEN] {symbol} {direction} | "
+                            f"Saldo=${balance:.2f} | RawMargem=${raw_margin:.3f} | Margem=${margin:.2f} | "
+                            f"Qty={qty} contr | ctVal={ct_val} | lotSize={lot_size} | minSz={min_sz} | "
+                            f"Notional=${notional:.2f} | Preço=${entry_price:.4f} | "
+                            f"SL={stop_price:.4f} | Leverage=50x | "
+                            f"CircuitFails={self._mirror_consecutive_failures}"
+                        )
+
                         if qty > 0:
-                            # Executar place_atomic_order com os stops correspondentes à simulação
-                            logger.info(f"🔌 [SANDBOX-MIRROR-OPEN] Replicando ordem simulada de {symbol} ({direction}) na conta real OKX... Margem: ${margin:.2f}, Qty: {qty} contr, SL: {stop_price:.4f}")
                             okx_side = "Buy" if direction == "LONG" else "Sell"
-                            res = await okx_rest_service.place_atomic_order(
+                            res = await okx_service.place_atomic_order(
                                 symbol=symbol,
                                 side=okx_side,
                                 qty=qty,
                                 sl_price=stop_price,
-                                leverage=50.0,
-                                margin_mode="cross" # margem cruzada
+                                leverage=50.0
                             )
-                            logger.info(f"🔌 [SANDBOX-MIRROR-OPEN-RESPONSE] Resposta da ordem real espelhada: {res}")
+
+                            # [V124.1] LOG DE RESULTADO detalhado + circuit breaker
+                            if res and res.get("code") == "0":
+                                ord_data = res.get("data", [{}])[0] if res.get("data") else {}
+                                ord_id = ord_data.get("ordId", "N/A")
+                                s_code = ord_data.get("sCode", "N/A")
+                                s_msg = ord_data.get("sMsg", "N/A")
+                                logger.info(
+                                    f"✅ [SANDBOX-MIRROR-OPEN] SUCESSO {symbol} {direction} | "
+                                    f"ordId={ord_id} | sCode={s_code} | sMsg={s_msg} | "
+                                    f"Qty={qty} @ ${entry_price:.4f} | Notional=${notional:.2f}"
+                                )
+                                # [V124.1] Sucesso: resetar circuit breaker
+                                self._mirror_consecutive_failures = 0
+                            else:
+                                err_code = res.get("code", "?") if res else "NULL"
+                                err_msg = res.get("msg", "ERRO_DESCONHECIDO") if res else "SEM_RESPOSTA"
+                                err_detail = ""
+                                if res and res.get("data"):
+                                    ord_err = res["data"][0]
+                                    err_detail = f" | sCode={ord_err.get('sCode')} | sMsg={ord_err.get('sMsg')}"
+                                logger.error(
+                                    f"❌ [SANDBOX-MIRROR-OPEN] FALHA {symbol} {direction} | "
+                                    f"code={err_code} | msg={err_msg}{err_detail} | "
+                                    f"Saldo=${balance:.2f} | Qty={qty} | Margem=${margin:.2f}"
+                                )
+                                # [V124.1] Falha: incrementar circuit breaker
+                                self._mirror_consecutive_failures += 1
+                                if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
+                                    self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
+                                    logger.warning(
+                                        f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] {self._mirror_consecutive_failures} falhas consecutivas — "
+                                        f"Circuit breaker ABERTO por {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                                    )
                         else:
-                            logger.warning(f"🔌 [SANDBOX-MIRROR-OPEN-SKIP] Qty calculada foi zero para {symbol} (Margem: ${margin:.2f})")
+                            logger.warning(
+                                f"⚠️ [SANDBOX-MIRROR-OPEN-SKIP] Qty zero para {symbol} | "
+                                f"balance=${balance:.2f} | margin=${margin:.2f} | ctVal={ct_val}"
+                            )
                     except Exception as mirror_err:
-                        logger.error(f"❌ [SANDBOX-MIRROR-OPEN-ERROR] Falha ao replicar ordem real de {symbol}: {mirror_err}")
+                        self._mirror_consecutive_failures += 1
+                        if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
+                            self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
+                            logger.warning(
+                                f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] {self._mirror_consecutive_failures} falhas consecutivas — "
+                                f"Circuit breaker ABERTO por {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                            )
+                        logger.error(
+                            f"❌ [SANDBOX-MIRROR-OPEN-ERROR] {symbol} | "
+                            f"Fails={self._mirror_consecutive_failures} | Error={mirror_err}",
+                            exc_info=True
+                        )
                 
                 asyncio.create_task(execute_real_mirror_order())
 
@@ -1439,30 +1530,62 @@ class SandboxService:
                 final_pnl = actual_exit_roi
             update_payload["pnl_pct"] = final_pnl
 
-            # [V123] ESPELHAMENTO DE CONTAS REAL DESATIVADO — Sandbox ainda em validação
-            # Para reativar: definir SANDBOX_MIRROR_ENABLED = True
-            SANDBOX_MIRROR_ENABLED = False
+            # [V124] ESPELHAMENTO DE CONTAS REAL ATIVADO — Fechamento em conta real
             from config import settings
-            if SANDBOX_MIRROR_ENABLED and settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
+            if settings.OKX_API_KEY_MASTER and settings.OKX_EXECUTION_MODE != "PAPER":
                 async def execute_real_mirror_close():
                     try:
-                        from services.okx_rest import okx_rest_service
-                        # side da ordem de fechamento é o oposto da ordem original
-                        # (Original LONG -> fecha vendendo; Original SHORT -> fecha comprando)
+                        # [V124.1] CIRCUIT BREAKER — verificar se está em pausa
+                        now_close = time.time()
+                        if now_close < self._mirror_circuit_open_until:
+                            remaining = int(self._mirror_circuit_open_until - now_close)
+                            logger.warning(
+                                f"🔌 [SANDBOX-MIRROR-CLOSE-BLOCKED] Circuit breaker ATIVO — "
+                                f"{self._mirror_consecutive_failures} falhas. Retomando em {remaining}s"
+                            )
+                            return
+
+                        from services.okx_service import okx_service
                         close_side = "Sell" if trade.direction == "LONG" else "Buy"
-                        
-                        # Buscar posições reais abertas no book da OKX para fechar a quantidade exata
-                        # que está aberta
-                        logger.info(f"🔌 [SANDBOX-MIRROR-CLOSE] Solicitando fechamento real de posição para {symbol} na OKX...")
-                        success = await okx_rest_service.close_position(
+
+                        logger.info(
+                            f"🔌 [SANDBOX-MIRROR-CLOSE] {symbol} {trade.direction} | "
+                            f"Side={close_side} | Entry=${entry_price:.4f} | Exit=${exit_price:.4f} | "
+                            f"ROI={final_pnl:.1f}% | Reason={updated_level_name}"
+                        )
+                        success = await okx_service.close_position(
                             symbol=symbol,
                             side=close_side,
-                            qty=0, # 0 indica fechar posição inteira a mercado na OKX
+                            qty=0,
                             reason=f"SANDBOX_MIRROR_{updated_level_name}"
                         )
-                        logger.info(f"🔌 [SANDBOX-MIRROR-CLOSE-RESULT] Fechamento real espelhado de {symbol} executado: {success}")
+                        if success:
+                            logger.info(
+                                f"✅ [SANDBOX-MIRROR-CLOSE] SUCESSO {symbol} {trade.direction} | "
+                                f"ROI={final_pnl:.1f}% | Reason={updated_level_name}"
+                            )
+                            self._mirror_consecutive_failures = 0
+                        else:
+                        self._mirror_consecutive_failures += 1
+                        if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
+                            self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
+                            logger.warning(
+                                f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] Close: {self._mirror_consecutive_failures} falhas — pausa {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                            )
+                        logger.error(
+                            f"❌ [SANDBOX-MIRROR-CLOSE-FALHA] {symbol} | Fails={self._mirror_consecutive_failures}"
+                        )
                     except Exception as close_mirror_err:
-                        logger.error(f"❌ [SANDBOX-MIRROR-CLOSE-ERROR] Falha ao liquidar espelho real de {symbol}: {close_mirror_err}")
+                        self._mirror_consecutive_failures += 1
+                        if self._mirror_consecutive_failures >= self.MIRROR_CIRCUIT_BREAKER_THRESHOLD:
+                            self._mirror_circuit_open_until = time.time() + self.MIRROR_CIRCUIT_BREAKER_COOLDOWN
+                            logger.warning(
+                                f"🔌 [SANDBOX-MIRROR-CIRCUIT-BREAKER] Close: {self._mirror_consecutive_failures} falhas — pausa {self.MIRROR_CIRCUIT_BREAKER_COOLDOWN:.0f}s"
+                            )
+                        logger.error(
+                            f"❌ [SANDBOX-MIRROR-CLOSE-ERROR] {symbol} | Fails={self._mirror_consecutive_failures} | Error={close_mirror_err}",
+                            exc_info=True
+                        )
                 
                 asyncio.create_task(execute_real_mirror_close())
 

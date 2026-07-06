@@ -144,6 +144,36 @@ class OKXService:
 
         return headers
 
+    async def get_wallet_balance(self) -> float:
+        """
+        Busca o saldo total (totalEq) da conta OKX.
+        Retorna 0.0 se falhar ou se estiver em modo mock.
+        """
+        if self.is_mock:
+            return 0.0
+
+        request_path = "/api/v5/account/balance"
+        url = self.base_url + request_path
+        headers = self._get_headers("GET", request_path)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == "0" and data.get("data"):
+                        total_eq = float(data["data"][0].get("totalEq", 0.0))
+                        logger.info(f"💰 [OKX-BALANCE] Saldo total da conta: ${total_eq:.2f}")
+                        return total_eq
+                    else:
+                        logger.error(f"❌ [OKX-BALANCE] Erro na API: {data.get('msg')}")
+                else:
+                    logger.error(f"❌ [OKX-BALANCE] Erro HTTP {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"❌ [OKX-BALANCE] Falha ao obter saldo: {e}", exc_info=True)
+
+        return 0.0
+
     async def get_positions(self) -> List[Dict[str, Any]]:
         """
         Busca as posições ativas na conta.
@@ -384,13 +414,16 @@ class OKXService:
             }
             # Remove qualquer posição duplicada se existir
             self._mock_positions = [p for p in self._mock_positions if p["instId"] != inst_id]
-            self._mock_positions.append(mock_pos)
-            
-            return {
+            self._mock_positions.append(mock_pos)            return {
                 "code": "0",
                 "msg": "success",
                 "data": [{"clOrdId": cl_ord_id, "ordId": f"okx_ord_{int(time.time())}", "sCode": "0", "sMsg": "success"}]
             }
+
+        # [V124] Configurar alavancagem ANTES de enviar a ordem (corrige bug 3x → 50x)
+        leverage_result = await self.set_leverage(symbol, leverage, mgn_mode="cross")
+        if leverage_result and leverage_result.get("code") != "0":
+            logger.warning(f"⚠️ [OKX] Falha ao configurar {leverage}x para {symbol}: {leverage_result.get('msg')}")
 
         request_path = "/api/v5/trade/order"
         url = self.base_url + request_path

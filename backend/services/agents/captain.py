@@ -861,7 +861,7 @@ class CaptainAgent(AIOSAgent):
                 )
 
                 if not blitz_signals:
-                    logger.debug("⚡ [BLITZ-LOOP] Nenhum setup M30 qualificado neste ciclo.")
+                    logger.info("⚡ [BLITZ-LOOP] Nenhum setup M30 qualificado neste ciclo.")
                     continue
 
                 # 5. Injeta o melhor sinal na fila de sinais com prioridade alta

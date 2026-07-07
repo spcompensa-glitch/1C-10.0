@@ -36,6 +36,17 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 
+# [V124.6] Escadinha RANGING para Swing (Blitz M30)
+# Gaps maiores (2x) para dar tempo do ADX evoluir de LATERAL (<25) para TRENDING (>=25)
+# Swing precisa de mais respiro porque opera em timeframe 30M com 20x leverage
+ORDER_STOP_LADDER_RANGING_SWING: List[StopLevel] = [
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS",       16.0,   2.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 25.0,  10.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 40.0,  20.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO",  60.0,  35.0,  "RISCO_ZERO"),
+    StopLevel("TRAILING",   "ALVO_MAXIMO_SWING",   80.0,  75.0,  "PROFIT_LOCK"),
+]
+
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
     # [V119] Escadinha TRENDING Progressiva e Calibrada
     # O trade corre livre até +12% ROI antes de mover para break-even, evitando violinadas curtas
@@ -126,13 +137,20 @@ class OrderProjectionService:
         except Exception:
             return raw_price
 
-    def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False) -> List[StopLevel]:
-        ladder = list(ORDER_STOP_LADDER_RANGING if is_ranging else ORDER_STOP_LADDER_TRENDING)
+    def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False, slot_type: str = "") -> List[StopLevel]:
+        if is_ranging and slot_type in ("BLITZ_30M",):
+            ladder = list(ORDER_STOP_LADDER_RANGING_SWING)
+        elif is_ranging:
+            ladder = list(ORDER_STOP_LADDER_RANGING)
+        else:
+            ladder = list(ORDER_STOP_LADDER_TRENDING)
         highest_trigger = max(level.trigger_roi for level in ladder)
         target_ceiling = max(highest_trigger, roi_percent + 400.0)
         
         if is_ranging:
             # Em Ranging, acima de 20% ROI, a escada sobe dinamicamente de 1 em 1%
+            # [V124.6] Swing (BLITZ_30M) usa trailing gap maior (10%) para evitar saída prematura
+            trailing_gap = 10.0 if slot_type in ("BLITZ_30M",) else 5.0
             trigger_roi = highest_trigger + 1.0
             while trigger_roi <= target_ceiling + 1e-9:
                 ladder.append(
@@ -140,7 +158,7 @@ class OrderProjectionService:
                         "TRAILING",
                         f"TRAIL_{int(trigger_roi)}",
                         trigger_roi,
-                        trigger_roi - 5.0,
+                        trigger_roi - trailing_gap,
                         "TRAIL_LOCK",
                     )
                 )
@@ -161,35 +179,43 @@ class OrderProjectionService:
 
         return ladder
 
-    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False) -> Optional[StopLevel]:
+    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "") -> Optional[StopLevel]:
         active = None
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type):
             if roi_percent + epsilon >= level.trigger_roi:
                 active = level
             else:
                 break
         
-        # Se estiver em Ranging e em trailing stop ativo (ROI >= 50%)
+        # [V124.6] Se estiver em Ranging e em trailing stop ativo
+        # Para BLITZ_30M, o trailing nativo da escada (5% gap) já é adequado
         if is_ranging and active and active.phase == "TRAILING" and roi_percent >= 50.0:
-            active = StopLevel(
-                phase=active.phase,
-                name=active.name,
-                trigger_roi=active.trigger_roi,
-                stop_roi=round(roi_percent - 2.0, 2), # Trailing stop apertado de 2% para fechar no pico
-                status_risco=active.status_risco
-            )
+            if slot_type not in ("BLITZ_30M",):
+                active = StopLevel(
+                    phase=active.phase,
+                    name=active.name,
+                    trigger_roi=active.trigger_roi,
+                    stop_roi=round(roi_percent - 2.0, 2), # Trailing stop apertado de 2% para fechar no pico
+                    status_risco=active.status_risco
+                )
         return active
 
-    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False) -> Optional[StopLevel]:
+    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "") -> Optional[StopLevel]:
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type):
             if roi_percent + epsilon < level.trigger_roi:
                 return level
         return None
 
-    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False) -> str:
+    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False, slot_type: str = "") -> str:
         if is_ranging:
+            if slot_type in ("BLITZ_30M",):
+                if roi_percent >= 80.0:
+                    return "TRAILING"
+                if roi_percent >= 5.0:
+                    return "ESCADINHA"
+                return "ORDER"
             if roi_percent >= 50.0:
                 return "TRAILING"
             if roi_percent >= 5.0:
@@ -255,10 +281,11 @@ class OrderProjectionService:
                     pass
 
         roi = self.calculate_roi(entry_price, current_price, side, leverage)
-        phase = self.get_phase(roi, phase_hint, is_ranging)
-        stop_ladder = self.get_stop_ladder(roi, is_ranging)
-        active_level = self.get_active_level(roi, stop_ladder, is_ranging)
-        next_level = self.get_next_level(roi, stop_ladder, is_ranging)
+        slot_type = order.get("slot_type", "")
+        phase = self.get_phase(roi, phase_hint, is_ranging, slot_type)
+        stop_ladder = self.get_stop_ladder(roi, is_ranging, slot_type)
+        active_level = self.get_active_level(roi, stop_ladder, is_ranging, slot_type)
+        next_level = self.get_next_level(roi, stop_ladder, is_ranging, slot_type)
         existing_contract = order.get("contract") or order.get("contract_meta") or {}
         if existing_contract:
             contract = {

@@ -1292,6 +1292,7 @@ class CaptainAgent(AIOSAgent):
         
         # [REGIME GATING & MACRO FILTER] Garantia Absoluta no Nível do Capitão
         is_ranging_mode = True
+        adx = 0.0
         try:
             from services.okx_ws_public import okx_ws_public_service
             adx = getattr(okx_ws_public_service, 'btc_adx', 0)
@@ -1317,10 +1318,14 @@ class CaptainAgent(AIOSAgent):
 
         # 1. Filtro por regime de volatilidade (LATERAL vs TRENDING)
         # [V112.12] DECOR_SHADOW agora permitido em TRENDING se descolado do BTC
+        # [V124.6] BLITZ liberado em LATERAL — swing 30M precisa entrar antes do ADX subir
+        is_blitz = best_signal.get("is_blitz", False)
         if current_regime == "LATERAL":
-            if strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD"):
+            if strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD") and not is_blitz:
                 logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} {strategy_class} rejeitado em mercado LATERAL.")
                 return
+            if is_blitz:
+                logger.info(f"🔓 [V124.6 CAPTAIN-BLITZ-LATERAL] {symbol} BLITZ liberado em LATERAL (ADX={adx:.1f} | regime={current_regime}).")
         else:
             if strategy_class == "DECOR SHADOW":
                 try:
@@ -1542,7 +1547,9 @@ class CaptainAgent(AIOSAgent):
                 if is_ranging_mode:
                     # [V120] Em mercado LATERAL, DECOR SHADOW e ALPHA SHIELD são permitidas
                     # ALPHA SHIELD (DVAP/MOLA/FAS) opera em qualquer regime — stops menores (-8%) mitigam risco
-                    if strategy not in ("DECOR SHADOW", "DECOR_HUNTER", "ALPHA SHIELD"):
+                    # [V124.6] BLITZ liberado em LATERAL — swing 30M precisa entrar antes do ADX subir
+                    blitz_bypass = best_signal.get("is_blitz", False) or best_signal.get("slot_type") == "BLITZ_30M"
+                    if strategy not in ("DECOR SHADOW", "DECOR_HUNTER", "ALPHA SHIELD") and not blitz_bypass:
                         msg = f"[TREND_FOCUS] {symbol} ({strategy}) bloqueado em mercado LATERAL (ADX < 25)."
                         logger.info(msg)
                         await firebase_service.update_signal_outcome(best_signal.get("id"), "TREND_FOCUS_LATERAL_BLOCK")

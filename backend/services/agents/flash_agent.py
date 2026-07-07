@@ -245,13 +245,16 @@ class FlashAgent:
         effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
         self._peak_roi_cache[slot_key] = effective_roi
 
-        # [RANGING PARTIAL TP] Rule 2: 15% Partial TP (50% close)
+        # [RANGING PARTIAL TP] Rule 2: Partial TP (50% close)
+        # [V124.6] Swing (BLITZ_30M) usa 30% de threshold, scalping usa 15%
+        slot_type = slot.get("slot_type", "")
+        partial_tp_threshold = 30.0 if slot_type in ("BLITZ_30M",) else 15.0
         audit = slot.get("execution_audit") or {}
         has_taken_partial = False
         if isinstance(audit, dict):
             has_taken_partial = audit.get("has_taken_partial", False)
 
-        if is_ranging and effective_roi >= 15.0 and not has_taken_partial:
+        if is_ranging and effective_roi >= partial_tp_threshold and not has_taken_partial:
             partial_qty = qty * 0.5
             logger.warning(f"⚡ [FLASH-PARTIAL-TP] {symbol} atingiu +15% ROI lateral! Executando saida parcial de 50% (qty={partial_qty:.6f})")
             

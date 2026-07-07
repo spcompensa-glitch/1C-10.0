@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-07-07 (V124.4 — ExecutionAuditorAgent (Sentinel) integrado no Sandbox Mirror com validacao de chaves, alavancagem 50x e regras de contratos OKX)*
+*Ultima atualizacao: 2026-07-07 (V124.5 — Swing/Blitz otimizado: alavancagem 20x, stop de preco ate 4.0% e scan ativo em mercado lateral para altcoins)*
 
 ---
 
@@ -662,6 +662,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Stop -10%/-15% ainda apertados (0% win rate sandbox) | V119 | Stops fixos nao respeitam estrutura 30M. Fix: stop estrutural baseado em swing low/high do TF 30M com buffer 0.15% |
 | R:R 0.61, 100% SHORT, 0% ALPHA/DECOR | V120 | Stops muito largos (-12%/-15%), regime gating bloqueava estratégias, filtro LONG too restritivo. Fix: stops -8%/-10%, regime gating removido, filtro LONG relaxado (OR), Asian penalty, margem adaptativa, partial TP em TRENDING |
 | Falhas Silenciosas no Sandbox Mirror | V124.4 | Sinais sem chave "price" (apenas "entry_price_signal") resultavam em 0.0, causando divisao por zero e travando o circuit breaker. Alavancagem tambem nao era setada na API. Fix: Auditoria pelo ExecutionAuditorAgent (Sentinel), sanitizacao de chaves, pre-configuracao de 50x e alertas no Firebase. |
+| Altcoins M30 (Swing) travadas/stops curtos | V124.5 | O scan M30 (Blitz) era pausado se o BTC estivesse lateral. A alavancagem de 50x forçada limitava o stop inicial a 0.6% de preço (muito apertado para SUI). Fix: Removido pausa no scan em lateral, alavancagem de Swing definida para 20x (liberando stops de até 4.0% preço). |
 
 ---
 

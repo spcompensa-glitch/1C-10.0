@@ -208,7 +208,7 @@ class BlitzSniperAgent(AIOSAgent):
                     "score":        score,
                 },
                 "reasons":         reasons,
-                "leverage":        50,                  # [V110.136] Forçado 50x conforme pedido do usuário
+                "leverage":        20,                  # [V124.4] Alavancagem padrão de Swing/Blitz reajustada para 20x para permitir stops maiores
                 "timestamp":       time.time(),
             }
 

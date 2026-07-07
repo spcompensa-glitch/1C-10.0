@@ -24,7 +24,7 @@ logger = logging.getLogger("SandboxSwingService")
 
 SWING_VIRTUAL_BALANCE  = 100.0   # Banca virtual em USD
 SWING_MARGIN_PER_TRADE = 1.0     # Margem por trade ($1 — igual ao Blitz real)
-SWING_LEVERAGE         = 50.0    # Alavancagem
+SWING_LEVERAGE         = 20.0    # [V124.4] Alavancagem ajustada para 20x para alinhar com o Swing Real/Blitz
 
 class SandboxSwingService:
     """

@@ -1949,7 +1949,10 @@ class BankrollManager:
                 
                 # Calibração de leverage
                 if settings.OKX_API_KEY_MASTER:
-                    current_leverage = 50.0
+                    if slot_type in ("BLITZ_30M", "BLITZ"):
+                        current_leverage = 20.0  # [V124.4] Swing/Blitz usa 20x para permitir stops técnicos maiores (1.5%-3%)
+                    else:
+                        current_leverage = 50.0
                 else:
                     from services.agents.librarian import librarian_agent
                     lib_dna = await librarian_agent.get_asset_dna(symbol)

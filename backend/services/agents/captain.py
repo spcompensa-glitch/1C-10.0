@@ -812,12 +812,9 @@ class CaptainAgent(AIOSAgent):
                 except Exception:
                     pass
 
-                # [V111.3] Se mercado LATERAL, bloqueia scan
-                if is_ranging_mode:
-                    logger.debug("[BLITZ-LOOP] Mercado LATERAL. Scan pausado.")
-                    await asyncio.sleep(BLITZ_SCAN_INTERVAL)
-                    continue
-
+                # [V124.4] Removido bloqueio de scan em mercado lateral para permitir capturar swings de altcoins
+                # que se movem de forma independente do BTC.
+                
                 balance = await bankroll_manager.get_live_operating_equity()
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2

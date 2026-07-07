@@ -4244,4 +4244,246 @@ class SignalGenerator:
             
         return False, 0
 
+    # =========================================================================
+    # [V124.7] M30 SWING SCANNER — 3 estrategias no timeframe 30M
+    # Substitui o BlitzSniperAgent (que era versao simplificada e fraca).
+    # Reusa toda a infraestrutura de deteccao de padroes do SignalGenerator
+    # (DVAP, MOLA, FAS, LRT, TREND, DECOR) sobre dados M30.
+    # =========================================================================
+
+    def _sma(self, data: list, period: int) -> list:
+        result = []
+        for i in range(len(data)):
+            if i < period - 1:
+                result.append(None)
+            else:
+                result.append(sum(data[i - period + 1:i + 1]) / period)
+        return result
+
+    async def analyze_m30_swing(self, symbol: str, btc_direction: str = "LATERAL", btc_adx: float = 0.0) -> Optional[Dict]:
+        """
+        [V124.7] Analisa M30 e produz sinal SWING usando as 3 estrategias principais.
+        Substitui o BlitzSniperAgent.
+
+        Detecta:
+        - DVAP (divergencia + volume climax + CHoCH) → ALPHA SHIELD
+        - MOLA (BB squeeze) → ALPHA SHIELD
+        - FAS (funding squeeze) → ALPHA SHIELD
+        - LRT (liquidity sweep) → ALPHA SHIELD
+        - TREND (SMA8/21 alignment) → VELOCITY FLOW
+        - DECOR (decorrelation + CVD exhaustion) → DECOR SHADOW
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+            from services.okx_ws_public import okx_ws_public_service
+
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="30", limit=100)
+            if not klines or len(klines) < 30:
+                return None
+
+            candles = list(reversed(klines))
+            closes = [float(c[4]) for c in candles]
+            highs = [float(c[2]) for c in candles]
+            lows = [float(c[3]) for c in candles]
+            volumes = [float(c[5]) if len(c) > 5 else 0.0 for c in candles]
+            current_close = closes[-1]
+            current_high = highs[-1]
+            current_low = lows[-1]
+
+            sma8 = self._sma(closes, 8)
+            sma21 = self._sma(closes, 21)
+            sma8_now = sma8[-1] if sma8[-1] is not None else current_close
+            sma21_now = sma21[-1] if sma21[-1] is not None else current_close
+            sma8_prev = sma8[-2] if len(sma8) >= 2 and sma8[-2] is not None else sma8_now
+            sma21_prev = sma21[-2] if len(sma21) >= 2 and sma21[-2] is not None else sma21_now
+
+            rsi_vals = self.calculate_rsi(closes, 14)
+            rsi_now = rsi_vals[-1] if rsi_vals else 50.0
+
+            vol_avg_10 = sum(volumes[-11:-1]) / 10.0 if len(volumes) >= 11 else 1.0
+            last_vol = volumes[-1]
+            vol_ratio = last_vol / vol_avg_10 if vol_avg_10 > 0 else 1.0
+
+            cvd = okx_ws_public_service.get_cvd_score(symbol) or 0
+            cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300) or 0
+
+            bb_width = None
+            try:
+                bb_width = okx_ws_public_service.bb_width_cache.get(symbol, 5.0)
+            except Exception:
+                pass
+
+            side = "NONE"
+            if sma8_now > sma21_now and sma8_prev > sma21_prev:
+                side = "Buy"
+            elif sma8_now < sma21_now and sma8_prev < sma21_prev:
+                side = "Sell"
+
+            is_dvap = False
+            is_mola = False
+            is_fas = False
+            is_lrt = False
+            is_decor = False
+            is_trend = (side != "NONE")
+
+            div_type = self.check_ifr_divergence(closes, highs, lows)
+            vol_climax = self.check_volume_climax(volumes)
+            if div_type and vol_climax:
+                p_high, p_low = self.find_pivots_30m(highs, lows)
+                if div_type == "BULLISH" and current_close > p_high and side == "Buy":
+                    is_dvap = True
+                elif div_type == "BEARISH" and current_close < p_low and side == "Sell":
+                    is_dvap = True
+
+            if bb_width is not None and bb_width < 1.5:
+                is_mola = True
+
+            try:
+                fas_res = await self.detect_fas_setup(symbol)
+                if fas_res.get("detected"):
+                    fas_side = fas_res.get("side", "")
+                    if (fas_side == "Long" and side == "Buy") or (fas_side == "Short" and side == "Sell"):
+                        is_fas = True
+            except Exception:
+                pass
+
+            try:
+                zones_15m = await self.get_15m_zones(symbol)
+                lrt_res = await self.detect_lrt_setup(symbol, zones_15m)
+                if lrt_res.get("detected"):
+                    lrt_side = lrt_res.get("side", "")
+                    if (lrt_side == "Long" and side == "Buy") or (lrt_side == "Short" and side == "Sell"):
+                        is_lrt = True
+            except Exception:
+                pass
+
+            if abs(cvd) > 50000 and rsi_now < 30 and side == "Buy":
+                is_decor = True
+            elif abs(cvd) > 50000 and rsi_now > 70 and side == "Sell":
+                is_decor = True
+
+            if not is_dvap and not is_mola and not is_fas and not is_lrt and not is_decor and not is_trend:
+                return None
+
+            if is_dvap:
+                raw_class = "DVAP"
+            elif is_mola:
+                raw_class = "MOLA"
+            elif is_fas:
+                raw_class = "FAS"
+            elif is_lrt:
+                raw_class = "LRT"
+            elif is_decor:
+                raw_class = "DECOR"
+            else:
+                raw_class = "TREND"
+
+            if raw_class in ("DVAP", "MOLA", "FAS", "LRT"):
+                strategy_class = "ALPHA SHIELD"
+            elif raw_class in ("DECOR",):
+                strategy_class = "DECOR SHADOW"
+            else:
+                strategy_class = "VELOCITY FLOW"
+
+            score = 50
+            reasons = []
+
+            if is_trend:
+                score += 10
+                reasons.append("SMA8/21 alinhado")
+
+            if vol_ratio >= 2.0:
+                score += 15
+                reasons.append(f"Volume 2x+ ({vol_ratio:.1f}x)")
+            elif vol_ratio >= 1.5:
+                score += 10
+                reasons.append(f"Volume elevado ({vol_ratio:.1f}x)")
+
+            if abs(cvd) > 100000:
+                score += 15
+                reasons.append("CVD forte")
+            elif abs(cvd) > 50000:
+                score += 10
+                reasons.append("CVD moderado")
+
+            if is_dvap:
+                score += 20
+                reasons.append("DVAP: divergencia + volume climax + CHoCH")
+            if is_mola:
+                score += 15
+                reasons.append("MOLA: BB squeeze")
+            if is_fas:
+                score += 20
+                reasons.append("FAS: funding extremo")
+            if is_lrt:
+                score += 15
+                reasons.append("LRT: liquidity sweep")
+            if is_decor:
+                score += 15
+                reasons.append("DECOR: CVD exhaustion + RSI extremo")
+
+            if score < 65:
+                return None
+            if btc_adx >= 30:
+                if btc_direction == "UP" and side == "Sell":
+                    return None
+                if btc_direction == "DOWN" and side == "Buy":
+                    return None
+
+            signal = {
+                "id": f"swing_{symbol.replace('.P','')}_{int(time.time())}",
+                "symbol": symbol,
+                "side": "Buy" if side == "Buy" else "Sell",
+                "score": min(score, 99),
+                "layer": "BLITZ",
+                "is_blitz": True,
+                "slot_type": "BLITZ_30M",
+                "target_slot": None,
+                "timeframe": "30",
+                "strategy": strategy_class,
+                "strategy_class": strategy_class,
+                "indicators": {
+                    "sma8": round(sma8_now, 6),
+                    "sma21": round(sma21_now, 6),
+                    "rsi": round(rsi_now, 1),
+                    "cvd": cvd,
+                    "cvd_5m": cvd_5m,
+                    "volume_ratio": round(vol_ratio, 2),
+                    "pattern": raw_class,
+                    "bb_width": bb_width,
+                },
+                "reasons": reasons,
+                "leverage": 20,
+                "timestamp": time.time(),
+            }
+            return signal
+
+        except Exception as e:
+            logger.error(f"[M30-SWING] Erro ao analisar {symbol}: {e}")
+            return None
+
+    async def scan_m30_swing_watchlist(self, symbols: list, btc_direction: str = "LATERAL", btc_adx: float = 0.0) -> list:
+        """
+        [V124.7] Varre a watchlist em busca de setups M30 usando as 3 estrategias.
+        """
+        found = []
+        tasks = [self.analyze_m30_swing(sym, btc_direction, btc_adx) for sym in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for sym, result in zip(symbols, results):
+            if isinstance(result, Exception):
+                logger.error(f"[M30-SWING] Erro em {sym}: {result}")
+                continue
+            if result:
+                found.append(result)
+        found.sort(key=lambda s: s.get("score", 0), reverse=True)
+        if found:
+            logger.info(
+                f"[M30-SWING] {len(found)} setup(s) M30 encontrado(s): "
+                + ", ".join(f"{s['symbol']} {s['side']} ({s['strategy_class']} score={s['score']})" for s in found[:5])
+            )
+        else:
+            logger.debug("[M30-SWING] Nenhum setup M30 qualificado encontrado.")
+        return found
+
+
 signal_generator = SignalGenerator()

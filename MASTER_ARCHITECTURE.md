@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-07-07 (V124.5 — Swing/Blitz otimizado: alavancagem 20x, stop de preco ate 4.0% e scan ativo em mercado lateral para altcoins)*
+*Ultima atualizacao: 2026-07-07 (V124.7 — SignalGenerator substitui BlitzSniperAgent: 3 estrategias no M30)*
 
 ---
 
@@ -113,7 +113,7 @@ CaptainAgent (Quality Gate)
     |
     v
 BankrollGuardian (Autorizacao)
-    |-- Regime gating: ADX < 25 = so DECOR; >= 25 = so VELOCITY/ALPHA
+    |-- Regime gating: ADX < 25 = so DECOR; >= 25 = so VELOCITY/ALPHA. [V124.6] BLITZ bypass em LATERAL
     |-- Limites de slots: 20 (ranging) / 40 (trending)
     |-- Memoria por par: wins/losses, ROI medio, quarentena
     |-- Equity viva: base + realizado + PnL slots + PnL moonbags
@@ -143,30 +143,57 @@ FleetAudit (Reconciliacao)
 
 ## 4. Escadinha de Stops (Stop Ladder)
 
-### 4.1 Regime LATERAL (ADX < 25)
+As escadinhas sao definidas em `order_projection_service.py`. Tres escadinhas coexistem: LATERAL (SCALPING), LATERAL (SWING) e TRENDING.
+A selecao da escada correta e feita pelo `slot_type` do sinal — funcoes `get_stop_ladder()`, `get_active_level()`, `get_next_level()`, `get_phase()` aceitam `slot_type` como parametro.
 
-Degraus simplificados para mercado lateral. Protecao precoce e rápida com o GARANTIA_5 contra falsos rompimentos.
+### 4.1 Regime LATERAL (ADX < 25) — Scalping (padrao)
 
-| Gatilho ROI | Stop (ROI) | Nome | Status |
-|------------|-----------|------|--------|
-| 5% | 0% | GARANTIA_5 | ESCADINHA |
-| 15% | 5% | GARANTIA_15 | ESCADINHA |
-| 20% | 10% | GARANTIA_20 | ESCADINHA |
-| 30% | 20% | GARANTIA_30 | ESCADINHA |
-| 40%+ | Dinamico (-5% do pico) | TRAIL_40 | TRAILING |
-
-### 4.2 Regime TENDENCIA (ADX >= 25)
-
-Degraus progressivos para colher lucros em tendencia forte.
+`ORDER_STOP_LADDER_RANGING` — usada por slots sem `slot_type=BLITZ_30M`. Degraus progressivos com folga calibrada.
 
 | Gatilho ROI | Stop (ROI) | Nome | Status |
 |------------|-----------|------|--------|
-| 5% | 0% | GARANTIA_5 | ESCADINHA |
-| 20% | 5% | GARANTIA_20 | ESCADINHA |
-| 30% | 15% | LUCRO_INICIAL | ESCADINHA |
-| 45% | 30% | LUCRO_MEDIO | ESCADINHA |
-| 60% | 50% | LUCRO_ALTO | ESCADINHA |
-| 80% | 65% | LUCRO_GARANTIDO_80 | ESCADINHA |
+| 8% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 12% | 5% | GARANTIA_LUCRO_CURTO | RISCO_ZERO |
+| 20% | 10% | GARANTIA_LUCRO_MEDIO | RISCO_ZERO |
+| 32% | 18% | GARANTIA_LUCRO_ALTO | RISCO_ZERO |
+| 50%+ | Trailing (-2% do pico) | ALVO_MAXIMO_LATERAL | PROFIT_LOCK |
+
+### 4.2 Regime LATERAL (ADX < 25) — Swing (Blitz M30)
+
+`ORDER_STOP_LADDER_RANGING_SWING` — [V124.6] usada quando `slot_type=BLITZ_30M`. Gaps 2x maiores para dar tempo do ADX evoluir de LATERAL para TRENDING. Swing usa 20x leverage, entao stops em % ROI representam ~1/2.5 do movimento de preco vs 50x.
+
+| Gatilho ROI | Stop (ROI) | Nome | Status |
+|------------|-----------|------|--------|
+| 16% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 25% | 10% | GARANTIA_LUCRO_CURTO | RISCO_ZERO |
+| 40% | 20% | GARANTIA_LUCRO_MEDIO | RISCO_ZERO |
+| 60% | 35% | GARANTIA_LUCRO_ALTO | RISCO_ZERO |
+| 80%+ | Trailing (-5% do pico) | ALVO_MAXIMO_SWING | PROFIT_LOCK |
+
+### 4.3 Regime TENDENCIA (ADX >= 25)
+
+`ORDER_STOP_LADDER_TRENDING` — Degraus progressivos para colher lucros em tendencia forte.
+
+| Gatilho ROI | Stop (ROI) | Nome | Status |
+|------------|-----------|------|--------|
+| 14% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 25% | 10% | GARANTIA_20 | RISCO_BAIXO |
+| 40% | 20% | LUCRO_INICIAL | RISCO_ZERO |
+| 60% | 40% | LUCRO_MEDIO | RISCO_ZERO |
+| 80% | 60% | LUCRO_ALTO | RISCO_ZERO |
+| 100% | 80% | LUCRO_GARANTIDO_100 | RISCO_ZERO |
+| 130% | 110% | SUCESSO_TOTAL | PROFIT_LOCK |
+| 150% | 110% | ALVO_150 | PROFIT_LOCK |
+| 200% | 150% | WAVE | TRAIL_LOCK |
+| 300% | 220% | ROCKET | TRAIL_LOCK |
+| 400% | 280% | STAR | TRAIL_LOCK |
+| 500% | 350% | CROWN | TRAIL_LOCK |
+| 600% | 420% | SUPERNOVA | TRAIL_LOCK |
+| 700% | 500% | GOD_MODE | TRAIL_LOCK |
+| 750% | 600% | CHOKE_PREP | TRAIL_LOCK |
+| 800% | 650% | CHOKE | TRAIL_LOCK |
+| 1000% | 800% | HYPER | TRAIL_LOCK |
+| 1200% | 1000% | APEX | TRAIL_LOCK |
 | 100% | 75% | LUCRO_GARANTIDO | ESCADINHA |
 | 130% | 110% | SUCESSO_TOTAL | PROFIT_LOCK |
 | 150% | 110% | ALVO_150 | PROFIT_LOCK |
@@ -201,10 +228,11 @@ Niveis `ULTRA_*` a cada 200% ROI. Stop = gatilho - 200%.
 **[V123] Regime gating RESTAURADO no Sandbox.** DECOR SHADOW opera APENAS em LATERAL (ADX < 25).
 - Motivo: DECOR SHADOW é estratégia de reversão/exaustão — em TRENDING, o preço pode continuar caindo livremente.
 - ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
+- **[V124.6] BLITZ (BlitzSniper M30) bypassa o regime gating em LATERAL** — `captain.py` libera sinais com `is_blitz=True` ou `slot_type=BLITZ_30M` mesmo em ADX < 25, permitindo que swings 30M entrem antes do ADX evoluir para trending.
 
 | Condicao | Acao |
 |----------|------|
-| ADX < 25 | LATERAL: todas as estrategias permitidas |
+| ADX < 25 | LATERAL: todas as estrategias permitidas + BLITZ bypass |
 | ADX >= 25 | TENDENCIA: apenas VELOCITY FLOW e ALPHA SHIELD (DECOR SHADOW bloqueado) |
 
 **Filtro adicional V118 para LONGS:**
@@ -229,6 +257,9 @@ Determinada por confluencia de variacao 15m + 1h:
 
 | Estrategia | Regime | Descricao |
 |------------|--------|-----------|
+| **VELOCITY FLOW** (M30) | LATERAL+BLITZ | [V124.7] Swing 30M via SignalGenerator — SMA8/21 alinhado + volume |
+| **ALPHA SHIELD** (M30) | LATERAL+BLITZ | [V124.7] Swing 30M via SignalGenerator — DVAP/MOLA/FAS/LRT |
+| **DECOR SHADOW** (M30) | LATERAL+BLITZ | [V124.7] Swing 30M via SignalGenerator — CVD exhaustion + RSI extremo |
 | **DECOR SHADOW** | LATERAL | Reversao de exaustao, decorrelacao BTC (Pearson < 0.35) |
 | **DECOR_HUNTER** | LATERAL | Variacao do DECOR com caça a decorrelacao |
 | **VELOCITY FLOW** | TENDENCIA | Momentum de alta, breakout de volatilidade |
@@ -273,6 +304,8 @@ Determinada por confluencia de variacao 15m + 1h:
 | Ciclo de trailing | 1s | `flash_agent.py` |
 | TTL cache slots | 3s | `flash_agent.py` |
 | Intervalo check DECOR | 60s | `flash_agent.py` |
+| [V124.6] Partial TP SCALPING (LATERAL) | +15% ROI | `flash_agent.py:251` |
+| [V124.6] Partial TP SWING (BLITZ_30M) | +30% ROI | `flash_agent.py:251` |
 
 ### 7.4 FleetAudit
 
@@ -586,8 +619,9 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 
 ### 15.6 Gestao de stops (paridade FlashAgent)
 - **Peak ROI**: `max(current_roi, cached_peak, stored_peak)` — nao perde picos entre reinicializacoes.
-- **Escadinha**: usa `OrderProjectionService.get_stop_ladder()` + `get_active_level()` — **identico ao FlashAgent real**.
+- **Escadinha**: usa `OrderProjectionService.get_stop_ladder()` + `get_active_level()` — **identico ao FlashAgent real**. As funcoes aceitam `slot_type` para selecionar a escada correta (RANGING / RANGING_SWING / TRENDING).
 - **Saida parcial lateral**: ao atingir +15% ROI em regime LATERAL, registra `has_taken_partial=True`; PnL final = media 50/50.
+- **[V124.6] Saida parcial BLITZ_30M**: threshold de +30% ROI (vs +15% scalping), definido em `flash_agent.py:251` por `slot_type`.
 - **Confirmacao REST antes de fechar**: apos `stop_hit=True`, busca preco fresco via REST antes de persistir o fechamento.
 - **Auto-blocklist [V118]**: pares com PnL total < -15% E win rate < 35% apos 3+ trades bloqueados automaticamente em runtime (era 5/20/30). Verificado a cada 120s.
 - **Transicao Fria ADX [V119]**: Ao mudar do regime de tendência para lateral, bloqueia novos sinais laterais por 15min (900s) para estabilização de volatilidade.
@@ -615,6 +649,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | [V120] Asian Session Penalty | ADX >= 32 entre 23h-01h UTC | `sandbox_service.py` |
 | [V120] GARANTIA_TAXAS | +3.0% ROI (era +3.5%) | `sandbox_service.py` |
 | [V120] Partial TP TRENDING | +25% ROI (novo, era só LATERAL +15%) | `sandbox_service.py` |
+| [V124.6] Partial TP BLITZ_30M | +30% ROI (vs +15% scalping) | `flash_agent.py:251` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
 | Placeholder banca (HTML) | **$100.00 USD** | `sandbox.html:158` |
@@ -663,6 +698,8 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | R:R 0.61, 100% SHORT, 0% ALPHA/DECOR | V120 | Stops muito largos (-12%/-15%), regime gating bloqueava estratégias, filtro LONG too restritivo. Fix: stops -8%/-10%, regime gating removido, filtro LONG relaxado (OR), Asian penalty, margem adaptativa, partial TP em TRENDING |
 | Falhas Silenciosas no Sandbox Mirror | V124.4 | Sinais sem chave "price" (apenas "entry_price_signal") resultavam em 0.0, causando divisao por zero e travando o circuit breaker. Alavancagem tambem nao era setada na API. Fix: Auditoria pelo ExecutionAuditorAgent (Sentinel), sanitizacao de chaves, pre-configuracao de 50x e alertas no Firebase. |
 | Altcoins M30 (Swing) travadas/stops curtos | V124.5 | O scan M30 (Blitz) era pausado se o BTC estivesse lateral. A alavancagem de 50x forçada limitava o stop inicial a 0.6% de preço (muito apertado para SUI). Fix: Removido pausa no scan em lateral, alavancagem de Swing definida para 20x (liberando stops de até 4.0% preço). |
+| Blitz M30 bloqueado em LATERAL (Captain gates) | V124.6 | Sinais BLITZ_30M eram barrados pelos dois gates de regime em `captain.py` (ADX < 25 bloqueava VELOCITY/ALPHA, e segundo gate TREND_FOCUS). Fix: `is_blitz` bypass nos dois gates + escadinha `ORDER_STOP_LADDER_RANGING_SWING` com gaps 2x maiores + partial TP em +30% ROI no FlashAgent por `slot_type`. |
+| BlitzSniperAgent substituido pelo SignalGenerator | V124.7 | BlitzSniperAgent removido — usava apenas SMA9/21 crossover com scoring simples (score >= 75). Substituido por `SignalGenerator.analyze_m30_swing()` que reusa toda a infraestrutura de deteccao de padroes do motor principal: DVAP/MOLA/FAS/LRT (ALPHA SHIELD), TREND (VELOCITY FLOW), DECOR (DECOR SHADOW). Score minimo reduzido para 65. Escadinha RANGING_SWING + partial TP 30% + `slot_type=BLITZ_30M` mantidos. |
 
 ---
 

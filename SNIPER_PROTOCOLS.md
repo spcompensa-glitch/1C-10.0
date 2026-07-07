@@ -1,6 +1,6 @@
 # 1Crypten — Protocolos de Trading
 
-*Baseado no codigo-fonte. Atualizado em 2026-06-24.*
+*Baseado no codigo-fonte. Atualizado em 2026-07-07 (V124.7).*
 
 ---
 
@@ -11,7 +11,7 @@
 | Condicao | Regime | Acao |
 |----------|--------|------|
 | ADX < 22 | MORTO | Nenhuma entrada permitida. Volatilidade insuficiente. |
-| ADX 22-25 | TRANSICAO | Apenas trades a favor da direcao do BTC. |
+| ADX 22-25 | TRANSICAO | Apenas trades a favor da direcao do BTC. [V124.7] M30 SWING (3 estrategias) bypassa este bloqueio via BLITZ bypass. |
 | ADX >= 25 | TENDENCIA | Bloqueio de contra-tendencia. |
 | ADX >= 30 | FORTE | Reforco do bloqueio contra-tendencia. |
 
@@ -30,6 +30,21 @@ Determinada por confluencia de variacao 15m + 1h:
 ---
 
 ## 2. Estrategias
+
+### 2.0 M30 SWING — 3 Estrategias (SignalGenerator) [V124.7]
+
+- **Regime**: LATERAL (ADX < 25) com BLITZ bypass
+- **Timeframe**: 30M (analisado por SignalGenerator.analyze_m30_swing())
+- **Mecanismo**: Reusa a infraestrutura completa do motor de estrategias principal:
+  - DVAP/MOLA/FAS/LRT → **ALPHA SHIELD** (divergencia, squeeze, funding)
+  - TREND → **VELOCITY FLOW** (SMA8/21 alinhado + volume)
+  - DECOR → **DECOR SHADOW** (CVD exhaustion + RSI extremo)
+- **Score minimo**: 65 (era 75 no BlitzSniper) — mais sensivel
+- **Escadinha**: `ORDER_STOP_LADDER_RANGING_SWING` (gaps 2x maiores)
+- **Partial TP**: +30% ROI (vs +15% scalping)
+- **Leverage**: 20x (stop de preço ate ~4.0%)
+- **Trailing gap**: 10% (vs 5% scalping)
+- **Selecao por slot_type**: `slot_type=BLITZ_30M` ativa escada RANGING_SWING + partial TP 30%
 
 ### 2.1 DECOR SHADOW (LATERAL)
 
@@ -87,26 +102,42 @@ Determinada por confluencia de variacao 15m + 1h:
 
 ## 3. Escadinha de Stops
 
-### 3.1 Regime LATERAL
+Tres escadinhas definidas em `order_projection_service.py`, selecionadas por `slot_type`:
+
+### 3.1 Regime LATERAL — Scalping (`ORDER_STOP_LADDER_RANGING`)
+
+Usada por slots sem `slot_type=BLITZ_30M`. Partial TP em +15% ROI.
 
 | Gatilho ROI | Stop (ROI) | Nome | Status |
 |------------|-----------|------|--------|
-| 5% | -10% | SL_5 | ESCADINHA |
-| 10% | 0% | SL_BE | RISCO_ZERO |
-| 15% | 0% | SAIDA_PARCIAL | TRAILING |
-| 20%+ | Dinamico | TRAIL_20 | TRAILING |
+| 8% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 12% | 5% | GARANTIA_LUCRO_CURTO | RISCO_ZERO |
+| 20% | 10% | GARANTIA_LUCRO_MEDIO | RISCO_ZERO |
+| 32% | 18% | GARANTIA_LUCRO_ALTO | RISCO_ZERO |
+| 50%+ | Trailing (-2% pico) | ALVO_MAXIMO_LATERAL | PROFIT_LOCK |
 
-**Trailing a partir de 20%**: stop = pico - 5% ROI.
+### 3.2 Regime LATERAL — Swing Blitz M30 (`ORDER_STOP_LADDER_RANGING_SWING`) [V124.6]
 
-### 3.2 Regime TENDENCIA
+Usada quando `slot_type=BLITZ_30M`. Gaps 2x maiores. Partial TP em +30% ROI. Trailing gap 10%.
 
 | Gatilho ROI | Stop (ROI) | Nome | Status |
 |------------|-----------|------|--------|
-| 10% | 0% | BREAKEVEN | RISCO_ZERO |
-| 30% | 15% | LUCRO_INICIAL | RISCO_ZERO |
-| 45% | 30% | LUCRO_MEDIO | RISCO_ZERO |
-| 80% | 50% | LUCRO_GARANTIDO_80 | RISCO_ZERO |
-| 100% | 75% | LUCRO_GARANTIDO | RISCO_ZERO |
+| 16% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 25% | 10% | GARANTIA_LUCRO_CURTO | RISCO_ZERO |
+| 40% | 20% | GARANTIA_LUCRO_MEDIO | RISCO_ZERO |
+| 60% | 35% | GARANTIA_LUCRO_ALTO | RISCO_ZERO |
+| 80%+ | Trailing (-5% pico) | ALVO_MAXIMO_SWING | PROFIT_LOCK |
+
+### 3.3 Regime TENDENCIA (`ORDER_STOP_LADDER_TRENDING`)
+
+| Gatilho ROI | Stop (ROI) | Nome | Status |
+|------------|-----------|------|--------|
+| 14% | 2% | GARANTIA_TAXAS | RISCO_ZERO |
+| 25% | 10% | GARANTIA_20 | RISCO_BAIXO |
+| 40% | 20% | LUCRO_INICIAL | RISCO_ZERO |
+| 60% | 40% | LUCRO_MEDIO | RISCO_ZERO |
+| 80% | 60% | LUCRO_ALTO | RISCO_ZERO |
+| 100% | 80% | LUCRO_GARANTIDO_100 | RISCO_ZERO |
 | 130% | 110% | SUCESSO_TOTAL | PROFIT_LOCK |
 | 150% | 110% | ALVO_150 | PROFIT_LOCK |
 | 200% | 150% | WAVE | TRAIL_LOCK |
@@ -120,7 +151,7 @@ Determinada por confluencia de variacao 15m + 1h:
 | 1000% | 800% | HYPER | TRAIL_LOCK |
 | 1200% | 1000% | APEX | TRAIL_LOCK |
 
-### 3.3 Pos-APEX
+### 3.4 Pos-APEX
 
 A partir de 1200% ROI, niveis `ULTRA_*` a cada 200%. Stop = gatilho - 200%.
 
@@ -166,6 +197,14 @@ A partir de 1200% ROI, niveis `ULTRA_*` a cada 200%. Stop = gatilho - 200%.
 | captain.py (hardcoded) | 20 | 20 |
 
 **Nota**: Existem multiplas camadas de limite. O Guardian e o mais restritivo.
+
+### 6.3 `slot_type` no BankrollGuardian
+
+O parametro `slot_type` (`can_open_new_slot(symbol, slot_type)`) influencia:
+- `BLITZ_30M`/`BLITZ` contam como **TRENDING** (slot pool de 40)
+- `DECOR_HUNTER` tem contagem separada (max 2 simultaneos)
+- `DECOR SHADOW`/`RANGING` usam pool LATERAL (20 slots)
+- Slot types validos: `SNIPER`, `SWING`, `TREND`, `SCALP`, `SURF`, `BLITZ_30M`, `BLITZ`, `MOONBAG`, `PAPER_GHOST`
 
 ---
 

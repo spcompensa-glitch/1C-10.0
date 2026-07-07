@@ -65,8 +65,8 @@ asyncio.get_event_loop().set_default_executor(executor)
 # V5.2.4.8 Cloud Run Startup Optimization - Infrastructure Protocol
 # V90.3: PROTOCOLO COCKPIT - FIM DO CACHE
 # V110.40.0: PROTOCOLO COMMAND CENTER PRO - ALMIRANTE ELITE
-VERSION = "V120.1"
-DEPLOYMENT_ID = "V120.1_PHASE_DETECTOR"
+VERSION = "V124.7"
+DEPLOYMENT_ID = "V124.7_M30_SWING"
 
 # Global Directory Configurations - Hardened for Docker/Cloud Run
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -247,7 +247,7 @@ async def lifespan(app: FastAPI):
                 from services.agents.onchain_whale_watcher import on_chain_whale_watcher
                 from services.agents.sentiment_specialist import sentiment_specialist
                 from services.agents.librarian import librarian_agent
-                from services.agents.blitz_sniper import blitz_sniper_agent # [V110.137] Blitz Active
+                # [V124.7] BlitzSniperAgent removido — substituido por SignalGenerator.analyze_m30_swing()
 
                 # 🆕 [V4.0 DECENTRALIZATION] Slot Operator Agents (The New Core)
                 # [V111.0] Os primeiros 4 agentes de slot ficam em memória ativa para monitoramento rápido

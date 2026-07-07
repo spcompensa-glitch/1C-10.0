@@ -1,22 +1,40 @@
 # Estado Atual do Sistema — 1Crypten 7.0
 
-*Ultima atualizacao: 2026-07-05 (V123.3 — Contingência de logs da Vault, injeção em tempo real e blindagem de saldo OKX no Cockpit)*
+*Ultima atualizacao: 2026-07-07 (V124.7 — SignalGenerator substitui BlitzSniperAgent: 3 estrategias no M30)*
 
 ---
 
 ## Resumo
 
 - **Estado**: OPERACIONAL (producao OKX + sandbox simultaneos)
-- **Versao do codigo**: V123.3
+- **Versao do codigo**: V124.7
 - **Exchange**: OKX (Portfolio Margin)
 - **Deploy**: Railway + Docker
 
 ---
 
+## Novidades V124.7
+- **BlitzSniperAgent removido**: Substituido por `SignalGenerator.analyze_m30_swing()` em `signal_generator.py`. O BlitzSniperAgent usava apenas SMA9/21 crossover + scoring simples (score >= 75) — era uma versao empobrecida do motor de estrategias principal.
+- **3 estrategias no M30**: `analyze_m30_swing()` reusa toda a infraestrutura de deteccao de padroes do SignalGenerator:
+  - **DVAP/MOLA/FAS/LRT** → **ALPHA SHIELD** (divergencia RSI + volume climax + CHoCH, BB squeeze, funding extremo)
+  - **TREND** → **VELOCITY FLOW** (SMA8/21 alinhado + volume)
+  - **DECOR** → **DECOR SHADOW** (CVD exhaustion + RSI extremo)
+- **Score minimo reduzido para 65** (era 75 no BlitzSniper) — mais sensivel, capturando setups mesmo em lateral moderada.
+- **`_blitz_scan_loop` reformulado**: Chama `signal_generator.scan_m30_swing_watchlist()` em vez de `blitz_sniper_agent.scan_and_inject()`. Mantem cooldown, collision guard e injecao na signal_queue.
+- **DECOR_HUNTER tambem atualizado**: `_analyze_decor_pair()` usa `signal_generator.analyze_m30_swing()` em vez de `blitz_sniper_agent.scan_for_blitz_signal()`. Threshold reduzido para 60.
+- **Infra V124.6 mantida**: escadinha RANGING_SWING, partial TP 30%, `slot_type=BLITZ_30M`, trailing gap 10% continuam ativos.
+
+## Novidades V124.6
+- **Blitz M30 liberado em LATERAL**: `captain.py` — dois gates de regime (linhas ~1324 e ~1552) agora aceitam `is_blitz=True` ou `slot_type=BLITZ_30M` mesmo quando ADX < 25. Permite que swings 30M entrem antes do ADX evoluir para trending.
+- **Nova escadinha `ORDER_STOP_LADDER_RANGING_SWING`**: gaps 2x maiores que a escada RANGING padrão (ex: primeiro degrau em +16% vs +8%) — `order_projection_service.py:42`. Dá respiro para o ADX sair de LATERAL para TRENDING.
+- **slot_type como seletor de escada**: `get_stop_ladder()`, `get_active_level()`, `get_next_level()`, `get_phase()`, `build_projection()` em `order_projection_service.py` aceitam `slot_type` para escolher entre RANGING, RANGING_SWING e TRENDING.
+- **Partial TP em +30% para BLITZ_30M**: `flash_agent.py:251` — `partial_tp_threshold = 30.0 if slot_type in ("BLITZ_30M",) else 15.0`. Swing precisa de mais espaço que scalping.
+- **Trailing gap de 10% para BLITZ_30M**: `order_projection_service.py:153` — `trailing_gap = 10.0 if slot_type in ("BLITZ_30M",) else 5.0`.
+
 ## Novidades V123.3
 - **Contingência de Histórico (Vault)**: Se uma posição real legítima fechar na OKX (como AVAXUSDT) e a chamada de PnL fechado da API falhar ou atrasar, o `sync_slots_with_exchange` não deletará mais o slot sem logar. O backend agora calcula uma estimativa de PnL em tempo real com base no preço atual e grava o encerramento com sucesso na Vault.
 - **Injeção de Saldo Real OKX**: O endpoint `/api/banca/data` agora consulta em tempo real a exchange master usando as chaves reais via `okx_service._get_headers` homologado (prevenindo erros de HMAC/fuso horário) e retorna `saldo_real_okx` no payload autenticado (`USER_MODE`).
-- **Blindagem do Cockpit**: O hook `useBancaRT` no frontend (`cockpit.html`) agora é blindado para reter o último saldo real positivo válido. Isso evita que transmissões em background do WebSocket (que enviam dados zerados ou parciais de simulação do Guardião) sobresscrevam a banca real na UI.
+- **Blindagem do Cockpit**: O hook `useBancaRT` no frontend (`cockpit.html`) agora é盲ado para reter o último saldo real positivo válido. Isso evita que transmissões em background do WebSocket (que enviam dados zerados ou parciais de simulação do Guardião) sobresscrevam a banca real na UI.
 
 ## Componentes Ativos
 
@@ -33,7 +51,7 @@
 | BankrollGuardian | ATIVO | Autorizacao de trades |
 | OracleAgent | ATIVO | Deteccao de regime (ADX) |
 | FleetAudit | ATIVO | Reconciliacao 20s |
-| BlitzSniper | ATIVO | Extracao M30 |
+| BlitzSniper | SUBSTITUIDO V124.7 | Agora SignalGenerator.analyze_m30_swing() — 3 estrategias no M30 |
 | Librarian | ATIVO | DNA de ativos, rankings |
 | MacroAnalyst | ATIVO | Risco macro BTC |
 | WhaleTracker | ATIVO | Fluxo institucional |
@@ -52,6 +70,7 @@
 **[V123] Regime gating RESTAURADO no Sandbox** — DECOR SHADOW opera APENAS em LATERAL (ADX < 25).
 - Motivo: DECOR SHADOW é estratégia de reversão/exaustão — em TRENDING, o preço pode continuar caindo livremente.
 - ALPHA SHIELD e VELOCITY FLOW operam em qualquer regime.
+- **[V124.6] BLITZ (BlitzSniper M30) bypassa regime gating** — `captain.py` libera sinais com `is_blitz=True` ou `slot_type=BLITZ_30M` mesmo em ADX < 25.
 
 O risco e mitigado por:
 - **GARANTIA_5**: stop → 0% aos +5% ROI (break-even antecipado)
@@ -63,13 +82,26 @@ O risco e mitigado por:
 
 ## Escadinha de Stops
 
-### Lateral (simplificada) — V118
-- 5% ROI -> stop 0% (GARANTIA_5 — break-even antecipado)
-- 15% ROI -> saida parcial 50%
-- 20%+ ROI -> trailing dinamico
+Tres escadinhas convivem, selecionadas por `slot_type` em `order_projection_service.py`:
 
-### Tendencia (progressiva)
-10 niveis de BREAKEVEN ate STAR (400% ROI), depois CROWN, SUPERNOVA, GOD_MODE, CHOKE_PREP, CHOKE, HYPER, APEX (1200%), e niveis ULTRA_* a cada 200% acima.
+### Lateral Scalping (`ORDER_STOP_LADDER_RANGING`)
+- +8% -> stop +2% (GARANTIA_TAXAS)
+- +12% -> stop +5% (GARANTIA_LUCRO_CURTO)
+- +20% -> stop +10% (GARANTIA_LUCRO_MEDIO)
+- +32% -> stop +18% (GARANTIA_LUCRO_ALTO)
+- +50%+ -> trailing -2% pico (ALVO_MAXIMO_LATERAL)
+- Partial TP: +15% ROI
+
+### Lateral Swing — Blitz M30 (`ORDER_STOP_LADDER_RANGING_SWING`) [V124.6]
+- +16% -> stop +2% (GARANTIA_TAXAS)
+- +25% -> stop +10% (GARANTIA_LUCRO_CURTO)
+- +40% -> stop +20% (GARANTIA_LUCRO_MEDIO)
+- +60% -> stop +35% (GARANTIA_LUCRO_ALTO)
+- +80%+ -> trailing -5% pico (ALVO_MAXIMO_SWING)
+- Partial TP: +30% ROI
+
+### Tendencia (`ORDER_STOP_LADDER_TRENDING`)
+14 niveis de GARANTIA_TAXAS ate APEX (1200% ROI), depois ULTRA_* a cada 200%.
 
 Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 
@@ -130,7 +162,7 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 
 - **URL**: https://1crypten.space/sandbox
 - **Banca Virtual (Scalping Lab)**: **$100.00 USD** | Margem: **$2.00/trade** (50x) | Trailing & Escadinha
-- **Banca Virtual (Swing Lab - NOVO)**: **$100.00 USD** | Margem: **$1.00/trade** (50x) | Doutrina das 10 Extrações (+95%/+180%/+270%)
+- **Banca Virtual (Swing Lab - NOVO)**: **$100.00 USD** | Margem: **$1.00/trade** (20x leverage) | Escadinha RANGING_SWING (gaps 2x maiores)
 - **[V123.2] Cross-Block de Ativos**: Se um ativo estiver aberto no Swing Lab (Blitz), ele não pode ser aberto no Scalping Lab (Radar) e vice-versa. Evita posições conflitantes simultâneas na mesma moeda.
 - **[V123.2] Espelhamento de Operações Reais**: O Swing Lab espelha de forma passiva todas as ordens executadas pelo `BlitzSniperAgent` do Cockpit em sua banca paralela simulada de $100.
 - **Monitoramento**: Loop de 1s para o Scalping e Loop de 1s dedicado para o Swing (Doutrina de Stops)

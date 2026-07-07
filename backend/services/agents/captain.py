@@ -629,14 +629,14 @@ class CaptainAgent(AIOSAgent):
         """
         [V36.4] CONCURRENT SNIPER MONITOR:
         Picks the best signals and manages concurrent trades.
-        [V110.136 BLITZ] Inclui loop assíncrono do BlitzSniperAgent para alimentar o Slot 1.
+        [V124.7 M30-SWING] Loop M30 com as 3 estrategias (VELOCITY, ALPHA, DECOR).
         """
         self.is_running = True
         await firebase_service.log_event("SNIPER", "Sniper System V36.4 CONCURRENT ONLINE. Tocaias assíncronas ativadas.", "SUCCESS")
 
-        # [V110.136] Lança o loop do BlitzSniperAgent em paralelo
+        # [V124.7] Lança o loop M30 SWING (SignalGenerator — 3 estrategias) em paralelo
         asyncio.create_task(self._blitz_scan_loop())
-        logger.info("⚡ [V110.136 BLITZ] BlitzSniper M30 loop iniciado em paralelo.")
+        logger.info("[V124.7 M30-SWING] Loop M30 SWING (SignalGenerator) iniciado em paralelo.")
         
         # [DECOR_HUNTER 3.0] Lança o loop paralelo de pares desgrudados do BTC
         asyncio.create_task(self._decor_hunter_loop())
@@ -782,131 +782,86 @@ class CaptainAgent(AIOSAgent):
 
     async def _blitz_scan_loop(self):
         """
-        [V110.136 BLITZ] Loop assíncrono dedicado ao BlitzSniperAgent.
+        [V124.7] Loop M30 SWING usando SignalGenerator (3 estrategias).
+        Substitui o BlitzSniperAgent (versao simplificada e fraca).
         - Roda em paralelo ao monitor_signals principal.
         - Varre a watchlist a cada 5 minutos buscando setups M30.
-        - Injeta sinais encontrados diretamente na signal_queue com prioridade máxima.
-        - Só escaneia se o Slot 1 estiver disponível (trava "uma ordem por vez").
+        - Usa DVAP/MOLA/FAS/LRT (ALPHA SHIELD), TREND (VELOCITY FLOW), DECOR (DECOR SHADOW).
+        - Injeta sinais encontrados diretamente na signal_queue com prioridade.
         """
-        from services.agents.blitz_sniper import blitz_sniper_agent
         from services.okx_rest import okx_rest_service
         from config import settings
 
-        BLITZ_SCAN_INTERVAL = 300  # 5 minutos entre ciclos de scan
-
-        logger.info("⚡ [BLITZ-LOOP] BlitzSniper M30 monitor iniciado.")
+        SCAN_INTERVAL = 300
+        logger.info("[M30-SWING] Loop M30 SWING (SignalGenerator) iniciado.")
 
         while self.is_running:
             try:
-                # [V110.136] Executa o scan imediatamente e depois aguarda o intervalo
-                # Check available slots
                 slots = await firebase_service.get_active_slots()
                 occupied_count = sum(1 for s in slots if s.get("symbol"))
 
-                # [V111.3 TREND_FOCUS] Em LATERAL pausa tudo. Em TENDENCIA, max 20 slots.
-                is_ranging_mode = True
-                try:
-                    from services.okx_ws_public import okx_ws_public_service
-                    adx = getattr(okx_ws_public_service, 'btc_adx', 0)
-                    is_ranging_mode = (adx < 25)
-                except Exception:
-                    pass
-
-                # [V124.4] Removido bloqueio de scan em mercado lateral para permitir capturar swings de altcoins
-                # que se movem de forma independente do BTC.
-                
                 balance = await bankroll_manager.get_live_operating_equity()
                 if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
                     max_total_slots = 2
                 else:
-                    max_total_slots = 20  # [V111.3] Hard limit de 20 slots em tendencia
-
-                if occupied_count < max_total_slots:
-                    logger.info("⚡ [BLITZ-SCAN] Iniciando varredura estratégica M30...")
-                    await blitz_sniper_agent.scan_and_inject(signal_generator.signal_queue)
-                else:
-                    logger.debug("⚡ [BLITZ-SCAN] Todos os slots ocupados. Pulando ciclo de varredura.")
-
-                await asyncio.sleep(BLITZ_SCAN_INTERVAL)
-
-                if not self.is_running:
-                    break
+                    max_total_slots = 20
 
                 if occupied_count >= max_total_slots:
-                    logger.debug("[BLITZ-LOOP] Slots ocupados. Aguardando liberação para novo scan M30.")
+                    logger.debug("[M30-SWING] Slots ocupados. Pulando ciclo.")
+                    await asyncio.sleep(SCAN_INTERVAL)
                     continue
 
-                # 2. Obtém direção do BTC para filtro de tendência
                 deep_macro = await self.get_deep_macro_status()
-                btc_direction = deep_macro.get("direction", "LATERAL")
+                btc_dir = deep_macro.get("direction", "LATERAL")
                 btc_adx = deep_macro.get("adx", 0.0)
 
-                # 3. Obtém a watchlist (pares ativos do radar)
                 watchlist = getattr(settings, "RADAR_WATCHLIST", [])
                 if not watchlist:
-                    # Fallback: usa os símbolos mais líquidos
                     watchlist = [
                         "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
                         "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "ADAUSDT", "MATICUSDT",
                         "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT"
                     ]
 
-                logger.info(f"⚡ [BLITZ-LOOP] Iniciando scan M30 de {len(watchlist)} ativos | BTC: {btc_direction} (ADX={btc_adx:.1f})")
+                logger.info(f"[M30-SWING] Scan M30 de {len(watchlist)} ativos | BTC: {btc_dir} (ADX={btc_adx:.1f})")
 
-                # 4. Executa o scan do BlitzSniper
-                blitz_signals = await blitz_sniper_agent.scan_watchlist(
-                    symbols=watchlist,
-                    btc_direction=btc_direction,
-                    btc_adx=btc_adx,
-                )
-
-                if not blitz_signals:
-                    logger.info("⚡ [BLITZ-LOOP] Nenhum setup M30 qualificado neste ciclo.")
+                signals = await signal_generator.scan_m30_swing_watchlist(watchlist, btc_dir, btc_adx)
+                if not signals:
+                    logger.info("[M30-SWING] Nenhum setup M30 qualificado neste ciclo.")
+                    await asyncio.sleep(SCAN_INTERVAL)
                     continue
 
-                # 5. Injeta o melhor sinal na fila de sinais com prioridade alta
-                best_blitz = blitz_signals[0]
-                symbol = best_blitz["symbol"]
+                for sig in signals:
+                    symbol = sig["symbol"]
+                    in_cooldown, _ = await self.is_symbol_in_cooldown(symbol)
+                    if in_cooldown:
+                        continue
 
-                # Checa cooldown e tocaia ativa antes de enfileirar
-                in_cooldown, _ = await self.is_symbol_in_cooldown(symbol)
-                if in_cooldown:
-                    logger.debug(f"⚡ [BLITZ-LOOP] {symbol} em cooldown. Descartando sinal Blitz.")
-                    continue
+                    active_symbols_set = {
+                        (s.get("symbol") or "").replace(".P", "").upper()
+                        for s in slots if s.get("symbol") and s.get("status") != "EMANCIPATED"
+                    }
+                    if symbol.replace(".P", "").upper() in active_symbols_set:
+                        continue
 
-                # [V110.137 COLLISION-GUARD] Bloqueia se ativo ja esta em qualquer slot ativo
-                active_symbols_set = {
-                    (s.get("symbol") or "").replace(".P", "").upper()
-                    for s in slots if s.get("symbol") and s.get("status") != "EMANCIPATED"
-                }
-                if symbol.replace(".P", "").upper() in active_symbols_set:
-                    logger.warning(f"[V110.137 COLLISION] {symbol} ja ativo em slot. Descartando sinal Blitz.")
-                    continue
+                    if symbol in self.active_tocaias:
+                        continue
 
-                if symbol in self.active_tocaias:
-                    logger.debug(f"[BLITZ-LOOP] {symbol} ja esta em Tocaia. Descartando.")
-                    continue
+                    self._signal_counter = getattr(self, "_signal_counter", 0) + 1
+                    msg = (
+                        f"[M30-SWING] {symbol} {sig['side']} ({sig['strategy_class']} score={sig['score']}) "
+                        f"injetado na fila | {', '.join(sig.get('reasons', []))}"
+                    )
+                    await signal_generator.signal_queue.put(
+                        (-sig["score"], self._signal_counter, sig)
+                    )
+                    logger.info(msg)
+                    await firebase_service.log_event("M30-SWING", msg, "SUCCESS")
 
-                # Enriquece o sinal com ID único para rastreamento
-                best_blitz["id"] = f"BLITZ_{symbol}_{int(time.time())}"
-                best_blitz["reasoning"] = " | ".join(best_blitz.get("reasons", ["BlitzSniper M30"]))
-                best_blitz["is_blitz_elite"] = True
-
-                # Coloca na fila com prioridade máxima (-best_blitz["score"] como negativo = maior prioridade)
-                self._signal_counter = getattr(self, "_signal_counter", 0) + 1
-                await signal_generator.signal_queue.put(
-                    (-best_blitz["score"], self._signal_counter, best_blitz)
-                )
-
-                msg = (
-                    f"⚡ [BLITZ-INJECT] 🎯 {symbol} {best_blitz['side']} injetado na fila | "
-                    f"Score: {best_blitz['score']}/100 | Motivo: {best_blitz['reasoning']}"
-                )
-                logger.info(msg)
-                await firebase_service.log_event("BLITZ", msg, "SUCCESS")
+                await asyncio.sleep(SCAN_INTERVAL)
 
             except Exception as e:
-                logger.error(f"❌ [BLITZ-LOOP] Erro no scan M30: {e}")
+                logger.error(f"[M30-SWING] Erro no scan: {e}")
                 import traceback
                 traceback.print_exc()
                 await asyncio.sleep(30)
@@ -931,7 +886,6 @@ class CaptainAgent(AIOSAgent):
           5. Injeta na fila com prioridade (-score)
         """
         from config import settings
-        from services.agents.blitz_sniper import blitz_sniper_agent
         from services.agents.oracle_agent import oracle_agent as oracle_ref
         from services.okx_rest import okx_rest_service
 
@@ -978,7 +932,7 @@ class CaptainAgent(AIOSAgent):
                             continue
 
                         result = await self._analyze_decor_pair(
-                            symbol, btc_closes, btc_dir, btc_adx, blitz_sniper_agent
+                            symbol, btc_closes, btc_dir, btc_adx, signal_generator
                         )
                         if result:
                             decor_signals.append(result)
@@ -1026,20 +980,19 @@ class CaptainAgent(AIOSAgent):
         btc_closes: List[float],
         btc_dir: str,
         btc_adx: float,
-        blitz_agent,
+        swing_scanner,
     ) -> Optional[Dict[str, Any]]:
         """
         [DECOR_HUNTER 3.0] Analisa um par para verificar:
-          1. Variação própria >= 1.5% nos últimos 15m
-          2. Correlação de Pearson com BTC < 0.5 (descolado)
-          3. Setup técnico válido (BLITZ M30 score >= 65, ou var >= 2.0%)
+          1. Variação própria >= 0.8% nos últimos 15m
+          2. Correlação de Pearson com BTC < 0.65 (descolado)
+          3. Setup técnico válido (M30 Swing score >= 60, ou var >= 1.0%)
 
-        Retorna o sinal pronto para injeção, ou None se não qualificado.
+        Usa SignalGenerator.analyze_m30_swing() (3 estrategias) em vez do BlitzSniperAgent.
         """
         try:
             from services.okx_rest import okx_rest_service
 
-            # ── 1. Candles 1m do par (15 candles = 15 minutos)
             pair_klines_raw = await asyncio.wait_for(
                 okx_rest_service.get_klines(symbol=symbol, interval="1", limit=17),
                 timeout=3.0
@@ -1049,41 +1002,36 @@ class CaptainAgent(AIOSAgent):
 
             pair_closes = [float(c[4]) for c in list(reversed(pair_klines_raw))[:15]]
 
-            # ── 2. Variação própria nos últimos 15 candles
             own_variation = ((pair_closes[-1] - pair_closes[0]) / pair_closes[0]) * 100 if pair_closes[0] > 0 else 0.0
 
             if abs(own_variation) < 0.8:
-                return None  # Par sem gás próprio suficiente (relaxado de 1.5% para 0.8%)
+                return None
 
-            # ── 3. Correlação de Pearson com BTC
             correlation = self._pearson_correlation(btc_closes, pair_closes)
 
             if abs(correlation) >= 0.65:
-                return None  # Par ainda correlacionado com BTC (relaxado de 0.5 para 0.65)
+                return None
 
-            # ── 4. Determinar lado com base na variação
             direction_from_var = "Buy" if own_variation > 0 else "Sell"
 
-            # ── 5. Confirmar com análise técnica (BLITZ M30)
             try:
-                blitz_signal = await asyncio.wait_for(
-                    blitz_agent.scan_for_blitz_signal(symbol, btc_dir, btc_adx),
+                swing_signal = await asyncio.wait_for(
+                    swing_scanner.analyze_m30_swing(symbol, btc_dir, btc_adx),
                     timeout=5.0
                 )
             except asyncio.TimeoutError:
-                blitz_signal = None
+                swing_signal = None
 
-            if blitz_signal and blitz_signal.get("score", 0) >= 65:
-                side = blitz_signal["side"]
-                tech_score = blitz_signal["score"]
-                tech_reasons = blitz_signal.get("reasons", [])
+            if swing_signal and swing_signal.get("score", 0) >= 60:
+                side = swing_signal["side"]
+                tech_score = swing_signal["score"]
+                tech_reasons = swing_signal.get("reasons", [])
             elif abs(own_variation) >= 1.0:
-                # Fallback: variação forte compensa ausência de setup técnico
                 side = direction_from_var
                 tech_score = min(75, int(abs(own_variation) * 30))
                 tech_reasons = [f"Variação própria forte: {own_variation:.2f}%"]
             else:
-                return None  # Variação menor que 1.0% sem setup técnico confirmado
+                return None
 
             return {
                 "id":              f"decor_{symbol.replace('.P','')}_{int(time.time())}",
@@ -1097,7 +1045,7 @@ class CaptainAgent(AIOSAgent):
                 "timeframe":       "30",
                 "btc_correlation": round(correlation, 3),
                 "own_variation":   round(own_variation, 2),
-                "timestamp":       time.time(),  # TTL gate usa este campo
+                "timestamp":       time.time(),
                 "reasons":         [
                     f"Descolado BTC (corr={correlation:.2f})",
                     f"Var própria: {own_variation:.2f}%",

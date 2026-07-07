@@ -536,6 +536,9 @@ class SignalGenerator:
             # V15.7.5: Added logging to verify sync is happening
             logger.info("📡 [RADAR-PULSE] Syncing signals and decisions to RTDB...")
             signals = await firebase_service.get_recent_signals(limit=25)
+            s1_in_pulse = sum(1 for s in signals if s.get("type") == "S1_LATERAL")
+            if s1_in_pulse > 0:
+                logger.info(f"📡 [RADAR-PULSE-S1] {s1_in_pulse} sinais S1_LATERAL entre {len(signals)} no pulse")
             decisions = []
             
             for sig in signals[:15]: # Top 15 decisions
@@ -801,8 +804,10 @@ class SignalGenerator:
                         direction = d_res.get('direction', 'Neutral')
                         signals = d_res.get('signals', [])
 
-                        # GATE: confiança mínima
-                        if not is_decor or confidence < 70:
+                        # [V124.5] GATE relaxado de 70 → 55 em lateral (ADX < 25) para encontrar
+                        # moedas com mais gás que o BTC mesmo sem correlação forte.
+                        min_conf = 55 if getattr(okx_ws_public_service, 'btc_adx', 25) < 25 else 70
+                        if not is_decor or confidence < min_conf:
                             return None
 
                         # GATE: CVD (gás real, não apenas ruído)
@@ -3024,6 +3029,47 @@ class SignalGenerator:
                 s1_duration = time.time() - start_s1
                 stage1_candidates = [r for r in stage1_results if r is not None]
                 logger.info(f"⚡ [RADAR-PERF] Estágio 1 Paralelo: {len(active_symbols_ws)} ativos em {s1_duration:.2f}s. Encontrados {len(stage1_candidates)} candidatos.")
+
+                # [V124.5] SANDBOX FEED: em lateral, os S1 candidates tambem alimentam o sandbox via Firebase.
+                # O sandbox depende de log_signal (Stage 3), mas Stage 3 exige confirmacao 5m que nao ocorre
+                # em CVD exhaustion no mercado lateral. Este bypass garante que o sandbox tenha sinais para testar.
+                if is_btc_lateral and stage1_candidates:
+                    try:
+                        import datetime as _dt
+                        s1_sandbox_count = 0
+                        for s1_candidate in stage1_candidates:
+                            s1_sym = s1_candidate['symbol'].replace('.P', '')
+                            s1_side = s1_candidate.get('side_label', 'Long')
+                            s1_score = min(s1_candidate.get('preliminary_score', 50), 99)
+                            s1_is_decor = s1_candidate.get('is_decorrelated', False)
+                            s1_price = okx_ws_public_service.get_current_price(s1_candidate['symbol'])
+                            if not s1_price or s1_price <= 0:
+                                continue
+                            s1_signal = {
+                                "id": f"s1_sb_{int(time.time())}_{s1_sym}_{s1_side[:1]}",
+                                "symbol": s1_sym,
+                                "score": max(10, s1_score),
+                                "side": "Buy" if s1_side == "Long" else "Sell",
+                                "direction": "LONG" if s1_side == "Long" else "SHORT",
+                                "type": "S1_LATERAL",
+                                "layer": "MOMENTUM",
+                                "strategy_class": "DECOR SHADOW" if s1_is_decor else "VELOCITY FLOW",
+                                "entry_price_signal": s1_price,
+                                "suggested_sl": s1_price * 0.95 if s1_side == "Long" else s1_price * 1.05,
+                                "explosion_score": 0,
+                                "explosion_signals": [],
+                                "leverage": 50,
+                                "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                                "market_regime": "RANGING",
+                                "current_adx": getattr(okx_ws_public_service, 'btc_adx', 20),
+                            }
+                            await firebase_service.log_signal(s1_signal)
+                            s1_sandbox_count += 1
+                        if s1_sandbox_count > 0:
+                            logger.info(f"🧪 [SANDBOX-FEED] {s1_sandbox_count} sinais S1 enviados ao sandbox via Firebase (lateral bypass).")
+                            asyncio.create_task(self._sync_radar_rtdb())
+                    except Exception as s1_sb_err:
+                        logger.error(f"[SANDBOX-FEED] Erro ao alimentar sandbox: {s1_sb_err}")
 
                 # [V28.2] Radar Expansion: Relaxed to $3M (was $5M) for more signal diversity in Paper Mode
                 # Filter for candidates

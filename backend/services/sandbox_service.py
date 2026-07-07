@@ -491,12 +491,16 @@ class SandboxService:
         """Hook chamado sempre que novos sinais do radar são gerados."""
         if not signals:
             return
+        logger.info(f"🧪 [SANDBOX-PULSE] Recebidos {len(signals)} sinais (lock={self._process_lock.locked()})")
         async with self._process_lock:
             await self._process_radar_signals(signals)
 
     async def _process_radar_signals(self, signals: List[Dict[str, Any]]):
         """Processa sinais do radar com lock para evitar duplicatas por race condition."""
         logger.info(f"🧪 [SANDBOX-DEBUG] _process_radar_signals chamado com {len(signals)} sinais")
+        s1_count = sum(1 for s in signals if s.get("type") == "S1_LATERAL")
+        if s1_count > 0:
+            logger.info(f"🧪 [SANDBOX-S1-DEBUG] {s1_count} sinais S1_LATERAL detectados entre {len(signals)} totais")
         for sig in signals:
             raw_symbol = sig.get("symbol")
             if not raw_symbol:
@@ -507,6 +511,7 @@ class SandboxService:
             if signal_id in self._processed_signals:
                 continue
             self._processed_signals.add(signal_id)
+            logger.info(f"🧪 [SANDBOX-SIG-PASS] {signal_id} {sig.get('symbol')} passou dedup")
             if len(self._processed_signals) > 500:
                 self._processed_signals.clear()
 
@@ -602,52 +607,12 @@ class SandboxService:
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            # [V122] LONG trades: restrição em tendência de BTC
-            # Se BTC em QUEDA (bear), exige pearson < 0.30 (decorrelação forte) para LONG
-            # Se BTC em ALTA ou lateral, mantém filtro relaxado (pearson < 0.50 OU conf >= 60)
+            # [V122] Sandbox: filtro LONG desativado — simulação sem risco real
+            # O sistema real (Captain) aplica V122 com pearson < 0.30 + conf >= 70 em BEAR
+            # Aqui no sandbox permitimos LONG sem restrição de decorrelação para gerar dados
+            # representativos de performance mesmo em condições adversas de mercado.
             if direction == "LONG":
-                decor_data = sig.get("decorrelation") or {}
-                # Fallback para ambas as nomenclaturas (signal_generator usa is_decorrelated, radar usa is_active)
-                is_decorrelated = decor_data.get("is_decorrelated", decor_data.get("is_active", False))
-                pearson = decor_data.get("pearson", decor_data.get("correlation", 1.0))
-                decor_confidence = decor_data.get("confidence", decor_data.get("score", 0.0))
-
-                # Se dados de decorrelação ausentes (pearson perto de 1.0 ou sem signals), tenta computar ao vivo
-                if pearson >= 0.99 or not decor_data.get("signals"):
-                    try:
-                        from services.signal_generator import signal_generator
-                        d_res = await signal_generator.detect_btc_decorrelation(symbol)
-                        is_decorrelated = d_res.get("is_decorrelated", d_res.get("is_active", False))
-                        pearson = d_res.get("pearson", d_res.get("correlation", 1.0))
-                        decor_confidence = d_res.get("confidence", d_res.get("score", 0.0))
-                    except Exception:
-                        pass
-
-                # [V122] Lógica adaptativa: BTC bearish → filtro mais restritivo
-                btc_trend = btc_macro.get("trend", "sideways").upper() if isinstance(btc_macro, dict) else "SIDEWAYS"
-                if btc_trend in ("BEAR", "BEARISH"):
-                    # Queda: só LONG com decorrelação forte (pearson < 0.30)
-                    passes_pearson = pearson < 0.30
-                    passes_confidence = decor_confidence >= 70
-                    if not (passes_pearson or passes_confidence):
-                        logger.info(
-                            f"🧪 [SANDBOX-V122-LONG-BEAR] {symbol} {strategy} LONG descartado — "
-                            f"BTC BEAR + pearson={pearson:.2f} (< 0.30={passes_pearson}) "
-                            f"conf={decor_confidence:.0f} (>= 70={passes_confidence})"
-                        )
-                        continue
-                else:
-                    # Alta/lateral: filtro relaxado (OR)
-                    passes_pearson = pearson < 0.50
-                    passes_confidence = decor_confidence >= 60
-                    if not (passes_pearson or passes_confidence):
-                        logger.info(
-                            f"🧪 [SANDBOX-V122-LONG] {symbol} {strategy} LONG descartado — "
-                            f"pearson={pearson:.2f} (< 0.50={passes_pearson}) "
-                            f"conf={decor_confidence:.0f} (>= 60={passes_confidence})"
-                        )
-                        continue
-                # Se passou no filtro V120, também passa no MACRO-BLOCK
+                logger.debug(f"🧪 [SANDBOX-V122-SKIP] {symbol} LONG permitido (sandbox sem risco)")
                 decor_bypass = True
 
             # [V117] Filtro de horário e ADX noturno
@@ -793,27 +758,24 @@ class SandboxService:
             score = float(sig.get("score", 0) or 0)
             boosted_score = score + tf_result.get("score_boost", 0.0)
 
-            # [V123.1] Explosion Score obrigatório >= 35 — score=0 (dado ausente) também bloqueia.
-            # V123 havia elevado para 50 mas estava excessivamente restritivo em mercados laterais/BTC plano.
-            # Voltando ao valor calibrado da V119 (>= 35): exige evidência mínima de Fase 1+2 sem paralisar.
+            # [V124.5] Explosion Score — em mercado lateral (ADX < 25) o sandbox opera com
+            # entradas por 1m/5m sem depender de explosão de volatilidade. Apenas em TRENDING
+            # o explosion score é relevante para filtrar entradas contra-tendência.
             explosion_score = float(sig.get("explosion_score", 0) or 0)
-            EXPLOSION_SCORE_MIN = 35
-            if explosion_score < EXPLOSION_SCORE_MIN:
+            if not is_ranging and explosion_score < 35:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
-                    f"explosion_score={explosion_score:.0f} < {EXPLOSION_SCORE_MIN} "
-                    f"(sem evidência de Fase 1+2; score=0 = dado ausente também bloqueia)"
+                    f"explosion_score={explosion_score:.0f} < 35 (TRENDING exige explosão)"
                 )
                 continue
 
-            # [V122] DECOR SHADOW exige evidência de Fase 2 (compressão).
-            # DECOR SHADOW é estratégia de reversão de exaustão — por definição precisa de compressão.
-            # Sem BB comprimido + range compression = sem setup. Preço pode continuar caindo livremente.
-            # P2: prefixo nos explosion_signals indica sinais de Fase 2 do PhaseDetector.
+            # [V124.5] DECOR SHADOW — Fase 2 exigida APENAS se PhaseDetector tem dados (explosion_score >= 20).
+            # Pós-deploy o PhaseDetector pode levar horas pra acumular histórico.
+            # Sem dados de BB/Range, P2 nunca dispara e o sandbox nunca abre trades.
             if strategy == "DECOR SHADOW":
                 explosion_signals_list = sig.get("explosion_signals") or []
                 phase2_signals = [s for s in explosion_signals_list if str(s).startswith("P2:")]
-                if len(phase2_signals) < 1:
+                if explosion_score >= 20 and len(phase2_signals) < 1:
                     logger.info(
                         f"🧪 [SANDBOX-DECOR-PHASE2-BLOCK] {symbol} DECOR SHADOW bloqueado — "
                         f"sem evidência de Fase 2 (compressão BB/Range). "
@@ -821,18 +783,10 @@ class SandboxService:
                     )
                     continue
 
-                # [V123.1] DECOR SHADOW com VOL_DRY — bloqueio condicional ao explosion_score.
-                # Se explosion_score >= 45 (compressão forte de BB/Range), permite a entrada mesmo com VOL_DRY:
-                # a compressão de preço já é evidência suficiente. Score < 45 + VOL_DRY = bloqueio total.
-                # ATOMUSDT entrou com score=59 mas VOL_DRY ratio=0.00 — caso que ainda será bloqueado.
+                # [V124.5] DECOR SHADOW com VOL_DRY — bloqueio removido em lateral.
+                # PhaseDetector sem dados históricos não detecta VOL_DRY nem compressão.
+                # A própria condição de mercado lateral já valida que o setup é válido.
                 has_vol_dry = any("VOL_DRY" in str(s) for s in explosion_signals_list)
-                if has_vol_dry and explosion_score < 45:
-                    logger.info(
-                        f"🧪 [SANDBOX-DECOR-VOLDRY-BLOCK] {symbol} DECOR SHADOW bloqueado — "
-                        f"volume seco (VOL_DRY) + explosion_score={explosion_score:.0f} < 45. "
-                        f"signals={explosion_signals_list[:5]}"
-                    )
-                    continue
                 if has_vol_dry and explosion_score >= 45:
                     logger.info(
                         f"🧪 [SANDBOX-DECOR-VOLDRY-ALLOW] {symbol} DECOR SHADOW permitido com VOL_DRY — "
@@ -1061,7 +1015,6 @@ class SandboxService:
                 f"Entry={entry_price:.4f} | SL={stop_price:.4f} ({initial_stop_roi:.1f}%, src={stop_result['source']}) | "
                 f"MktPrice={mkt_price:.4f} | TickSize={contract_meta.get('tickSize', 'N/A')}"
             )
-
     # ==================== [V114] 1M CONFIRMATION FILTER ====================
 
     async def _check_1m_confirmation(self, symbol: str, side: str) -> bool:

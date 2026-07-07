@@ -711,13 +711,12 @@ class SandboxService:
             # SHORTs não têm proteção equivalente mas o sandbox é simulação — sem risco real.
             # O MACRO-BLOCK original (V115) ainda roda no sistema real (FlashAgent/Captain).
 
-            entry_price = float(sig.get("price") or sig.get("currentPrice") or 0.0)
-
-            if entry_price <= 0.0:
-                entry_price = okx_ws_public_service.get_current_price(symbol)
-                if entry_price <= 0.0:
-                    logger.debug(f"🧪 [SANDBOX-NO-PRICE] {symbol} {strategy} {direction} sem preço — descartado (sig.price={sig.get('price')}, sig.currentPrice={sig.get('currentPrice')})")
-                    continue
+            from services.agents.execution_auditor import execution_auditor_agent
+            sanitized = await execution_auditor_agent.sanitize_signal(sig)
+            if not sanitized.get("valid"):
+                logger.debug(f"🧪 [SANDBOX-NO-PRICE] {symbol} sem preço válido após auditoria — descartado")
+                continue
+            entry_price = sanitized["entry_price"]
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
 
@@ -955,37 +954,46 @@ class SandboxService:
                             )
                             return
 
-                        # 2. Buscar contract info real da OKX (ctVal, lotSize, minSz)
-                        details = await okx_service.get_instrument_details(symbol)
-                        ct_val = float(details.get("ctVal", "1.0"))
-                        lot_size = float(details.get("lotSize", "1.0"))
-                        min_sz = float(details.get("minSz", "1.0"))
+                        # 2. Validar e calibrar ordem usando o Sentinela (ExecutionAuditorAgent)
+                        from services.agents.execution_auditor import execution_auditor_agent
+                        audit_res = await execution_auditor_agent.validate_order(
+                            symbol=symbol,
+                            direction=direction,
+                            entry_price=entry_price,
+                            stop_price=stop_price,
+                            balance=balance,
+                            leverage=50.0
+                        )
 
-                        # 3. Calcular margem: 40% da banca / 16 slots, range $0.50-$1.00
-                        raw_margin = (balance * 0.40) / 16.0
-                        margin = max(0.50, min(1.00, round(raw_margin, 2)))
+                        if not audit_res.get("valid"):
+                            logger.warning(f"⚠️ [SANDBOX-MIRROR-INVALID] Ordem bloqueada pelo auditor: {audit_res.get('reason')}")
+                            return
 
-                        # 4. Calcular qty: (margin * leverage) / (price * ctVal) arredondado para lotSize
-                        raw_qty = (margin * 50.0) / (entry_price * ct_val)
-                        qty = float(math.floor(raw_qty / lot_size) * lot_size)
-
-                        # 5. Garantir qty mínimo do contrato
-                        if qty < min_sz:
-                            qty = min_sz
+                        qty = audit_res["qty"]
+                        margin = audit_res["margin"]
+                        stop_price = audit_res["sl_price"]
+                        notional = audit_res["notional"]
+                        details = audit_res["details"]
 
                         # [V124.1] LOG DETALHADO para debug em produção
-                        notional = qty * entry_price * ct_val
                         logger.info(
                             f"🔌 [SANDBOX-MIRROR-OPEN] {symbol} {direction} | "
-                            f"Saldo=${balance:.2f} | RawMargem=${raw_margin:.3f} | Margem=${margin:.2f} | "
-                            f"Qty={qty} contr | ctVal={ct_val} | lotSize={lot_size} | minSz={min_sz} | "
+                            f"Saldo=${balance:.2f} | Margem=${margin:.2f} | "
+                            f"Qty={qty} contr | ctVal={details['ctVal']} | lotSize={details['lotSize']} | minSz={details['minSz']} | "
                             f"Notional=${notional:.2f} | Preço=${entry_price:.4f} | "
                             f"SL={stop_price:.4f} | Leverage=50x | "
                             f"CircuitFails={self._mirror_consecutive_failures}"
                         )
 
+
                         if qty > 0:
                             okx_side = "Buy" if direction == "LONG" else "Sell"
+                            
+                            # [V124.4] FORÇAR ALAVANCAGEM antes da ordem, caso a conta OKX esteja no padrão (ex: 10x)
+                            leverage_result = await okx_service.set_leverage(symbol, 50.0, "cross")
+                            if leverage_result and leverage_result.get("code") != "0":
+                                logger.warning(f"⚠️ [SANDBOX-MIRROR] Falha ao configurar 50x para {symbol}: {leverage_result.get('msg')} — a ordem será tentada com a alavancagem atual.")
+                                
                             res = await okx_service.place_atomic_order(
                                 symbol=symbol,
                                 side=okx_side,

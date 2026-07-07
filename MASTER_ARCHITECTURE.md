@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-07-04 (V123 — Sandbox: regime gating restaurado, stop distance 0.5%, VOL_DRY block, mirror desativado, explosion_score 50, conservative window 120s, fail-safe)*
+*Ultima atualizacao: 2026-07-07 (V124.4 — ExecutionAuditorAgent (Sentinel) integrado no Sandbox Mirror com validacao de chaves, alavancagem 50x e regras de contratos OKX)*
 
 ---
 
@@ -61,6 +61,7 @@ O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
 | **HermesAgent** | `agents/hermes_agent.py` | Compliance/telemetria/chat. DeepSeek integration, ESCADINHA_DOCS_SSOT |
 | **JarvisBrain** | `agents/jarvis_brain.py` | Chat multi-dimensao (10 dimensoes: Trading, Filosofia, Familia, etc.) |
 | **AIService** | `agents/ai_service.py` | Cascade de IA: DeepSeek -> Gemini -> OpenRouter |
+| **ExecutionAuditorAgent** | `agents/execution_auditor.py` | Sentinel de Execução. Sanitiza sinais (chaves de preço), audita regras/limites de contratos OKX, força alavancagem de 50x e reporta alertas no Firebase. |
 | **SandboxService** | `services/sandbox_service.py` | Forward Testing Lab. Espelha o sistema real com escadinha, stops adaptativos e fallback de preco. Ciclo 1s. |
 
 ### 2.5 Phase Detector (V120 — Explosao de Precos)
@@ -590,7 +591,7 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 - **Confirmacao REST antes de fechar**: apos `stop_hit=True`, busca preco fresco via REST antes de persistir o fechamento.
 - **Auto-blocklist [V118]**: pares com PnL total < -15% E win rate < 35% apos 3+ trades bloqueados automaticamente em runtime (era 5/20/30). Verificado a cada 120s.
 - **Transicao Fria ADX [V119]**: Ao mudar do regime de tendência para lateral, bloqueia novos sinais laterais por 15min (900s) para estabilização de volatilidade.
-- **Espelhamento em Conta Real [V119]**: Se `OKX_API_KEY_MASTER` e `REAL` mode estiverem ativos, replica ordens a mercado, cruzadas e com 50x de alavancagem com qty dinâmico proporcional à banca real da OKX.
+- **Espelhamento em Conta Real [V124.4]**: Se `OKX_API_KEY_MASTER` e `REAL` mode estiverem ativos, replica ordens a mercado, cruzadas e com 50x de alavancagem na OKX. O processo é auditado pelo **ExecutionAuditorAgent (Sentinel)**, que corrige chaves de preço corrompidas do webhook (ex: `entry_price_signal`), calibra quantidades segundo regras de contratos da OKX e barra ordens com margem acima do saldo da banca real, notificando no Firebase.
 
 ### 15.7 Constantes do SandboxService (V120)
 
@@ -660,8 +661,9 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | 5M muito permissivo (NEARUSDT stops) | V118.3 | V117 usava 2 candles e so bloqueava se 0/2 confirmavam — trades entravam contra o 5M. Fix: 3 candles com exigencia 2/3 de alinhamento com direcao do sinal |
 | Stop -10%/-15% ainda apertados (0% win rate sandbox) | V119 | Stops fixos nao respeitam estrutura 30M. Fix: stop estrutural baseado em swing low/high do TF 30M com buffer 0.15% |
 | R:R 0.61, 100% SHORT, 0% ALPHA/DECOR | V120 | Stops muito largos (-12%/-15%), regime gating bloqueava estratégias, filtro LONG too restritivo. Fix: stops -8%/-10%, regime gating removido, filtro LONG relaxado (OR), Asian penalty, margem adaptativa, partial TP em TRENDING |
+| Falhas Silenciosas no Sandbox Mirror | V124.4 | Sinais sem chave "price" (apenas "entry_price_signal") resultavam em 0.0, causando divisao por zero e travando o circuit breaker. Alavancagem tambem nao era setada na API. Fix: Auditoria pelo ExecutionAuditorAgent (Sentinel), sanitizacao de chaves, pre-configuracao de 50x e alertas no Firebase. |
 
 ---
 
-*Baseado no codigo-fonte em 2026-06-25. Atualizar ao modificar qualquer constante ou componente.*
+*Baseado no codigo-fonte em 2026-07-07. Atualizar ao modificar qualquer constante ou componente.*
 componente.*

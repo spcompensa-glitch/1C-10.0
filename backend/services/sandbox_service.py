@@ -775,22 +775,30 @@ class SandboxService:
             if strategy == "DECOR SHADOW":
                 explosion_signals_list = sig.get("explosion_signals") or []
                 phase2_signals = [s for s in explosion_signals_list if str(s).startswith("P2:")]
-                if explosion_score >= 20 and len(phase2_signals) < 1:
+                has_vol_dry = any("VOL_DRY" in str(s) for s in explosion_signals_list)
+
+                # [V125] Refinamento DECOR SHADOW: Exigir mais rigor para evitar falsos rompimentos e violinadas.
+                # Exigir no mínimo Fase 2 ou VOL_DRY sempre, exceto se score for altíssimo.
+                if len(phase2_signals) < 1 and not has_vol_dry and explosion_score < 50:
                     logger.info(
-                        f"🧪 [SANDBOX-DECOR-PHASE2-BLOCK] {symbol} DECOR SHADOW bloqueado — "
-                        f"sem evidência de Fase 2 (compressão BB/Range). "
+                        f"🧪 [SANDBOX-DECOR-BLOCK] {symbol} DECOR SHADOW bloqueado — "
+                        f"sem evidência de Fase 2 (compressão) nem VOL_DRY. "
                         f"signals={explosion_signals_list[:5]}"
                     )
                     continue
 
-                # [V124.5] DECOR SHADOW com VOL_DRY — bloqueio removido em lateral.
-                # PhaseDetector sem dados históricos não detecta VOL_DRY nem compressão.
-                # A própria condição de mercado lateral já valida que o setup é válido.
-                has_vol_dry = any("VOL_DRY" in str(s) for s in explosion_signals_list)
+                # Aumentar a exigência do explosion_score base (antes passava qualquer coisa < 20)
+                if explosion_score < 30:
+                    logger.info(
+                        f"🧪 [SANDBOX-DECOR-BLOCK] {symbol} DECOR SHADOW bloqueado — "
+                        f"explosion_score={explosion_score:.0f} muito baixo (mínimo 30)."
+                    )
+                    continue
+
                 if has_vol_dry and explosion_score >= 45:
                     logger.info(
-                        f"🧪 [SANDBOX-DECOR-VOLDRY-ALLOW] {symbol} DECOR SHADOW permitido com VOL_DRY — "
-                        f"explosion_score={explosion_score:.0f} >= 45 (compressão forte compensa). "
+                        f"🧪 [SANDBOX-DECOR-VOLDRY-ALLOW] {symbol} DECOR SHADOW permitido com VOL_DRY forte — "
+                        f"explosion_score={explosion_score:.0f} >= 45. "
                         f"signals={explosion_signals_list[:5]}"
                     )
 

@@ -1795,11 +1795,15 @@ class CaptainAgent(AIOSAgent):
                 consensus["reason"] = "WATCHLIST_RESTRICTED"
                 logger.info(f"🚫 [FLEET-GUARD] {symbol} rejeitado. Ativo nao homologado na Watchlist correspondente.")
             elif is_market_ranging:
-                if strategy not in ("DECOR SHADOW", "DECOR_HUNTER"):
+                # [V124.7-FIX] BLITZ bypassa regime LATERAL
+                is_blitz_signal = best_signal.get("is_blitz", False) or best_signal.get("slot_type") == "BLITZ_30M"
+                if strategy not in ("DECOR SHADOW", "DECOR_HUNTER") and not is_blitz_signal:
                     consensus["approved"] = False
                     consensus["reason"] = "MERCADO_LATERAL_PAUSADO"
                     logger.info(f"[TREND_FOCUS] {symbol} ({strategy}) rejeitado. Mercado LATERAL ativo apenas para DECOR SHADOW.")
                 else:
+                    if is_blitz_signal:
+                        logger.info(f"🔓 [V124.7 BLITZ-WL-BYPASS] {symbol} ({strategy}) liberado em LATERAL.")
                     consensus["approved"] = True
             else:
                 if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):

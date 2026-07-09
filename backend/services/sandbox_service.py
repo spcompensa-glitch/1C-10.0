@@ -1375,7 +1375,8 @@ class SandboxService:
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        if max_roi >= 5.0 and current_stop_roi < -1.5:
+        # [V122.5-FIX] GARANTIA_5 com folga: só aplica se melhorar o stop atual
+        if max_roi >= 5.0 and current_stop_roi < -1.5 and -1.5 > current_stop_roi:
             updated_stop_roi = -1.5
             updated_level_name = "GARANTIA_5_FOLGA"
             updated_phase = "ESCADINHA"
@@ -1577,7 +1578,8 @@ class SandboxService:
                 self._consecutive_stops[(clean_sym, opposite_dir)] = 0
                 self._stop_cooldown[cooldown_key] = time.time()
                 new_consec = self._consecutive_stops[cooldown_key]
-                cooldown_applied = 3600 if new_consec >= 1 else 300
+                # [V123.1-FIX] Cooldown: 1800s no 1º stop, 3600s em stops consecutivos (>=2)
+                cooldown_applied = 3600 if new_consec >= 2 else 1800
                 logger.info(
                     f"🧪 [SANDBOX-COOLDOWN-SET] {clean_sym} {trade_dir} cooldown de {cooldown_applied}s "
                     f"(stops consecutivos nesta direção: {new_consec})"

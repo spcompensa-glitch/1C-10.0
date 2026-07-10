@@ -5,6 +5,59 @@ from services.sandbox_service import sandbox_service
 
 router = APIRouter(prefix="/api/sandbox", tags=["Sandbox"])
 
+@router.get("/unified-state")
+async def get_unified_sandbox_state():
+    """Unifica a telemetria das ordens de Scalping e Swing sob a mesma banca de $100."""
+    try:
+        from services.sandbox_swing_service import sandbox_swing_service
+        
+        # 1. Obter todos os trades
+        scalp_trades = await database_service.get_sandbox_trades(active_only=False)
+        swing_trades = await database_service.get_swing_trades(active_only=False)
+        
+        # 2. Configurações de banca e margem
+        BANCA_BASE = 100.0
+        MARGEM_SCALP = 2.00  # $2.00/trade fixo do Scalping
+        MARGEM_SWING = sandbox_swing_service.margin_per_trade  # $2.00/trade do Swing
+        
+        # 3. Contadores
+        active_scalp = sum(1 for t in scalp_trades if t.status == "ACTIVE")
+        active_swing = sum(1 for t in swing_trades if t.status == "ACTIVE")
+        
+        # 4. Calcular Lucro fechado
+        pnl_scalp_usd = 0.0
+        for t in scalp_trades:
+            if t.status != "ACTIVE":
+                pnl_scalp_usd += (t.pnl_pct / 100.0) * MARGEM_SCALP
+                
+        pnl_swing_usd = 0.0
+        for t in swing_trades:
+            if t.status != "ACTIVE":
+                pnl_swing_usd += (t.pnl_pct / 100.0) * MARGEM_SWING
+                
+        total_pnl_usd = pnl_scalp_usd + pnl_swing_usd
+        current_balance = BANCA_BASE + total_pnl_usd
+        
+        # 5. Margem Alocada
+        allocated_margin = (active_scalp * MARGEM_SCALP) + (active_swing * MARGEM_SWING)
+        allocation_pct = (allocated_margin / (BANCA_BASE * 0.40)) * 100.0 if BANCA_BASE > 0 else 0.0
+        
+        return {
+            "virtual_balance": round(current_balance, 2),
+            "total_pnl_usd": round(total_pnl_usd, 2),
+            "pnl_percent": round((total_pnl_usd / BANCA_BASE) * 100.0, 2),
+            "active_scalping_slots": active_scalp,
+            "active_swing_slots": active_swing,
+            "total_active_slots": active_scalp + active_swing,
+            "allocated_margin_usd": round(allocated_margin, 2),
+            "allocation_percent": round(allocation_pct, 1),
+            "max_margin_usd": round(BANCA_BASE * 0.40, 2),
+            "max_slots": 20
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao compilar telemetria unificada: {str(e)}")
+
+
 @router.get("/trades")
 async def get_sandbox_trades(active_only: bool = Query(False, description="Filtrar apenas por trades ativos")):
     try:
@@ -205,6 +258,85 @@ async def get_sandbox_patterns():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao extrair padrões: {str(e)}")
+
+
+@router.get("/swing/patterns")
+async def get_sandbox_swing_patterns():
+    try:
+        trades = await database_service.get_swing_trades(active_only=False)
+        
+        pair_stats = {}
+        direction_stats = {"LONG": {"total": 0, "wins": 0, "pnl": 0.0}, "SHORT": {"total": 0, "wins": 0, "pnl": 0.0}}
+        exit_phases = {}
+        
+        closed_trades = [t for t in trades if t.status != "ACTIVE"]
+        
+        for t in closed_trades:
+            # Stats por Par
+            sym = t.symbol
+            if sym not in pair_stats:
+                pair_stats[sym] = {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+            
+            pair_stats[sym]["total"] += 1
+            is_win = t.pnl_pct > 0
+            if is_win:
+                pair_stats[sym]["wins"] += 1
+            else:
+                pair_stats[sym]["losses"] += 1
+            pair_stats[sym]["pnl"] += t.pnl_pct
+            
+            # Stats por Direção
+            dir_type = t.direction
+            if dir_type in direction_stats:
+                direction_stats[dir_type]["total"] += 1
+                if is_win:
+                    direction_stats[dir_type]["wins"] += 1
+                direction_stats[dir_type]["pnl"] += t.pnl_pct
+                
+            # Fase do FlashAgent na saída
+            state = t.flash_state or {}
+            phase = state.get("active_level", "DESCONHECIDA")
+            exit_phases[phase] = exit_phases.get(phase, 0) + 1
+
+        # Processar Melhores e Piores Pares
+        recommended_pairs = []
+        blacklist_candidates = []
+        
+        for sym, stat in pair_stats.items():
+            wr = (stat["wins"] / stat["total"] * 100.0) if stat["total"] > 0 else 0.0
+            stat["win_rate"] = round(wr, 2)
+            stat["pnl"] = round(stat["pnl"], 2)
+            
+            # Critérios de recomendação
+            if stat["total"] >= 2:
+                if stat["pnl"] > 0 and wr >= 50.0:
+                    recommended_pairs.append({"symbol": sym, "pnl": stat["pnl"], "win_rate": wr, "total": stat["total"]})
+                elif stat["pnl"] < -10.0 or (wr < 30.0 and stat["total"] >= 3):
+                    blacklist_candidates.append({"symbol": sym, "pnl": stat["pnl"], "win_rate": wr, "total": stat["total"]})
+
+        recommended_pairs.sort(key=lambda x: x["pnl"], reverse=True)
+        blacklist_candidates.sort(key=lambda x: x["pnl"])
+
+        # Cálculo de Win Rate por Direção
+        for d, s in direction_stats.items():
+            s["win_rate"] = round((s["wins"] / s["total"] * 100.0), 2) if s["total"] > 0 else 0.0
+            s["pnl"] = round(s["pnl"], 2)
+
+        return {
+            "total_analyzed": len(closed_trades),
+            "pair_performance": pair_stats,
+            "direction_performance": direction_stats,
+            "exit_phases": exit_phases,
+            "recommended_pairs": recommended_pairs,
+            "blacklist_candidates": blacklist_candidates,
+            "insights": {
+                "best_direction": "LONG" if direction_stats["LONG"]["pnl"] > direction_stats["SHORT"]["pnl"] else "SHORT",
+                "suggested_action": "Continuar acumulando amostras. É recomendado no mínimo 50 trades fechados para aplicar a blacklist com segurança no ambiente real." if len(closed_trades) < 50 else "Amostragem estatística madura. Considere aplicar a blacklist sugerida e focar nos pares recomendados."
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao extrair padrões de Swing: {str(e)}")
+
 
 
 @router.get("/analytics")
@@ -409,6 +541,8 @@ async def get_swing_trades(active_only: bool = Query(False)):
                 "pa_pattern":   getattr(t, "pa_pattern", None),
                 "reasons":      getattr(t, "reasons", []) or [],
                 "blitz_unit":   getattr(t, "blitz_unit", 0) or 0,
+                "explosion_score": getattr(t, "explosion_score", 0) or 0,
+                "explosion_signals": getattr(t, "explosion_signals", []) or [],
             })
         return result
     except Exception as e:
@@ -419,9 +553,10 @@ async def get_swing_trades(active_only: bool = Query(False)):
 async def get_swing_stats():
     """Estatísticas do Swing Lab (Win Rate, R:R, ROI, banca virtual)."""
     try:
+        from services.sandbox_swing_service import sandbox_swing_service
         trades = await database_service.get_swing_trades(active_only=False)
-        BANCA  = 100.0
-        MARGEM = 1.0   # $1/trade para o Blitz
+        BANCA  = sandbox_swing_service.virtual_balance
+        MARGEM = sandbox_swing_service.margin_per_trade
 
         total  = len(trades)
         active = sum(1 for t in trades if t.status == "ACTIVE")
@@ -550,3 +685,33 @@ async def clear_swing_trades():
         return {"success": success, "message": "Swing Lab resetado com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar Swing Lab: {str(e)}")
+
+
+@router.get("/swing/mirror-status")
+async def get_swing_mirror_status():
+    """Retorna o status atual do espelhamento do Swing Lab (ON/OFF)."""
+    try:
+        from services.sandbox_swing_service import sandbox_swing_service
+        return {
+            "mirror_mode": sandbox_swing_service.mirror_mode_on,
+            "leverage": sandbox_swing_service.leverage,
+            "margin_per_trade": sandbox_swing_service.margin_per_trade,
+            "virtual_balance": sandbox_swing_service.virtual_balance
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter status de espelho: {str(e)}")
+
+
+@router.post("/swing/mirror-toggle")
+async def toggle_swing_mirror(mode: str = Query(..., description="ON para habilitar espelho, OFF para desabilitar")):
+    """Habilita ou desabilita o espelhamento do Swing Lab em runtime."""
+    try:
+        from services.sandbox_swing_service import sandbox_swing_service
+        await sandbox_swing_service.set_mirror_mode(mode)
+        return {
+            "success": True,
+            "mirror_mode": sandbox_swing_service.mirror_mode_on,
+            "message": f"Espelhamento do Swing Lab alterado para {mode} com sucesso."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

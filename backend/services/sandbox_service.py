@@ -684,6 +684,10 @@ class SandboxService:
             entry_price = sanitized["entry_price"]
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
+            if len(active_trades) >= 10:
+                logger.debug(f"🧪 [SANDBOX-SLOTS-FULL] Já existem {len(active_trades)} trades de Scalping ativos. Ignorando novos sinais.")
+                continue
+
 
             # [Swing Lab] Cross-Block: bloqueia ativo se ja esta ativo no Swing Lab
             # Simula conta real futura onde as duas estrategias compartilham capital
@@ -761,7 +765,7 @@ class SandboxService:
             # [V124.5] Explosion Score — em mercado lateral (ADX < 25) o sandbox opera com
             # entradas por 1m/5m sem depender de explosão de volatilidade. Apenas em TRENDING
             # o explosion score é relevante para filtrar entradas contra-tendência.
-            explosion_score = float(sig.get("explosion_score", 0) or 0)
+            explosion_score = float(sig.get("explosion_score", 0) or sig.get("score", 0) or 0)
             if not is_ranging and explosion_score < 35:
                 logger.info(
                     f"🧪 [SANDBOX-EXPLOSION-BLOCK] {symbol} {strategy} {direction} bloqueado — "
@@ -873,8 +877,8 @@ class SandboxService:
                 },
                 "contract_meta": contract_meta,
                 # [V121] Phase Detector — salva score e sinais junto com o trade
-                "explosion_score": explosion_score,
-                "explosion_signals": sig.get("explosion_signals", []),
+                "explosion_score": explosion_score if explosion_score > 0 else (boosted_score or score or 0.0),
+                "explosion_signals": sig.get("explosion_signals") or sig.get("reasons") or [],
             }
 
             await database_service.save_sandbox_trade(trade_data)

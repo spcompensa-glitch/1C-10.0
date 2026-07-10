@@ -136,14 +136,23 @@ class SandboxTrade(Base):
 
 class SandboxSwingTrade(Base):
     """
-    [Swing Lab] Espelha as ordens reais do BlitzSniperAgent em uma banca virtual paralela.
-    Separado do SandboxTrade (Scalping) para permitir refinação independente das duas inteligências.
-    Cross-Block: o mesmo ativo não pode estar ativo nesta tabela E em sandbox_trades simultaneamente.
+    [Swing Lab V2.0] Motor primário de detecção e tracking de trades Swing.
+
+    V2.0: O SandboxSwingService é o motor primário — detecta setups M30 de forma autônoma
+    e abre posições VIRTUAIS. Quando SWING_MIRROR_MODE=ON, espelha na conta real OKX.
+
+    Separado do SandboxTrade (Scalping Lab) para refinamento independente das inteligências.
+    Cross-Block: o mesmo ativo não pode estar ativo nesta tabela E em sandbox_trades.
+
+    Estratégias suportadas:
+      - ALPHA SHIELD (DVAP, MOLA, FAS, LRT)
+      - VELOCITY FLOW (TREND, ABCD, 1-2-3)
+      - DECOR SHADOW (DECOR, DECOR_HUNTER)
     """
     __tablename__ = "sandbox_swing_trades"
     id              = Column(String, primary_key=True)         # Ex: "swing_BTCUSDT_1720000000"
     symbol          = Column(String, nullable=False)
-    strategy        = Column(String, nullable=True, default="BLITZ_SNIPER")
+    strategy        = Column(String, nullable=True, default=None)  # ALPHA SHIELD | VELOCITY FLOW | DECOR SHADOW
     direction       = Column(String, nullable=False)           # "LONG" | "SHORT"
     entry_price     = Column(Float, nullable=False)
     current_price   = Column(Float, nullable=False)
@@ -158,15 +167,21 @@ class SandboxSwingTrade(Base):
     flash_state     = Column(JSON, nullable=True)              # {phase, active_level, stop_roi, history}
     contract_meta   = Column(JSON, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow)
-    # Campos extras Blitz M30
-    blitz_score     = Column(Float, default=0.0)               # Score do BlitzSniperAgent (0-100)
-    fib_zone        = Column(String, nullable=True)            # Ex: "0.618-0.786"
+    # Campos de análise técnica
+    blitz_score     = Column(Float, default=0.0)               # Score do sinal (0-100)
+    fib_zone        = Column(String, nullable=True)            # Ex: "0.618-0.786" (Fibonacci Golden Zone)
     sma_cross       = Column(String, nullable=True)            # "UP" | "DOWN" | "NONE"
     cvd_value       = Column(Float, default=0.0)               # Cumulative Volume Delta
     volume_ratio    = Column(Float, default=0.0)               # Volume relativo (1.5 = 1.5x média)
-    pa_pattern      = Column(String, nullable=True)            # Ex: "Bullish Engulf M30"
+    pa_pattern      = Column(String, nullable=True)            # Ex: "Wick Reclaim Bullish M30"
     reasons         = Column(JSON, nullable=True)              # Lista de strings do raciocínio
     blitz_unit      = Column(Integer, default=0)               # 0=inicial, 1=+100% ROI, 2=+200%, 3=+300%
+    # [V125] Campos do Motor Primário
+    mirror_order_id = Column(String, nullable=True)            # ID da ordem real se SWING_MIRROR_MODE=ON
+    swing_tf        = Column(String, nullable=True, default="M30")  # Timeframe do setup detectado
+    explosion_score = Column(Float, default=0.0)
+    explosion_signals = Column(JSON, nullable=True)
+
 
 class RadarPulse(Base):
     __tablename__ = "radar_pulse"
@@ -322,8 +337,14 @@ class DatabaseService:
                         ("sandbox_swing_trades", "volume_ratio", "DOUBLE PRECISION"),
                         ("sandbox_swing_trades", "pa_pattern", "TEXT"),
                         ("sandbox_swing_trades", "reasons", "JSONB"),
-                        ("sandbox_swing_trades", "blitz_unit", "INTEGER")
+                        ("sandbox_swing_trades", "blitz_unit", "INTEGER"),
+                        ("sandbox_swing_trades", "mirror_order_id", "TEXT"),
+                        ("sandbox_swing_trades", "swing_tf", "TEXT"),
+                        ("sandbox_swing_trades", "explosion_score", "DOUBLE PRECISION"),
+                        ("sandbox_swing_trades", "explosion_signals", "JSONB")
                     ]
+
+
                     for table, col, col_type in migrations:
                         try:
                             # SQLite doesn't support 'IF NOT EXISTS' in ALTER TABLE ADD COLUMN

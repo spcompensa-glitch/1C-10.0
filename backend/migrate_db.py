@@ -73,8 +73,13 @@ async def migrate():
         ("moonbags", "opened_at", "DOUBLE PRECISION"),
         ("banca_status", "configured_balance", "DOUBLE PRECISION"),
         ("slots", "sentinel_first_hit_at", "DOUBLE PRECISION"),
-        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION")
+        ("moonbags", "sentinel_first_hit_at", "DOUBLE PRECISION"),
+        ("sandbox_swing_trades", "mirror_order_id", "TEXT"),
+        ("sandbox_swing_trades", "swing_tf", "TEXT"),
+        ("sandbox_swing_trades", "explosion_score", "DOUBLE PRECISION"),
+        ("sandbox_swing_trades", "explosion_signals", "JSONB")
     ]
+
 
     async with db.engine.begin() as conn:
         for table, col, col_type in migrations:

@@ -24,16 +24,14 @@ async def get_unified_sandbox_state():
         active_scalp = sum(1 for t in scalp_trades if t.status == "ACTIVE")
         active_swing = sum(1 for t in swing_trades if t.status == "ACTIVE")
         
-        # 4. Calcular Lucro fechado
+        # 4. Calcular Lucro fechado + Lucro flutuante (Unrealized)
         pnl_scalp_usd = 0.0
         for t in scalp_trades:
-            if t.status != "ACTIVE":
-                pnl_scalp_usd += (t.pnl_pct / 100.0) * MARGEM_SCALP
+            pnl_scalp_usd += (t.pnl_pct / 100.0) * MARGEM_SCALP
                 
         pnl_swing_usd = 0.0
         for t in swing_trades:
-            if t.status != "ACTIVE":
-                pnl_swing_usd += (t.pnl_pct / 100.0) * MARGEM_SWING
+            pnl_swing_usd += (t.pnl_pct / 100.0) * MARGEM_SWING
                 
         total_pnl_usd = pnl_scalp_usd + pnl_swing_usd
         current_balance = BANCA_BASE + total_pnl_usd

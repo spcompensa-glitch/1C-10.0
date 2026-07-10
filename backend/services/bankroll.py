@@ -2381,19 +2381,9 @@ class BankrollManager:
                     
                     await self.update_banca_status()
 
-                    # [Swing Lab] Hook: registra o trade Blitz na banca virtual do Swing Lab
-                    # Fire-and-forget — nao bloqueia a abertura da ordem real
-                    if slot_type == "BLITZ_30M" and signal_data:
-                        try:
-                            from services.sandbox_swing_service import sandbox_swing_service
-                            swing_signal = {**signal_data, "symbol": symbol, "side": side}
-                            asyncio.create_task(sandbox_swing_service.on_blitz_signal(
-                                signal=swing_signal,
-                                entry_price=current_price,
-                                stop_price=final_sl,
-                            ))
-                        except Exception as _sw_err:
-                            logger.warning(f"[SWING-LAB] Hook falhou para {symbol}: {_sw_err}")
+                    # [V125 SWING-LAB] Hook on_blitz_signal REMOVIDO.
+                    # Fluxo invertido: SandboxSwingService é o motor primário.
+                    # Ele detecta setups e decide se espelha na OKX (SWING_MIRROR_MODE).
 
                     return order
                 else:

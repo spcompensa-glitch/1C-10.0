@@ -634,9 +634,9 @@ class CaptainAgent(AIOSAgent):
         self.is_running = True
         await firebase_service.log_event("SNIPER", "Sniper System V36.4 CONCURRENT ONLINE. Tocaias assíncronas ativadas.", "SUCCESS")
 
-        # [V124.7] Lança o loop M30 SWING (SignalGenerator — 3 estrategias) em paralelo
-        asyncio.create_task(self._blitz_scan_loop())
-        logger.info("[V124.7 M30-SWING] Loop M30 SWING (SignalGenerator) iniciado em paralelo.")
+        # [V125 SWING-LAB] Loop M30 SWING movido para SandboxSwingService (motor primário).
+        # O CaptainAgent não gerencia mais o scan de swing — apenas ordens REAIS e DECOR HUNTER.
+        logger.info("[V125 SWING-LAB] Scan M30 SWING delegado ao SandboxSwingService (motor primário).")
         
         # [DECOR_HUNTER 3.0] Lança o loop paralelo de pares desgrudados do BTC
         asyncio.create_task(self._decor_hunter_loop())
@@ -780,91 +780,8 @@ class CaptainAgent(AIOSAgent):
                 traceback.print_exc()
                 await asyncio.sleep(5)
 
-    async def _blitz_scan_loop(self):
-        """
-        [V124.7] Loop M30 SWING usando SignalGenerator (3 estrategias).
-        Substitui o BlitzSniperAgent (versao simplificada e fraca).
-        - Roda em paralelo ao monitor_signals principal.
-        - Varre a watchlist a cada 5 minutos buscando setups M30.
-        - Usa DVAP/MOLA/FAS/LRT (ALPHA SHIELD), TREND (VELOCITY FLOW), DECOR (DECOR SHADOW).
-        - Injeta sinais encontrados diretamente na signal_queue com prioridade.
-        """
-        from services.okx_rest import okx_rest_service
-        from config import settings
-
-        SCAN_INTERVAL = 300
-        logger.info("[M30-SWING] Loop M30 SWING (SignalGenerator) iniciado.")
-
-        while self.is_running:
-            try:
-                slots = await firebase_service.get_active_slots()
-                occupied_count = sum(1 for s in slots if s.get("symbol"))
-
-                balance = await bankroll_manager.get_live_operating_equity()
-                if balance < 10.0 and okx_rest_service.execution_mode != "PAPER":
-                    max_total_slots = 2
-                else:
-                    max_total_slots = 20
-
-                if occupied_count >= max_total_slots:
-                    logger.debug("[M30-SWING] Slots ocupados. Pulando ciclo.")
-                    await asyncio.sleep(SCAN_INTERVAL)
-                    continue
-
-                deep_macro = await self.get_deep_macro_status()
-                btc_dir = deep_macro.get("direction", "LATERAL")
-                btc_adx = deep_macro.get("adx", 0.0)
-
-                watchlist = getattr(settings, "RADAR_WATCHLIST", [])
-                if not watchlist:
-                    watchlist = [
-                        "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
-                        "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "ADAUSDT", "MATICUSDT",
-                        "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT"
-                    ]
-
-                logger.info(f"[M30-SWING] Scan M30 de {len(watchlist)} ativos | BTC: {btc_dir} (ADX={btc_adx:.1f})")
-
-                signals = await signal_generator.scan_m30_swing_watchlist(watchlist, btc_dir, btc_adx)
-                if not signals:
-                    logger.info("[M30-SWING] Nenhum setup M30 qualificado neste ciclo.")
-                    await asyncio.sleep(SCAN_INTERVAL)
-                    continue
-
-                for sig in signals:
-                    symbol = sig["symbol"]
-                    in_cooldown, _ = await self.is_symbol_in_cooldown(symbol)
-                    if in_cooldown:
-                        continue
-
-                    active_symbols_set = {
-                        (s.get("symbol") or "").replace(".P", "").upper()
-                        for s in slots if s.get("symbol") and s.get("status") != "EMANCIPATED"
-                    }
-                    if symbol.replace(".P", "").upper() in active_symbols_set:
-                        continue
-
-                    if symbol in self.active_tocaias:
-                        continue
-
-                    self._signal_counter = getattr(self, "_signal_counter", 0) + 1
-                    msg = (
-                        f"[M30-SWING] {symbol} {sig['side']} ({sig['strategy_class']} score={sig['score']}) "
-                        f"injetado na fila | {', '.join(sig.get('reasons', []))}"
-                    )
-                    await signal_generator.signal_queue.put(
-                        (-sig["score"], self._signal_counter, sig)
-                    )
-                    logger.info(msg)
-                    await firebase_service.log_event("M30-SWING", msg, "SUCCESS")
-
-                await asyncio.sleep(SCAN_INTERVAL)
-
-            except Exception as e:
-                logger.error(f"[M30-SWING] Erro no scan: {e}")
-                import traceback
-                traceback.print_exc()
-                await asyncio.sleep(30)
+    # [V125] _blitz_scan_loop REMOVIDO — scan M30 SWING movido para SandboxSwingService.
+    # O SandboxSwingService é o motor primário do Swing Lab e gerencia o scan autônomo.
 
     # =========================================================================
     # ████  DECOR_HUNTER 3.0 — Loop Paralelo de Pares Descolados do BTC  ████

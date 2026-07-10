@@ -47,7 +47,7 @@ logger = logging.getLogger("SandboxSwingService")
 # Constantes padrão (sobrescritas pelo config.py se disponível)
 _DEFAULT_VIRTUAL_BALANCE  = 100.0
 _DEFAULT_MARGIN_PER_TRADE = 5.0
-_DEFAULT_LEVERAGE         = 20.0
+_DEFAULT_LEVERAGE         = 50.0
 _DEFAULT_SCAN_INTERVAL    = 300   # 5 minutos
 
 
@@ -165,6 +165,25 @@ class SandboxSwingService:
             logger.debug(f"[SWING-LAB] Slots Swing cheios ({len(active_trades)}/{max_swing_slots}). Pulando scan.")
             return
 
+        # 1.5. Regra Risco Zero (Zero-Risk Stacking)
+        # Só abre novas posições de Swing se todas as atuais já estiverem protegidas (risco zero)
+        has_active_with_risk = False
+        for t in active_trades:
+            is_long = t.direction.upper() in ("LONG", "BUY")
+            if is_long:
+                if t.stop_loss is None or t.stop_loss < t.entry_price:
+                    has_active_with_risk = True
+                    break
+            else:
+                if t.stop_loss is None or t.stop_loss > t.entry_price:
+                    has_active_with_risk = True
+                    break
+
+        if has_active_with_risk:
+            logger.info(f"[SWING-LAB] Há {len(active_trades)} ordem(ns) de Swing ativa(s) com risco de mesa. Aguardando risco zero (break-even) para abrir nova posição.")
+            return
+
+
 
         # 2. Macro BTC para contexto de regime
         btc_dir = "LATERAL"
@@ -206,6 +225,8 @@ class SandboxSwingService:
             opened = await self._try_open_swing_trade(sig)
             if opened:
                 active_trades.append(opened)   # Atualiza contagem local
+                logger.info(f"[SWING-LAB] Zero-Risk Stacking: Nova ordem aberta. Interrompendo abertura de mais ordens neste ciclo.")
+                break
 
     # =========================================================================
     # ABERTURA DE TRADE — Motor primário com mirror opcional

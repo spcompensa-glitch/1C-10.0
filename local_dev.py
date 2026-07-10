@@ -614,6 +614,15 @@ async def startup():
     except Exception as e:
         logger.error(f"❌ Falha ao iniciar Sandbox Service local: {e}")
 
+    # 📈 [SWING-LAB] Inicializar o Sandbox Swing Service no local_dev
+    try:
+        from services.sandbox_swing_service import sandbox_swing_service
+        await sandbox_swing_service.start()
+        logger.info("🟢 Sandbox Swing Service (Swing Lab) iniciado no ambiente local!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar Sandbox Swing Service local: {e}")
+
+
     # 🆕 [HERMES DASHBOARD v2] Inicia o Hermes Web Dashboard como serviço paralelo
     if HERMES_DASHBOARD_ENABLED:
         try:

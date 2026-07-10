@@ -162,10 +162,13 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 
 - **URL**: https://1crypten.space/sandbox
 - **Banca Virtual (Scalping Lab)**: **$100.00 USD** | Margem: **$2.00/trade** (50x) | Trailing & Escadinha
-- **Banca Virtual (Swing Lab - NOVO)**: **$100.00 USD** | Margem: **$1.00/trade** (20x leverage) | Escadinha RANGING_SWING (gaps 2x maiores)
-- **[V123.2] Cross-Block de Ativos**: Se um ativo estiver aberto no Swing Lab (Blitz), ele não pode ser aberto no Scalping Lab (Radar) e vice-versa. Evita posições conflitantes simultâneas na mesma moeda.
-- **[V123.2] Espelhamento de Operações Reais**: O Swing Lab espelha de forma passiva todas as ordens executadas pelo `BlitzSniperAgent` do Cockpit em sua banca paralela simulada de $100.
-- **Monitoramento**: Loop de 1s para o Scalping e Loop de 1s dedicado para o Swing (Doutrina de Stops)
+- **Banca Virtual (Sandbox Unificado)**: **$100.00 USD** | Margem: **$2.00/trade** (Alavancagens: 50x Scalping / 50x Swing)
+- **[V125.1] Divisão Consolidada (10/10 Slots)**: Máximo de 10 posições em paralelo para Scalping e 10 para Swing Lab (limite total de 20 slots consumindo até $40.00 da banca, garantindo saúde de margem na real se espelhado).
+- **[V125.1] Zero-Risk Stacking (Swing)**: O robô de Swing abre estritamente 1 posição por ciclo e trava a fila. O próximo sinal de Swing só é aberto quando todas as posições ativas estiverem protegidas pelo Stop Loss (Break-even).
+- **[V125.1] Painel Global de Espelho (Mirror)**: Interface unificada de `Espelho Real (OKX)`. Quando ligado, todas as novas ordens autônomas (tanto do radar de Scalp quanto do Swing M30) serão espelhadas para a conta real (sujeito à proteção de banca `check_min_margin`).
+- **[V125] Motor Primário Autônomo**: O Swing Lab detecta setups M30 de forma autônoma e gerencia ordens virtuais e espelhos reais.
+- **[V125] Cérebro Unificado de Stops**: O **FlashAgent** monitora centralizadamente e a cada 1s os stops de Scalping e Swing (Doutrina das Extrações no Swing, sem saída parcial de 50%).
+
 
 - **[V123.1] Explosion Score mínimo: 35** (V123 havia elevado para 50 — estava paralisando o sistema em mercados com BTC plano/lateral. Valor calibrado da V119.)
 - **[V123.1] Cooldown pós stop-out: 1800s (30min) no 1º stop**, 3600s (1h) se 2+ stops consecutivos. (Antes: 3600s mesmo no 1º stop — bloqueava reentradas mesmo após mudança de regime.)

@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Agente Flash V2.0 — Motor de Escadinha e Trailing Stop (1s)
-===========================================================
-Monitora todas as ordens ativas nos slots a cada 1 segundo.
-A mesma ordem permanece no slot durante todo o ciclo de vida.
-Nao existe mais promocao para Moonbag — cada alvo rompido apenas
-promove o stop da propria ordem.
+[V125] Agente Flash — Cérebro Unificado de Stops & Trailing (Scalping e Swing)
+=============================================================================
+Centraliza o monitoramento de stops (iniciais, escadinhas, trailing e timeframes)
+tanto da conta real OKX (slots táticos) quanto do simulador autônomo Swing Lab (sandbox_swing_trades).
 
-Author: 1Crypten Space V5.5.0
+Garante que o comportamento no sandbox seja 100% idêntico ao real.
+
+Regras unificadas:
+  - Partial TP (50%): Apenas para Scalping. Desativado para Swing.
+  - Alinhamento de Stops: Utiliza a mesma infraestrutura de ROI e projeção para ambos os escopos.
 """
 
 import asyncio
 import logging
 import time
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from services.database_service import database_service
 from services.order_projection_service import order_projection_service
@@ -24,126 +26,29 @@ logger = logging.getLogger("FlashAgent")
 
 class FlashAgent:
     """
-    Agente Flash — Monitoramento de ordens nos slots (1s).
-    Cache de leitura com refresh a cada 3s para reduzir queries no banco.
+    Agente sentinela de ultra-velocidade (1s).
+    Monitora de forma unificada os slots reais (OKX) e os trades virtuais (Swing Lab).
     """
 
     def __init__(self):
-        self._task: Optional[asyncio.Task] = None
         self.is_running = False
-        self.leverage = 50.0
-
-        self._last_pnl_update = {}
-        self._slots_cache = []
+        self._task: Optional[asyncio.Task] = None
+        self._slots_cache: List[Dict[str, Any]] = []
         self._last_slots_refresh = 0.0
         self._slots_cache_ttl = 3.0
-
-        self._last_price_cache = {}
-        self._peak_roi_cache = {}
-
-        # [DECOR_HUNTER 2.0] Cache de re-correlação: symbol -> timestamp da última verificação
-        self._last_decor_check: Dict[str, float] = {}
-        self._decor_check_interval = 60.0  # verificar a cada 60s por slot
-
-    def _stop_improves(self, side: str, current_stop: float, candidate_stop: float) -> bool:
-        if candidate_stop <= 0:
-            return False
-        if current_stop <= 0:
-            return True
-        return (side == "buy" and candidate_stop > current_stop) or (
-            side == "sell" and candidate_stop < current_stop
-        )
-
-    def _stop_roi_from_price(self, entry_price: float, stop_price: float, side: str, leverage: float) -> Optional[float]:
-        if entry_price <= 0 or stop_price <= 0 or leverage <= 0:
-            return None
-        return self._calc_roi(entry_price, stop_price, side, leverage)
-
-    def _fmt_price(self, value: float) -> str:
-        if value is None or value <= 0:
-            return "n/a"
-        return f"${value:.8f}"
-
-    def _fmt_roi(self, value: Optional[float]) -> str:
-        if value is None:
-            return "n/a"
-        return f"{value:+.1f}%"
-
-    def _level_label(self, level: Any) -> str:
-        if not isinstance(level, dict) or not level:
-            return "NONE"
-        name = level.get("name") or level.get("label") or "UNKNOWN"
-        trigger = level.get("trigger_roi")
-        stop_roi = level.get("stop_roi")
-        parts = [str(name)]
-        if trigger is not None:
-            parts.append(f"trigger={float(trigger):.0f}%")
-        if stop_roi is not None:
-            parts.append(f"stop={float(stop_roi):.0f}%")
-        return "/".join(parts)
-
-    def _log_flash_exception(self, scope: str, symbol: str, exc: BaseException):
-        logger.error(
-            f"[FLASH-ERROR][{scope}] {symbol} falhou no ciclo de monitoramento: {exc}",
-            exc_info=(type(exc), exc, exc.__traceback__),
-        )
-
-    def _log_price_unavailable(self, scope: str, symbol: str, entry_price: float, current_stop: float, side: str, leverage: float):
-        stop_roi = self._stop_roi_from_price(entry_price, current_stop, side, leverage)
-        logger.warning(
-            f"[FLASH-TRACK][{scope}] {symbol} side={side.upper()} price=n/a "
-            f"entry={self._fmt_price(entry_price)} stop_db={self._fmt_price(current_stop)} "
-            f"stop_db_roi={self._fmt_roi(stop_roi)} action=PRICE_UNAVAILABLE"
-        )
-
-    def _log_slot_tracking(
-        self,
-        slot_id: Any,
-        symbol: str,
-        side: str,
-        entry_price: float,
-        current_price: float,
-        current_stop: float,
-        leverage: float,
-        roi: float,
-        effective_roi: float,
-        projection: Dict[str, Any],
-    ):
-        active_level = projection.get("active_level")
-        next_level = projection.get("next_level")
-        phase = projection.get("phase") or "UNKNOWN"
-        target_stop = float(projection.get("recommended_stop") or 0)
-        current_stop_roi = self._stop_roi_from_price(entry_price, current_stop, side, leverage)
-        target_stop_roi = self._stop_roi_from_price(entry_price, target_stop, side, leverage)
-        if target_stop_roi is None and isinstance(active_level, dict) and active_level.get("stop_roi") is not None:
-            target_stop_roi = float(active_level.get("stop_roi"))
-        improves = self._stop_improves(side, current_stop, target_stop)
-        action = "APPLY_STOP" if improves else "MONITOR"
-
-        adx_val = 20.0
-        try:
-            from services.okx_ws_public import okx_ws_public_service
-            adx_val = getattr(okx_ws_public_service, "btc_adx", 20.0)
-        except Exception:
-            pass
-        regime_label = "RANGING" if adx_val < 25 else "TRENDING"
-
-        logger.info(
-            f"[FLASH-TRACK][SLOT] slot={slot_id} symbol={symbol} side={side.upper()} "
-            f"price={self._fmt_price(current_price)} entry={self._fmt_price(entry_price)} "
-            f"roi={self._fmt_roi(roi)} peak_roi={self._fmt_roi(effective_roi)} phase={phase} "
-            f"active={self._level_label(active_level)} next={self._level_label(next_level)} "
-            f"stop_db={self._fmt_price(current_stop)} stop_db_roi={self._fmt_roi(current_stop_roi)} "
-            f"stop_target={self._fmt_price(target_stop)} stop_target_roi={self._fmt_roi(target_stop_roi)} "
-            f"improves={improves} action={action} regime={regime_label}(ADX={adx_val:.1f})"
-        )
+        self._peak_roi_cache: Dict[str, float] = {}   # { slot_key: peak_roi }
+        self._last_decor_check: Dict[str, float] = {}  # { symbol: timestamp }
+        self._decor_check_interval = 30.0             # Verifica correlação a cada 30s
+        self._last_price_cache: Dict[str, float] = {}  # { symbol: last_price }
+        self._last_pnl_update: Dict[Any, float] = {}   # { slot_id/trade_id: last_update }
+        self.leverage = 50.0                          # Fallback de alavancagem
 
     async def start(self):
         if self.is_running:
             return
         self.is_running = True
         self._task = asyncio.create_task(self._flash_loop())
-        logger.info("⚡ [FLASH] Agente Flash V1.1 ONLINE — Ordens + escadinha a cada 1s!")
+        logger.info("⚡ [FLASH] Agente Flash V2.0 ONLINE — Monitoramento Unificado (Scalping + Swing) ativo a cada 1s!")
 
     async def stop(self):
         self.is_running = False
@@ -159,10 +64,13 @@ class FlashAgent:
         """Loop principal: executa a cada 1 segundo."""
         while self.is_running:
             try:
-                # Arquitetura atual: ordem unica, sem promocao para Moonbag.
-                tasks = [self._scan_all_slots()]
+                # Processa slots táticos (OKX Real/Simulado) e trades virtuais de Swing em paralelo
+                tasks = [
+                    self._scan_all_slots(),
+                    self._scan_sandbox_swing_trades()
+                ]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                for scope, result in zip(("SLOTS",), results):
+                for scope, result in zip(("SLOTS", "SWING_SANDBOX"), results):
                     if isinstance(result, BaseException):
                         self._log_flash_exception(scope, "SCAN", result)
             except asyncio.CancelledError:
@@ -171,10 +79,12 @@ class FlashAgent:
                 logger.error(f"⚡ [FLASH] Erro no loop: {e}")
             await asyncio.sleep(1.0)
 
-    # ==================== SLOTS TÁTICOS ====================
+    # =========================================================================
+    # SLOTS TÁTICOS (Real / OKX Paper)
+    # =========================================================================
 
     async def _scan_all_slots(self):
-        """Escaneia todos os 4 slots com cache de 3s."""
+        """Escaneia todos os slots ativos da conta principal."""
         now = time.time()
         if now - self._last_slots_refresh > self._slots_cache_ttl:
             self._slots_cache = await database_service.get_active_slots()
@@ -198,7 +108,7 @@ class FlashAgent:
                     self._log_flash_exception("SLOT", symbol, result)
 
     async def _process_slot(self, slot: Dict[str, Any]):
-        """Processa UMA ordem: stop inicial, escadinha e trailing sem trocar de container."""
+        """Processa um slot ativo: gerencia stops, parciais e trailing."""
         slot_id = slot.get("id")
         symbol = slot["symbol"]
         entry_price = float(slot.get("entry_price", 0))
@@ -206,6 +116,8 @@ class FlashAgent:
         side = (slot.get("side") or "BUY").lower()
         qty = float(slot.get("qty", 0))
         leverage = float(slot.get("leverage") or self.leverage)
+        slot_type = slot.get("slot_type", "")
+        strategy = slot.get("strategy_class") or slot.get("strategy") or ""
 
         if entry_price <= 0:
             return
@@ -217,19 +129,15 @@ class FlashAgent:
             self._log_price_unavailable("SLOT", symbol, entry_price, current_stop, side, leverage)
             return
 
-        adx_val = 30.0
-        import sys
-        is_test_env = any("pytest" in arg or "test" in arg for arg in sys.argv)
-        if not is_test_env:
-            try:
-                from services.okx_ws_public import okx_ws_public_service
-                val = getattr(okx_ws_public_service, "btc_adx", 0.0)
-                if val > 0.1:
-                    adx_val = val
-            except Exception:
-                pass
-        is_ranging = (adx_val < 25)
+        is_ranging = True
+        try:
+            val = getattr(okx_ws_public_service, "btc_adx", 0.0)
+            if val > 0.1:
+                is_ranging = (val < 25)
+        except Exception:
+            pass
 
+        # Constrói a projeção baseada nas regras unificadas
         projection = await order_projection_service.build_projection(
             slot,
             current_price=current_price,
@@ -245,54 +153,55 @@ class FlashAgent:
         effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
         self._peak_roi_cache[slot_key] = effective_roi
 
-        # [RANGING PARTIAL TP] Rule 2: Partial TP (50% close)
-        # [V124.6] Swing (BLITZ_30M) usa 30% de threshold, scalping usa 15%
-        slot_type = slot.get("slot_type", "")
-        partial_tp_threshold = 30.0 if slot_type in ("BLITZ_30M",) else 15.0
-        audit = slot.get("execution_audit") or {}
-        has_taken_partial = False
-        if isinstance(audit, dict):
-            has_taken_partial = audit.get("has_taken_partial", False)
+        # ─── Saída Parcial (Partial TP) ───
+        # Apenas para SCALPING. Bloqueado explicitamente para Swing.
+        is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
+        if not is_swing:
+            partial_tp_threshold = 15.0  # Scalping parcial em 15% ROI
+            audit = slot.get("execution_audit") or {}
+            has_taken_partial = False
+            if isinstance(audit, dict):
+                has_taken_partial = audit.get("has_taken_partial", False)
 
-        if is_ranging and effective_roi >= partial_tp_threshold and not has_taken_partial:
-            partial_qty = qty * 0.5
-            logger.warning(f"⚡ [FLASH-PARTIAL-TP] {symbol} atingiu +15% ROI lateral! Executando saida parcial de 50% (qty={partial_qty:.6f})")
-            
-            if not isinstance(audit, dict):
-                audit = {}
-            audit["has_taken_partial"] = True
-            
-            entry_margin = float(slot.get("entry_margin") or 0)
-            new_margin = entry_margin * 0.5
-            
-            await database_service.update_slot(slot_id, {
-                "qty": qty * 0.5,
-                "entry_margin": new_margin,
-                "execution_audit": audit
-            })
-            
-            from services.okx_rest import okx_rest_service
-            await okx_rest_service.close_position(
-                symbol,
-                side,
-                partial_qty,
-                reason=f"FLASH_PARTIAL_TP_{roi:.1f}%",
-                is_partial=True,
-                slot_id=slot_id
-            )
-            
-            await self._sync_firebase_slot(slot_id, {
-                "qty": qty * 0.5,
-                "entry_margin": new_margin,
-                "execution_audit": audit
-            })
-            
-            # Atualiza slot local
-            slot["qty"] = qty * 0.5
-            slot["entry_margin"] = new_margin
-            slot["execution_audit"] = audit
-            qty = qty * 0.5
+            if is_ranging and effective_roi >= partial_tp_threshold and not has_taken_partial:
+                partial_qty = qty * 0.5
+                logger.warning(f"⚡ [FLASH-PARTIAL-TP] {symbol} atingiu +15% ROI lateral! Executando saida parcial de 50% (qty={partial_qty:.6f})")
+                
+                if not isinstance(audit, dict):
+                    audit = {}
+                audit["has_taken_partial"] = True
+                
+                entry_margin = float(slot.get("entry_margin") or 0)
+                new_margin = entry_margin * 0.5
+                
+                await database_service.update_slot(slot_id, {
+                    "qty": qty * 0.5,
+                    "entry_margin": new_margin,
+                    "execution_audit": audit
+                })
+                
+                from services.okx_rest import okx_rest_service
+                await okx_rest_service.close_position(
+                    symbol,
+                    side,
+                    partial_qty,
+                    reason=f"FLASH_PARTIAL_TP_{roi:.1f}%",
+                    is_partial=True,
+                    slot_id=slot_id
+                )
+                
+                await self._sync_firebase_slot(slot_id, {
+                    "qty": qty * 0.5,
+                    "entry_margin": new_margin,
+                    "execution_audit": audit
+                })
+                
+                slot["qty"] = qty * 0.5
+                slot["entry_margin"] = new_margin
+                slot["execution_audit"] = audit
+                qty = qty * 0.5
 
+        # Projeção de decisão de trailing
         decision_projection = projection
         if effective_roi > roi + 0.1:
             decision_price = order_projection_service.raw_price_from_roi(
@@ -321,10 +230,10 @@ class FlashAgent:
             decision_projection,
         )
 
-        # Atualiza PnL (a cada 2s)
+        # Atualiza PnL
         self._update_pnl(slot_id, roi, slot)
 
-        # ⚡ Violação de SL
+        # ⚡ Violação de SL Inicial / Fixo
         if current_stop > 0:
             stop_hit = await self._check_stop_hit(side, current_stop, symbol)
             if stop_hit:
@@ -333,23 +242,19 @@ class FlashAgent:
                     current_price = fresh_price
                     roi = self._calc_roi(entry_price, current_price, side, leverage)
                 
-                # Determina se é stop de lucro ou perda
                 is_profit_stop = (side == "buy" and current_stop >= entry_price) or \
                                  (side == "sell" and current_stop <= entry_price)
 
                 if is_profit_stop:
-                    # 🟢 STOP DE LUCRO: Fecha imediatamente (lucro já garantido)
                     logger.warning(f"⚡ [FLASH-SL-PROFIT] {symbol} SL de lucro violado! Price=${current_price:.4f} Stop=${current_stop:.4f}")
                     await self._close_position(slot_id, symbol, side, qty, f"FLASH_PROFIT_SL_{roi:.1f}%")
                     return
                 else:
-                    # 🔴 STOP DE PERDA: Fecha imediatamente sem acionar o Sentinel (Sem olhar gás/respiro)
                     logger.warning(f"🛑⚡ [FLASH-SL-LOSS-IMMEDIATE] {symbol} SL de perda atingido! Fechando imediatamente sem Sentinel. ROI={roi:.1f}%")
                     await self._close_position(slot_id, symbol, side, qty, f"FLASH_LOSS_SL_{roi:.1f}%")
                     return
 
-        # [DECOR_HUNTER 2.0] Re-correlação: se pearson > 0.5, tese quebrada → trailing stop
-        slot_type = slot.get("slot_type", "")
+        # ─── DECOR_HUNTER Re-correlação (se for o caso) ───
         if slot_type == "DECOR_HUNTER":
             now = time.time()
             last_check = self._last_decor_check.get(symbol, 0.0)
@@ -358,29 +263,15 @@ class FlashAgent:
                 try:
                     corr = okx_ws_public_service.get_correlation(symbol, "BTCUSDT")
                     if abs(corr) > 0.5:
-                        trailing_margin_pct = 0.05  # 5% de margem de trail
-                        if side == "buy":
-                            tight_stop = current_price * (1 - trailing_margin_pct)
-                        else:
-                            tight_stop = current_price * (1 + trailing_margin_pct)
+                        trailing_margin_pct = 0.05
+                        tight_stop = current_price * (1 - trailing_margin_pct) if side == "buy" else current_price * (1 + trailing_margin_pct)
                         if self._stop_improves(side, current_stop, tight_stop):
-                            logger.warning(
-                                f"[DECOR-HUNTER 2.0] {symbol} re-correlacionado (r={corr:.2f}). "
-                                f"Tese quebrada → trailing stop a {trailing_margin_pct*100:.0f}% "
-                                f"(${tight_stop:.4f})"
-                            )
-                            await self._update_slot_sl(
-                                slot_id, symbol, tight_stop, "MONITORANDO", side, qty
-                            )
-                            from services.firebase_service import firebase_service
-                            await firebase_service.log_event(
-                                "DECOR_HUNTER",
-                                f"{symbol} re-correlacionado (r={corr:.2f}) → trailing stop ${tight_stop:.4f}",
-                                "WARNING"
-                            )
+                            logger.warning(f"[DECOR-HUNTER] {symbol} re-correlacionado (r={corr:.2f}) → trailing stop ${tight_stop:.4f}")
+                            await self._update_slot_sl(slot_id, symbol, tight_stop, "MONITORANDO", side, qty)
                 except Exception:
                     pass
 
+        # ─── Atualização Progressiva da Escadinha / Trailing ───
         active_level = decision_projection.get("active_level")
         if not active_level or active_level.get("phase") not in ("ESCADINHA", "TRAILING"):
             return
@@ -403,26 +294,184 @@ class FlashAgent:
             f"(atual {roi:.1f}%) → SL +{new_stop_roi:.0f}% (${new_stop_price:.4f}) | {label}"
         )
         await self._update_slot_sl(slot_id, symbol, new_stop_price, status_risco, side, qty)
+        
+        # Confirma se o stop recém-movido já foi violado imediatamente
         stop_hit = await self._check_stop_hit(side, new_stop_price, symbol)
         if stop_hit:
-            logger.warning(
-                f"[FLASH-TRAIL-SL] {symbol} voltou no stop conquistado "
-                f"${new_stop_price:.4f}. Fechando com lucro protegido."
-            )
+            logger.warning(f"[FLASH-TRAIL-SL] {symbol} voltou no stop conquistado ${new_stop_price:.4f}. Fechando.")
             await self._close_position(slot_id, symbol, side, qty, f"FLASH_TRAIL_SL_{roi:.1f}%")
             self._peak_roi_cache.pop(slot_key, None)
 
-    # ==================== HELPERS ====================
+    # =========================================================================
+    # SIMULADOR SWING LAB (sandbox_swing_trades)
+    # =========================================================================
+
+    async def _scan_sandbox_swing_trades(self):
+        """Varre os trades virtuais ativos do Swing Lab a cada 1s e gerencia stops e saídas."""
+        active_swings = await database_service.get_swing_trades(active_only=True)
+        if not active_swings:
+            return
+
+        tasks = [self._process_sandbox_swing_trade(trade) for trade in active_swings]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _process_sandbox_swing_trade(self, trade):
+        """Processa um trade virtual ativo do Swing Lab usando o motor unificado do FlashAgent."""
+        trade_id = trade.id
+        symbol = trade.symbol
+        entry_price = float(trade.entry_price)
+        current_stop = float(trade.stop_loss or 0)
+        direction = trade.direction
+        side = "buy" if direction == "LONG" else "sell"
+        
+        # A alavancagem para o Swing Sandbox é lida dinamicamente do config ou sandbox_swing_service
+        from services.sandbox_swing_service import sandbox_swing_service
+        leverage = float(sandbox_swing_service.leverage)
+        margin = float(sandbox_swing_service.margin_per_trade)
+
+        current_price = await self._get_current_price(symbol)
+        if current_price <= 0:
+            return
+
+        # Calcula ROI
+        roi = self._calc_roi(entry_price, current_price, side, leverage)
+        
+        # Peak ROI
+        peak_key = f"swing_sandbox:{trade_id}"
+        peak_roi = max(self._peak_roi_cache.get(peak_key, 0.0), roi, float(trade.max_roi or 0.0))
+        self._peak_roi_cache[peak_key] = peak_roi
+
+        # Converte o trade em um payload compatível com o build_projection
+        trade_dict = {
+            "symbol": symbol,
+            "side": side,
+            "entry_price": entry_price,
+            "leverage": leverage,
+            "current_stop": current_stop,
+            "slot_type": "SWING",
+            "strategy_class": trade.strategy,
+        }
+
+        projection = await order_projection_service.build_projection(
+            trade_dict,
+            current_price=current_price,
+            phase_hint="SWING_SANDBOX",
+            is_ranging=False,  # Swing usa a escadinha oficial progressiva independente
+        )
+
+        # Atualiza PnL e preços correntes no banco (a cada 2s)
+        now = time.time()
+        last_up = self._last_pnl_update.get(trade_id, 0)
+        if now - last_up >= 2.0:
+            self._last_pnl_update[trade_id] = now
+            await database_service.update_swing_trade(trade_id, {
+                "current_price": current_price,
+                "current_roi": round(roi, 2),
+                "pnl_pct": round(roi, 2),
+                "max_roi": round(peak_roi, 2)
+            })
+
+        # ⚡ Violação de Stop Loss
+        if current_stop > 0:
+            stop_hit = (side == "buy" and current_price <= current_stop) or \
+                       (side == "sell" and current_price >= current_stop)
+            if stop_hit:
+                # O stop foi atingido no simulador
+                status = "CLOSED_TRAILING" if current_stop > entry_price or (side == "sell" and current_stop < entry_price) else "CLOSED_SL"
+                flash_state = dict(trade.flash_state or {})
+                flash_state["history"] = flash_state.get("history", []) + [{
+                    "ts": time.time(), "event": status, "roi": round(roi, 2),
+                    "price": current_price, "level": flash_state.get("active_level", "CLOSED")
+                }]
+                
+                await database_service.update_swing_trade(trade_id, {
+                    "status": status,
+                    "current_price": current_price,
+                    "current_roi": round(roi, 2),
+                    "pnl_pct": round(roi, 2),
+                    "closed_at": time.time(),
+                    "flash_state": flash_state
+                })
+                self._peak_roi_cache.pop(peak_key, None)
+                pnl_usd = (roi / 100.0) * margin
+                logger.warning(
+                    f"🛑⚡ [FLASH-SWING-SANDBOX-CLOSE] {symbol} {direction} {status} | "
+                    f"ROI={roi:.1f}% | PnL=${pnl_usd:.2f} | Stop=${current_stop:.4f}"
+                )
+                return
+
+        # ─── Atualização Progressiva do Stop (Trailing / Escadinha) ───
+        # Constrói decisão com base no pico histórico
+        decision_projection = projection
+        if peak_roi > roi + 0.1:
+            decision_price = order_projection_service.raw_price_from_roi(
+                entry_price,
+                peak_roi,
+                side,
+                leverage,
+            )
+            decision_projection = await order_projection_service.build_projection(
+                trade_dict,
+                current_price=decision_price,
+                phase_hint="SWING_SANDBOX",
+                is_ranging=False,
+            )
+
+        active_level = decision_projection.get("active_level")
+        if not active_level or active_level.get("phase") not in ("ESCADINHA", "TRAILING"):
+            return
+
+        new_stop_roi = float(active_level.get("stop_roi") or 0)
+        new_stop_price = float(decision_projection.get("recommended_stop") or 0)
+        if new_stop_price <= 0 and new_stop_roi > 0:
+            new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
+        if new_stop_price <= 0:
+            return
+
+        stop_improved = self._stop_improves(side, current_stop, new_stop_price)
+        if stop_improved:
+            flash_state = dict(trade.flash_state or {})
+            flash_state["stop_roi"] = new_stop_roi
+            flash_state["active_level"] = active_level.get("name") or "ESCADINHA"
+            
+            logger.info(
+                f"⚡ [FLASH-SWING-SANDBOX-TRAIL] {symbol} peakROI={peak_roi:.1f}% "
+                f"→ SL +{new_stop_roi:.0f}% (${new_stop_price:.4f}) | {flash_state['active_level']}"
+            )
+            
+            await database_service.update_swing_trade(trade_id, {
+                "stop_loss": new_stop_price,
+                "flash_state": flash_state
+            })
+
+            # Verifica se o novo stop já foi atingido imediatamente
+            stop_hit = (side == "buy" and current_price <= new_stop_price) or \
+                       (side == "sell" and current_price >= new_stop_price)
+            if stop_hit:
+                status = "CLOSED_TRAILING"
+                flash_state["history"] = flash_state.get("history", []) + [{
+                    "ts": time.time(), "event": status, "roi": round(roi, 2),
+                    "price": current_price, "level": flash_state["active_level"]
+                }]
+                await database_service.update_swing_trade(trade_id, {
+                    "status": status,
+                    "current_price": current_price,
+                    "current_roi": round(roi, 2),
+                    "pnl_pct": round(roi, 2),
+                    "closed_at": time.time(),
+                    "flash_state": flash_state
+                })
+                self._peak_roi_cache.pop(peak_key, None)
+
+    # =========================================================================
+    # HELPERS
+    # =========================================================================
 
     async def _get_current_price(self, symbol: str) -> float:
-        """
-        Preço via WS cache local. Se WS falhar, usa último preço conhecido.
-        Isso garante que o FlashAgent nunca perca um stop por falha temporária do WS.
-        """
+        """Preço via WS cache local com fallback para preço REST ou cache histórico."""
         try:
             price = okx_ws_public_service.get_current_price(symbol)
             if price and price > 0:
-                # Atualiza cache
                 self._last_price_cache[symbol] = price
                 return price
         except Exception:
@@ -433,18 +482,12 @@ class FlashAgent:
             self._last_price_cache[symbol] = rest_price
             return rest_price
 
-        # Fallback: último preço conhecido (até 60s de idade)
-        last_price = self._last_price_cache.get(symbol, 0.0)
-        if last_price > 0:
-            return last_price
-
-        return 0.0
+        return self._last_price_cache.get(symbol, 0.0)
 
     async def _get_rest_price(self, symbol: str) -> float:
-        """Preço REST fresco para confirmar stops quando o WS/cache estiver atrasado."""
+        """Preço REST fresco para confirmação de stops."""
         try:
             from services.okx_rest import okx_rest_service
-
             ticker = await okx_rest_service.get_tickers(symbol=symbol)
             if isinstance(ticker, list) and ticker:
                 return float(ticker[0].get("lastPrice") or 0)
@@ -457,11 +500,7 @@ class FlashAgent:
         return 0.0
 
     def _get_peak_price(self, symbol: str, side: str, current_price: float) -> float:
-        """
-        Melhor preco recente a favor da ordem.
-        LONG usa high recente; SHORT usa low recente. Isso evita perder um alvo
-        rapido entre ciclos do Flash.
-        """
+        """Obtém o melhor preço recente a favor da ordem para evitar perder picos rápidos."""
         try:
             if side == "buy":
                 high_price = okx_ws_public_service.get_high_price(symbol)
@@ -474,17 +513,11 @@ class FlashAgent:
         return current_price
 
     async def _check_stop_hit(self, side: str, stop_price: float, symbol: str) -> bool:
-        """
-        ⚡ Verifica se o stop foi violado usando PREÇO CONSERVATIVO.
-        Para LONG: usa o LOW dos últimos 30s (pega dips intra-ciclo que o polling perderia)
-        Para SHORT: usa o HIGH dos últimos 30s (pega pumps intra-ciclo)
-        Fallback para preço atual se conservative não estiver disponível.
-        """
+        """Verifica se o stop foi violado usando preço conservativo de 30s."""
         if stop_price <= 0:
             return False
 
         try:
-            # Tenta conservative price primeiro (low para LONG, high para SHORT)
             check_price = okx_ws_public_service.get_conservative_price(symbol, side)
             if check_price > 0:
                 stop_hit = (side == "buy" and check_price <= stop_price) or \
@@ -494,7 +527,6 @@ class FlashAgent:
         except Exception:
             pass
 
-        # Confirmação REST/atual: cobre WS/cache atrasado em stop de lucro.
         current_price = await self._get_current_price(symbol)
         if current_price <= 0:
             return False
@@ -502,17 +534,12 @@ class FlashAgent:
                (side == "sell" and current_price >= stop_price)
 
     def _calc_roi(self, entry: float, current: float, side: str, leverage: float) -> float:
-        """ROI instantâneo em percentual (ex: 2.1 para +2.1%)."""
         if entry <= 0:
             return 0.0
-        if side == "buy":
-            price_diff = (current - entry) / entry
-        else:
-            price_diff = (entry - current) / entry
+        price_diff = (current - entry) / entry if side == "buy" else (entry - current) / entry
         return price_diff * leverage * 100
 
     def _update_pnl(self, slot_id: int, roi: float, slot: Dict[str, Any]):
-        """Atualiza PnL no banco a cada 2s."""
         now = time.time()
         last_up = self._last_pnl_update.get(slot_id, 0)
         if now - last_up >= 2.0:
@@ -525,19 +552,8 @@ class FlashAgent:
 
     async def _calc_stop_price(self, entry_price: float, stop_roi: float, side: str,
                                 leverage: float, symbol: str) -> float:
-        """Calcula preço do stop a partir do ROI desejado.
-
-        Fórmula: ROI = price_diff_pct * leverage * 100
-        Então: price_diff_pct = stop_roi / (leverage * 100)
-
-        Para LONG:  stop = entry * (1 + price_diff_pct)  — stop ACIMA do entry (lucro travado)
-        Para SHORT: stop = entry * (1 - price_diff_pct)  — stop ABAIXO do entry (lucro travado)
-        """
         price_offset_pct = stop_roi / (leverage * 100)
-        if side == "buy":
-            new_stop = entry_price * (1 + price_offset_pct)  # Stop ACIMA do entry para LONG
-        else:
-            new_stop = entry_price * (1 - price_offset_pct)  # Stop ABAIXO do entry para SHORT
+        new_stop = entry_price * (1 + price_offset_pct) if side == "buy" else entry_price * (1 - price_offset_pct)
         try:
             from services.okx_rest import okx_rest_service
             info = await okx_rest_service.get_instrument_info(symbol)
@@ -564,54 +580,52 @@ class FlashAgent:
         rounded = (price_dec / tick_dec).quantize(Decimal("1"), rounding=rounding) * tick_dec
         return float(rounded.normalize())
 
-    # ==================== AÇÕES ====================
+    def _stop_improves(self, side: str, current_stop: float, new_stop: float) -> bool:
+        """Retorna True se o novo stop price melhora a proteção (sobe no LONG, desce no SHORT)."""
+        if current_stop <= 0:
+            return True
+        if side.lower() == "buy":
+            return new_stop > current_stop + 1e-9
+        return new_stop < current_stop - 1e-9
+
+    # =========================================================================
+    # AÇÕES DO BANCO E DE REDE
+    # =========================================================================
 
     async def _update_slot_sl(self, slot_id: int, symbol: str, sl_price: float,
                                status_risco: str, side: str, qty: float):
-        """Atualiza SL do slot no Postgres + Paper Memory."""
         update_payload = {"current_stop": sl_price, "status_risco": status_risco}
         await database_service.update_slot(slot_id, update_payload)
         await self._sync_paper_stop(symbol, sl_price)
         await self._sync_firebase_slot(slot_id, update_payload)
 
     async def _close_position(self, slot_id: int, symbol: str, side: str, qty: float, reason: str):
-        """🛑 Fecha posição tática por SL.
-        [V111.3] Agora registra o trade no histórico via hard_reset_slot.
-        """
         try:
             from services.okx_rest import okx_rest_service
-            
-            # [V111.3] Busca estado atual do slot ANTES de fechar para capturar dados do trade
             current_slot = await database_service.get_slot(slot_id)
-            
             await okx_rest_service.close_position(symbol, side, qty, reason=reason)
             
-            # [V111.3] Registra o trade no histórico via hard_reset_slot
             if current_slot and current_slot.get("symbol"):
                 try:
                     from services.firebase_service import firebase_service
-                    # hard_reset_slot já chama log_trade internamente
                     await firebase_service.hard_reset_slot(
                         slot_id, 
                         reason=reason,
-                        pnl=0.0,  # Auto-calculado pelo _hard_reset_slot_full
+                        pnl=0.0,
                         trade_data=current_slot
                     )
                 except Exception as log_err:
                     logger.error(f"⚡ [FLASH] Erro ao registrar trade no histórico: {log_err}")
             else:
-                # Fallback: reset direto no banco
                 await database_service.update_slot(slot_id, {
                     "symbol": None, "entry_price": 0, "current_stop": 0,
                     "qty": 0, "pnl_percent": 0, "status_risco": "LIVRE"
                 })
-            
             logger.warning(f"🛑⚡ [FLASH] {symbol} FECHADO por SL. Motivo: {reason}")
         except Exception as e:
             logger.error(f"⚡ [FLASH] Erro ao fechar {symbol}: {e}")
 
     async def _sync_paper_stop(self, symbol: str, sl_price: float):
-        """Sincroniza stop no Paper Memory (fire-and-forget)."""
         try:
             from services.okx_rest import okx_rest_service
             if okx_rest_service.execution_mode == "PAPER":
@@ -624,10 +638,9 @@ class FlashAgent:
                     pos["stopLoss"] = str(sl_price)
                     await okx_rest_service._save_paper_state()
         except Exception as e:
-            logger.warning(f"⚡ [FLASH] Paper sync fail (non-critical): {e}")
+            logger.warning(f"⚡ [FLASH] Paper sync fail: {e}")
 
     async def _sync_firebase_slot(self, slot_id: int, payload: dict):
-        """Sincroniza com Firebase (fire-and-forget)."""
         try:
             from services.firebase_service import firebase_service
             slot_state = await firebase_service.get_slot(slot_id)
@@ -636,6 +649,19 @@ class FlashAgent:
         except Exception:
             pass
 
+    def _log_flash_exception(self, scope: str, symbol: str, exception: BaseException):
+        logger.error(f"⚡ [FLASH] Exception in {scope} for {symbol}: {exception}", exc_info=exception)
 
-# Instância global
+    def _log_price_unavailable(self, scope: str, symbol: str, entry: float, stop: float, side: str, leverage: float):
+        logger.warning(f"⚡ [FLASH-{scope}] Preço indisponível para {symbol} (Entry={entry:.4f} Stop={stop:.4f})")
+
+    def _log_slot_tracking(self, slot_id: int, symbol: str, side: str, entry: float, current: float,
+                            stop: float, leverage: float, roi: float, effective_roi: float, projection: dict):
+        logger.debug(
+            f"⚡ [FLASH] Tracking slot={slot_id} {symbol} {side.upper()} "
+            f"Entry=${entry:.4f} Price=${current:.4f} Stop=${stop:.4f} "
+            f"ROI={roi:.1f}% MaxROI={effective_roi:.1f}% Phase={projection.get('phase')}"
+        )
+
+
 flash_agent = FlashAgent()

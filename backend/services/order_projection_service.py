@@ -36,15 +36,15 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 
-# [V124.6] Escadinha RANGING para Swing (Blitz M30)
-# Gaps maiores (2x) para dar tempo do ADX evoluir de LATERAL (<25) para TRENDING (>=25)
-# Swing precisa de mais respiro porque opera em timeframe 30M com 20x leverage
-ORDER_STOP_LADDER_RANGING_SWING: List[StopLevel] = [
-    StopLevel("ESCADINHA", "GARANTIA_TAXAS",       16.0,   2.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_CURTO", 25.0,  10.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_MEDIO", 40.0,  20.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "GARANTIA_LUCRO_ALTO",  60.0,  35.0,  "RISCO_ZERO"),
-    StopLevel("TRAILING",   "ALVO_MAXIMO_SWING",   80.0,  75.0,  "PROFIT_LOCK"),
+# [V125] Escadinha Oficial para Swing (Doutrina das Extrações)
+# Usada de forma unificada no FlashAgent para simular stops de Swing
+ORDER_STOP_LADDER_SWING: List[StopLevel] = [
+    StopLevel("ESCADINHA", "BREAKEVEN",           30.0,   0.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PRE_UNIT1",           60.0,  30.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",    100.0,  80.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADO",         150.0, 110.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",    200.0, 170.0,  "PROFIT_LOCK"),
+    StopLevel("TRAILING",  "UNIT3_GARANTIDO",    300.0, 250.0,  "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
@@ -137,9 +137,12 @@ class OrderProjectionService:
         except Exception:
             return raw_price
 
-    def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False, slot_type: str = "") -> List[StopLevel]:
-        if is_ranging and slot_type in ("BLITZ_30M",):
-            ladder = list(ORDER_STOP_LADDER_RANGING_SWING)
+    def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False, slot_type: str = "", strategy_class: str = "") -> List[StopLevel]:
+        # [V125] Roteamento de escadinha para Swing Lab
+        is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
+        
+        if is_swing:
+            ladder = list(ORDER_STOP_LADDER_SWING)
         elif is_ranging:
             ladder = list(ORDER_STOP_LADDER_RANGING)
         else:
@@ -179,19 +182,20 @@ class OrderProjectionService:
 
         return ladder
 
-    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "") -> Optional[StopLevel]:
+    def get_active_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "", strategy_class: str = "") -> Optional[StopLevel]:
         active = None
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type, strategy_class):
             if roi_percent + epsilon >= level.trigger_roi:
                 active = level
             else:
                 break
         
         # [V124.6] Se estiver em Ranging e em trailing stop ativo
-        # Para BLITZ_30M, o trailing nativo da escada (5% gap) já é adequado
+        # Para Swing, o trailing nativo da escada já é adequado
+        is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
         if is_ranging and active and active.phase == "TRAILING" and roi_percent >= 50.0:
-            if slot_type not in ("BLITZ_30M",):
+            if not is_swing:
                 active = StopLevel(
                     phase=active.phase,
                     name=active.name,
@@ -201,21 +205,22 @@ class OrderProjectionService:
                 )
         return active
 
-    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "") -> Optional[StopLevel]:
+    def get_next_level(self, roi_percent: float, ladder: Optional[List[StopLevel]] = None, is_ranging: bool = False, slot_type: str = "", strategy_class: str = "") -> Optional[StopLevel]:
         epsilon = 1e-9
-        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type):
+        for level in ladder or self.get_stop_ladder(roi_percent, is_ranging, slot_type, strategy_class):
             if roi_percent + epsilon < level.trigger_roi:
                 return level
         return None
 
-    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False, slot_type: str = "") -> str:
-        if is_ranging:
-            if slot_type in ("BLITZ_30M",):
-                if roi_percent >= 80.0:
-                    return "TRAILING"
-                if roi_percent >= 5.0:
-                    return "ESCADINHA"
-                return "ORDER"
+    def get_phase(self, roi_percent: float, phase_hint: Optional[str] = None, is_ranging: bool = False, slot_type: str = "", strategy_class: str = "") -> str:
+        is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
+        if is_swing:
+            if roi_percent >= 300.0:
+                return "TRAILING"
+            if roi_percent >= 30.0:
+                return "ESCADINHA"
+            return "ORDER"
+        elif is_ranging:
             if roi_percent >= 50.0:
                 return "TRAILING"
             if roi_percent >= 5.0:
@@ -282,10 +287,11 @@ class OrderProjectionService:
 
         roi = self.calculate_roi(entry_price, current_price, side, leverage)
         slot_type = order.get("slot_type", "")
-        phase = self.get_phase(roi, phase_hint, is_ranging, slot_type)
-        stop_ladder = self.get_stop_ladder(roi, is_ranging, slot_type)
-        active_level = self.get_active_level(roi, stop_ladder, is_ranging, slot_type)
-        next_level = self.get_next_level(roi, stop_ladder, is_ranging, slot_type)
+        strat = order.get("strategy_class") or order.get("strategy") or ""
+        phase = self.get_phase(roi, phase_hint, is_ranging, slot_type, strat)
+        stop_ladder = self.get_stop_ladder(roi, is_ranging, slot_type, strat)
+        active_level = self.get_active_level(roi, stop_ladder, is_ranging, slot_type, strat)
+        next_level = self.get_next_level(roi, stop_ladder, is_ranging, slot_type, strat)
         existing_contract = order.get("contract") or order.get("contract_meta") or {}
         if existing_contract:
             contract = {

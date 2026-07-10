@@ -154,7 +154,34 @@ class Settings(BaseSettings):
     DECOR_HUNTER_MIN_CONFIDENCE: float = 70.0
     # Intervalo entre varreduras da watchlist (em segundos)
     DECOR_HUNTER_SCAN_INTERVAL: int = 30
-    
+
+    # =========================================================================
+    # [SWING-LAB] Swing Lab — Motor Primário (V125)
+    # =========================================================================
+    # Controla se ordens virtuais do Swing Lab são espelhadas na OKX real
+    # OFF = Sandbox roda autônomo (recomendado para validação)
+    # ON  = Toda ordem swing aberta no Lab é espelhada na conta real
+    SWING_MIRROR_MODE: str = os.getenv("SWING_MIRROR_MODE", "OFF")
+
+    # Alavancagem padrão para trades swing (20x por padrão)
+    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 20))
+
+    # Margem em USD por trade swing na conta virtual
+    SWING_MARGIN_PER_TRADE: float = float(os.getenv("SWING_MARGIN_PER_TRADE", 5.0))
+
+    # Banca virtual do Swing Lab em USD
+    SWING_VIRTUAL_BALANCE: float = float(os.getenv("SWING_VIRTUAL_BALANCE", 100.0))
+
+    # Intervalo entre scans do Swing Lab em segundos (padrão 5 minutos)
+    SWING_SCAN_INTERVAL: int = int(os.getenv("SWING_SCAN_INTERVAL", 300))
+
+    @field_validator('SWING_MIRROR_MODE', mode='before')
+    @classmethod
+    def strip_swing_mirror_mode(cls, v):
+        if isinstance(v, str):
+            return v.strip().upper()
+        return v
+
     # Redis
     REDIS_HOST: str = os.getenv("REDISHOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDISPORT", 6379))

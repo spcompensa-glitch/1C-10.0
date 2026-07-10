@@ -4262,16 +4262,18 @@ class SignalGenerator:
 
     async def analyze_m30_swing(self, symbol: str, btc_direction: str = "LATERAL", btc_adx: float = 0.0) -> Optional[Dict]:
         """
-        [V124.7] Analisa M30 e produz sinal SWING usando as 3 estrategias principais.
-        Substitui o BlitzSniperAgent.
+        [V125 SWING-LAB] Analisa M30 e produz sinal SWING usando as 3 estratégias principais.
+        Motor primário do SandboxSwingService — substítui o BlitzSniperAgent.
 
-        Detecta:
-        - DVAP (divergencia + volume climax + CHoCH) → ALPHA SHIELD
-        - MOLA (BB squeeze) → ALPHA SHIELD
-        - FAS (funding squeeze) → ALPHA SHIELD
-        - LRT (liquidity sweep) → ALPHA SHIELD
-        - TREND (SMA8/21 alignment) → VELOCITY FLOW
-        - DECOR (decorrelation + CVD exhaustion) → DECOR SHADOW
+        Detecta e pontua:
+        - DVAP (divergência + volume climax + CHoCH) → ALPHA SHIELD (+20 pts)
+        - MOLA (BB squeeze) → ALPHA SHIELD (+15 pts)
+        - FAS (funding squeeze) → ALPHA SHIELD (+20 pts)
+        - LRT (liquidity sweep) → ALPHA SHIELD (+15 pts)
+        - TREND (SMA8/21 alignment) → VELOCITY FLOW (+10 pts)
+        - DECOR (decorrelation + CVD exhaustion) → DECOR SHADOW (+15 pts)
+        - Fibonacci Golden Zone (0.618–0.786) → Bônus universal (+20 pts)  [absorvido do Blitz]
+        - Price Action M30 (Wick Reclaim, Engulf, Sweep) → (+15 pts)         [absorvido do Blitz]
         """
         try:
             from services.okx_rest import okx_rest_service
@@ -4362,6 +4364,72 @@ class SignalGenerator:
             elif abs(cvd) > 50000 and rsi_now > 70 and side == "Sell":
                 is_decor = True
 
+            # ── Fibonacci Golden Zone (absorvido do BlitzSniperAgent) ──────────
+            # Calcula níveis Fibonacci do swing recente (30 candles)
+            is_fib_zone = False
+            fib_zone_str = None
+            fib_score = 0
+            try:
+                lookback = min(30, len(highs))
+                swing_high = max(highs[-lookback:])
+                swing_low  = min(lows[-lookback:])
+                fib_range  = swing_high - swing_low
+                if fib_range > 0:
+                    fib_618 = swing_high - fib_range * 0.618
+                    fib_786 = swing_high - fib_range * 0.786
+                    fib_low_z  = min(fib_618, fib_786)
+                    fib_high_z = max(fib_618, fib_786)
+                    # Preço atual dentro da Golden Zone?
+                    if fib_low_z <= current_close <= fib_high_z:
+                        is_fib_zone = True
+                        fib_zone_str = f"{min(0.618,0.786):.3f}-{max(0.618,0.786):.3f}"
+                        fib_score = 20
+                    # Próximo da zona (±0.5% do preço)?
+                    elif abs(current_close - fib_618) / current_close < 0.005 or \
+                         abs(current_close - fib_786) / current_close < 0.005:
+                        fib_score = 10
+                        fib_zone_str = f"NEAR_FIB"
+            except Exception:
+                pass
+
+            # ── Price Action M30 (absorvido do BlitzSniperAgent) ─────────────
+            # Detecta: Wick Reclaim, Bullish/Bearish Engulf, Sweep & Reclaim
+            pa_score = 0
+            pa_pattern = ""
+            try:
+                if len(candles) >= 3:
+                    c0_o, c0_h, c0_l, c0_c = float(candles[-1][1]), float(candles[-1][2]), float(candles[-1][3]), float(candles[-1][4])
+                    c1_o, c1_h, c1_l, c1_c = float(candles[-2][1]), float(candles[-2][2]), float(candles[-2][3]), float(candles[-2][4])
+                    c2_o, c2_h, c2_l, c2_c = float(candles[-3][1]), float(candles[-3][2]), float(candles[-3][3]), float(candles[-3][4])
+
+                    body0 = abs(c0_c - c0_o)
+                    range0 = c0_h - c0_l if c0_h > c0_l else 1e-9
+
+                    if side == "Buy":
+                        # Wick Reclaim Bullish: vela com cauda inferior grande + fecha acima do open
+                        lower_wick = c0_o - c0_l if c0_c >= c0_o else c0_c - c0_l
+                        if lower_wick > body0 * 1.5 and c0_c > c0_o:
+                            pa_score = 15; pa_pattern = "Wick Reclaim Bullish M30"
+                        # Bullish Engulf: vela atual engloba anterior
+                        elif c0_o < c1_c and c0_c > c1_o and body0 > abs(c1_c - c1_o) * 1.2:
+                            pa_score = 12; pa_pattern = "Bullish Engulf M30"
+                        # Sweep & Reclaim: preço varre low anterior e volta acima
+                        elif c0_l < c1_l and c0_c > c1_l:
+                            pa_score = 10; pa_pattern = "Sweep & Reclaim Bullish M30"
+                    else:  # Sell
+                        # Wick Reclaim Bearish: cauda superior grande + fecha abaixo do open
+                        upper_wick = c0_h - c0_o if c0_c <= c0_o else c0_h - c0_c
+                        if upper_wick > body0 * 1.5 and c0_c < c0_o:
+                            pa_score = 15; pa_pattern = "Wick Reclaim Bearish M30"
+                        # Bearish Engulf
+                        elif c0_o > c1_c and c0_c < c1_o and body0 > abs(c1_c - c1_o) * 1.2:
+                            pa_score = 12; pa_pattern = "Bearish Engulf M30"
+                        # Sweep & Reclaim Bearish
+                        elif c0_h > c1_h and c0_c < c1_h:
+                            pa_score = 10; pa_pattern = "Sweep & Reclaim Bearish M30"
+            except Exception:
+                pass
+
             if not is_dvap and not is_mola and not is_fas and not is_lrt and not is_decor and not is_trend:
                 return None
 
@@ -4422,6 +4490,17 @@ class SignalGenerator:
                 score += 15
                 reasons.append("DECOR: CVD exhaustion + RSI extremo")
 
+            # Bônus absorvidos do BlitzSniperAgent
+            if fib_score > 0:
+                score += fib_score
+                if is_fib_zone:
+                    reasons.append(f"Fibonacci Golden Zone ({fib_zone_str})")
+                else:
+                    reasons.append("Próximo Fibonacci Zone")
+            if pa_score > 0:
+                score += pa_score
+                reasons.append(pa_pattern)
+
             if score < 65:
                 return None
             if btc_adx >= 30:
@@ -4430,31 +4509,43 @@ class SignalGenerator:
                 if btc_direction == "DOWN" and side == "Buy":
                     return None
 
+            # Obtém preço atual para entry_price_signal
+            entry_px = 0.0
+            try:
+                entry_px = okx_ws_public_service.get_current_price(symbol) or 0.0
+            except Exception:
+                pass
+
             signal = {
-                "id": f"swing_{symbol.replace('.P','')}_{int(time.time())}",
-                "symbol": symbol,
-                "side": "Buy" if side == "Buy" else "Sell",
-                "score": min(score, 99),
-                "layer": "BLITZ",
-                "is_blitz": True,
-                "slot_type": "BLITZ_30M",
-                "target_slot": None,
-                "timeframe": "30",
-                "strategy": strategy_class,
+                "id":            f"swing_{symbol.replace('.P','')}_{int(time.time())}",
+                "symbol":        symbol,
+                "side":          "Buy" if side == "Buy" else "Sell",
+                "score":         min(score, 99),
+                "layer":         "SWING",
+                "is_blitz":      False,           # [V125] não é mais BLITZ, é SWING
+                "slot_type":     "BLITZ_30M",     # mantido para compatibilidade de slots
+                "target_slot":   None,
+                "timeframe":     "30",
+                "strategy":      strategy_class,
                 "strategy_class": strategy_class,
+                "entry_price_signal": entry_px,  # [V125] Preço no momento do sinal
                 "indicators": {
-                    "sma8": round(sma8_now, 6),
-                    "sma21": round(sma21_now, 6),
-                    "rsi": round(rsi_now, 1),
-                    "cvd": cvd,
-                    "cvd_5m": cvd_5m,
+                    "sma8":         round(sma8_now, 6),
+                    "sma21":        round(sma21_now, 6),
+                    "rsi":          round(rsi_now, 1),
+                    "cvd":          cvd,
+                    "cvd_5m":       cvd_5m,
                     "volume_ratio": round(vol_ratio, 2),
-                    "pattern": raw_class,
-                    "bb_width": bb_width,
+                    "pattern":      raw_class,
+                    "bb_width":     bb_width,
+                    "fib_zone":     fib_zone_str,        # [V125] Fibonacci
+                    "pa_pattern":   pa_pattern or None,  # [V125] Price Action
+                    "is_fib_zone":  is_fib_zone,         # [V125]
+                    "sma_cross":    "UP" if (sma8_now > sma21_now) else "DOWN" if (sma8_now < sma21_now) else "NONE",
                 },
-                "reasons": reasons,
-                "leverage": 20,
-                "timestamp": time.time(),
+                "reasons":       reasons,
+                "leverage":      20,
+                "timestamp":     time.time(),
             }
             return signal
 

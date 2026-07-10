@@ -120,6 +120,18 @@
             </div>
         </div>
         <div class="flex items-center gap-4">
+            <!-- Controle Global de Espelho Real (OKX) -->
+            <div id="global-mirror-control" class="flex items-center gap-3 px-3 py-1.5 glass-panel rounded-xl border border-white/5 mr-1 bg-white/5">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.8)]" id="mirror-status-indicator"></span>
+                    <span class="text-[10px] font-mono text-gray-400">Espelho (OKX):</span>
+                    <span class="text-[11px] font-bold text-white font-mono" id="mirror-status-text">OFF</span>
+                </div>
+                <button onclick="toggleMirror()" class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white border border-white/10 text-[10px] transition-all font-mono font-bold" id="mirror-toggle-btn">
+                    LIGAR
+                </button>
+            </div>
+            
             <button onclick="window.location.href='/cockpit'" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm border border-white/5">
                 <span class="material-icons-round text-sm">dashboard</span> Voltar ao Cockpit
             </button>
@@ -201,17 +213,6 @@
                     <span class="material-icons-round text-sm">trending_up</span> Swing Lab (Multi-Estratégia)
                 </button>
             </div>
-            
-            <!-- Controle de Espelho Real (Visível apenas para Swing) -->
-            <div id="swing-mirror-control" class="hidden flex items-center gap-3 p-3 glass-panel rounded-2xl border border-white/5">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-gray-500" id="mirror-status-indicator"></span>
-                    <span class="text-xs font-mono text-gray-400">Espelho Real (OKX):</span>
-                    <span class="text-xs font-bold text-white font-mono" id="mirror-status-text">OFF</span>
-                </div>
-                <button onclick="toggleMirror()" class="px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs transition-all font-mono font-bold" id="mirror-toggle-btn">
-                    LIGAR
-                </button>
             </div>
         </div>
 
@@ -228,14 +229,14 @@
             </div>
         </div>
 
-        <div id="banner-swing" class="glass-panel p-5 rounded-2xl border-l-4 border-l-accent flex items-start gap-4 hidden">
-            <span class="material-icons-round text-accent text-3xl mt-1">flash_on</span>
+        <div id="banner-swing" class="glass-panel p-5 rounded-2xl border-l-4 border-l-cyberPurple flex items-start gap-4 hidden">
+            <span class="material-icons-round text-cyberPurple text-3xl mt-1">flash_on</span>
             <div>
                 <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Swing Lab M30)</h3>
                 <p class="text-sm text-gray-400">
-                    Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $100.00 USD</strong> e margem de <strong>$2.00 USD por trade</strong> (20x leverage). 
+                    Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $100.00 USD</strong> e margem de <strong>$2.00 USD por trade</strong> (<strong>50x leverage</strong>). 
                     Conduzido centralizadamente pelo <strong>FlashAgent</strong> seguindo a <strong>Doutrina das Extrações</strong>. 
-                    <span class="text-accent font-semibold">Sem Saídas Parciais:</span> A posição corre cheia (100% da mão) buscando lucros explosivos em blocos.
+                    <span class="text-cyberPurple font-semibold">Zero-Risk Stacking:</span> Abre apenas 1 ordem de Swing por vez. Uma nova posição só é disparada assim que o Stop Loss da ordem atual estiver em break-even (risco zero). Sem Saídas Parciais.
                 </p>
             </div>
         </div>
@@ -480,7 +481,6 @@
 
             // Adapt Table Header Columns
             const headerRow = document.getElementById('table-header-row');
-            const mirrorControl = document.getElementById('swing-mirror-control');
             const btnScalp = document.getElementById('tab-btn-scalping');
             const btnSwing = document.getElementById('tab-btn-swing');
 
@@ -489,13 +489,11 @@
                 btnSwing.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent";
                 document.getElementById('banner-scalping').classList.remove('hidden');
                 document.getElementById('banner-swing').classList.add('hidden');
-                mirrorControl.classList.add('hidden');
             } else {
                 btnSwing.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white";
                 btnScalp.className = "flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent";
                 document.getElementById('banner-swing').classList.remove('hidden');
                 document.getElementById('banner-scalping').classList.add('hidden');
-                mirrorControl.classList.remove('hidden');
                 updateMirrorStatusUI();
             }
 
@@ -1053,6 +1051,7 @@
             }
         }
 
+        updateMirrorStatusUI();
         fetchData();
         fetchPatterns();
         fetchAnalytics();

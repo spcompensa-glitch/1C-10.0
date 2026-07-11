@@ -3394,10 +3394,12 @@ class SignalGenerator:
                     # Se varejo está muito comprado (LS > 1.5), evitamos Longs. Se muito vendido (LS < 0.8), evitamos Shorts.
                     if side_label == "Long" and ls_ratio > 1.5: # V16.1: Slightly relaxed (was 1.3)
                         logger.info(f"🚫 [V15.6] {symbol} rejected: Very high LS Ratio ({ls_ratio:.2f})")
-                        # return None
+                        self.recent_rejections.append({"symbol": symbol, "reason": f"LS Ratio High ({ls_ratio:.2f})", "timestamp": time.time()})
+                        return None
                     if side_label == "Short" and ls_ratio < 0.7: # V16.1: Slightly relaxed (was 0.8)
                         logger.info(f"🚫 [V15.6] {symbol} rejected: Very low LS Ratio ({ls_ratio:.2f})")
-                        # return None
+                        self.recent_rejections.append({"symbol": symbol, "reason": f"LS Ratio Low ({ls_ratio:.2f})", "timestamp": time.time()})
+                        return None
                         
                     # 1. Macro & Trend Confluence
                     trend_1h = candidate.get('trend', 'sideways')

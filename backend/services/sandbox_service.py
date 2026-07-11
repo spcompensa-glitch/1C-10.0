@@ -1231,8 +1231,9 @@ class SandboxService:
             for sym, stats in pair_stats.items():
                 if stats["total"] >= 3:  # [V118] Reduzido de 5 para 3 trades
                     wr = (stats["wins"] / stats["total"]) * 100.0
-                    # [V118] Critério mais agressivo: PnL < -15% (era -20%) e WR < 35% (era 30%)
-                    if stats["pnl"] < -15.0 and wr < 35.0:
+                    # [V125.2] Critério mais estrito para Scalping: 
+                    # Bloqueia se Win Rate for <= 40% OU se o PnL for desastroso (< -20%) independente do WR
+                    if (stats["pnl"] < -10.0 and wr <= 40.0) or stats["pnl"] < -20.0:
                         if sym not in self._auto_blocklist:
                             self._auto_blocklist.add(sym)
                             newly_blocked.append(sym)

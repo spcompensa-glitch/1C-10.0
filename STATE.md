@@ -164,7 +164,7 @@ Veja `MASTER_ARCHITECTURE.md` secao 4 para a tabela completa.
 - **Banca Virtual (Scalping Lab)**: **$100.00 USD** | Margem: **$2.00/trade** (50x) | Trailing & Escadinha
 - **Banca Virtual (Sandbox Unificado)**: **$100.00 USD** | Margem: **$2.00/trade** (Alavancagens: 50x Scalping / 50x Swing)
 - **[V125.1] Divisão Consolidada (10/10 Slots)**: Máximo de 10 posições em paralelo para Scalping e 10 para Swing Lab (limite total de 20 slots consumindo até $40.00 da banca, garantindo saúde de margem na real se espelhado).
-- **[V125.1] Zero-Risk Stacking (Swing)**: O robô de Swing abre estritamente 1 posição por ciclo e trava a fila. O próximo sinal de Swing só é aberto quando todas as posições ativas estiverem protegidas pelo Stop Loss (Break-even).
+- **[V125.1] Zero-Risk Stacking Flexibilizado (Swing)**: O robô permite até **2 posições simultâneas com risco de mesa** (Stop no negativo). Se houver 2 posições em risco, a fila trava. Assim que pelo menos uma delas atingir o Break-even (Zero-Risk), um novo slot de risco é liberado para o robô buscar uma nova entrada.
 - **[V125.1] Painel Global de Espelho (Mirror)**: Interface unificada de `Espelho Real (OKX)`. Quando ligado, todas as novas ordens autônomas (tanto do radar de Scalp quanto do Swing M30) serão espelhadas para a conta real (sujeito à proteção de banca `check_min_margin`).
 - **[V125] Motor Primário Autônomo**: O Swing Lab detecta setups M30 de forma autônoma e gerencia ordens virtuais e espelhos reais.
 - **[V125] Cérebro Unificado de Stops**: O **FlashAgent** monitora centralizadamente e a cada 1s os stops de Scalping e Swing (Doutrina das Extrações no Swing, sem saída parcial de 50%).

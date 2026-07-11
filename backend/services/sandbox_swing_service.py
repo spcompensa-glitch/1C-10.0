@@ -165,22 +165,21 @@ class SandboxSwingService:
             logger.debug(f"[SWING-LAB] Slots Swing cheios ({len(active_trades)}/{max_swing_slots}). Pulando scan.")
             return
 
-        # 1.5. Regra Risco Zero (Zero-Risk Stacking)
-        # Só abre novas posições de Swing se todas as atuais já estiverem protegidas (risco zero)
-        has_active_with_risk = False
+        # 1.5. Regra Risco Zero (Zero-Risk Stacking) - 2 Slots de Risco
+        # Permite no máximo 2 posições simultâneas com risco de mesa.
+        trades_with_risk = 0
         for t in active_trades:
             is_long = t.direction.upper() in ("LONG", "BUY")
             if is_long:
                 if t.stop_loss is None or t.stop_loss < t.entry_price:
-                    has_active_with_risk = True
-                    break
+                    trades_with_risk += 1
             else:
                 if t.stop_loss is None or t.stop_loss > t.entry_price:
-                    has_active_with_risk = True
-                    break
+                    trades_with_risk += 1
 
-        if has_active_with_risk:
-            logger.info(f"[SWING-LAB] Há {len(active_trades)} ordem(ns) de Swing ativa(s) com risco de mesa. Aguardando risco zero (break-even) para abrir nova posição.")
+        allowed_new_risk_slots = 2 - trades_with_risk
+        if allowed_new_risk_slots <= 0:
+            logger.info(f"[SWING-LAB] O limite de 2 ordens com risco simultâneo foi atingido. Aguardando pelo menos uma atingir risco zero (break-even).")
             return
 
 
@@ -219,14 +218,22 @@ class SandboxSwingService:
             return
 
         logger.info(f"[SWING-LAB] {len(signals)} setup(s) qualificado(s). Processando...")
+        opened_in_cycle = 0
         for sig in signals:
             if len(active_trades) >= max_swing_slots:
                 break
+            if opened_in_cycle >= allowed_new_risk_slots:
+                break
+                
             opened = await self._try_open_swing_trade(sig)
             if opened:
                 active_trades.append(opened)   # Atualiza contagem local
-                logger.info(f"[SWING-LAB] Zero-Risk Stacking: Nova ordem aberta. Interrompendo abertura de mais ordens neste ciclo.")
-                break
+                opened_in_cycle += 1
+                logger.info(f"[SWING-LAB] Zero-Risk Stacking: Nova ordem aberta ({opened_in_cycle}/{allowed_new_risk_slots} de risco disponíveis neste ciclo).")
+                
+                if opened_in_cycle >= allowed_new_risk_slots:
+                    logger.info(f"[SWING-LAB] Capacidade de risco preenchida. Interrompendo abertura de mais ordens.")
+                    break
 
     # =========================================================================
     # ABERTURA DE TRADE — Motor primário com mirror opcional

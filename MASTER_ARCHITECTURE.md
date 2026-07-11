@@ -21,7 +21,7 @@ Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico d
 
 ## 2. Stack de Agentes (AIOS)
 
-O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
+O sistema usa 19 componentes/agentes especializados, cada um com responsabilidade unica:
 
 ### 2.1 Agentes de Decisao
 
@@ -29,7 +29,7 @@ O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
 |--------|---------|--------|
 | **CaptainAgent** | `agents/captain.py` | Despachante de sinais. Quality gate, regime gating, consensus de frota (Macro 15%, Whale 25%, SMC 30%, OnChain 30%). V20.5 |
 | **OracleAgent** | `agents/oracle_agent.py` | Determinacao de regime de mercado. Grade ADX: RANGING (<25), TRENDING (>=25). Estabilizacao de 150s |
-| **FlashAgent** | `agents/flash_agent.py` | Motor da escadinha. Escritor unico de stops. Ciclo de 1s. Progressao ORDER -> ESCADINHA -> TRAILING |
+| **FlashAgent** | `agents/flash_agent.py` | Motor da escadinha e monitoramento de risco. Loop de 1s. Gerencia stops e take profits (saída parcial desativada para Scalping). |
 | **BankrollGuardian** | `agents/bankroll_guardian.py` | Autorizacao de trades. Gating por regime, limites de slots, memoria por par |
 | **SlotOperator** | `agents/slot_operator.py` | Observador/failsafe. Loop de 3s. Virtual stop loss monitoring |
 
@@ -37,7 +37,8 @@ O sistema usa 18 agentes especializados, cada um com responsabilidade unica:
 
 | Agente | Arquivo | Funcao |
 |--------|---------|--------|
-| **BlitzSniper** | `agents/blitz_sniper.py` | Extracao M30. Cooldown 300s, score >= 80,双s Slots |
+| **SandboxSwingService**| `services/sandbox_swing_service.py`| Motor primário do Swing Lab. Realiza scan M30 a cada 5min e aplica Zero-Risk Stacking. |
+| **SandboxScalpingEngine**| `services/sandbox_scalping_engine.py`| Motor primário do Scalping Lab (VWAP SNIPER). Varre M1/M5 a cada 60s. |
 | **AmbushAgent** | `agents/ambush.py` | Entrada Fibonacci. Timeout 30min, deteccao Wyckoff, sweep tolerance 0.998x/1.002x |
 | **WhaleTracker** | `agents/whale_tracker.py` | Fluxo institucional. CVD/OI, deteccao de armadilha, whale pulse >= 150k CVD |
 | **OnChainWhaleWatcher** | `agents/onchain_whale_watcher.py` | Monitoramento blockchain. Bybit hot wallet, threshold $500k USDT / 200 ETH |
@@ -700,8 +701,60 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Altcoins M30 (Swing) travadas/stops curtos | V124.5 | O scan M30 (Blitz) era pausado se o BTC estivesse lateral. A alavancagem de 50x forçada limitava o stop inicial a 0.6% de preço (muito apertado para SUI). Fix: Removido pausa no scan em lateral, alavancagem de Swing definida para 20x (liberando stops de até 4.0% preço). |
 | Blitz M30 bloqueado em LATERAL (Captain gates) | V124.6 | Sinais BLITZ_30M eram barrados pelos dois gates de regime em `captain.py` (ADX < 25 bloqueava VELOCITY/ALPHA, e segundo gate TREND_FOCUS). Fix: `is_blitz` bypass nos dois gates + escadinha `ORDER_STOP_LADDER_RANGING_SWING` com gaps 2x maiores + partial TP em +30% ROI no FlashAgent por `slot_type`. |
 | BlitzSniperAgent substituido pelo SignalGenerator | V124.7 | BlitzSniperAgent removido — usava apenas SMA9/21 crossover com scoring simples (score >= 75). Substituido por `SignalGenerator.analyze_m30_swing()` que reusa toda a infraestrutura de deteccao de padroes do motor principal: DVAP/MOLA/FAS/LRT (ALPHA SHIELD), TREND (VELOCITY FLOW), DECOR (DECOR SHADOW). Score minimo reduzido para 65. Escadinha RANGING_SWING + partial TP 30% + `slot_type=BLITZ_30M` mantidos. |
+| Motor Autônomo Swing Lab V2.0 e Scalping Lab V125.3 | V125.3 | Remoção completa do `blitz_sniper.py`. Criação do `sandbox_swing_service.py` (scan M30 a cada 5min com Zero-Risk Stacking de capacidade 2) e `sandbox_scalping_engine.py` (VWAP SNIPER no gráfico M1/M5 com ATR stops e sem saídas parciais). Exclusão do boot-shield no Cockpit, criação de botão Clear All no histórico do Vault, e responsividade mobile de layouts. |
 
 ---
 
-*Baseado no codigo-fonte em 2026-07-07. Atualizar ao modificar qualquer constante ou componente.*
-componente.*
+## 16. Scalping Lab — VWAP SNIPER (V125.3)
+
+O motor de scalping micro roda sob o arquivo `services/sandbox_scalping_engine.py`. É um processo autônomo paralelo de alta frequência.
+
+### 16.1 Regras de Entrada
+- **Ciclo:** Varredura a cada 60 segundos (M1/M5).
+- **Filtro de Tendência (M5):** O preço deve estar acima (para LONG) ou abaixo (para SHORT) da EMA 200 no tempo gráfico de 5 minutos.
+- **Zona de Gatilho (M1):** O preço deve tocar a linha de VWAP diário no gráfico de 1 minuto.
+- **Oscilador de Entrada (M1):** Stochastic RSI no gráfico de 1 minuto deve confirmar sobrecompra/sobrevenda (<20 para LONG, >80 para SHORT).
+- **Liquidity Sweeps (Boost):** Varredura de liquidação no livro (+15 pontos de score de momentum).
+
+### 16.2 Regras de Saída e Gestão de Risco
+- **Sem Saídas Parciais:** Para otimizar o ganho máximo no momentum imediato, as ordens de Scalping correm com **100% da mão com alavancagem de 50x** isolada até serem fechadas diretamente pelo Stop Loss ou Stop Gain.
+- **Stop Loss Baseado em Volatilidade (ATR):** O Stop Loss é calculado dinamicamente com base no ATR recente, evitando stops fixos arbitrários em momentos de alta volatilidade.
+
+---
+
+## 17. Swing Lab — Motor Primário M30 (V125.3)
+
+O robô de Swing Lab funciona de forma autônoma em `services/sandbox_swing_service.py`.
+
+### 17.1 Regras de Entrada e Watchlist
+- **Ciclo:** Varredura a cada 5 minutos no gráfico de 30 minutos.
+- **Indicadores Confluentes:** Integração direta com o `SignalGenerator.analyze_m30_swing()`.
+- **Fibonacci Golden Zone:** Confluência na região de ouro da Fibonacci de M30 (+20 pontos).
+- **Price Action M30:** Padrões harmônicos e de velas de reversão em M30 (+15 pontos).
+- **Margem Dinâmica:** Alocação de margem de **$5.00 USD** por trade virtual.
+
+### 17.2 Zero-Risk Stacking (Capacidade 2)
+Para limitar a exposição ao risco sistêmico de mercado, foi implementada uma trava de Stacking:
+- **Limite de Risco:** O motor permite no máximo **2 posições simultâneas expostas a risco** (onde o Stop Loss atual está abaixo do preço de entrada).
+- **Bloqueio:** Se houver 2 ordens sob risco, o ciclo de novas entradas é pausado.
+- **Desbloqueio:** Novas entradas são liberadas imediatamente quando pelo menos uma das posições existentes tem o seu Stop Loss movido para o Break-even ou superior pelo FlashAgent (garantindo risco zero na operação).
+
+---
+
+## 18. Refinamentos Visuais & UX Cockpit (V125.3)
+
+### 18.1 Velocidade e Carregamento (Sem Boot Shield)
+- O elemento `#boot-shield` (tela preta com logo e mensagens de inicialização do Babel) foi completamente removido do [cockpit.html](file:///c:/Users/spcom/Desktop/1C-7.0/frontend/cockpit.html). A interface principal carrega instantaneamente.
+
+### 18.2 Limpeza Completa do Histórico (Vault History)
+- Adicionado o botão `delete_sweep` (ícone de vassourinha) no bloco do histórico do cockpit.
+- Rota dedicada `DELETE /api/history/clear/all` que remove registros do Postgres, RTDB e documentos do Firestore.
+
+### 18.3 Responsividade Mobile
+- **Header Adaptativo:** Títulos e botões de controle quebram em colunas em viewports estreitos.
+- **Grids Fluidos:** O grid de ativos no observatório (`observatory.html`) altera dinamicamente entre 3, 5 e 10 colunas dependendo do tamanho da tela do dispositivo.
+- **Cards de Status Reorganizados:** O painel de *Patrimônio Líquido* e *Guardião da Banca* foi redesenhado em cartões simétricos discretos (`bg-white/[0.02]`) com barras de integridade de gradiente fluido.
+
+---
+
+*Última atualização: V125.3 — VWAP SNIPER + Autonomia Dual-Engine e Refinamentos de Responsividade.*

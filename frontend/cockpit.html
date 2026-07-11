@@ -3251,12 +3251,9 @@
                                 <div className="flex flex-col gap-4">
                                     {[
                                         { to: '/', icon: 'space_dashboard', label: 'Banca' },
-                                        { to: '/neural-chat', icon: 'psychology', label: 'Neural Chat' },
                                         { to: '/sandbox', icon: 'science', label: 'Sandbox Lab', external: true },
-                                        { to: '/config', icon: 'settings', label: 'Configurações' },
-                                        ...(isAdmin ? [{ to: '/adm', icon: 'admin_panel_settings', label: 'Controle de Usuários' }] : []),
-                                        { to: '/kanban', icon: 'view_kanban', label: 'Hermes Kanban' },
-                                        { to: 'https://n8n-production-8e2d4.up.railway.app', icon: 'account_tree', label: 'N8N (Macro-Orquestrador)', external: true }
+                                        { to: '/memory', icon: 'auto_awesome', label: 'Memory Galaxy', external: true },
+                                        { to: '/config', icon: 'settings', label: 'Configurações' }
                                     ].map(item => (
                                         <button key={item.to} onClick={() => { if (item.external) { window.location.href = item.to; } else { navigate(item.to); } setIsMenuOpen(false); }}
                                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-primary/10 text-gray-300 hover:text-white transition-all group border border-transparent hover:border-primary/20">
@@ -6844,13 +6841,13 @@
         // [SILENCED] console.timeEnd('Babel-App-Load');
     </script>
     <!-- Componentes Modularizados -->
-    <script type="text/babel" src="components/TriumphModal.js?v=110.805"></script>
-    <script type="text/babel" src="components/SettingsPage.js?v=110.913"></script>
-    <script type="text/babel" src="components/AdminUsersPage.js?v=110.913"></script>
-    <script type="text/babel" src="components/TakeoffModal.js?v=110.913"></script>
-    <script type="text/babel" src="components/DeepAnalysisModal.js?v=110.913"></script>
+    <script type="text/babel" src="components/TriumphModal.js?v=125.500"></script>
+    <script type="text/babel" src="components/SettingsPage.js?v=125.500"></script>
+    <script type="text/babel" src="components/AdminUsersPage.js?v=125.500"></script>
+    <script type="text/babel" src="components/TakeoffModal.js?v=125.500"></script>
+    <script type="text/babel" src="components/DeepAnalysisModal.js?v=125.500"></script>
     
     <!-- Núcleo do Aplicativo -->
-    <script type="text/babel" src="app.js?v=110.913"></script>
+    <script type="text/babel" src="app.js?v=125.500"></script>
 </body>
 </html>

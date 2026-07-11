@@ -757,4 +757,22 @@ Para limitar a exposição ao risco sistêmico de mercado, foi implementada uma 
 
 ---
 
-*Última atualização: V125.3 — VWAP SNIPER + Autonomia Dual-Engine e Refinamentos de Responsividade.*
+## 19. Memory Galaxy — Obsidian Second Brain (V125.4)
+
+O sistema de memória persistente e auto-documentada foi implementado para conectar notas markdown estruturadas com conexões do Obsidian em `vault_galaxy/`.
+
+### 19.1 Componente e Serviços
+- **`services/galaxy_memory_service.py`:** Gerenciador do cofre Obsidian. Cria diretórios e formata os arquivos em Markdown com propriedades no frontmatter e tags associativas.
+
+### 19.2 Estrutura da Galáxia
+- **`vault_galaxy/trades/`:** Registra cada operação realizada.
+- **`vault_galaxy/journal/`:** Agrupa eventos do sistema e ordens de trade sob a nota diária do respectivo dia (ex: `journal/2026-07-11.md`).
+- **`vault_galaxy/strategies/`:** Documentação detalhada dos limites e regras operacionais.
+
+### 19.3 Triggers de Gravação
+- **Salvamento de Trades:** Integrado em `database_service.py` (`save_trade_history_item`). Toda persistência de trade dispara uma task assíncrona que grava a nota do trade e gera o link no diário.
+- **Transição de Regime:** Integrado em `oracle_agent.py` (`update_market_data`). Registra no diário diário mudanças de tendência (ADX e direção do BTC).
+
+---
+
+*Última atualização: V125.4 — Memory Galaxy (Obsidian Second Brain) e Autonomia Dual-Engine.*

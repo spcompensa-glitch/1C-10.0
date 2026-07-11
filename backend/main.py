@@ -815,6 +815,7 @@ if settings.SERVE_STATIC_FRONTEND:
 # ROUTES & MODULARIZATION (V110.25.0)
 # =================================================================
 from routes import trading, system, dashboard, market, aios, chat, vault, backtest_routes, auth, sentinel, tokens, sandbox, admin
+from routes.memory_routes import router as memory_router
 
 # Include Modulated Routers
 app.include_router(auth.router, prefix="/api/auth")
@@ -830,6 +831,7 @@ app.include_router(backtest_routes.router)
 app.include_router(sentinel.router)
 app.include_router(tokens.router)  # [V2.0] OKX Credentials per User
 app.include_router(sandbox.router)
+app.include_router(memory_router)
 
 # =================================================================
 # WEBSOCKET ENDPOINT (V110.175)
@@ -982,10 +984,19 @@ if settings.SERVE_STATIC_FRONTEND:
                 }
             )
 
-    @app.get("/n8n")
-    @app.get("/n8n/")
-    async def n8n_redirect():
-        return RedirectResponse(url="https://n8n-production-8e2d4.up.railway.app")
+    @app.get("/memory")
+    @app.get("/memory.html")
+    async def serve_memory_page():
+        path = os.path.join(FRONTEND_DIR, "memory_galaxy.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-memory-{time.time()}"
+                }
+            )
 
     @app.get("/observatory.html")
     async def serve_observatory_legacy():

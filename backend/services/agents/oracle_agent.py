@@ -160,10 +160,24 @@ class OracleAgent(AIOSAgent):
                  del data["btc_adx"]
 
         # Update core metrics
+        old_regime = self.market_context.get("regime")
+        old_direction = self.market_context.get("btc_direction")
+
         for k, v in data.items():
             if k in self.market_context:
                 self.market_context[k] = v
         self._refresh_market_labels()
+
+        new_regime = self.market_context.get("regime")
+        new_direction = self.market_context.get("btc_direction")
+
+        if (new_regime != old_regime or new_direction != old_direction) and self._is_initialized:
+            try:
+                from services.galaxy_memory_service import galaxy_memory_service
+                msg = f"- **Transição de Regime:** Regime alterado de `{old_regime} ({old_direction})` para `{new_regime} ({new_direction})` | ADX: `{self.market_context.get('btc_adx')}` | Preço BTC: `${self.market_context.get('btc_price')}`"
+                asyncio.create_task(galaxy_memory_service.log_journal_event("REGIME_CHANGE", msg))
+            except Exception as g_err:
+                logger.error(f"Error logging regime transition to Memory Galaxy: {g_err}")
         
         self.market_context["last_updated"] = now
         self.market_context["last_source"] = source

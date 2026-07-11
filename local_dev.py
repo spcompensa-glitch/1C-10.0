@@ -366,6 +366,10 @@ FRONTEND_PAGES = {
     "/auth.html": "auth.html",
     "/cockpit": "cockpit.html",
     "/cockpit.html": "cockpit.html",
+    "/sandbox": "sandbox.html",
+    "/sandbox.html": "sandbox.html",
+    "/memory": "memory_galaxy.html",
+    "/memory.html": "memory_galaxy.html",
     "/user": "user.html",
     "/user.html": "user.html",
     "/neural-graph": "neural_graph.html",
@@ -390,7 +394,17 @@ for route, filename in FRONTEND_PAGES.items():
     def make_handler(p: Path):
         async def handler():
             if p.exists():
-                return FileResponse(p)
+                with open(p, "r", encoding="utf-8") as f:
+                    content = f.read()
+                from fastapi.responses import HTMLResponse
+                import time
+                return HTMLResponse(
+                    content=content,
+                    headers={
+                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                        "ETag": f"1c-{p.name}-{time.time()}"
+                    }
+                )
             return {"error": f"{p.name} not found"}
         return handler
 

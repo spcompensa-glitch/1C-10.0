@@ -13,6 +13,8 @@ import asyncio
 import time
 import json
 import os
+import re
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from config import settings
 from services.agents.aios_adapter import AIOSAgent
@@ -125,6 +127,39 @@ class HermesAgent(AIOSAgent):
         
         self._wiki_context_cache = "Intel Wiki disponível em /intel/wiki"
         return self._wiki_context_cache
+
+    async def _load_galaxy_memories(self, query: str) -> str:
+        """Busca notas e diários relevantes no cofre Memory Galaxy."""
+        try:
+            vault_dir = Path("vault_galaxy")
+            if not vault_dir.exists():
+                return ""
+            
+            matched_notes = []
+            words = [w.lower() for w in re.findall(r'\w+', query) if len(w) > 3]
+            
+            for sub in ["journal", "trades", "strategies"]:
+                sub_path = vault_dir / sub
+                if not sub_path.exists():
+                    continue
+                
+                files = sorted(list(sub_path.glob("*.md")), key=os.path.getmtime, reverse=True)
+                for file_path in files[:10]:
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        
+                        if not words or any(word in content.lower() for word in words):
+                            snippet = content[:1000]
+                            matched_notes.append(f"📌 [Arquivo: {sub}/{file_path.name}]\n{snippet}\n---")
+                    except Exception:
+                        pass
+            
+            if matched_notes:
+                return "\n\n🧠 [MEMÓRIA GALAXY COMPARTILHADA]\n" + "\n".join(matched_notes[:5])
+        except Exception as e:
+            logger.warning(f"⚠️ Falha ao carregar memórias do Galaxy: {e}")
+        return ""
 
     async def start(self):
         """Start the Hermes Agent monitoring loops."""
@@ -425,39 +460,13 @@ class HermesAgent(AIOSAgent):
                 "context": {"type": "system_status", "active_dimensions": active_dims}
             }
             
-        # [N8N HYBRID] Comandos para o Servidor MCP n8n
-        if "n8n listar" in user_message.lower() or "fluxos n8n" in user_message.lower() or "ferramentas n8n" in user_message.lower():
-            from services.n8n_client import n8n_client
-            try:
-                tools = await n8n_client.list_tools()
-                return {
-                    "response": f"🤖 **Fluxos (Tools) do n8n Encontrados:**\n```json\n{json.dumps(tools, indent=2)}\n```\n*Diga 'n8n rodar [nome_do_fluxo]' para executar.*",
-                    "context": {"type": "n8n_tools", "active_dimensions": active_dims}
-                }
-            except Exception as e:
-                return {"response": f"❌ Falha ao contactar o n8n: {e}", "context": {"active_dimensions": active_dims}}
 
-        if "n8n rodar" in user_message.lower() or "n8n executar" in user_message.lower():
-            from services.n8n_client import n8n_client
-            # Extrai o nome do fluxo após a palavra-chave
-            trigger_word = "rodar" if "rodar" in user_message.lower() else "executar"
-            parts = user_message.lower().split(trigger_word, 1)
-            workflow_name = parts[1].strip() if len(parts) > 1 else ""
-            
-            if not workflow_name:
-                return {"response": "⚠️ Você precisa informar o nome do fluxo. Ex: `n8n rodar meu_fluxo`", "context": {}}
-                
-            try:
-                res = await n8n_client.call_tool(workflow_name)
-                return {
-                    "response": f"✅ **Fluxo disparado no n8n:**\n```json\n{json.dumps(res, indent=2)}\n```",
-                    "context": {"type": "n8n_execution", "active_dimensions": active_dims}
-                }
-            except Exception as e:
-                return {"response": f"❌ Falha ao executar o fluxo no n8n: {e}", "context": {"active_dimensions": active_dims}}
         
-        # 4. Load wiki context
+        # 4. Load wiki context & Galaxy Memories
         wiki_context = await self._load_wiki_context()
+        galaxy_memories = await self._load_galaxy_memories(user_message)
+        if galaxy_memories:
+            wiki_context += "\n" + galaxy_memories
         
         # 5. Generate response via DeepSeek
         if not self._deepseek:

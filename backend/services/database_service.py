@@ -928,6 +928,28 @@ class DatabaseService:
                     session.add(new_trade)
                 await session.commit()
                 logger.info(f"✅ Trade logged in Postgres: {trade_data.get('symbol')}")
+
+                try:
+                    from services.galaxy_memory_service import galaxy_memory_service
+                    galaxy_payload = {
+                        "id": new_trade.id or order_id,
+                        "order_id": order_id,
+                        "genesis_id": new_trade.genesis_id,
+                        "symbol": new_trade.symbol,
+                        "side": new_trade.side,
+                        "pnl": new_trade.pnl,
+                        "pnl_percent": new_trade.pnl_percent,
+                        "entry_price": new_trade.entry_price,
+                        "exit_price": new_trade.exit_price,
+                        "strategy": new_trade.strategy,
+                        "close_reason": new_trade.close_reason,
+                        "timestamp": new_trade.timestamp,
+                        "vision_url": new_trade.vision_url
+                    }
+                    asyncio.create_task(galaxy_memory_service.save_trade_memory(galaxy_payload))
+                except Exception as g_err:
+                    logger.error(f"Error logging to Memory Galaxy: {g_err}")
+
             except Exception as e:
                 logger.error(f"Error logging trade: {e}")
 

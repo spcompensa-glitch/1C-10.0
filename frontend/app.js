@@ -25,12 +25,9 @@
         // [HERMES DASHBOARD v2] Sub-itens do menu ADM — Kanban substituído por Hermes
         const admItems = [
             { to: '/', icon: 'space_dashboard', label: 'Banca' },
-            { to: '/hermes', icon: 'auto_awesome', label: 'Hermes' },
             { href: '/sandbox', icon: 'science', label: 'Sandbox', targetSelf: true },
+            { href: '/memory', icon: 'auto_awesome', label: 'Memory Galaxy', targetSelf: true },
             { to: '/config', icon: 'settings', label: 'Config' },
-            ...(isAdmin ? [{ to: '/adm', icon: 'admin_panel_settings', label: 'Controle' }] : []),
-            { to: '/neural-chat', icon: 'psychology', label: 'Chat (legado)' },
-            { href: 'https://n8n-production-8e2d4.up.railway.app', icon: 'account_tree', label: 'N8N', external: true },
         ];
 
         const NavBtn = ({ to, href, icon, label, isActive, external, targetSelf, onClick }) => {

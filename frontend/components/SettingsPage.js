@@ -183,7 +183,7 @@
                         </div>
                         <div>
                             <h1 className="text-base font-black text-white uppercase tracking-widest">Configurações</h1>
-                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Sistema 10D Sniper · V6.0 Elite</p>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Sistema 10D Sniper · V125.400 Elite</p>
                         </div>
                     </div>
 
@@ -508,7 +508,7 @@
                         </h2>
                         <div className="flex flex-col gap-2 font-mono text-[10px]">
                             {[
-                                { label: 'Versão UI', value: 'V110.115 Sentinel Protocol' },
+                                { label: 'Versão UI', value: 'V125.400 Sentinel Protocol' },
                                 { label: 'Endpoint', value: window.API_BASE || 'https://1crypten.space' },
                                 { label: 'Modo', value: 'COCKPIT · Single Source of Truth' },
                                 { label: 'Protocolo', value: 'Guardian Hedge + Escadinha Operacional' },

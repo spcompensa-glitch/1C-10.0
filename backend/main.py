@@ -925,8 +925,17 @@ if settings.SERVE_STATIC_FRONTEND:
 
     @app.get("/hermes")
     @app.get("/hermes/")
-    async def serve_hermes_redirect():
-        return RedirectResponse(url="/cockpit")
+    async def serve_hermes_chat():
+        path = os.path.join(FRONTEND_DIR, "hermes-chat.html")
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            return HTMLResponse(
+                content=html_content,
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+                    "ETag": f"1c-hermes-chat-{time.time()}"
+                }
+            )
 
     # Hermes API proxy removido em V121 — dashboard descontinuado
 

@@ -207,6 +207,27 @@ class PhaseDetectorHistory(Base):
     timestamp = Column(Float, nullable=False, index=True)  # Unix timestamp
 
 
+# [V126] Hermes Chat — Persistência de sessões e mensagens
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+    id = Column(String, primary_key=True)  # UUID
+    title = Column(String, default="Nova conversa")
+    user_id = Column(String, default="jonatas")
+    model = Column(String, default="deepseek-chat")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    message_count = Column(Integer, default=0)
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String, index=True, nullable=False)
+    role = Column(String, nullable=False)  # "user" | "assistant" | "system"
+    content = Column(String, nullable=False)
+    context = Column(JSON, nullable=True)  # dimensões, compliance, etc
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 LEGACY_VAULT_CYCLE_FIELDS = (
     "sniper_wins",
     "cycle_number",
@@ -1249,5 +1270,118 @@ class DatabaseService:
                     logger.info(f"🧹 [PHASE-DETECTOR] {deleted} snapshots antigos removidos (> {max_age_hours}h)")
             except Exception as e:
                 logger.error(f"Error cleaning phase detector history: {e}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # [V126] HERMES CHAT — CRUD de Sessões
+    # ═══════════════════════════════════════════════════════════════
+
+    async def create_chat_session(self, session_id: str, title: str = "Nova conversa", model: str = "deepseek-chat", user_id: str = "jonatas") -> dict:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                s = ChatSession(id=session_id, title=title, model=model, user_id=user_id)
+                session.add(s)
+                await session.commit()
+                return {"id": s.id, "title": s.title, "model": s.model, "created_at": str(s.created_at), "message_count": 0}
+            except Exception as e:
+                logger.error(f"Error creating chat session: {e}")
+                return None
+
+    async def get_chat_sessions(self, user_id: str = "jonatas", limit: int = 50) -> list:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                q = (
+                    select(ChatSession)
+                    .where(ChatSession.user_id == user_id)
+                    .order_by(desc(ChatSession.updated_at))
+                    .limit(limit)
+                )
+                result = await session.execute(q)
+                rows = result.scalars().all()
+                return [
+                    {
+                        "id": r.id,
+                        "title": r.title,
+                        "model": r.model,
+                        "created_at": str(r.created_at),
+                        "updated_at": str(r.updated_at),
+                        "message_count": r.message_count,
+                    }
+                    for r in rows
+                ]
+            except Exception as e:
+                logger.error(f"Error listing chat sessions: {e}")
+                return []
+
+    async def get_chat_messages(self, session_id: str) -> list:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                q = (
+                    select(ChatMessage)
+                    .where(ChatMessage.session_id == session_id)
+                    .order_by(ChatMessage.created_at)
+                )
+                result = await session.execute(q)
+                rows = result.scalars().all()
+                return [
+                    {
+                        "id": r.id,
+                        "role": r.role,
+                        "content": r.content,
+                        "context": r.context,
+                        "created_at": str(r.created_at),
+                    }
+                    for r in rows
+                ]
+            except Exception as e:
+                logger.error(f"Error loading chat messages: {e}")
+                return []
+
+    async def save_chat_message(self, session_id: str, role: str, content: str, context: dict = None) -> bool:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                msg = ChatMessage(session_id=session_id, role=role, content=content, context=context)
+                session.add(msg)
+                # Update session message count and timestamp
+                await session.execute(
+                    update(ChatSession)
+                    .where(ChatSession.id == session_id)
+                    .values(
+                        message_count=ChatSession.message_count + 1,
+                        updated_at=datetime.utcnow,
+                    )
+                )
+                await session.commit()
+                return True
+            except Exception as e:
+                logger.error(f"Error saving chat message: {e}")
+                return False
+
+    async def delete_chat_session(self, session_id: str) -> bool:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                # Delete messages first
+                await session.execute(delete(ChatMessage).where(ChatMessage.session_id == session_id))
+                # Delete session
+                await session.execute(delete(ChatSession).where(ChatSession.id == session_id))
+                await session.commit()
+                return True
+            except Exception as e:
+                logger.error(f"Error deleting chat session: {e}")
+                return False
+
+    async def rename_chat_session(self, session_id: str, title: str) -> bool:
+        async with self.AsyncSessionLocal() as session:
+            try:
+                await session.execute(
+                    update(ChatSession)
+                    .where(ChatSession.id == session_id)
+                    .values(title=title)
+                )
+                await session.commit()
+                return True
+            except Exception as e:
+                logger.error(f"Error renaming chat session: {e}")
+                return False
+
 
 database_service = DatabaseService()

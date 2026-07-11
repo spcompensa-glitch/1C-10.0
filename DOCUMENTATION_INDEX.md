@@ -1,6 +1,6 @@
 # 1Crypten — Indice de Documentacao
 
-*Atualizado em 2026-06-24. Baseado no codigo-fonte.*
+*Atualizado em 2026-07-11 (V126). Baseado no codigo-fonte.*
 
 ---
 
@@ -22,6 +22,8 @@
 |-----------|-----------|
 | **[frontend/README.md](./frontend/README.md)** | Arquitetura do frontend |
 | **[frontend/LOGIN_GUIDE.md](./frontend/LOGIN_GUIDE.md)** | Fluxo de autenticacao |
+| **[frontend/hermes-chat.html](./frontend/hermes-chat.html)** | Hermes Chat — Interface de conversacao com IA (V126) |
+| **[frontend/memory_galaxy.html](./frontend/memory_galaxy.html)** | Memory Galaxy — 3D galaxy visualization (V126) |
 
 ---
 

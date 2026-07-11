@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memory Galaxy — Obsidian Second Brain</title>
+    <title>Memory — Obsidian Vault</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- WebGL 3D Graph visualization -->
     <script src="https://unpkg.com/3d-force-graph@1.73.0/dist/3d-force-graph.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -16,446 +16,1302 @@
                     fontFamily: {
                         sans: ['Outfit', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
-                    },
-                    colors: {
-                        primary: '#10b981',
-                        cyberOrange: '#ff9f43',
-                        cyberPurple: '#a55eea',
-                        cyberBlue: '#0abde3',
-                        cyberGreen: '#10b981',
-                        cyberRed: '#ee5253',
-                        bgDeep: '#08080f'
                     }
                 }
             }
         }
     </script>
     <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background-color: #08080f;
-            color: #f3f4f6;
+            background: #020208;
+            color: #e2e8f0;
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* NAV SIDEBAR — EXATO DO COCKPIT (app.js NavBar)               */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .app-nav {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: 80px;
+            background: rgba(6,6,16,0.95);
+            backdrop-filter: blur(24px);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+        }
+        .nav-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .nav-logo-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(255,215,0,0.3));
+        }
+        .nav-logo-divider {
+            width: 32px;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+        .nav-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            flex: 1;
+        }
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            color: #9ca3af;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            background: none;
+            width: 56px;
+        }
+        .nav-btn:hover {
+            color: #d1d5db;
+            background: rgba(255,255,255,0.05);
+        }
+        .nav-btn .material-icons-round {
+            font-size: 24px;
+        }
+        .nav-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .nav-adm-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .nav-adm-btn.adm-open,
+        .nav-adm-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 12px rgba(34,197,94,0.15);
+        }
+        .adm-submenu {
+            position: absolute;
+            left: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10001;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(8,8,12,0.97);
+            backdrop-filter: blur(24px);
+            min-width: 180px;
+        }
+        .adm-submenu-title {
+            font-size: 8px;
+            font-weight: 900;
+            color: rgba(34,197,94,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            padding: 0 8px 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 4px;
+        }
+        .adm-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #d1d5db;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .adm-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+        .adm-item .material-icons-round {
+            font-size: 18px;
+        }
+        .adm-item-active {
+            color: #fff !important;
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .nav-bottom {
+            margin-top: auto;
+        }
+        .nav-logout-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(239,68,68,0.1);
+            color: #f87171;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-logout-btn:hover {
+            background: rgba(239,68,68,0.2);
+            color: #fca5a5;
+            border-color: rgba(239,68,68,0.3);
+        }
+        .nav-logout-btn .material-icons-round {
+            font-size: 20px;
+        }
+
+        /* ═══════════════════════════════════════════ */
+        /* MAIN CONTENT                                */
+        /* ═══════════════════════════════════════════ */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            margin-left: 80px;
+        }
+
+        /* Background stars canvas — fills entire main area */
+        #bg-stars {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        /* Orbital glow */
+        .orbital-glow {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            background:
+                radial-gradient(ellipse 60% 50% at 50% 50%, rgba(139,92,246,0.09) 0%, transparent 65%),
+                radial-gradient(ellipse 35% 40% at 35% 55%, rgba(59,130,246,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse 40% 30% at 65% 45%, rgba(168,85,247,0.05) 0%, transparent 55%);
+        }
+
+        /* 3D Graph — transparent, sits on top of background */
+        #3d-graph {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+        }
+
+        /* ═══════════════════════════════════════════ */
+        /* HEADER (floating over graph)                */
+        /* ═══════════════════════════════════════════ */
+        .page-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: 20px 28px 0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .page-header > * { pointer-events: auto; }
+
+        /* ═══════════════════════════════════════════ */
+        /* TABS (floating over graph)                  */
+        /* ═══════════════════════════════════════════ */
+        .tabs-bar {
+            position: absolute;
+            top: 60px;
+            left: 28px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .tabs-bar > * { pointer-events: auto; }
+        .tab-btn {
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            color: #6b7280;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tab-btn:hover { color: #d1d5db; background: rgba(255,255,255,0.04); }
+        .tab-btn.active {
+            background: rgba(139,92,246,0.12);
+            border-color: rgba(139,92,246,0.3);
+            color: #c084fc;
+        }
+        .tab-btn .material-icons-round { font-size: 14px; }
+
+        /* ═══════════════════════════════════════════ */
+        /* STATS BADGE (floating)                      */
+        /* ═══════════════════════════════════════════ */
+        .stats-badge {
+            position: absolute;
+            top: 20px;
+            right: 28px;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(10,10,20,0.7);
+            backdrop-filter: blur(16px);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+        .stats-badge .num { font-weight: 700; }
+        .stats-badge .num-white { color: #fff; }
+        .stats-badge .num-purple { color: #c084fc; }
+
+        /* ═══════════════════════════════════════════ */
+        /* OVERLAYS (floating over graph)              */
+        /* ═══════════════════════════════════════════ */
+        .graph-overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: rgba(156,163,175,0.7);
+        }
+        .graph-overlay.bottom-left {
+            bottom: 20px;
+            left: 28px;
+        }
+        .graph-overlay.bottom-right {
+            bottom: 20px;
+            right: 28px;
+        }
+        .graph-overlay p.title {
+            color: rgba(255,255,255,0.6);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        .graph-overlay p.stat {
+            color: #67e8f9;
+            font-weight: 700;
+        }
+
+        /* ═══════════════════════════════════════════ */
+        /* TOOLTIP                                     */
+        /* ═══════════════════════════════════════════ */
+        #node-tooltip {
+            position: absolute;
+            z-index: 20;
+            pointer-events: none;
+            bottom: 20px;
+            right: 28px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(12px);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #d1d5db;
+            max-width: 240px;
+        }
+        #node-tooltip .tt-name { color: #fff; font-weight: 700; font-size: 11px; }
+        #node-tooltip .tt-cat { font-size: 8px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+        #node-tooltip .tt-desc { font-size: 9px; color: #9ca3af; margin-top: 4px; line-height: 1.4; }
+        #node-tooltip .tt-links { font-size: 8px; color: #6b7280; margin-top: 4px; }
+
+        /* ═══════════════════════════════════════════ */
+        /* VIEWS (Recent, Notes, Voice)                */
+        /* ═══════════════════════════════════════════ */
+        .view-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 15;
+            background: rgba(6,6,16,0.92);
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
-        .glass-panel {
-            background: rgba(13, 13, 23, 0.65);
-            backdrop-filter: blur(24px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .view-panel .view-header {
+            padding: 20px 28px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .view-panel .view-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 28px;
         }
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+        .view-panel .view-body::-webkit-scrollbar { width: 4px; }
+        .view-panel .view-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            transition: all 0.15s;
+            cursor: pointer;
+            color: #9ca3af;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
         }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        .file-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+        .file-item .material-icons-round { font-size: 16px; }
+
+        .cat-label {
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #6b7280;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .glow-cyan {
-            box-shadow: 0 0 20px rgba(10, 190, 227, 0.15);
-        }
-        .audio-pulse {
-            animation: audioPulse 1.5s infinite ease-in-out;
-        }
+        .cat-label .material-icons-round { font-size: 12px; }
+
+        /* ═══════════════════════════════════════════ */
+        /* VOICE                                       */
+        /* ═══════════════════════════════════════════ */
+        .audio-pulse { animation: audioPulse 1.5s infinite ease-in-out; }
         @keyframes audioPulse {
-            0% { transform: scale(1); opacity: 0.2; }
-            50% { transform: scale(1.15); opacity: 0.6; }
-            100% { transform: scale(1); opacity: 0.2; }
+            0% { transform: scale(1); opacity: 0.15; }
+            50% { transform: scale(1.2); opacity: 0.4; }
+            100% { transform: scale(1); opacity: 0.15; }
         }
+        .rec-dot { animation: recBlink 1s infinite; }
+        @keyframes recBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+        /* ═══════════════════════════════════════════ */
+        /* VIEWER OVERLAY                              */
+        /* ═══════════════════════════════════════════ */
+        #viewer-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        #viewer-overlay.hidden {
+            display: none !important;
+        }
+        .viewer-card {
+            background: rgba(12,12,24,0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 680px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .viewer-card .vc-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .viewer-card .vc-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: #d1d5db;
+            white-space: pre-wrap;
+            line-height: 1.7;
+        }
+        .viewer-card .vc-body::-webkit-scrollbar { width: 4px; }
+        .viewer-card .vc-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+        /* Color helpers */
+        .c-blue { color: #60a5fa; }
+        .c-purple { color: #a78bfa; }
+        .c-green { color: #34d399; }
+        .c-yellow { color: #fbbf24; }
+        .c-pink { color: #f472b6; }
+        .c-cyan { color: #22d3ee; }
+        .c-sky { color: #38bdf8; }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col font-sans">
+<body>
 
-    <!-- Top Navigation Header -->
-    <header class="flex-shrink-0 px-6 py-4 glass-panel border-b border-white/5 flex items-center justify-between z-50">
-        <div class="flex items-center gap-3">
-            <a href="/cockpit" class="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center transition-all">
-                <span class="material-icons-round text-gray-400 hover:text-white">arrow_back</span>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- SIDEBAR — MESMO DESIGN DO COCKPIT (app.js NavBar)            -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <nav class="app-nav" id="app-nav">
+        <!-- Logo -->
+        <div class="nav-logo">
+            <img src="/logo10DTrasp.png" alt="Logo" class="nav-logo-img" />
+            <div class="nav-logo-divider"></div>
+        </div>
+
+        <!-- 3 botões principais -->
+        <div class="nav-buttons">
+            <!-- BANCA -->
+            <a href="/" class="nav-btn" title="Banca">
+                <span class="material-icons-round">space_dashboard</span>
+                <span class="nav-label">Banca</span>
             </a>
-            <div>
-                <h1 class="text-base font-black tracking-widest uppercase flex items-center gap-2 text-white">
-                    <span class="material-icons-round text-cyberBlue animate-pulse">auto_awesome</span> Memory Galaxy
-                </h1>
-                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Obsidian Second Brain · V125.500</p>
+
+            <!-- HERMES -->
+            <a href="/hermes" class="nav-btn" title="Hermes">
+                <span class="material-icons-round">auto_awesome</span>
+                <span class="nav-label">Hermes</span>
+            </a>
+
+            <!-- ADM (submenu) -->
+            <div class="nav-adm-wrapper">
+                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
+                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
+                    <span class="nav-label">ADM</span>
+                </button>
+                <!-- Submenu desktop (à direita) -->
+                <div id="adm-submenu" class="adm-submenu hidden">
+                    <span class="adm-submenu-title">ADM · Módulos</span>
+                    <a href="/" class="adm-item">
+                        <span class="material-icons-round">space_dashboard</span>
+                        <span>Banca</span>
+                    </a>
+                    <a href="/sandbox" class="adm-item">
+                        <span class="material-icons-round">science</span>
+                        <span>Sandbox</span>
+                    </a>
+                    <a href="/memory" class="adm-item adm-item-active">
+                        <span class="material-icons-round">auto_awesome</span>
+                        <span>Memory Galaxy</span>
+                    </a>
+                    <a href="/config" class="adm-item">
+                        <span class="material-icons-round">settings</span>
+                        <span>Config</span>
+                    </a>
+                </div>
             </div>
         </div>
-        <div class="flex items-center gap-4">
-            <div class="text-right hidden sm:block">
-                <p class="text-[9px] text-gray-500 uppercase tracking-wider">Cofre Ativo</p>
-                <code class="text-xs text-cyberBlue font-mono">vault_galaxy/</code>
-            </div>
-            <button onclick="loadGraphData()" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold transition-all border border-white/10 flex items-center gap-1.5">
-                <span class="material-icons-round text-sm">sync</span> Recarregar Galáxia
+
+        <!-- Sair (parte inferior) -->
+        <div class="nav-bottom">
+            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair" class="nav-logout-btn">
+                <span class="material-icons-round">power_settings_new</span>
             </button>
         </div>
-    </header>
+    </nav>
 
-    <!-- Main Workspace Layout -->
-    <div class="flex-1 flex overflow-hidden relative">
-        
-        <!-- Left Sidebar: Voice Recorder & Memory Files List -->
-        <aside class="w-80 border-r border-white/5 flex flex-col z-20 glass-panel">
-            <!-- Section 1: Local Voice Recorder (Whisper Local) -->
-            <div class="p-5 border-b border-white/5 flex flex-col gap-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <span class="material-icons-round text-sm text-cyberBlue">mic</span> Diário por Voz
-                    </h2>
-                    <span id="recording-status" class="text-[9px] font-black uppercase text-gray-600 tracking-wider">Desconectado</span>
-                </div>
+    <!-- Overlay para fechar submenu ao clicar fora -->
+    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
 
-                <div class="flex items-center justify-center py-4 bg-black/30 rounded-2xl relative overflow-hidden">
-                    <div id="mic-pulse-ring" class="absolute w-24 h-24 rounded-full bg-cyberBlue/10 hidden audio-pulse"></div>
-                    <button id="btn-record" onclick="toggleRecording()" class="w-16 h-16 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all shadow-lg active:scale-95 group relative z-10">
-                        <span id="mic-icon" class="material-icons-round text-2xl text-cyberBlue group-hover:scale-110 transition-transform">mic</span>
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- MAIN CONTENT AREA                           -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="main-content">
+
+        <!-- Background Stars Canvas -->
+        <canvas id="bg-stars"></canvas>
+
+        <!-- Orbital Glow -->
+        <div class="orbital-glow"></div>
+
+        <!-- 3D Galaxy Graph (directly on background) -->
+        <div id="3d-graph"></div>
+
+        <!-- Header (floating) -->
+        <div class="page-header">
+            <div>
+                <h1 class="text-[26px] font-bold text-white tracking-tight leading-none">Memory</h1>
+                <p class="text-[11px] text-gray-500 mt-1 font-light">Search memories + your Obsidian vault.</p>
+            </div>
+        </div>
+
+        <!-- Stats Badge (floating) -->
+        <div class="stats-badge" id="stats-badge">
+            <span><span class="num num-white" id="stat-total">0</span> <span>STARS</span></span>
+            <span style="color:#4b5563">·</span>
+            <span><span class="num num-purple" id="stat-links">0</span> <span>LINKS</span></span>
+        </div>
+
+        <!-- Tabs (floating) -->
+        <div class="tabs-bar">
+            <button onclick="switchTab('graph')" id="tab-graph" class="tab-btn active">
+                <span class="material-icons-round">hub</span> Graph
+            </button>
+            <button onclick="switchTab('recent')" id="tab-recent" class="tab-btn">
+                <span class="material-icons-round">schedule</span> Recent
+            </button>
+            <button onclick="switchTab('notes')" id="tab-notes" class="tab-btn">
+                <span class="material-icons-round">description</span> Notes
+            </button>
+            <button onclick="switchTab('voice')" id="tab-voice" class="tab-btn">
+                <span class="material-icons-round">mic</span> Voice
+            </button>
+        </div>
+
+        <!-- Graph Overlays (floating) -->
+        <div class="graph-overlay bottom-left" id="graph-overlay">
+            <p class="title">Memory Galaxy</p>
+            <p class="stat" id="overlay-stats">0 stars · 0 links</p>
+            <p style="margin-top:6px;">drag to orbit · scroll to zoom</p>
+            <p>click a star · double-click to pause</p>
+            <p style="color:rgba(156,163,175,0.4);margin-top:2px;">* brighter = more recently touched</p>
+        </div>
+
+        <!-- Tooltip (floating) -->
+        <div id="node-tooltip" class="hidden">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span id="tooltip-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
+                <span class="tt-name" id="tooltip-name"></span>
+            </div>
+            <div class="tt-cat" id="tooltip-cat"></div>
+            <div class="tt-desc" id="tooltip-desc"></div>
+            <div class="tt-links" id="tooltip-links"></div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- VIEW: RECENT                                -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="view-recent" class="view-panel hidden">
+            <div class="view-header">
+                <span class="material-icons-round c-blue" style="font-size:18px;">schedule</span>
+                <span class="text-sm font-bold text-white">Recent Activity</span>
+            </div>
+            <div class="view-body" id="recent-list"></div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- VIEW: NOTES                                 -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="view-notes" class="view-panel hidden">
+            <div class="view-header">
+                <span class="material-icons-round c-purple" style="font-size:18px;">description</span>
+                <span class="text-sm font-bold text-white">All Notes</span>
+                <div style="flex:1"></div>
+                <input type="text" id="notes-search" oninput="filterNotes()" placeholder="Search..." style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:#d1d5db;outline:none;width:200px;">
+            </div>
+            <div class="view-body space-y-6" id="notes-body"></div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- VIEW: VOICE                                 -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="view-voice" class="view-panel hidden">
+            <div class="view-header">
+                <span class="material-icons-round c-cyan" style="font-size:18px;">mic</span>
+                <span class="text-sm font-bold text-white">Voice Notes</span>
+                <div style="flex:1"></div>
+                <span id="voice-status" style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:#6b7280;">Ready</span>
+            </div>
+            <div class="view-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
+                <div style="position:relative;">
+                    <div id="mic-pulse-ring" class="hidden audio-pulse" style="position:absolute;inset:0;border-radius:50%;background:rgba(34,211,238,0.1);transform:scale(1.5);"></div>
+                    <button id="btn-record" onclick="toggleRecording()" style="width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;position:relative;z-index:1;">
+                        <span id="mic-icon" class="material-icons-round" style="font-size:36px;color:#22d3ee;">mic</span>
                     </button>
-                    <div id="timer-display" class="absolute bottom-2 text-[10px] font-mono text-gray-500 hidden">00:00</div>
                 </div>
-
-                <div id="transcription-status" class="hidden text-[10px] text-center font-mono py-2 text-cyberBlue animate-pulse">
-                    ⚙️ Transcrevendo áudio localmente (Whisper)...
+                <div style="text-align:center;">
+                    <div id="timer-display" class="hidden" style="font-size:32px;font-family:'JetBrains Mono',monospace;font-weight:700;color:#fff;">00:00</div>
+                    <p id="voice-hint" style="font-size:11px;color:#6b7280;margin-top:8px;">Click to start recording a voice note</p>
+                    <p id="transcription-status" class="hidden" style="font-size:10px;color:#22d3ee;margin-top:8px;font-family:'JetBrains Mono',monospace;">Transcrevendo audio (Whisper)...</p>
+                </div>
+                <div id="last-voice-note" class="hidden" style="width:100%;max-width:480px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);">
+                    <p style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;font-weight:700;margin-bottom:8px;">Last Voice Note</p>
+                    <p id="last-voice-text" style="font-size:12px;color:#d1d5db;font-family:'JetBrains Mono',monospace;line-height:1.6;"></p>
                 </div>
             </div>
+        </div>
 
-            <!-- Section 2: Files Navigator -->
-            <div class="flex-1 flex flex-col overflow-hidden">
-                <div class="p-4 border-b border-white/5">
-                    <input type="text" id="search-input" oninput="filterFiles()" placeholder="Buscar memórias..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-gray-300 focus:outline-none focus:border-cyberBlue/50 transition-all">
-                </div>
-
-                <div class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-                    <!-- Journals -->
-                    <div class="space-y-2">
-                        <h3 class="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <span class="material-icons-round text-xs text-cyberPurple">menu_book</span> Diários
-                        </h3>
-                        <div id="list-journal" class="flex flex-col gap-1 text-xs font-mono">
-                            <div class="text-gray-600 italic p-2">Carregando...</div>
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- VIEWER OVERLAY                              -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="viewer-overlay" class="hidden" onclick="if(event.target===this)closeViewer()">
+            <div class="viewer-card">
+                <div class="vc-header">
+                    <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                        <span id="viewer-icon" class="material-icons-round c-purple" style="font-size:18px;">description</span>
+                        <div style="min-width:0;">
+                            <h2 id="viewer-title" style="font-size:14px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Note</h2>
+                            <p id="viewer-subtitle" style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px;"></p>
                         </div>
                     </div>
-
-                    <!-- Trades -->
-                    <div class="space-y-2 pt-2">
-                        <h3 class="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <span class="material-icons-round text-xs text-cyberGreen">receipt_long</span> Relatórios de Trades
-                        </h3>
-                        <div id="list-trades" class="flex flex-col gap-1 text-xs font-mono">
-                            <div class="text-gray-600 italic p-2">Carregando...</div>
-                        </div>
-                    </div>
-
-                    <!-- Strategies -->
-                    <div class="space-y-2 pt-2">
-                        <h3 class="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <span class="material-icons-round text-xs text-cyberOrange">psychology</span> Estratégias
-                        </h3>
-                        <div id="list-strategies" class="flex flex-col gap-1 text-xs font-mono">
-                            <div class="text-gray-600 italic p-2">Carregando...</div>
-                        </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="viewer-badge" style="padding:2px 8px;border-radius:4px;font-size:9px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#9ca3af;"></span>
+                        <button onclick="closeViewer()" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.04);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+                            <span class="material-icons-round" style="font-size:14px;color:#9ca3af;">close</span>
+                        </button>
                     </div>
                 </div>
+                <div class="vc-body" id="viewer-content"></div>
             </div>
-        </aside>
-
-        <!-- Center Area: 3D Force Graph WebGL Container -->
-        <main class="flex-1 relative z-10">
-            <div id="3d-graph" class="w-full h-full"></div>
-            <!-- Interactive tips -->
-            <div class="absolute bottom-6 left-6 z-30 pointer-events-none bg-black/60 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/5 space-y-1 font-mono text-[9px] text-gray-400">
-                <p class="text-white font-bold uppercase tracking-wider mb-1">🎮 Controles da Galáxia</p>
-                <p>• Arrastar: Rotacionar Câmera</p>
-                <p>• Rolar Mouse: Zoom In/Out</p>
-                <p>• Clique Esquerdo: Focar na Nota</p>
-                <p>• Clique Duplo: Reiniciar Visão</p>
-            </div>
-        </main>
-
-        <!-- Right Panel: Notes Viewer -->
-        <aside id="viewer-panel" class="w-[500px] border-l border-white/5 flex flex-col z-20 glass-panel transition-all transform duration-300">
-            <div class="p-5 border-b border-white/5 flex items-center justify-between">
-                <div>
-                    <h2 id="viewer-title" class="text-sm font-bold text-white font-mono">Nenhuma Nota Aberta</h2>
-                    <p id="viewer-subtitle" class="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Selecione uma nota na galáxia</p>
-                </div>
-                <span id="viewer-badge" class="px-2.5 py-0.5 rounded text-[9px] uppercase font-mono bg-white/5 border border-white/10 text-gray-400 hidden"></span>
-            </div>
-
-            <!-- Content Area -->
-            <div class="flex-1 overflow-y-auto p-6 font-mono text-xs text-gray-300 whitespace-pre-wrap leading-relaxed no-scrollbar" id="viewer-content">
-                <div class="flex flex-col items-center justify-center h-full text-center text-gray-600 space-y-3">
-                    <span class="material-icons-round text-5xl">auto_awesome</span>
-                    <p>Clique em qualquer estrela da galáxia 3D para projetar a memória e visualizar o seu conteúdo Obsidian.</p>
-                </div>
-            </div>
-        </aside>
+        </div>
 
     </div>
 
-    <!-- Web Application Logic -->
     <script>
-        const API_BASE = window.location.origin;
-        let graph = null;
-        let graphData = null;
-        let selectedNode = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let recordInterval = null;
-        let recordSeconds = 0;
+    // ═══════════════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════════════
+    const API = window.location.origin;
+    let graph = null;
+    let galaxyData = null;
+    let activeTab = 'graph';
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordInterval = null;
+    let recordSeconds = 0;
 
-        // Initialize 3D Graph
-        function initGraph(data) {
-            const container = document.getElementById('3d-graph');
-            
-            // Map data groups to colors
-            const groupColors = {
-                'journal': '#a55eea', // purple
-                'trades': '#10b981',  // green
-                'strategies': '#ff9f43' // orange
-            };
+    // ═══════════════════════════════════════════════════════════════
+    // BACKGROUND STARS (Canvas 2D — twinkling)
+    // ═══════════════════════════════════════════════════════════════
+    const bgCanvas = document.getElementById('bg-stars');
+    const bgCtx = bgCanvas.getContext('2d');
+    let bgStars = [];
 
-            graph = ForceGraph3D()(container)
-                .graphData(data)
-                .nodeLabel(node => `${node.category.toUpperCase()}: ${node.label}`)
-                .nodeColor(node => groupColors[node.category] || '#0abde3')
-                .nodeVal(node => node.val || 2)
-                .nodeResolution(24)
-                .linkColor(() => 'rgba(255, 255, 255, 0.08)')
-                .linkWidth(0.5)
-                .showNavInfo(false)
-                .onNodeClick(node => {
-                    // Focus camera on node
-                    const distance = 80;
-                    const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
-
-                    graph.cameraPosition(
-                        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, // new position
-                        node, // lookAt
-                        1200  // transition duration (ms)
-                    );
-                    
-                    openFile(node.category, node.id.split('/').pop());
-                });
-
-            // Make background space black
-            graph.backgroundColor('#08080f');
-        }
-
-        // Load Vault Files list
-        async function loadFilesList() {
-            try {
-                const res = await fetch(`${API_BASE}/api/memory/files`);
-                if (!res.ok) throw new Error("Erro ao buscar arquivos.");
-                const data = await res.json();
-                
-                // Journals
-                const jList = document.getElementById('list-journal');
-                if (data.journal && data.journal.length > 0) {
-                    jList.innerHTML = data.journal.map(f => `
-                        <button onclick="openFile('journal', '${f}')" class="text-left w-full p-2 hover:bg-white/5 rounded transition-all text-gray-400 hover:text-white truncate flex items-center gap-1.5">
-                            <span class="material-icons-round text-xs text-cyberPurple">description</span> ${f.replace('.md', '')}
-                        </button>
-                    `).join('');
-                } else {
-                    jList.innerHTML = '<div class="text-gray-600 italic p-2">Nenhum diário gerado.</div>';
-                }
-                
-                // Trades
-                const tList = document.getElementById('list-trades');
-                if (data.trades && data.trades.length > 0) {
-                    tList.innerHTML = data.trades.map(f => {
-                        const parts = f.replace('.md', '').split('_');
-                        const label = parts.length >= 3 ? `${parts[1]} (${parts[2]})` : f.replace('.md', '');
-                        return `
-                            <button onclick="openFile('trades', '${f}')" class="text-left w-full p-2 hover:bg-white/5 rounded transition-all text-gray-400 hover:text-white truncate flex items-center gap-1.5">
-                                <span class="material-icons-round text-xs text-cyberGreen">receipt</span> ${label}
-                            </button>
-                        `;
-                    }).join('');
-                } else {
-                    tList.innerHTML = '<div class="text-gray-600 italic p-2">Nenhum relatório de trade.</div>';
-                }
-
-                // Strategies
-                const sList = document.getElementById('list-strategies');
-                if (data.strategies && data.strategies.length > 0) {
-                    sList.innerHTML = data.strategies.map(f => `
-                        <button onclick="openFile('strategies', '${f}')" class="text-left w-full p-2 hover:bg-white/5 rounded transition-all text-gray-400 hover:text-white truncate flex items-center gap-1.5">
-                            <span class="material-icons-round text-xs text-cyberOrange">emoji_objects</span> ${f.replace('.md', '')}
-                        </button>
-                    `).join('');
-                } else {
-                    sList.innerHTML = '<div class="text-gray-600 italic p-2">Nenhuma estratégia catalogada.</div>';
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        // Open specific file in viewer
-        async function openFile(category, filename) {
-            try {
-                const viewerContent = document.getElementById('viewer-content');
-                viewerContent.innerHTML = '<div class="text-center text-gray-600 italic p-8">Lendo nota espacial...</div>';
-                
-                const res = await fetch(`${API_BASE}/api/memory/file?category=${category}&filename=${filename}`);
-                if (!res.ok) throw new Error("Erro ao ler conteúdo.");
-                const data = await res.json();
-                
-                document.getElementById('viewer-title').innerText = filename.replace('.md', '');
-                document.getElementById('viewer-subtitle').innerText = `Diretório: vault_galaxy/${category}`;
-                
-                const badge = document.getElementById('viewer-badge');
-                badge.innerText = category;
-                badge.classList.remove('hidden');
-                if (category === 'journal') {
-                    badge.className = "px-2 py-0.5 rounded text-[9px] uppercase font-mono bg-cyberPurple/10 border border-cyberPurple/20 text-cyberPurple";
-                } else if (category === 'trades') {
-                    badge.className = "px-2 py-0.5 rounded text-[9px] uppercase font-mono bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen";
-                } else {
-                    badge.className = "px-2 py-0.5 rounded text-[9px] uppercase font-mono bg-cyberOrange/10 border border-cyberOrange/20 text-cyberOrange";
-                }
-                
-                viewerContent.innerText = data.content;
-            } catch (err) {
-                console.error(err);
-                document.getElementById('viewer-content').innerHTML = '<div class="text-cyberRed p-8">Erro ao carregar nota.</div>';
-            }
-        }
-
-        // Fetch graph data
-        async function loadGraphData() {
-            try {
-                const res = await fetch(`${API_BASE}/api/memory/graph-data`);
-                if (!res.ok) throw new Error("Erro ao buscar dados do gráfico.");
-                graphData = await res.json();
-                
-                if (graph) {
-                    graph.graphData(graphData);
-                } else {
-                    initGraph(graphData);
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        // Search/Filter Files
-        function filterFiles() {
-            const val = document.getElementById('search-input').value.toLowerCase();
-            const groups = ['list-journal', 'list-trades', 'list-strategies'];
-            
-            groups.forEach(g => {
-                const container = document.getElementById(g);
-                const buttons = container.getElementsByTagName('button');
-                Array.from(buttons).forEach(btn => {
-                    const text = btn.innerText.toLowerCase();
-                    if (text.includes(val)) {
-                        btn.style.display = 'flex';
-                    } else {
-                        btn.style.display = 'none';
-                    }
-                });
+    function initBgStars() {
+        const main = document.querySelector('.main-content');
+        bgCanvas.width = main.clientWidth;
+        bgCanvas.height = main.clientHeight;
+        bgStars = [];
+        const count = Math.floor((bgCanvas.width * bgCanvas.height) / 2200);
+        for (let i = 0; i < count; i++) {
+            bgStars.push({
+                x: Math.random() * bgCanvas.width,
+                y: Math.random() * bgCanvas.height,
+                r: Math.random() * 1.3 + 0.15,
+                alpha: Math.random() * 0.5 + 0.08,
+                speed: Math.random() * 0.015 + 0.003,
+                offset: Math.random() * Math.PI * 2,
+                color: ['#ffffff','#c8d6ff','#a0c4ff','#ddd6fe','#e0e7ff'][Math.floor(Math.random()*5)]
             });
         }
+    }
 
-        // Record Voice Diário (MediaRecorder + local Whisper)
-        async function toggleRecording() {
-            const btn = document.getElementById('btn-record');
-            const icon = document.getElementById('mic-icon');
-            const status = document.getElementById('recording-status');
-            const pulse = document.getElementById('mic-pulse-ring');
-            const timer = document.getElementById('timer-display');
-            const tStatus = document.getElementById('transcription-status');
-
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                // Stop Recording
-                mediaRecorder.stop();
-                clearInterval(recordInterval);
-                pulse.classList.add('hidden');
-                timer.classList.add('hidden');
-                icon.innerText = "mic";
-                icon.className = "material-icons-round text-2xl text-cyberBlue";
-                status.innerText = "Processando...";
-                status.className = "text-[9px] font-black uppercase text-cyberOrange tracking-wider animate-pulse";
-                tStatus.classList.remove('hidden');
-                return;
-            }
-
-            // Start Recording
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                recordSeconds = 0;
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const formData = new FormData();
-                    formData.append('file', audioBlob, 'voice_entry.webm');
-
-                    try {
-                        const res = await fetch(`${API_BASE}/api/memory/upload-audio`, {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const result = await res.json();
-                        
-                        if (result.success) {
-                            status.innerText = "Sucesso";
-                            status.className = "text-[9px] font-black uppercase text-cyberGreen tracking-wider";
-                            // Reload files list and graph to see new journal node
-                            await loadFilesList();
-                            await loadGraphData();
-                            // Open the updated file
-                            openFile('journal', result.file);
-                        } else {
-                            status.innerText = "Falhou";
-                            status.className = "text-[9px] font-black uppercase text-cyberRed tracking-wider";
-                            alert("Falha na transcrição: " + result.error);
-                        }
-                    } catch (e) {
-                        status.innerText = "Erro";
-                        status.className = "text-[9px] font-black uppercase text-cyberRed tracking-wider";
-                        console.error(e);
-                    } finally {
-                        tStatus.classList.add('hidden');
-                        // Stop all tracks to release mic
-                        stream.getTracks().forEach(track => track.stop());
-                    }
-                };
-
-                mediaRecorder.start();
-                pulse.classList.remove('hidden');
-                timer.classList.remove('hidden');
-                icon.innerText = "stop";
-                icon.className = "material-icons-round text-2xl text-cyberRed";
-                status.innerText = "Gravando...";
-                status.className = "text-[9px] font-black uppercase text-cyberRed tracking-wider animate-pulse";
-                
-                timer.innerText = "00:00";
-                recordInterval = setInterval(() => {
-                    recordSeconds++;
-                    const min = String(Math.floor(recordSeconds / 60)).padStart(2, '0');
-                    const sec = String(recordSeconds % 60).padStart(2, '0');
-                    timer.innerText = `${min}:${sec}`;
-                }, 1000);
-
-            } catch (err) {
-                console.error("Mic access denied or error:", err);
-                alert("Acesso ao microfone negado ou indisponível.");
+    function drawBgStars(t) {
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        for (const s of bgStars) {
+            const twinkle = Math.sin(t * s.speed + s.offset) * 0.35 + 0.65;
+            bgCtx.globalAlpha = s.alpha * twinkle;
+            bgCtx.beginPath();
+            bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            bgCtx.fillStyle = s.color;
+            bgCtx.fill();
+            if (s.r > 0.9) {
+                bgCtx.beginPath();
+                bgCtx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
+                bgCtx.fillStyle = s.color;
+                bgCtx.globalAlpha = s.alpha * twinkle * 0.06;
+                bgCtx.fill();
             }
         }
+        bgCtx.globalAlpha = 1;
+        requestAnimationFrame(drawBgStars);
+    }
 
-        // On Page Load
-        window.addEventListener('DOMContentLoaded', () => {
-            loadFilesList();
-            loadGraphData();
+    window.addEventListener('resize', initBgStars);
+    initBgStars();
+    requestAnimationFrame(drawBgStars);
+
+    // ═══════════════════════════════════════════════════════════════
+    // TABS
+    // ═══════════════════════════════════════════════════════════════
+    function switchTab(tab) {
+        activeTab = tab;
+        ['graph','recent','notes','voice'].forEach(t => {
+            const el = document.getElementById(`view-${t}`);
+            if (el) el.classList.toggle('hidden', t !== tab);
+            const btn = document.getElementById(`tab-${t}`);
+            if (btn) btn.classList.toggle('active', t === tab);
         });
+        document.getElementById('graph-overlay').classList.toggle('hidden', tab !== 'graph');
+        document.getElementById('node-tooltip').classList.add('hidden');
+        if (tab === 'graph' && graph) setTimeout(() => graph.resize(), 50);
+        if (tab === 'recent') loadRecentList();
+        if (tab === 'notes') loadNotesView();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 3D GALAXY
+    // ═══════════════════════════════════════════════════════════════
+    function createStarTexture() {
+        const size = 256;
+        const c = document.createElement('canvas');
+        c.width = size; c.height = size;
+        const ctx = c.getContext('2d');
+        const cx = size / 2;
+        // Outer glow (large, soft)
+        const gOuter = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+        gOuter.addColorStop(0, 'rgba(255,255,255,1.0)');
+        gOuter.addColorStop(0.04, 'rgba(255,255,255,0.95)');
+        gOuter.addColorStop(0.1, 'rgba(220,230,255,0.8)');
+        gOuter.addColorStop(0.2, 'rgba(180,200,255,0.5)');
+        gOuter.addColorStop(0.35, 'rgba(150,170,255,0.2)');
+        gOuter.addColorStop(0.5, 'rgba(130,150,255,0.08)');
+        gOuter.addColorStop(0.7, 'rgba(110,130,255,0.02)');
+        gOuter.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gOuter;
+        ctx.fillRect(0, 0, size, size);
+        return new THREE.CanvasTexture(c);
+    }
+
+    const starTexture = createStarTexture();
+
+    const catColors = {
+        core:[96,165,250], agent:[167,139,250], service:[52,211,153],
+        strategy:[251,191,36], vault:[244,114,182], ui:[56,189,248], chats:[34,211,238]
+    };
+    const catHex = {
+        core:'#60a5fa', agent:'#a78bfa', service:'#34d399',
+        strategy:'#fbbf24', vault:'#f472b6', ui:'#38bdf8', chats:'#22d3ee'
+    };
+
+    function getStarColor(cat, rec) {
+        const b = catColors[cat] || [200,200,220];
+        const r = Math.min(1, rec || 0);
+        return `rgb(${Math.round(b[0]+(255-b[0])*r*0.5)},${Math.round(b[1]+(255-b[1])*r*0.5)},${Math.round(b[2]+(255-b[2])*r*0.4)})`;
+    }
+
+    let origColors = {};
+
+    // ═══════════════════════════════════════════════════════════════
+    // GALAXY LAYOUT — spiral + central bulge
+    // ═══════════════════════════════════════════════════════════════
+    function layoutGalaxy(data) {
+        const nodes = data.nodes;
+        // Category order: center -> outer
+        const catOrder = { core:0, agent:1, service:2, strategy:3, vault:4, ui:5, chats:3 };
+        const catRadius = { core:12, agent:35, service:55, strategy:70, vault:85, ui:100, chats:75 };
+
+        // Sort: core first, then by category
+        nodes.sort((a, b) => (catOrder[a.category]||5) - (catOrder[b.category]||5));
+
+        // Golden angle for even distribution
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+        nodes.forEach((node, i) => {
+            const cat = node.category || 'vault';
+            const baseR = catRadius[cat] || 80;
+            const catIdx = catOrder[cat] ?? 4;
+
+            // Count nodes in this category to spread them
+            const catNodes = nodes.filter(n => (n.category||'vault') === cat);
+            const idxInCat = catNodes.indexOf(node);
+            const catTotal = catNodes.length || 1;
+
+            // Spiral within category ring
+            const theta = idxInCat * goldenAngle + catIdx * 0.8;
+            const rSpread = baseR + (idxInCat / catTotal) * 25 - 12;
+            const noise = (Math.random() - 0.5) * 15;
+
+            // Elliptical galaxy shape — flat disk
+            // x = horizontal, z = depth in disk plane, y = vertical (small)
+            node.x = Math.cos(theta) * (rSpread + noise) * 1.1;
+            node.z = Math.sin(theta) * (rSpread + noise) * 0.55;
+
+            // Clamp to ellipse boundary (in XZ plane)
+            const normX = node.x / ELLIPSE_RX;
+            const normZ = node.z / ELLIPSE_RZ;
+            const ed = Math.sqrt(normX * normX + normZ * normZ);
+            if (ed > 0.92) {
+                const sc = 0.92 / ed;
+                node.x *= sc;
+                node.z *= sc;
+            }
+
+            // Y = vertical thickness of disk (thin!)
+            node.y = (Math.random() - 0.5) * (4 + catIdx * 3);
+            // Store orbital params
+            node._orbitR = rSpread + noise;
+            node._orbitAngle = theta;
+            node._orbitSpeed = 0.0006 / (1 + (rSpread / 80));
+        });
+
+        // Add extra random "dust" nodes in outer regions for density
+        // (Only if we have few nodes — pad with phantom positions)
+        if (nodes.length < 250) {
+            const dustCount = 250 - nodes.length;
+            for (let i = 0; i < dustCount; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const r = 60 + Math.random() * 60;
+                let dx = Math.cos(theta) * r * 1.1;
+                let dz = Math.sin(theta) * r * 0.55;
+                // Clamp dust to ellipse (XZ plane)
+                const dnx = dx / ELLIPSE_RX;
+                const dnz = dz / ELLIPSE_RZ;
+                const ded = Math.sqrt(dnx * dnx + dnz * dnz);
+                if (ded > 0.92) {
+                    const dsc = 0.92 / ded;
+                    dx *= dsc;
+                    dz *= dsc;
+                }
+                nodes.push({
+                    id: `_dust_${i}`,
+                    label: '',
+                    category: 'vault',
+                    val: 0.8 + Math.random() * 2.0,
+                    recency: 0,
+                    description: '',
+                    group: 'dust',
+                    x: dx,
+                    y: (Math.random() - 0.5) * 6,
+                    z: dz,
+                    _orbitR: r,
+                    _orbitAngle: theta,
+                    _orbitSpeed: 0.0004 / (1 + (r / 80)),
+                    _dust: true,
+                });
+            }
+        }
+    }
+
+    function initGraph(data) {
+        // Layout galaxy shape FIRST
+        layoutGalaxy(data);
+
+        const el = document.getElementById('3d-graph');
+        data.nodes.forEach(n => { origColors[n.id] = getStarColor(n.category, n.recency||0); });
+
+        graph = ForceGraph3D()(el)
+            .graphData(data)
+            .showNavInfo(false)
+            .backgroundColor('#00000000')
+            .linkColor(() => 'rgba(180,180,255,0.1)')
+            .linkWidth(0.35)
+            .linkOpacity(0.1)
+            .nodeLabel(node => {
+                const c = (node.category||'').toUpperCase();
+                const d = node.description||'';
+                return `<div style="font-family:JetBrains Mono,monospace;font-size:10px;text-align:center;max-width:180px;">
+                    <div style="color:#fff;font-weight:700;">${node.label}</div>
+                    <div style="color:rgba(255,255,255,0.45);font-size:8px;margin-top:2px;">${c}</div>
+                    ${d?`<div style="color:rgba(255,255,255,0.3);font-size:7px;margin-top:3px;">${d}</div>`:''}
+                </div>`;
+            })
+            .nodeThreeObject(node => {
+                const mat = new THREE.SpriteMaterial({
+                    map: starTexture,
+                    color: new THREE.Color(getStarColor(node.category, node.recency||0)),
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    opacity: 0.95,
+                });
+                const sprite = new THREE.Sprite(mat);
+                const s = (node.val||3) * 2.5;
+                sprite.scale.set(s, s, 1);
+                return sprite;
+            })
+            .nodeThreeObjectExtend(false)
+            .d3AlphaDecay(0.05)
+            .d3VelocityDecay(0.85)
+            .warmupTicks(0)
+            .cooldownTicks(0)
+            .cameraPosition({ x: 0, y: 80, z: 260 })
+            .onNodeClick(node => {
+                const d = 90;
+                const ratio = 1 + d / Math.hypot(node.x||1, node.y||1, node.z||1);
+                graph.cameraPosition(
+                    { x:(node.x||0)*ratio, y:(node.y||0)*ratio, z:(node.z||0)*ratio },
+                    node, 1200
+                );
+                if (node.category === 'vault') {
+                    const p = node.id.replace('vault:','').split('/');
+                    openFile(p[0], p.slice(1).join('/'));
+                }
+            })
+            .onNodeHover(node => {
+                const tt = document.getElementById('node-tooltip');
+                if (node) {
+                    tt.classList.remove('hidden');
+                    document.getElementById('tooltip-dot').style.background = catHex[node.category]||'#888';
+                    document.getElementById('tooltip-name').textContent = node.label;
+                    document.getElementById('tooltip-cat').textContent = (node.category||'').toUpperCase();
+                    document.getElementById('tooltip-cat').style.color = catHex[node.category]||'#888';
+                    document.getElementById('tooltip-desc').textContent = node.description||'';
+                    const lc = data.links.filter(l=>(l.source?.id||l.source)===node.id||(l.target?.id||l.target)===node.id).length;
+                    document.getElementById('tooltip-links').textContent = `${lc} connections`;
+                    // Brighten + scale
+                    if (node.__threeObj) {
+                        node.__threeObj.material.color.set('#ffffff');
+                        node.__threeObj.material.opacity = 1;
+                        const s = (node.val||3)*4.0;
+                        node.__threeObj.scale.set(s,s,1);
+                    }
+                    data.nodes.forEach(n=>{ if(n.id!==node.id && n.__threeObj) n.__threeObj.material.opacity=0.35; });
+                } else {
+                    tt.classList.add('hidden');
+                    data.nodes.forEach(n=>{
+                        if(n.__threeObj && origColors[n.id]){
+                            n.__threeObj.material.color.set(origColors[n.id]);
+                            n.__threeObj.material.opacity=0.95;
+                            const s=(n.val||3)*1.8;
+                            n.__threeObj.scale.set(s,s,1);
+                        }
+                    });
+                }
+            });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GALAXY ELLIPSE BOUNDARY — limite invisível
+    // ═══════════════════════════════════════════════════════════════
+    const ELLIPSE_RX = 115;  // raio X da elipse (limite horizontal)
+    const ELLIPSE_RZ = 65;   // raio Z da elipse (limite vertical/ profundidade)
+
+    function addEllipseBoundary() {
+        if (!graph || !graph.scene) return;
+        const segments = 128;
+        const points = [];
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            points.push(new THREE.Vector3(
+                Math.cos(angle) * ELLIPSE_RX,
+                0,
+                Math.sin(angle) * ELLIPSE_RZ
+            ));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0x8b5cf6,
+            transparent: true,
+            opacity: 0.03,
+            linewidth: 1,
+        });
+        const ellipse = new THREE.Line(geometry, material);
+        ellipse.name = 'galaxy-boundary';
+        graph.scene().add(ellipse);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DATA LOADING
+    // ═══════════════════════════════════════════════════════════════
+    async function loadGalaxy() {
+        try {
+            const res = await fetch(`${API}/api/memory/galaxy-full`);
+            galaxyData = await res.json();
+            // Layout galaxy shape EVERY time
+            layoutGalaxy(galaxyData);
+            const s = galaxyData.nodes?.length||0;
+            const l = galaxyData.links?.length||0;
+            document.getElementById('stat-total').textContent = s;
+            document.getElementById('stat-links').textContent = l;
+            document.getElementById('overlay-stats').textContent = `${s} stars · ${l} links`;
+            document.getElementById('stats-badge').style.display = 'flex';
+            if (graph) {
+                galaxyData.nodes.forEach(n=>{ origColors[n.id]=getStarColor(n.category,n.recency||0); });
+                graph.graphData(galaxyData);
+            } else {
+                initGraph(galaxyData);
+                addEllipseBoundary();
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadFilesList() {
+        try {
+            const res = await fetch(`${API}/api/memory/files`);
+            const d = await res.json();
+            renderNotesView(d);
+        } catch(e) { console.error(e); }
+    }
+
+    function renderNotesView(d) {
+        const body = document.getElementById('notes-body');
+        if (!body) return;
+        const sections = [
+            { title:'Diários', icon:'menu_book', color:'c-purple', files:d.journal||[], cat:'journal' },
+            { title:'Trades', icon:'receipt_long', color:'c-green', files:d.trades||[], cat:'trades', isTrade:true },
+            { title:'Strategies', icon:'emoji_objects', color:'c-yellow', files:d.strategies||[], cat:'strategies' },
+            { title:'Hermes Chats', icon:'chat', color:'c-cyan', files:d.chats||[], cat:'journal' },
+        ];
+        body.innerHTML = sections.map(sec => {
+            const items = sec.files.map(f => {
+                let label = f.replace('.md','');
+                if (sec.isTrade) { const p=label.split('_'); label=p.length>=3?`${p[1]} ${p[2]}`:label; }
+                if (label.length>45) label=label.substring(0,42)+'...';
+                return `<div class="file-item" onclick="openFile('${sec.cat}','${f.replace(/'/g,"\\'")}')">
+                    <span class="material-icons-round ${sec.color}">${sec.icon}</span>
+                    <span>${label}</span>
+                </div>`;
+            }).join('');
+            return `<div><div class="cat-label"><span class="material-icons-round ${sec.color}">${sec.icon}</span> ${sec.title}</div>${items||'<div style="color:#4b5563;font-size:11px;font-style:italic;padding:8px;">No files yet.</div>'}</div>`;
+        }).join('');
+    }
+
+    async function loadRecentList() {
+        try {
+            const res = await fetch(`${API}/api/memory/files`);
+            const d = await res.json();
+            const all = [
+                ...(d.journal||[]).map(f=>({name:f,cat:'journal',icon:'description',color:'c-purple'})),
+                ...(d.trades||[]).map(f=>({name:f,cat:'trades',icon:'receipt',color:'c-green'})),
+                ...(d.strategies||[]).map(f=>({name:f,cat:'strategies',icon:'emoji_objects',color:'c-yellow'})),
+                ...(d.chats||[]).map(f=>({name:f,cat:'journal',icon:'chat',color:'c-cyan'})),
+            ].sort((a,b)=>b.name.localeCompare(a.name)).slice(0,20);
+            const el = document.getElementById('recent-list');
+            el.innerHTML = all.map(f=>{
+                let l=f.name.replace('.md','');
+                if(f.cat==='trades'){const p=l.split('_');l=p.length>=3?`${p[1]} ${p[2]}`:l;}
+                return `<div class="file-item" onclick="openFile('${f.cat}','${f.name.replace(/'/g,"\\'")}')">
+                    <span class="material-icons-round ${f.color}">${f.icon}</span>
+                    <div><div>${l}</div><div style="font-size:9px;color:#6b7280;text-transform:uppercase;">${f.cat}</div></div>
+                </div>`;
+            }).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    function loadNotesView() { loadFilesList(); }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FILE VIEWER
+    // ═══════════════════════════════════════════════════════════════
+    async function openFile(cat, filename) {
+        try {
+            document.getElementById('viewer-content').innerText = 'Loading...';
+            document.getElementById('viewer-overlay').classList.remove('hidden');
+            const res = await fetch(`${API}/api/memory/file?category=${encodeURIComponent(cat)}&filename=${encodeURIComponent(filename)}`);
+            const d = await res.json();
+            document.getElementById('viewer-title').innerText = filename.replace('.md','');
+            document.getElementById('viewer-subtitle').innerText = `vault_galaxy/${cat}`;
+            const b = document.getElementById('viewer-badge');
+            b.innerText = cat;
+            const cm = {journal:'c-purple',trades:'c-green',strategies:'c-yellow'};
+            b.className = cm[cat]||'c-cyan';
+            const im = {journal:'menu_book',trades:'receipt_long',strategies:'psychology'};
+            document.getElementById('viewer-icon').innerText = im[cat]||'description';
+            document.getElementById('viewer-icon').className = `material-icons-round ${cm[cat]||'c-cyan'}`;
+            document.getElementById('viewer-content').innerText = d.content;
+        } catch(e) { document.getElementById('viewer-content').innerText = 'Error loading note.'; }
+    }
+    function closeViewer() { document.getElementById('viewer-overlay').classList.add('hidden'); }
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeViewer(); });
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOTES FILTER
+    // ═══════════════════════════════════════════════════════════════
+    function filterNotes() {
+        const v = (document.getElementById('notes-search')?.value||'').toLowerCase();
+        document.querySelectorAll('#notes-body .file-item').forEach(el=>{
+            el.style.display = el.innerText.toLowerCase().includes(v) ? 'flex' : 'none';
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VOICE RECORDER
+    // ═══════════════════════════════════════════════════════════════
+    async function toggleRecording() {
+        const icon = document.getElementById('mic-icon');
+        const status = document.getElementById('voice-status');
+        const pulse = document.getElementById('mic-pulse-ring');
+        const timer = document.getElementById('timer-display');
+        const hint = document.getElementById('voice-hint');
+        const tStatus = document.getElementById('transcription-status');
+
+        if (mediaRecorder && mediaRecorder.state==="recording") {
+            mediaRecorder.stop(); clearInterval(recordInterval);
+            pulse.classList.add('hidden'); timer.classList.add('hidden');
+            icon.innerText="mic"; icon.style.color="#22d3ee";
+            status.innerText="Processing..."; status.style.color="#ff9f43";
+            hint.classList.add('hidden'); tStatus.classList.remove('hidden');
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = []; recordSeconds = 0;
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, {type:'audio/webm'});
+                const fd = new FormData(); fd.append('file',blob,'voice.webm');
+                try {
+                    const res = await fetch(`${API}/api/memory/upload-audio`,{method:'POST',body:fd});
+                    const r = await res.json();
+                    if (r.success) {
+                        status.innerText="Saved"; status.style.color="#34d399";
+                        document.getElementById('last-voice-note').classList.remove('hidden');
+                        document.getElementById('last-voice-text').textContent=r.transcription;
+                        hint.textContent="Click to record another"; hint.classList.remove('hidden');
+                        refreshAll();
+                    } else { status.innerText="Failed"; status.style.color="#ee5253"; }
+                } catch(e) { status.innerText="Error"; status.style.color="#ee5253"; }
+                finally { tStatus.classList.add('hidden'); stream.getTracks().forEach(t=>t.stop()); }
+            };
+            mediaRecorder.start();
+            pulse.classList.remove('hidden'); timer.classList.remove('hidden');
+            icon.innerText="stop"; icon.style.color="#ee5253";
+            status.innerText="Recording"; status.style.color="#ee5253";
+            hint.classList.add('hidden');
+            timer.innerText="00:00";
+            recordInterval = setInterval(()=>{
+                recordSeconds++;
+                timer.innerText=`${String(Math.floor(recordSeconds/60)).padStart(2,'0')}:${String(recordSeconds%60).padStart(2,'0')}`;
+            },1000);
+        } catch(e) { alert("Microphone access denied."); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VORTEX ANIMATION — nodes orbit within ellipse boundary
+    // ═══════════════════════════════════════════════════════════════
+    let vortexActive = true;
+    let vortexPauseTimer = null;
+
+    function startVortex() {
+        function tick() {
+            if (!graph || activeTab !== 'graph') {
+                requestAnimationFrame(tick);
+                return;
+            }
+            if (vortexActive && galaxyData && galaxyData.nodes) {
+                galaxyData.nodes.forEach(n => {
+                    if (!n.__threeObj) return;
+                    // Advance orbital angle
+                    n._orbitAngle = (n._orbitAngle || 0) + (n._orbitSpeed || 0.0003);
+                    const r = n._orbitR || 50;
+
+                    // Elliptical orbit in XZ plane
+                    let newX = Math.cos(n._orbitAngle) * r * 1.1;
+                    let newZ = Math.sin(n._orbitAngle) * r * 0.55;
+
+                    // Clamp to ellipse boundary
+                    const normX = newX / ELLIPSE_RX;
+                    const normZ = newZ / ELLIPSE_RZ;
+                    const ellipseDist = Math.sqrt(normX * normX + normZ * normZ);
+                    if (ellipseDist > 0.92) {
+                        const scale = 0.92 / ellipseDist;
+                        newX *= scale;
+                        newZ *= scale;
+                    }
+
+                    // Y = keep original vertical position (flat disk)
+                    const newY = n.y || 0;
+
+                    // Update Three.js sprite position directly
+                    n.__threeObj.position.x = newX;
+                    n.__threeObj.position.y = newY;
+                    n.__threeObj.position.z = newZ;
+                    // Update data model for tooltip/click
+                    n.x = newX;
+                    n.y = newY;
+                    n.z = newZ;
+                });
+            }
+            requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    // Pause on interaction, resume after
+    document.addEventListener('mousedown', () => {
+        vortexActive = false;
+        clearTimeout(vortexPauseTimer);
+    });
+    document.addEventListener('mouseup', () => {
+        clearTimeout(vortexPauseTimer);
+        vortexPauseTimer = setTimeout(() => { vortexActive = true; }, 3000);
+    });
+    document.addEventListener('wheel', () => {
+        vortexActive = false;
+        clearTimeout(vortexPauseTimer);
+        vortexPauseTimer = setTimeout(() => { vortexActive = true; }, 3000);
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // ADM SUBMENU
+    // ═══════════════════════════════════════════════════════════════
+    let admOpen = false;
+    function toggleAdmSubmenu() {
+        admOpen = !admOpen;
+        const sub = document.getElementById('adm-submenu');
+        const btn = document.getElementById('adm-btn');
+        const icon = document.getElementById('adm-icon');
+        const overlay = document.getElementById('adm-overlay');
+        if (admOpen) {
+            sub.classList.remove('hidden');
+            btn.classList.add('adm-open');
+            icon.textContent = 'close';
+            overlay.classList.remove('hidden');
+        } else {
+            sub.classList.add('hidden');
+            btn.classList.remove('adm-open');
+            icon.textContent = 'admin_panel_settings';
+            overlay.classList.add('hidden');
+        }
+    }
+    function closeAdmSubmenu() {
+        admOpen = false;
+        const sub = document.getElementById('adm-submenu');
+        const btn = document.getElementById('adm-btn');
+        const icon = document.getElementById('adm-icon');
+        const overlay = document.getElementById('adm-overlay');
+        if (sub) sub.classList.add('hidden');
+        if (btn) btn.classList.remove('adm-open');
+        if (icon) icon.textContent = 'admin_panel_settings';
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════
+    async function refreshAll() { await Promise.all([loadGalaxy(), loadFilesList()]); }
+    window.addEventListener('DOMContentLoaded', () => {
+        switchTab('graph');
+        refreshAll();
+        startVortex();
+    });
     </script>
 </body>
 </html>

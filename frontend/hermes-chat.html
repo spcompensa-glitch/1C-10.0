@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes — 1Crypten AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #0a0a12;
+            color: #e2e8f0;
+            font-family: 'Outfit', sans-serif;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* NAV SIDEBAR — MESMO DO COCKPIT                               */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .app-nav {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: 80px;
+            background: rgba(6,6,16,0.95);
+            backdrop-filter: blur(24px);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+        }
+        .nav-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .nav-logo-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(255,215,0,0.3));
+        }
+        .nav-logo-divider {
+            width: 32px;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+        .nav-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            flex: 1;
+        }
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            color: #9ca3af;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            background: none;
+            width: 56px;
+        }
+        .nav-btn:hover { color: #d1d5db; background: rgba(255,255,255,0.05); }
+        .nav-btn.active {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 12px rgba(34,197,94,0.15);
+        }
+        .nav-btn .material-icons-round { font-size: 24px; }
+        .nav-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .nav-adm-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .nav-adm-btn.adm-open,
+        .nav-adm-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 12px rgba(34,197,94,0.15);
+        }
+        .adm-submenu {
+            position: absolute;
+            left: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10001;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(8,8,12,0.97);
+            backdrop-filter: blur(24px);
+            min-width: 180px;
+        }
+        .adm-submenu-title {
+            font-size: 8px;
+            font-weight: 900;
+            color: rgba(34,197,94,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            padding: 0 8px 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 4px;
+        }
+        .adm-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #d1d5db;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .adm-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
+        .adm-item .material-icons-round { font-size: 18px; }
+        .adm-item-active { color: #fff !important; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+        .nav-bottom { margin-top: auto; }
+        .nav-logout-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(239,68,68,0.1);
+            color: #f87171;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-logout-btn:hover { background: rgba(239,68,68,0.2); color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+        .nav-logout-btn .material-icons-round { font-size: 20px; }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* CHAT SIDEBAR — Conversas                                     */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .chat-sidebar {
+            width: 280px;
+            height: 100vh;
+            background: rgba(10,10,18,0.98);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .chat-sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .btn-new-chat {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #d1d5db;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .btn-new-chat:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border-color: rgba(255,255,255,0.2);
+        }
+        .btn-new-chat .material-icons-round { font-size: 18px; color: #9ca3af; }
+        .chat-search {
+            width: 100%;
+            padding: 8px 12px 8px 34px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: #d1d5db;
+            font-size: 12px;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            margin-top: 10px;
+            transition: border-color 0.2s;
+        }
+        .chat-search:focus { border-color: rgba(255,255,255,0.15); }
+        .chat-search::placeholder { color: #4b5563; }
+        .search-wrapper {
+            position: relative;
+        }
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            color: #4b5563;
+        }
+        .sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .sessions-list::-webkit-scrollbar { width: 4px; }
+        .sessions-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+        .session-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+        .session-item:hover { background: rgba(255,255,255,0.04); }
+        .session-item.active {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .session-item .material-icons-round { font-size: 16px; color: #6b7280; flex-shrink: 0; }
+        .session-title {
+            font-size: 12px;
+            color: #d1d5db;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        .session-delete {
+            opacity: 0;
+            transition: opacity 0.15s;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+        }
+        .session-item:hover .session-delete { opacity: 1; }
+        .session-delete:hover { background: rgba(239,68,68,0.2); }
+        .session-delete .material-icons-round { font-size: 14px; color: #f87171; }
+        .chat-sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #22c55e, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .user-name { font-size: 12px; color: #d1d5db; font-weight: 500; }
+        .user-plan { font-size: 10px; color: #6b7280; }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* MAIN CHAT AREA                                                */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+        .chat-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(10,10,18,0.6);
+            backdrop-filter: blur(12px);
+            z-index: 10;
+        }
+        .chat-header .model-badge {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.2);
+            color: #22c55e;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 0;
+            scroll-behavior: smooth;
+        }
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+        /* Welcome screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 40px;
+        }
+        .welcome-title {
+            font-size: 32px;
+            font-weight: 300;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+        .welcome-sub {
+            font-size: 14px;
+            color: #6b7280;
+            max-width: 400px;
+        }
+
+        /* Message bubbles */
+        .msg-row {
+            display: flex;
+            padding: 6px 24px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .msg-row.user { justify-content: flex-end; }
+        .msg-row.assistant { justify-content: flex-start; }
+        .msg-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .msg-avatar.hermes {
+            background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+        }
+        .msg-avatar.hermes .material-icons-round { font-size: 16px; color: #fff; }
+        .msg-avatar.user {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+        .msg-avatar.user .material-icons-round { font-size: 16px; color: #fff; }
+        .msg-bubble {
+            max-width: 600px;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.7;
+            font-family: 'Outfit', sans-serif;
+        }
+        .msg-row.assistant .msg-bubble {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: #e2e8f0;
+            margin-left: 10px;
+        }
+        .msg-row.user .msg-bubble {
+            background: rgba(34,197,94,0.12);
+            border: 1px solid rgba(34,197,94,0.2);
+            color: #f0fdf4;
+        }
+        .msg-bubble code {
+            background: rgba(255,255,255,0.06);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+        .msg-bubble pre {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 12px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .msg-context {
+            font-size: 10px;
+            color: #4b5563;
+            margin-top: 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .msg-context .tag {
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: none;
+            padding: 6px 24px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .typing-indicator.visible { display: flex; }
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            margin-left: 10px;
+        }
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6b7280;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* INPUT BAR                                                     */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .input-area {
+            padding: 16px 24px 20px;
+            background: rgba(10,10,18,0.8);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+        .input-wrapper {
+            max-width: 760px;
+            margin: 0 auto;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 8px 12px;
+            transition: border-color 0.2s;
+        }
+        .input-wrapper:focus-within {
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 20px rgba(34,197,94,0.05);
+        }
+        .input-wrapper textarea {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #e2e8f0;
+            font-size: 14px;
+            font-family: 'Outfit', sans-serif;
+            resize: none;
+            outline: none;
+            max-height: 120px;
+            line-height: 1.5;
+            padding: 4px 0;
+        }
+        .input-wrapper textarea::placeholder { color: #4b5563; }
+        .input-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .input-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            background: none;
+            color: #6b7280;
+        }
+        .input-btn:hover { background: rgba(255,255,255,0.06); color: #d1d5db; }
+        .input-btn.send-btn {
+            background: rgba(34,197,94,0.15);
+            color: #22c55e;
+        }
+        .input-btn.send-btn:hover { background: rgba(34,197,94,0.25); }
+        .input-btn.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .input-btn .material-icons-round { font-size: 18px; }
+        .input-btn.recording { color: #ef4444; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .input-hint {
+            text-align: center;
+            font-size: 10px;
+            color: #374151;
+            margin-top: 8px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* BACKGROUND GLOW                                               */
+        /* ═══════════════════════════════════════════════════════════════ */
+        .bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.08;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .bg-glow.glow-1 {
+            top: -200px;
+            right: -100px;
+            background: #8b5cf6;
+        }
+        .bg-glow.glow-2 {
+            bottom: -200px;
+            left: 30%;
+            background: #06b6d4;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background glow -->
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- NAV SIDEBAR — MESMO DO COCKPIT                               -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <nav class="app-nav">
+        <div class="nav-logo">
+            <img src="/logo10DTrasp.png" alt="Logo" class="nav-logo-img" />
+            <div class="nav-logo-divider"></div>
+        </div>
+        <div class="nav-buttons">
+            <a href="/" class="nav-btn" title="Banca">
+                <span class="material-icons-round">space_dashboard</span>
+                <span class="nav-label">Banca</span>
+            </a>
+            <a href="/hermes" class="nav-btn active" title="Hermes">
+                <span class="material-icons-round">auto_awesome</span>
+                <span class="nav-label">Hermes</span>
+            </a>
+            <div class="nav-adm-wrapper">
+                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
+                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
+                    <span class="nav-label">ADM</span>
+                </button>
+                <div id="adm-submenu" class="adm-submenu hidden">
+                    <span class="adm-submenu-title">ADM · Módulos</span>
+                    <a href="/" class="adm-item"><span class="material-icons-round">space_dashboard</span><span>Banca</span></a>
+                    <a href="/sandbox" class="adm-item"><span class="material-icons-round">science</span><span>Sandbox</span></a>
+                    <a href="/memory" class="adm-item"><span class="material-icons-round">auto_awesome</span><span>Memory Galaxy</span></a>
+                    <a href="/config" class="adm-item"><span class="material-icons-round">settings</span><span>Config</span></a>
+                </div>
+            </div>
+        </div>
+        <div class="nav-bottom">
+            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair" class="nav-logout-btn">
+                <span class="material-icons-round">power_settings_new</span>
+            </button>
+        </div>
+    </nav>
+    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CHAT SIDEBAR — Conversas                                      -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <aside class="chat-sidebar" style="margin-left:80px;">
+        <div class="chat-sidebar-header">
+            <button onclick="newChat()" class="btn-new-chat">
+                <span class="material-icons-round">add</span>
+                Nova conversa
+            </button>
+            <div class="search-wrapper">
+                <span class="material-icons-round search-icon">search</span>
+                <input type="text" class="chat-search" placeholder="Pesquisar conversas" oninput="filterSessions(this.value)" />
+            </div>
+        </div>
+        <div class="sessions-list" id="sessions-list"></div>
+        <div class="chat-sidebar-footer">
+            <div class="user-avatar">JA</div>
+            <div style="flex:1;">
+                <div class="user-name">Jonatas</div>
+                <div class="user-plan">1Crypten Pro</div>
+            </div>
+            <div id="model-badge" style="padding:3px 8px;border-radius:6px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;text-transform:uppercase;letter-spacing:0.05em;">nvidia</div>
+        </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- MAIN CHAT AREA                                                -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <main class="chat-main">
+        <div class="chat-header">
+            <span class="material-icons-round" style="font-size:20px;color:#8b5cf6;">auto_awesome</span>
+            <span style="font-size:15px;font-weight:600;color:#e2e8f0;">Hermes</span>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <!-- Welcome screen (shown when no messages) -->
+            <div class="welcome-screen" id="welcome-screen">
+                <div class="welcome-title">Olá, Almirante.</div>
+                <div class="welcome-sub">Como posso ajudar com a frota hoje?</div>
+            </div>
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="msg-avatar hermes">
+                <span class="material-icons-round">auto_awesome</span>
+            </div>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+
+        <!-- Input bar -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <textarea id="chat-input" rows="1" placeholder="Pergunte ao Hermes..."
+                    onkeydown="handleInputKey(event)"
+                    oninput="autoResize(this)"></textarea>
+                <div class="input-actions">
+                    <button class="input-btn" id="voice-btn" onclick="toggleVoice()" title="Gravar áudio">
+                        <span class="material-icons-round">mic</span>
+                    </button>
+                    <button class="input-btn send-btn" id="send-btn" onclick="sendMessage()" title="Enviar">
+                        <span class="material-icons-round">send</span>
+                    </button>
+                </div>
+            </div>
+            <div class="input-hint">Hermes tem acesso a toda a Memory Galaxy, compliance, telemetria e auto-aprendizado.</div>
+        </div>
+    </main>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════════════
+    const API = window.location.origin;
+    let currentSessionId = null;
+    let sessions = [];
+    let isSending = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    // ═══════════════════════════════════════════════════════════════
+    // ADM SUBMENU
+    // ═══════════════════════════════════════════════════════════════
+    let admOpen = false;
+    function toggleAdmSubmenu() {
+        admOpen = !admOpen;
+        document.getElementById('adm-submenu').classList.toggle('hidden', !admOpen);
+        document.getElementById('adm-btn').classList.toggle('adm-open', admOpen);
+        document.getElementById('adm-icon').textContent = admOpen ? 'close' : 'admin_panel_settings';
+        document.getElementById('adm-overlay').classList.toggle('hidden', !admOpen);
+    }
+    function closeAdmSubmenu() {
+        admOpen = false;
+        document.getElementById('adm-submenu').classList.add('hidden');
+        document.getElementById('adm-btn').classList.remove('adm-open');
+        document.getElementById('adm-icon').textContent = 'admin_panel_settings';
+        document.getElementById('adm-overlay').classList.add('hidden');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SESSIONS
+    // ═══════════════════════════════════════════════════════════════
+    async function loadSessions() {
+        try {
+            const r = await fetch(`${API}/api/hermes/sessions`);
+            const data = await r.json();
+            sessions = data.sessions || [];
+            renderSessions();
+        } catch (e) {
+            console.error('Error loading sessions:', e);
+        }
+    }
+
+    function renderSessions(filter = '') {
+        const list = document.getElementById('sessions-list');
+        const filtered = filter
+            ? sessions.filter(s => s.title.toLowerCase().includes(filter.toLowerCase()))
+            : sessions;
+
+        list.innerHTML = filtered.map(s => `
+            <div class="session-item ${s.id === currentSessionId ? 'active' : ''}"
+                 onclick="loadSession('${s.id}')">
+                <span class="material-icons-round">chat_bubble_outline</span>
+                <span class="session-title">${escapeHtml(s.title)}</span>
+                <button class="session-delete" onclick="event.stopPropagation();deleteSession('${s.id}')" title="Deletar">
+                    <span class="material-icons-round">delete_outline</span>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    function filterSessions(q) { renderSessions(q); }
+
+    async function newChat() {
+        currentSessionId = null;
+        document.getElementById('welcome-screen').style.display = 'flex';
+        document.getElementById('chat-messages').innerHTML = '';
+        document.getElementById('chat-messages').appendChild(document.getElementById('welcome-screen'));
+        renderSessions();
+        document.getElementById('chat-input').focus();
+    }
+
+    async function loadSession(id) {
+        currentSessionId = id;
+        renderSessions();
+        await loadMessages(id);
+    }
+
+    async function loadMessages(id) {
+        try {
+            const r = await fetch(`${API}/api/hermes/sessions/${id}`);
+            const data = await r.json();
+            const messages = data.messages || [];
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = '';
+
+            if (messages.length === 0) {
+                container.innerHTML = `<div class="welcome-screen"><div class="welcome-title">Olá, Almirante.</div><div class="welcome-sub">Como posso ajudar com a frota hoje?</div></div>`;
+                return;
+            }
+
+            messages.forEach(m => appendMessage(m.role, m.content, m.context, false));
+            scrollToBottom();
+        } catch (e) {
+            console.error('Error loading messages:', e);
+        }
+    }
+
+    async function deleteSession(id) {
+        if (!confirm('Deletar esta conversa?')) return;
+        try {
+            await fetch(`${API}/api/hermes/sessions/${id}`, { method: 'DELETE' });
+            if (currentSessionId === id) {
+                currentSessionId = null;
+                document.getElementById('chat-messages').innerHTML = `<div class="welcome-screen"><div class="welcome-title">Olá, Almirante.</div><div class="welcome-sub">Como posso ajudar com a frota hoje?</div></div>`;
+            }
+            await loadSessions();
+        } catch (e) {
+            console.error('Error deleting session:', e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MESSAGES
+    // ═══════════════════════════════════════════════════════════════
+    function appendMessage(role, content, context = null, animate = true) {
+        const container = document.getElementById('chat-messages');
+        // Remove welcome screen if present
+        const welcome = container.querySelector('.welcome-screen');
+        if (welcome) welcome.remove();
+
+        const row = document.createElement('div');
+        row.className = `msg-row ${role}`;
+
+        const avatarClass = role === 'assistant' ? 'hermes' : 'user';
+        const icon = role === 'assistant' ? 'auto_awesome' : 'person';
+
+        let contextHtml = '';
+        if (context && role === 'assistant') {
+            const tags = [];
+            if (context.active_dimensions && context.active_dimensions.length > 0) {
+                tags.push(...context.active_dimensions.map(d => `<span class="tag">${d}</span>`));
+            }
+            if (context.has_compliance_alerts) {
+                tags.push(`<span class="tag" style="color:#f87171;">compliance</span>`);
+            }
+            if (tags.length > 0) {
+                contextHtml = `<div class="msg-context">${tags.join('')}</div>`;
+            }
+        }
+
+        row.innerHTML = `
+            <div class="msg-avatar ${avatarClass}">
+                <span class="material-icons-round">${icon}</span>
+            </div>
+            <div>
+                <div class="msg-bubble">${formatContent(content)}</div>
+                ${contextHtml}
+            </div>
+        `;
+
+        if (animate) {
+            row.style.opacity = '0';
+            row.style.transform = 'translateY(8px)';
+        }
+
+        container.appendChild(row);
+
+        if (animate) {
+            requestAnimationFrame(() => {
+                row.style.transition = 'opacity 0.3s, transform 0.3s';
+                row.style.opacity = '1';
+                row.style.transform = 'translateY(0)';
+            });
+        }
+    }
+
+    function formatContent(text) {
+        if (!text) return '';
+        // Simple markdown: bold, code, pre
+        let html = escapeHtml(text);
+        // Code blocks
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Bold
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+        return html;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function scrollToBottom() {
+        const c = document.getElementById('chat-messages');
+        c.scrollTop = c.scrollHeight;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SEND MESSAGE
+    // ═══════════════════════════════════════════════════════════════
+    async function sendMessage() {
+        if (isSending) return;
+        const input = document.getElementById('chat-input');
+        const msg = input.value.trim();
+        if (!msg) return;
+
+        // Create session if needed
+        if (!currentSessionId) {
+            try {
+                const title = msg.length > 40 ? msg.substring(0, 40) + '...' : msg;
+                const r = await fetch(`${API}/api/hermes/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title })
+                });
+                const data = await r.json();
+                currentSessionId = data.id;
+                await loadSessions();
+            } catch (e) {
+                console.error('Error creating session:', e);
+            }
+        }
+
+        input.value = '';
+        autoResize(input);
+        appendMessage('user', msg);
+        scrollToBottom();
+
+        isSending = true;
+        document.getElementById('send-btn').disabled = true;
+        document.getElementById('typing-indicator').classList.add('visible');
+        scrollToBottom();
+
+        try {
+            const r = await fetch(`${API}/api/hermes/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, session_id: currentSessionId })
+            });
+            const data = await r.json();
+            const response = data.response || data.detail || 'Erro ao obter resposta.';
+
+            document.getElementById('typing-indicator').classList.remove('visible');
+            appendMessage('assistant', response, data.context);
+            scrollToBottom();
+
+            // Update model badge
+            if (data.context && data.context.model_used) {
+                document.getElementById('model-badge').textContent = data.context.model_used;
+            }
+
+            // Reload sessions to update title/count
+            await loadSessions();
+        } catch (e) {
+            document.getElementById('typing-indicator').classList.remove('visible');
+            appendMessage('assistant', 'Erro de conexão com o Hermes. Verifique o backend.');
+            scrollToBottom();
+        }
+
+        isSending = false;
+        document.getElementById('send-btn').disabled = false;
+    }
+
+    function handleInputKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    }
+
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VOICE (Whisper)
+    // ═══════════════════════════════════════════════════════════════
+    async function toggleVoice() {
+        const btn = document.getElementById('voice-btn');
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            btn.classList.remove('recording');
+            btn.querySelector('.material-icons-round').textContent = 'mic';
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                await transcribeAudio(blob);
+            };
+
+            mediaRecorder.start();
+            btn.classList.add('recording');
+            btn.querySelector('.material-icons-round').textContent = 'stop';
+        } catch (e) {
+            console.error('Microphone error:', e);
+            alert('Não foi possível acessar o microfone.');
+        }
+    }
+
+    async function transcribeAudio(blob) {
+        const input = document.getElementById('chat-input');
+        input.value = 'Transcrevendo áudio...';
+        input.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('audio', blob, 'voice.webm');
+            const r = await fetch(`${API}/api/memory/upload-audio`, { method: 'POST', body: formData });
+            const data = await r.json();
+            input.value = data.text || data.transcription || '';
+        } catch (e) {
+            input.value = '';
+            console.error('Transcription error:', e);
+        }
+
+        input.disabled = false;
+        input.focus();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSessions();
+        document.getElementById('chat-input').focus();
+    });
+    </script>
+</body>
+</html>

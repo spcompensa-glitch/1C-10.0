@@ -157,16 +157,30 @@ def get_services():
 async def hermes_chat(payload: dict):
     """[HERMES] Chat com contexto completo: agentes, slots, escadinha, compliance."""
     user_msg = payload.get("message", "")
+    session_id = payload.get("session_id", None)
     if not user_msg:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
+
+    # Save user message to DB if session_id provided
+    if session_id:
+        from services.database_service import database_service
+        await database_service.save_chat_message(session_id, "user", user_msg)
 
     # Tenta usar o HermesAgent.handle_chat_query (DeepSeek + compliance + wiki)
     try:
         from services.agents.hermes_agent import hermes_agent
         result = await hermes_agent.handle_chat_query(user_msg)
+        response_text = result.get("response", "🌐 Sinal neural instável.")
+        context = result.get("context", {})
+
+        # Save assistant response to DB
+        if session_id:
+            from services.database_service import database_service
+            await database_service.save_chat_message(session_id, "assistant", response_text, context)
+
         return {
-            "response": result.get("response", "🌐 Sinal neural instável."),
-            "context": result.get("context", {}),
+            "response": response_text,
+            "context": context,
             "hermes": True
         }
     except Exception as e:
@@ -197,8 +211,15 @@ async def hermes_chat(payload: dict):
             pass
 
         response = await ai_service.generate_content(prompt=user_msg, system_instruction=system)
+        response_text = response or "🌐 Sinal neural instável. Tente novamente, Almirante."
+
+        # Save assistant response to DB
+        if session_id:
+            from services.database_service import database_service
+            await database_service.save_chat_message(session_id, "assistant", response_text, {"active_dimensions": active_dims})
+
         return {
-            "response": response or "🌐 Sinal neural instável. Tente novamente, Almirante.",
+            "response": response_text,
             "context": {"active_dimensions": active_dims},
             "hermes": True
         }
@@ -336,3 +357,58 @@ async def get_logs(limit: int = 50):
     except Exception as e:
         logger.error(f"Error fetching logs: {e}")
         return []
+
+
+# ============================================================
+# [V126] HERMES CHAT — Sessões CRUD
+# ============================================================
+
+@router.get("/hermes/sessions")
+async def list_sessions():
+    """Lista todas as sessões de chat do Hermes."""
+    from services.database_service import database_service
+    sessions = await database_service.get_chat_sessions()
+    return {"sessions": sessions}
+
+
+@router.post("/hermes/sessions")
+async def create_session(payload: dict = None):
+    """Cria uma nova sessão de chat."""
+    import uuid
+    from services.database_service import database_service
+    session_id = str(uuid.uuid4())
+    title = (payload or {}).get("title", "Nova conversa")
+    model = (payload or {}).get("model", "deepseek-chat")
+    result = await database_service.create_chat_session(session_id, title=title, model=model)
+    if result:
+        return result
+    raise HTTPException(status_code=500, detail="Erro ao criar sessão")
+
+
+@router.get("/hermes/sessions/{session_id}")
+async def get_session_messages(session_id: str):
+    """Carrega todas as mensagens de uma sessão."""
+    from services.database_service import database_service
+    messages = await database_service.get_chat_messages(session_id)
+    return {"session_id": session_id, "messages": messages}
+
+
+@router.delete("/hermes/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """Deleta uma sessão e todas as suas mensagens."""
+    from services.database_service import database_service
+    ok = await database_service.delete_chat_session(session_id)
+    if ok:
+        return {"deleted": True}
+    raise HTTPException(status_code=500, detail="Erro ao deletar sessão")
+
+
+@router.patch("/hermes/sessions/{session_id}")
+async def rename_session(session_id: str, payload: dict):
+    """Renomeia uma sessão."""
+    from services.database_service import database_service
+    title = payload.get("title", "Nova conversa")
+    ok = await database_service.rename_chat_session(session_id, title)
+    if ok:
+        return {"renamed": True}
+    raise HTTPException(status_code=500, detail="Erro ao renomear sessão")

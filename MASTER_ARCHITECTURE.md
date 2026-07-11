@@ -2,7 +2,7 @@
 
 Fonte unica de verdade arquitetural. Baseado no codigo-fonte, nao em historico de versoes.
 
-*Ultima atualizacao: 2026-07-07 (V124.7 — SignalGenerator substitui BlitzSniperAgent: 3 estrategias no M30)*
+*Ultima atualizacao: 2026-07-11 (V126 — Memory Galaxy disco orbital + Hermes Chat cascade)*
 
 ---
 
@@ -59,9 +59,9 @@ O sistema usa 19 componentes/agentes especializados, cada um com responsabilidad
 |--------|---------|--------|
 | **FleetAudit** | `agents/fleet_audit.py` | Paridade de estado. Reconciliacao 20s, Early ROI Panic (-80% em <300s), limpeza de fantasmas |
 | **Quartermaster** | `agents/quartermaster.py` | Classificacao de leverage por wick: SMOOTH (<0.45, 50x), JUMPY (0.45-0.70, 20x), EXTREME (>0.70, 10x) |
-| **HermesAgent** | `agents/hermes_agent.py` | Compliance/telemetria/chat. DeepSeek integration, ESCADINHA_DOCS_SSOT |
+| **HermesAgent** | `agents/hermes_agent.py` | Compliance/telemetria/chat. Cascade NVIDIA→DeepSeek→AIService, acesso MASTER_ARCHITECTURE.md + vault_galaxy |
 | **JarvisBrain** | `agents/jarvis_brain.py` | Chat multi-dimensao (10 dimensoes: Trading, Filosofia, Familia, etc.) |
-| **AIService** | `agents/ai_service.py` | Cascade de IA: DeepSeek -> Gemini -> OpenRouter |
+| **AIService** | `agents/ai_service.py` | Cascade de IA: DeepSeek → Gemini → OpenRouter (fallback para Hermes) |
 | **ExecutionAuditorAgent** | `agents/execution_auditor.py` | Sentinel de Execução. Sanitiza sinais (chaves de preço), audita regras/limites de contratos OKX, força alavancagem de 50x e reporta alertas no Firebase. |
 | **SandboxService** | `services/sandbox_service.py` | Forward Testing Lab. Espelha o sistema real com escadinha, stops adaptativos e fallback de preco. Ciclo 1s. |
 
@@ -480,7 +480,7 @@ PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MYRO, 1000SATS, ORDI, MEME, TURBO, PEOPLE.
 
 | Banco | Funcao | Tabelas Principais |
 |-------|--------|-------------------|
-| PostgreSQL | SSOT persistente | `slots`, `radar_pulse`, `banca_status`, `sandbox_trades`, `moonbags` |
+| PostgreSQL | SSOT persistente | `slots`, `radar_pulse`, `banca_status`, `sandbox_trades`, `moonbags`, `chat_sessions`, `chat_messages` |
 | Firebase Firestore | Multi-tenant, sync nuvem | `users`, `trade_history`, `trade_analytics`, `fleet_intelligence`, `vault_history` |
 | Firebase RTDB | Estado em tempo real | `system_state`, `active_slots`, `radar_pulse`, `chat_status`, `banca` |
 | SQLite | Cache de klines (librarian) | `klines` |
@@ -766,13 +766,142 @@ O sistema de memória persistente e auto-documentada foi implementado para conec
 
 ### 19.2 Estrutura da Galáxia
 - **`vault_galaxy/trades/`:** Registra cada operação realizada.
-- **`vault_galaxy/journal/`:** Agrupa eventos do sistema e ordens de trade sob a nota diária do respectivo dia (ex: `journal/2026-07-11.md`).
+- **`vault_galaxy/journal/`:** Agrupa eventos do sistema e ordens de trade sob a nota diária do respectivo dia (ex: `journal/2026-07-11.md`). Inclui chats do Hermes (`Chat_Hermes_YYYY-MM-DD.md`).
 - **`vault_galaxy/strategies/`:** Documentação detalhada dos limites e regras operacionais.
 
 ### 19.3 Triggers de Gravação
 - **Salvamento de Trades:** Integrado em `database_service.py` (`save_trade_history_item`). Toda persistência de trade dispara uma task assíncrona que grava a nota do trade e gera o link no diário.
 - **Transição de Regime:** Integrado em `oracle_agent.py` (`update_market_data`). Registra no diário diário mudanças de tendência (ADX e direção do BTC).
+- **Chat Hermes:** Toda conversa é salva em `vault_galaxy/journal/Chat_Hermes_YYYY-MM-DD.md` com YAML frontmatter.
 
 ---
 
-*Última atualização: V125.4 — Memory Galaxy (Obsidian Second Brain) e Autonomia Dual-Engine.*
+## 20. Hermes Chat — Interface de Conversação (V126)
+
+Chat com IA integrada ao sistema completo 1Crypten. UI estilo Gemini com sidebar de histórico, voz (Whisper) e cascade de LLMs.
+
+### 20.1 Frontend (`hermes-chat.html`)
+- **Rota:** `/hermes` (serve `hermes-chat.html`)
+- **Layout:** Sidebar esquerda (histórico de conversas) + área do chat (mensagens + input)
+- **Sidebar:** Lista de sessões, busca, criar nova conversa, deletar
+- **Chat:** Mensagens com avatar (Hermes roxo, user verde), indicador de digitação, suporte a markdown
+- **Input:** Textarea com Enter para enviar, botão de voz (Whisper)
+- **Model badge:** Exibe a LLM ativa na sidebar footer (nvidia/deepseek)
+- **Menu:** Idêntico ao cockpit (logo, Banca, Hermes, ADM submenu, Sair)
+
+### 20.2 Cascade de LLMs
+```
+1. NVIDIA (nemotron-4b-chat) ← PRIMÁRIO
+2. DeepSeek (deepseek-chat)  ← SECUNDÁRIO
+3. AIService (Gemini/OpenRouter) ← FALLBACK
+```
+- Cada LLM é tentada em sequência; se uma falhar, a próxima é usada
+- Resposta inclui `context.model_used` para a UI atualizar o badge
+
+### 20.3 Backend — Endpoints
+| Método | Rota | Função |
+|--------|------|--------|
+| `POST` | `/api/hermes/chat` | Chat principal (salva user+assistant no DB) |
+| `GET` | `/api/hermes/sessions` | Lista sessões do usuário |
+| `POST` | `/api/hermes/sessions` | Cria nova sessão |
+| `GET` | `/api/hermes/sessions/:id` | Carrega mensagens de uma sessão |
+| `DELETE` | `/api/hermes/sessions/:id` | Deleta sessão + mensagens |
+| `PATCH` | `/api/hermes/sessions/:id` | Renomeia sessão |
+
+### 20.4 Persistência (PostgreSQL)
+- **`chat_sessions`:** id (UUID), title, user_id, model, created_at, updated_at, message_count
+- **`chat_messages`:** id (serial), session_id, role (user/assistant/system), content, context (JSON), created_at
+- Tabelas auto-criadas por `Base.metadata.create_all` no boot
+
+### 20.5 Contexto do Hermes
+O Hermes acessa automaticamente:
+1. **MASTER_ARCHITECTURE.md** — Arquitetura atual do sistema (cache 10min)
+2. **vault_galaxy/** — Busca por keyword em journal, trades, strategies
+3. **Intel Wiki** — Conteúdo de `intel_wiki.html` (cache 5min)
+4. **Compliance** — Divergências ativas quando relevantes
+5. **Dimensões JarvisBrain** — 10 dimensões de personalidade detectadas
+
+### 20.6 Integração com Memory Galaxy
+- Chat Hermes salva em `vault_galaxy/journal/Chat_Hermes_YYYY-MM-DD.md`
+- Memory Galaxy exibe esses arquivos na aba "Recent"
+- Graph visualization inclui nós de chat como category `journal`
+- Busca no vault gera contexto para as respostas do Hermes
+
+---
+
+## 21. Memory Galaxy — Layout em Disco e Animação Orbital (V126)
+
+### 21.1 Layout em Disco Elíptico (XZ)
+O grafo 3D foi redesenhado como um disco galáctico horizontal inspirado no OMI OS Memory:
+- **X** = eixo horizontal (width)
+- **Z** = eixo de profundidade (depth) — ambos no mesmo plano
+- **Y** = espessura vertical (±4px) — disco fino, quase 2D
+
+```
+Y (vertical)
+↑   ┌──────────────────────────────┐
+│   │  ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★  │  ← Y = ±4px (espessura)
+│   │ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ │
+│   │  ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★  │
+│   └──────────────────────────────┘
+└──────────────────────────────────→ X (horizontal)
+```
+
+### 21.2 Parâmetros da Elipse
+| Constante | Valor | Descrição |
+|-----------|-------|-----------|
+| `ELLIPSE_RX` | 115 | Raio horizontal |
+| `ELLIPSE_RZ` | 65 | Raio vertical (profundidade) |
+| `ELLIPSE_CLIP` | 0.92 | Margem de corte (10% de borda) |
+| Opacidade da borda | 0.03 | Fronteira sutil da galáxia |
+
+### 21.3 Layout dos Nós
+- **Distribuição polar:** `r = 12 + rand * 100` (evita centro vazio)
+- **Escala radial:** `x = r * 1.1`, `z = r * 0.55` (formato elíptico)
+- **Clamp elíptico:** nós além de 0.92 da elipse são trazidos para dentro
+- **Espessura Y:** `Y = (rand - 0.5) * 4` (uniforme) + offset por categoria
+
+### 21.4 Nós e Links
+- **Nós do vault:** Tamanho 6, cor por categoria (trades=verde, strategies=roxo, journal=azul)
+- **Dust (poeira):** 250 nós extras em regiões externas para densidade visual
+- **Hermes:** ★ fixo no centro (0, 0, 0), tamanho 25, cor `#7c3aed`
+- **Links:** Opacidade 0.12, espessura 0.5, coloridos por relationship
+
+### 21.5 Câmera
+- **Posição:** `{ x: 0, y: 80, z: 180 }` (ângulo levemente inclinado)
+- **Foco:** `{ x: 0, y: 0, z: 0 }`
+- **Fundo:** `#020208` (azul muito escuro)
+- **Estrellas fixas:** 400 pontos aleatórios (profundidade visual)
+
+### 21.6 Animação Orbital (Vortex)
+Todas as estrelas (nós + dust) orbitam em tempo real dentro da elipse:
+
+```
+tick():
+    para cada nó com __threeObj:
+        angle += speed (0.0006 base / dist)
+        x = cos(angle) * r * 1.1
+        z = sin(angle) * r * 0.55
+        clamp(x, z) dentro da elipse
+        update __threeObj.position(x, y, z)
+```
+
+| Parâmetro | Valor | Descrição |
+|-----------|-------|-----------|
+| Speed base | 0.0006 | Velocidade angular inicial |
+| Speed衰减 | `1 + (r / 80)` | Nós distantes orbitam mais lento |
+| Clamp | 0.92 | Nunca escapam da elipse |
+| Pausa na interação | 3s | Ao usar mouse, animação pausa |
+
+### 21.7 Background — Estrelas Fixas
+- 400 pontos em esfera (r = 400-600)
+- Tamanho fixo 1.0, opacidade 0.8
+- Criadas uma vez, nunca atualizadas
+
+### 21.8 Background — Nebulosa (4 camadas)
+- Cada camada: esfera (r = 350), cor única, opacidade 0.06
+- Camadas: azul (#3b82f6), roxo (#8b5cf6), rosa (#ec4899), ciano (#06b6d4)
+
+---
+
+*Última atualização: V126 — Memory Galaxy Layout em Disco + Animação Orbital + Hermes Chat*

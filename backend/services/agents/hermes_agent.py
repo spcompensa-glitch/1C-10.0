@@ -76,12 +76,25 @@ class HermesAgent(AIOSAgent):
         
         # Referências carregadas lazy
         self._deepseek = None
+        self._nvidia = None
         self._jarvis_brain = None
         self._wiki_context_cache = ""
         self._last_wiki_load = 0
+        self._arch_cache = ""
+        self._last_arch_load = 0
 
     async def _lazy_load_deps(self):
         """Load dependencies lazily to avoid circular imports."""
+        # NVIDIA (primary)
+        try:
+            from services.nvidia_service import nvidia_service
+            self._nvidia = nvidia_service
+            if not self._nvidia._initialized:
+                self._nvidia.initialize()
+        except Exception:
+            self._nvidia = None
+
+        # DeepSeek (secondary)
         try:
             from services.deepseek_service import deepseek_service
             self._deepseek = deepseek_service
@@ -128,6 +141,33 @@ class HermesAgent(AIOSAgent):
         self._wiki_context_cache = "Intel Wiki disponível em /intel/wiki"
         return self._wiki_context_cache
 
+    async def _load_architecture_context(self) -> str:
+        """Load MASTER_ARCHITECTURE.md for accurate system context (cached 10 min)."""
+        now = time.time()
+        if self._arch_cache and (now - self._last_arch_load) < 600:
+            return self._arch_cache
+
+        try:
+            arch_paths = [
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "MASTER_ARCHITECTURE.md"),
+                os.path.join(os.path.dirname(__file__), "..", "..", "MASTER_ARCHITECTURE.md"),
+                "MASTER_ARCHITECTURE.md",
+            ]
+            for path in arch_paths:
+                abs_path = os.path.abspath(path)
+                if os.path.exists(abs_path):
+                    with open(abs_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    self._arch_cache = content[:8000]
+                    self._last_arch_load = now
+                    logger.info("📖 Hermes: MASTER_ARCHITECTURE.md loaded")
+                    return self._arch_cache
+        except Exception as e:
+            logger.warning(f"⚠️ Hermes: Failed to load MASTER_ARCHITECTURE.md: {e}")
+
+        self._arch_cache = ""
+        return ""
+
     async def _load_galaxy_memories(self, query: str) -> str:
         """Busca notas e diários relevantes no cofre Memory Galaxy."""
         try:
@@ -160,6 +200,43 @@ class HermesAgent(AIOSAgent):
         except Exception as e:
             logger.warning(f"⚠️ Falha ao carregar memórias do Galaxy: {e}")
         return ""
+
+    def _save_chat_to_galaxy(self, user_message: str, agent_response: str):
+        try:
+            import datetime
+            vault_dir = Path("vault_galaxy")
+            journal_dir = vault_dir / "journal"
+            journal_dir.mkdir(parents=True, exist_ok=True)
+            
+            today_str = datetime.date.today().isoformat()
+            file_name = f"Chat_Hermes_{today_str}.md"
+            file_path = journal_dir / file_name
+            
+            now_time = datetime.datetime.now().strftime("%H:%M:%S")
+            dialogue_entry = f"\n\n## [{now_time}]\n**User:** {user_message}\n**Hermes:** {agent_response}"
+            
+            if not file_path.exists():
+                header = (
+                    "---\n"
+                    "category: journal\n"
+                    f"title: Chat com Hermes - {today_str}\n"
+                    f"created_at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    "tags:\n"
+                    "  - chat\n"
+                    "  - hermes\n"
+                    "---\n"
+                    f"# Chat com Hermes - {today_str}\n"
+                    f"Registro de interações neurais de chat com o assistente Hermes.\n\n"
+                    f"Diário do dia: [[journal/{today_str}|{today_str}]]"
+                )
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(header + dialogue_entry)
+            else:
+                with open(file_path, "a", encoding="utf-8") as f:
+                    f.write(dialogue_entry)
+            logger.info(f"✅ Conversa gravada no Obsidian Vault: {file_name}")
+        except Exception as e:
+            logger.error(f"❌ Falha ao salvar conversa no Obsidian Vault: {e}")
 
     async def start(self):
         """Start the Hermes Agent monitoring loops."""
@@ -462,34 +539,94 @@ class HermesAgent(AIOSAgent):
             
 
         
-        # 4. Load wiki context & Galaxy Memories
+        # 4. Load wiki context, Architecture & Galaxy Memories
         wiki_context = await self._load_wiki_context()
+        arch_context = await self._load_architecture_context()
         galaxy_memories = await self._load_galaxy_memories(user_message)
         if galaxy_memories:
             wiki_context += "\n" + galaxy_memories
+        if arch_context:
+            wiki_context = "## ARQUITETURA ATUAL DO SISTEMA (MASTER ARCHITECTURE)\n" + arch_context + "\n\n" + wiki_context
         
-        # 5. Generate response via DeepSeek
-        if not self._deepseek:
+        # 5. Generate response — CASCADE: NVIDIA → DeepSeek → AIService
+        response = None
+
+        # 5a. Try NVIDIA first (primary)
+        if self._nvidia and self._nvidia._initialized:
+            try:
+                response = await self._nvidia.generate_response(
+                    messages=[{"role": "user", "content": user_message}],
+                    system_instruction=self._build_system_prompt(active_dims, wiki_context, compliance_context),
+                    temperature=0.7,
+                    max_tokens=2048
+                )
+                if response:
+                    logger.info("✅ Hermes: NVIDIA Success (Primary)")
+            except Exception as e:
+                logger.warning(f"⚠️ Hermes: NVIDIA failed: {e}")
+
+        # 5b. Try DeepSeek (secondary)
+        if not response and self._deepseek:
+            try:
+                response = await self._deepseek.generate_chat_response(
+                    user_message=user_message,
+                    active_dimensions=active_dims,
+                    wiki_context=wiki_context,
+                    compliance_context=compliance_context
+                )
+                if response:
+                    logger.info("✅ Hermes: DeepSeek Success (Secondary)")
+            except Exception as e:
+                logger.warning(f"⚠️ Hermes: DeepSeek failed: {e}")
+
+        # 5c. Fallback to AIService (Gemini, OpenRouter, etc)
+        if not response:
+            try:
+                from services.agents.ai_service import ai_service
+                system_prompt = self._build_system_prompt(active_dims, wiki_context, compliance_context)
+                response = await ai_service.generate_content(prompt=user_message, system_instruction=system_prompt)
+                if response:
+                    logger.info("✅ Hermes: AIService Fallback Success")
+            except Exception as e:
+                logger.warning(f"⚠️ Hermes: AIService fallback failed: {e}")
+
+        if not response:
             return {
-                "response": "🛡️ HERMES está em modo degradado. Serviço DeepSeek indisponível. Use o comando `hermes:true` no chat padrão.",
+                "response": "🛡️ HERMES está em modo degradado. Todos os provedores de IA indisponíveis.",
                 "context": {"type": "degraded", "active_dimensions": active_dims}
             }
+
+        # Track which model was used
+        model_used = "nvidia" if self._nvidia and self._nvidia._initialized else "deepseek"
         
-        response = await self._deepseek.generate_chat_response(
-            user_message=user_message,
-            active_dimensions=active_dims,
-            wiki_context=wiki_context,
-            compliance_context=compliance_context
-        )
+        # Centralize chat inside the memory galaxy vault
+        self._save_chat_to_galaxy(user_message, response)
         
         return {
             "response": response,
             "context": {
                 "active_dimensions": active_dims,
                 "has_compliance_alerts": bool(self.divergencias),
-                "compliance_count": len(self.divergencias)
+                "compliance_count": len(self.divergencias),
+                "model_used": model_used
             }
         }
+
+    def _build_system_prompt(self, active_dims, wiki_context, compliance_context):
+        """Build the full system prompt for AIService fallback."""
+        from routes.chat import HERMES_SYSTEM_PROMPT
+        system = HERMES_SYSTEM_PROMPT
+        if active_dims:
+            dim_names = []
+            for d in active_dims:
+                dim_info = self._jarvis_brain.DIMENSIONS.get(d, {}) if self._jarvis_brain else {}
+                dim_names.append(dim_info.get("name", d))
+            system += f"\n\nDimensões pessoais detectadas: {', '.join(dim_names)}\n"
+        if wiki_context:
+            system += f"\n\n{wiki_context}"
+        if compliance_context:
+            system += f"\n\n⚠️ Divergências de compliance ativas:\n{compliance_context}\n"
+        return system
 
     def _format_compliance_report(self, report: Dict) -> str:
         """Format compliance report for chat display."""

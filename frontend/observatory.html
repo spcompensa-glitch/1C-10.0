@@ -345,8 +345,13 @@ html, body {
 @keyframes candle-move { 0%, 100% { transform: translateY(0); border-color: var(--green); height: 48px; } 50% { transform: translateY(-15px); border-color: var(--red); height: 32px; } }
 @keyframes scan-vertical { 0% { top: 0%; opacity: 0; } 10%, 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 
-.loading-txt { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 900; color: #fff; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 25px; text-shadow: 0 0 10px rgba(255,255,255, 0.3); }
-.asset-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; margin-top: 30px; }
+.loading-txt { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 900; color: #fff; letter-spacing: 0.3em; text-transform: uppercase; margin-top: 25px; text-shadow: 0 0 10px rgba(255,255,255, 0.3); }.asset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 30px; }
+@media (min-width: 640px) {
+    .asset-grid { grid-template-columns: repeat(5, 1fr); }
+}
+@media (min-width: 1024px) {
+    .asset-grid { grid-template-columns: repeat(10, 1fr); }
+}
 .asset-dot { width: 8px; height: 8px; background: rgba(255,255,255,0.08); border-radius: 2px; }
 .asset-dot.active { background: var(--green); box-shadow: 0 0 12px var(--green); animation: dot-flicker 2s infinite; }
 @keyframes dot-flicker { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; transform: scale(1.2); } }
@@ -360,10 +365,17 @@ html, body {
     margin: 10px 20px 0 20px;
     padding: 12px 20px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     z-index: 50;
+ }
+ @media (min-width: 768px) {
+    .strategy-control {
+       flex-direction: row;
+       justify-content: space-between;
+       align-items: center;
+    }
  }
  .strat-card { display: flex; flex-direction: column; gap: 4px; }
  .strat-label { font-size: 10px; color: var(--t2); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }

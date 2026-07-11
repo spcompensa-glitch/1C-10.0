@@ -156,7 +156,7 @@ class FlashAgent:
         # ─── Saída Parcial (Partial TP) ───
         # Apenas para SCALPING. Bloqueado explicitamente para Swing.
         is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
-        if not is_swing:
+        if False:  # [V125.3] Saída parcial desativada a pedido do usuário para manter 50x cheios
             partial_tp_threshold = 15.0  # Scalping parcial em 15% ROI
             audit = slot.get("execution_audit") or {}
             has_taken_partial = False

@@ -187,6 +187,18 @@ async def delete_history_item(id: str):
         logger.error(f"Error deleting trade history item: {e}")
         return {"status": "error", "message": str(e)}
 
+@router.delete("/history/clear/all")
+async def clear_all_history():
+    firebase_service, _, _, _, _ = get_services()
+    try:
+        success = await firebase_service.clear_all_trade_history()
+        if success:
+            return {"status": "success", "message": "Histórico do Vault limpo com sucesso."}
+        return {"status": "error", "message": "Falha ao limpar histórico."}
+    except Exception as e:
+        logger.error(f"Error clearing history: {e}")
+        return {"status": "error", "message": str(e)}
+
 @router.get("/history/stats")
 async def get_history_stats(symbol: str = None, start_date: str = None, end_date: str = None):
     firebase_service, _, _, _, _ = get_services()

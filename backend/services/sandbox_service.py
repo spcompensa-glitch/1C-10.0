@@ -520,7 +520,7 @@ class SandboxService:
             raw_strat = sig.get("strategy") or sig.get("strategy_class") or sig.get("strategy_type") or "RADAR"
 
             raw_strat_upper = str(raw_strat).upper()
-            if raw_strat_upper in ("ALPHA SHIELD", "VELOCITY FLOW", "DECOR SHADOW"):
+            if raw_strat_upper in ("ALPHA SHIELD", "VELOCITY FLOW", "DECOR SHADOW", "VWAP SNIPER"):
                 strategy = raw_strat_upper
             elif raw_strat_upper in ("DVAP", "MOLA", "FAS"):
                 strategy = "ALPHA SHIELD"
@@ -1356,7 +1356,7 @@ class SandboxService:
         # 7. Partial TP — saída parcial para proteger lucro
         # [V120] expandido: LATERAL +15% ROI (original) + TRENDING +25% ROI (novo)
         # Motivo: apenas 1/131 trades chegou ao TRAILING. Saída parcial antecipada protege lucro.
-        if not has_taken_partial:
+        if False:  # [V125.3] Saída parcial desativada a pedido do usuário para manter 50x cheios
             partial_threshold = 15.0 if is_ranging else 25.0
             if max_roi >= partial_threshold:
                 has_taken_partial = True

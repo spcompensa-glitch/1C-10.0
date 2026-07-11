@@ -225,7 +225,7 @@ async def get_system_state():
             "current": getattr(target_sig_gen, 'system_state', 'PAUSED') if target_sig_gen else 'OFFLINE',
             "slots_occupied": getattr(target_sig_gen, 'occupied_count', 0) if target_sig_gen else 0,
             "message": getattr(target_sig_gen, 'system_message', 'Iniciando...') if target_sig_gen else 'Sistema Indisponível',
-            "protocol": "Sniper V110.100",
+            "protocol": "Sniper V125.100",
             "is_thinking": is_thinking,
             "oracle_status": oracle_status,
             "oracle_message": oracle_status,

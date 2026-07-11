@@ -96,32 +96,32 @@
 <body class="text-gray-200 font-sans min-h-screen flex flex-col">
 
     <!-- Navbar -->
-    <header class="flex-shrink-0 px-6 py-4 glass-panel border-b border-white/5 sticky top-0 z-40 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <img src="logo10DTrasp.png" alt="Logo" class="w-9 h-9 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">
-            <div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-lg font-bold tracking-tight text-white font-display">1CRYPTEN</h1>
-                    <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span>
+    <header class="flex-shrink-0 px-4 py-4 glass-panel border-b border-white/5 sticky top-0 z-40 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div class="flex items-center gap-3">
+                <img src="logo10DTrasp.png" alt="Logo" class="w-9 h-9 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h1 class="text-lg font-bold tracking-tight text-white font-display">1CRYPTEN</h1>
+                        <span class="text-primary text-xs font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20">SANDBOX</span>
+                        
+                        <span id="sandbox-regime-badge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300">
+                            REGIME: <span id="sandbox-regime-value">AGUARDANDO...</span>
+                        </span>
+                    </div>
                     
-                    <span id="sandbox-regime-badge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300">
-                        REGIME: <span id="sandbox-regime-value">AGUARDANDO...</span>
-                    </span>
+                    <!-- Estratégias Telemetria Horizontal Badges -->
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5" id="telemetry-badges">
+                        <!-- Gerado dinamicamente via JS de acordo com a aba ativa -->
+                    </div>
+                    
+                    <p id="lab-sub-info" class="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-1">Forward Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x) | 40% DA BANCA (~$40.00)</p>
                 </div>
-                
-                <!-- Estratégias Telemetria Horizontal Badges -->
-                <div class="flex flex-wrap items-center gap-2 mt-1.5">
-                    <span id="badge-alpha" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen">ALPHA SHIELD: <span id="count-alpha">0</span></span>
-                    <span id="badge-velocity" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">VELOCITY FLOW: <span id="count-velocity">0</span></span>
-                    <span id="badge-decor" class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue">DECOR SHADOW: <span id="count-decor">0</span></span>
-                </div>
-                
-                <p id="lab-sub-info" class="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-1">Forward Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x) | 40% DA BANCA (~$40.00)</p>
             </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
             <!-- Controle Global de Espelho Real (OKX) -->
-            <div id="global-mirror-control" class="flex items-center gap-3 px-3 py-1.5 glass-panel rounded-xl border border-white/5 mr-1 bg-white/5">
+            <div id="global-mirror-control" class="flex items-center gap-3 px-3 py-1.5 glass-panel rounded-xl border border-white/5 bg-white/5">
                 <div class="flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.8)]" id="mirror-status-indicator"></span>
                     <span class="text-[10px] font-mono text-gray-400">Espelho (OKX):</span>
@@ -220,11 +220,11 @@
         <div id="banner-scalping" class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
             <span class="material-icons-round text-primary text-3xl mt-1">science</span>
             <div>
-                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping 1s)</h3>
+                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping M1/M5)</h3>
                 <p class="text-sm text-gray-400">
-                    Captura sinais em tempo real pelo Radar. Ordens com <strong>banca virtual de $100.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2.00 USD por ativo</strong> (limite de 40% da banca ativa).
-                    O <strong>FlashAgent</strong> monitora a escadinha a cada 1s. 
-                    <span class="text-primary font-semibold">Partial Take Profit (50%):</span> Em mercados Laterais (ADX < 25), realiza a saída de metade da mão ao atingir <strong>+15% ROI</strong> para pagar taxas e tirar o risco de mesa.
+                    Executado de forma autônoma pelo motor <strong>VWAP SNIPER</strong>. Varre gráficos de 1m e 5m. Ordens com <strong>banca virtual de $100.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2.00 USD por ativo</strong> (limite de 40% da banca ativa).
+                    O <strong>FlashAgent</strong> monitora o Stop Loss baseado em ATR de 1m a cada 1s.
+                    <span class="text-primary font-semibold">Sem Saídas Parciais:</span> A posição corre cheia (100% da mão com alavancagem 50x) buscando lucros explosivos rápidos até bater no Stop Loss ou Stop Gain, sem fragmentação da ordem.
                 </p>
             </div>
         </div>
@@ -756,33 +756,32 @@
                     
                     if (currentTab === 'scalping') {
                         const breakdown = stats.strategy_breakdown || {};
-                        document.getElementById('count-alpha').innerText = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
-                        document.getElementById('count-velocity').innerText = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
-                        document.getElementById('count-decor').innerText = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
+                        const sniperCount = breakdown['VWAP SNIPER'] ? breakdown['VWAP SNIPER'].total : 0;
                         
-                        const regime = stats.current_regime || 'NEUTRAL';
+                        document.getElementById('telemetry-badges').innerHTML = `
+                            <span class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyan-400/10 border border-cyan-400/20 text-cyan-300">VWAP SNIPER: <span>${sniperCount}</span></span>
+                        `;
+                        
                         const regimeBadge = document.getElementById('sandbox-regime-badge');
                         const regimeValue = document.getElementById('sandbox-regime-value');
                         
-                        if (regime === 'LATERAL') {
-                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberOrange/20 border border-cyberOrange/30 text-cyberOrange';
-                            regimeValue.innerText = 'LATERAL (V.F PAUSADO | D.S ATIVO)';
-                        } else if (regime === 'UP' || regime === 'DOWN') {
-                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/20 border border-cyberGreen/30 text-cyberGreen';
-                            regimeValue.innerText = `TENDÊNCIA ${regime} (V.F ATIVO | D.S PAUSADO)`;
-                        } else {
-                            regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-white/10 border border-white/20 text-gray-300';
-                            regimeValue.innerText = regime;
-                        }
+                        regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyan-400/20 border border-cyan-400/30 text-cyan-300';
+                        regimeValue.innerText = 'MOTOR M1/M5 ATIVO';
                         
                         document.getElementById('stat-best').innerText = stats.best_strategy || 'N/A';
                         document.getElementById('lab-sub-info').innerText = `Forward Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x) | 40% DA BANCA (~$40.00)`;
                     } else {
                         const breakdown = stats.strategy_breakdown || {};
-                        document.getElementById('count-alpha').innerText = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
-                        document.getElementById('count-velocity').innerText = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
-                        document.getElementById('count-decor').innerText = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
-
+                        const alphaCount = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
+                        const velocityCount = breakdown['VELOCITY FLOW'] ? breakdown['VELOCITY FLOW'].total : 0;
+                        const decorCount = breakdown['DECOR SHADOW'] ? breakdown['DECOR SHADOW'].total : 0;
+                        
+                        document.getElementById('telemetry-badges').innerHTML = `
+                            <span class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen">ALPHA SHIELD: <span>${alphaCount}</span></span>
+                            <span class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">VELOCITY FLOW: <span>${velocityCount}</span></span>
+                            <span class="text-[9px] font-bold font-mono px-2 py-0.5 rounded bg-cyberBlue/10 border border-cyberBlue/20 text-cyberBlue">DECOR SHADOW: <span>${decorCount}</span></span>
+                        `;
+                        
                         const regimeBadge = document.getElementById('sandbox-regime-badge');
                         const regimeValue = document.getElementById('sandbox-regime-value');
                         regimeBadge.className = 'ml-2 text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyberPurple/20 border border-cyberPurple/30 text-cyberPurple';
@@ -869,7 +868,12 @@
                             <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
                             <td class="p-4 font-mono text-xs text-gray-300">ctVal: ${t.contract_meta?.ctVal || '?'}</td>
                             <td class="p-4 font-mono text-xs">
-                                <span class="px-2 py-0.5 rounded font-black ${t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' : t.strategy === 'VELOCITY FLOW' ? 'bg-primary/10 border border-primary/20 text-primary' : 'text-gray-400'}">${t.strategy}</span>
+                                <span class="px-2 py-0.5 rounded font-black ${
+                                    t.strategy === 'ALPHA SHIELD' ? 'bg-cyberGreen/10 border border-cyberGreen/20 text-cyberGreen' :
+                                    t.strategy === 'VWAP SNIPER'  ? 'bg-cyan-400/10 border border-cyan-400/30 text-cyan-300' :
+                                    t.strategy === 'VELOCITY FLOW' ? 'bg-primary/10 border border-primary/20 text-primary' :
+                                    'text-gray-400'
+                                }">${t.strategy}</span>
                             </td>
                             <td class="p-4">${directionBadge}</td>
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>

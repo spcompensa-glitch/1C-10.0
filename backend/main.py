@@ -650,6 +650,14 @@ async def lifespan(app: FastAPI):
             except Exception as swing_err:
                 logger.error(f"Falha ao iniciar SandboxSwingService: {swing_err}")
 
+            # [VWAP-SNIPER] Motor exclusivo de Scalping M1/M5
+            try:
+                from services.sandbox_scalping_engine import sandbox_scalping_engine
+                await sandbox_scalping_engine.start()
+                logger.info("[VWAP-SNIPER] Scalping Engine M1/M5 ONLINE!")
+            except Exception as sniper_err:
+                logger.error(f"Falha ao iniciar VWAP SNIPER Engine: {sniper_err}")
+
             logger.info("✅ All background services started successfully!")
         except Exception as e:
             logger.error(f"FATAL Startup Error: {e}", exc_info=True)
@@ -695,6 +703,13 @@ async def lifespan(app: FastAPI):
             await sandbox_swing_service.stop()
         except Exception as sw_stop_err:
             logger.debug(f"Erro ao parar SandboxSwingService: {sw_stop_err}")
+
+        try:
+            from services.sandbox_scalping_engine import sandbox_scalping_engine
+            logger.info("[VWAP-SNIPER] Desligando Scalping Engine...")
+            await sandbox_scalping_engine.stop()
+        except Exception as sniper_stop_err:
+            logger.debug(f"Erro ao parar VWAP SNIPER Engine: {sniper_stop_err}")
     except Exception as shutdown_err:
         logger.error(f"Error during shutdown: {shutdown_err}")
     

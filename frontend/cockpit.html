@@ -6,7 +6,7 @@
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
         name="viewport" />
 
-    <title>Sniper V110.510 — ELITE COMMAND</title>
+    <title>Sniper V125.100 — ELITE COMMAND</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="logo10DTrasp.png?v=4">
     <link rel="shortcut icon" type="image/png" href="logo10DTrasp.png?v=4">
@@ -137,44 +137,6 @@
     <div class="aura aura-cyan"></div>
     <div class="aura aura-violet"></div>
     <!-- V110.100: ULTIMATE CACHE BREAKER BANNER -->
-
-    <div id="boot-shield">
-        <div class="boot-logo-container">
-            <div class="boot-ring"></div>
-            <div class="boot-ring"></div>
-            <div class="boot-ring"></div>
-            <div class="boot-scanner"></div>
-            <img src="/logo10DTrasp.png?v=4" class="boot-logo" alt="10D Logo">
-        </div>
-        
-        <div style="color:#ffffff; font-size:14px; font-weight:900; letter-spacing:8px; text-transform:uppercase; font-family:'JetBrains Mono', monospace; text-shadow: 0 0 10px rgba(255,255,255,0.5);">
-            NEURAL INTERFACE
-        </div>
-
-        <div class="boot-progress-container">
-            <div id="boot-progress" class="boot-progress-bar"></div>
-        </div>
-
-        <!-- V110.201: MANUAL BYPASS (Appears after 10s if stuck) -->
-        <button id="boot-bypass" onclick="document.getElementById('boot-shield').remove()" 
-                style="display:none; margin-top: 40px; padding: 8px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #64748b; font-size: 10px; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px;">
-            Force Reset Link
-        </button>
-        <script>
-            setTimeout(() => {
-                const btn = document.getElementById('boot-bypass');
-                if (btn) btn.style.display = 'block';
-            }, 10000);
-        </script>
-        </div>
-
-        <div style="color:rgba(255,255,255,0.5); font-size:9px; margin-top:16px; font-family:'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 2px;"
-            id="boot-status">Initializing System Core...</div>
-            
-        <div style="position: absolute; bottom: 40px; color: rgba(255,255,255,0.2); font-size:8px; letter-spacing: 4px; text-transform: uppercase;">
-            Protocol V110.171 • Secure Connection Active
-        </div>
-    </div>
 
     <div id="root"></div>
     <div class="stars-bg"></div>
@@ -920,38 +882,41 @@
                 guardianMode === 'CAUTELOSO' ? 'text-amber-300' : 'text-success';
             return (
                 <section className="premium-card p-6 space-y-6">
-                    <div className="flex justify-between items-start">
-                            <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Patrimônio Líquido</h2>
+                    {/* Linha Superior: Título, Valor Principal e Rank */}
+                    <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                        <div>
+                            <h2 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Patrimônio Líquido</h2>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-black text-white font-mono">${liveEquity.toFixed(2)}</span>
                                 <span className={`text-xs font-bold ${liveTotalProfit >= 0 ? 'text-success' : 'text-orange-400'}`}>
                                     {liveTotalProfit >= 0 ? '+' : ''}{liveTotalProfit.toFixed(2)}
                                 </span>
                             </div>
-                            {banca.saldo_real_okx > 0 && (
-                                <div className="text-[10px] text-accent font-semibold flex items-center gap-1 mt-1 font-mono uppercase tracking-wider">
+                            {banca && Number(banca.saldo_real_okx) > 0 && (
+                                <div className="text-[10px] text-cyan-300 font-semibold flex items-center gap-1.5 mt-1 font-mono uppercase tracking-wider">
                                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                                    Saldo Real OKX: ${banca.saldo_real_okx.toFixed(2)}
+                                    Saldo Real OKX: ${Number(banca.saldo_real_okx).toFixed(2)}
                                 </div>
                             )}
+                        </div>
                         <div className="text-right">
-                             <div className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-white/5 border border-white/10 ${rankColor}`}>
+                             <div className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded bg-white/5 border border-white/10 ${rankColor}`}>
                                 {fleetRank}
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Resultado Global</span>
-                            <p className={`text-lg font-black font-mono ${liveTotalProfit >= 0 ? 'text-white' : 'text-orange-400'}`}>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                            <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Resultado Global</span>
+                            <span className={`text-base font-black font-mono ${liveTotalProfit >= 0 ? 'text-success' : 'text-orange-400'}`}>
                                 ${liveTotalProfit >= 0 ? '+' : ''}{liveTotalProfit.toFixed(2)}
-                            </p>
+                            </span>
                         </div>
-                        <div className="space-y-1 text-right">
-                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Integridade</span>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 text-right">
+                            <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Integridade</span>
                             <div className="flex items-center justify-end gap-2">
-                                <span className="text-lg font-black font-mono text-white">{hullIntegrityPct.toFixed(1)}%</span>
+                                <span className="text-base font-black font-mono text-white">{hullIntegrityPct.toFixed(1)}%</span>
                                 <div className={`w-2 h-2 rounded-full ${isDrawdown ? 'bg-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'}`}></div>
                             </div>
                         </div>
@@ -960,16 +925,16 @@
                     <div className="space-y-2">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-gray-500">
                             <span>Alocação por Slot ({liveEquity <= 40.0 ? "Piso/Teto" : "1% - 2%"})</span>
-                            <span className="text-white">
+                            <span className="text-white font-mono">
                                 {liveEquity <= 40.0 
                                     ? `$0.55 - $1.00 (Calc: $${Math.max(0.55, Math.min(1.00, liveEquity * 0.03)).toFixed(2)})`
                                     : `$${(liveEquity * 0.01).toFixed(2)} - $${(liveEquity * 0.02).toFixed(2)}`
                                 }
                             </span>
                         </div>
-                        <div className="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden p-[1px]">
+                        <div className="w-full bg-gray-950 border border-white/5 h-2 rounded-full overflow-hidden p-[1px]">
                             <div 
-                                className={`h-full transition-all duration-1000 ${isDrawdown ? 'bg-orange-500' : 'bg-green-500'}`} 
+                                className={`h-full transition-all duration-1000 ${isDrawdown ? 'bg-gradient-to-r from-orange-600 to-orange-400' : 'bg-gradient-to-r from-green-600 to-green-400'}`} 
                                 style={{ width: `${hullIntegrityPct}%` }}
                             ></div>
                         </div>
@@ -984,29 +949,29 @@
                             <span className={`text-[10px] font-black uppercase ${guardianColor}`}>{guardianStatus}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2">
-                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Saúde</span>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Saúde</span>
                                 <span className={`text-sm font-black font-mono ${guardianColor}`}>{guardianHealth.toFixed(0)}/100</span>
                             </div>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-right">
-                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Modo</span>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-2.5 text-right">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Modo</span>
                                 <span className={`text-[10px] font-black uppercase ${guardianColor}`}>{guardianMode}</span>
                             </div>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2">
-                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Lucro Protegido</span>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Lucro Protegido</span>
                                 <span className="text-sm font-black font-mono text-white">${lockedProfit.toFixed(2)}</span>
                             </div>
-                            <div className="bg-white/[0.03] border border-white/5 rounded-xl p-2 text-right">
-                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest">Devolução</span>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-2.5 text-right">
+                                <span className="block text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Devolução</span>
                                 <span className="text-sm font-black font-mono text-white">${allowedGiveback.toFixed(2)}</span>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-gray-500">
-                            <span>Score mín. {guardianMinScore.toFixed(0)}</span>
-                            <span>Slots liberados {guardianMaxSlots}</span>
+                        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-gray-500 pt-1">
+                            <span>Score Mínimo: <span className="text-white font-mono">{guardianMinScore.toFixed(0)}</span></span>
+                            <span>Slots Permitidos: <span className="text-white font-mono">{guardianMaxSlots}</span></span>
                         </div>
                         {suspendedSymbols.length > 0 && (
-                            <div className="text-[9px] font-black uppercase tracking-widest text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-xl px-2 py-1">
+                            <div className="text-[9px] font-black uppercase tracking-widest text-orange-300 bg-orange-500/10 border border-orange-500/20 rounded-xl px-2.5 py-1.5 mt-2">
                                 Pares suspensos: {suspendedSymbols.map(s => s.symbol).join(', ')}
                             </div>
                         )}
@@ -3301,7 +3266,7 @@
                                     ))}
                                 </div>
                                 <div className="mt-auto pt-8 border-t v5-border-subtle">
-                                    <p className="text-[10px] text-gray-600 uppercase tracking-[0.3em] text-center font-bold">Protocol JARVIS V110.510</p>
+                                    <p className="text-[10px] text-gray-600 uppercase tracking-[0.3em] text-center font-bold">Protocol JARVIS V125.100</p>
                                 </div>
                             </div>
                         </div>
@@ -3414,7 +3379,7 @@
                                     </div>
                                     <span className="text-[9px] text-white font-black uppercase tracking-[0.4em]">Sincronização Ativa</span>
                                 </div>
-                                <p className="text-[9px] text-gray-500 font-mono uppercase tracking-[0.3em] font-bold">Neural Link v110.510</p>
+                                <p className="text-[9px] text-gray-500 font-mono uppercase tracking-[0.3em] font-bold">Neural Link v125.100</p>
                             </div>
                         </div>
                     </footer>
@@ -5350,7 +5315,7 @@
                                     {historicalData.candles[historicalData.candles.length-1].close > historicalData.candles[historicalData.candles.length-1].open ? 'Market Sentiment: Bullish' : 'Market Sentiment: Bearish'}
                                 </span>
                             </div>
-                            <span className="text-[7px] font-bold text-white/20 uppercase tracking-[0.4em] ml-1">Eagle Vision Protocol v110.510</span>
+                            <span className="text-[7px] font-bold text-white/20 uppercase tracking-[0.4em] ml-1">Eagle Vision Protocol v125.100</span>
                         </div>
                     )}
 
@@ -6302,7 +6267,7 @@
             const realAdx = btcAdx; 
             const dominance = btcCtx?.btc_dominance !== undefined ? btcCtx.btc_dominance : 45.0;
             const realDecorrelation = btcCtx?.decorrelation_avg !== undefined ? btcCtx.decorrelation_avg : null;
-            const protocolLabel = btcCommandStatus?.protocol || (systemState && systemState.protocol) || "Sniper V110.510";
+            const protocolLabel = btcCommandStatus?.protocol || (systemState && systemState.protocol) || "Sniper V125.100";
 
             // V110.34: Regime agora espelha EXATAMENTE a lógica do Capitão
             // Backend calcula: ADX >= 30 + convergência 15m/1h = UP/DOWN, senão LATERAL
@@ -6687,6 +6652,27 @@
                                         Histórico da Vault
                                     </h3>
                                     <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={async () => {
+                                                if (confirm("Deseja realmente limpar TODO o histórico da Vault? Esta ação não pode ser desfeita.")) {
+                                                    try {
+                                                        const res = await fetch(`${API_BASE}/api/history/clear/all`, { method: 'DELETE' });
+                                                        if (res.ok) {
+                                                            setHistoryLogs([]);
+                                                            alert("Histórico limpo com sucesso!");
+                                                        } else {
+                                                            alert("Erro ao limpar histórico.");
+                                                        }
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                    }
+                                                }
+                                            }}
+                                            className="text-gray-500 hover:text-red-400 p-1 hover:bg-red-500/10 rounded-lg flex items-center justify-center mr-2 transition-colors"
+                                            title="Limpar Todo o Histórico"
+                                        >
+                                            <span className="material-icons-round text-xs">delete_sweep</span>
+                                        </button>
                                         <button onClick={() => setHistoryPage(p => Math.max(1, p-1))} className="text-gray-500 hover:text-white" disabled={historyPage === 1}>
                                             <span className="material-icons-round text-sm">chevron_left</span>
                                         </button>

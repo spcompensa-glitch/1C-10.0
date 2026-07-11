@@ -622,6 +622,14 @@ async def startup():
     except Exception as e:
         logger.error(f"❌ Falha ao iniciar Sandbox Swing Service local: {e}")
 
+    # ⚡ [VWAP-SNIPER] Motor exclusivo de Scalping M1/M5
+    try:
+        from services.sandbox_scalping_engine import sandbox_scalping_engine
+        await sandbox_scalping_engine.start()
+        logger.info("🟢 VWAP SNIPER Engine (Scalping M1/M5) iniciado no ambiente local!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar VWAP SNIPER Engine: {e}")
+
 
     # 🆕 [HERMES DASHBOARD v2] Inicia o Hermes Web Dashboard como serviço paralelo
     if HERMES_DASHBOARD_ENABLED:

@@ -152,26 +152,9 @@ class NVIDIAService:
         except Exception as fe:
             logger.error(f"❌ NVIDIAService fallback to AIService failed: {fe}")
 
-        # 3. FALLBACK 2: Respostas Mockadas estáticas (última linha de defesa)
-        logger.warning("⚠️ NVIDIAService: AIService failed. Falling back to static mock responses.")
-        user_message = messages[-1]["content"] if messages else "Hello"
-        
-        fallback_responses = {
-            "hello": "🪶 Hermes: Olá! Sou o assistente Hermes da 1Cryptem. Como posso ajudar você hoje?",
-            "oi": "🪶 Hermes: Olá! Sou o assistente Hermes. Em que posso ajudá-lo?",
-            "help": "🪶 Hermes: Eu sou Hermes, seu assistente de trading e gestão de portfólio. Posso ajudar com análises de mercado, gerenciamento de posições e muito mais!",
-            "default": "🪶 Hermes: Sua mensagem foi recebida. Estou processando sua solicitação com minha IA NVIDIA de contingência."
-        }
-        
-        user_lower = user_message.lower()
-        if "hello" in user_lower or "hi" in user_lower:
-            return fallback_responses["hello"]
-        elif "oi" in user_lower:
-            return fallback_responses["oi"]
-        elif "help" in user_lower or "ajuda" in user_lower:
-            return fallback_responses["help"]
-        else:
-            return fallback_responses["default"]
+        # Se ambos falharem, retorna None para permitir a continuação da cascata no hermes_agent
+        logger.warning("⚠️ NVIDIAService: AIService fallback also failed. Returning None to continue cascade.")
+        return None
 
     async def chat_completion(
         self,

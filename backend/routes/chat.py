@@ -155,6 +155,17 @@ def get_services():
 # [HERMES] ENDPOINT PRINCIPAL — Chat com contexto completo
 # ============================================================
 
+def clean_think_tags(text: str) -> str:
+    import re
+    if not text: return text
+    # Remove blocos completos <think>...</think>
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # Remove bloco não fechado se a geração foi interrompida
+    if '<think>' in text:
+        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+    return text.strip()
+
+
 @router.post("/hermes/chat", dependencies=[Depends(rate_limit)])
 async def hermes_chat(payload: dict):
     """[HERMES] Chat com contexto completo: agentes, slots, escadinha, compliance."""
@@ -173,6 +184,7 @@ async def hermes_chat(payload: dict):
         from services.agents.hermes_agent import hermes_agent
         result = await hermes_agent.handle_chat_query(user_msg)
         response_text = result.get("response", "🌐 Sinal neural instável.")
+        response_text = clean_think_tags(response_text)
         context = result.get("context", {})
 
         # Save assistant response to DB
@@ -214,6 +226,7 @@ async def hermes_chat(payload: dict):
 
         response = await ai_service.generate_content(prompt=user_msg, system_instruction=system)
         response_text = response or "🌐 Sinal neural instável. Tente novamente, Almirante."
+        response_text = clean_think_tags(response_text)
 
         # Save assistant response to DB
         if session_id:

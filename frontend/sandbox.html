@@ -417,318 +417,380 @@
     </header>
 
     <!-- Dashboard Main -->
-    <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+    <main class="flex-1 p-6 w-full space-y-6">
 
-        <!-- PAINEL CONSOLIDADO DE TELEMETRIA (V125 - BANCA ÚNICA & SLOTS) -->
-        <div class="glass-panel p-6 rounded-2xl border border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
-            
-            <!-- Coluna 1: Banca Única -->
-            <div class="flex flex-col justify-between space-y-3 z-10">
-                <div>
-                    <span class="text-xs text-gray-500 font-mono uppercase tracking-wider">Banca Simulada Consolidada</span>
-                    <div class="flex items-baseline gap-2 mt-1">
-                        <span id="unified-balance" class="text-4xl font-extrabold text-white font-mono">$100.00</span>
-                        <span class="text-xs text-gray-400 font-mono">USD</span>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="text-gray-400 font-mono">Retorno Total:</span>
-                    <span id="unified-pnl-badge" class="px-2 py-0.5 rounded font-mono font-bold bg-white/5 text-white">0.00%</span>
-                    <span id="unified-pnl-usd" class="font-mono text-gray-400">($0.00)</span>
-                </div>
-            </div>
-
-            <!-- Coluna 2: Alocação de Margem (Limite 40%) -->
-            <div class="flex flex-col justify-between space-y-3 z-10 border-l border-white/5 pl-0 md:pl-6">
-                <div>
-                    <div class="flex items-center justify-between text-xs mb-1">
-                        <span class="text-gray-500 font-mono uppercase tracking-wider">Margem Alocada (Limite 40%)</span>
-                        <span id="unified-margin-ratio" class="font-mono text-gray-400">$0.00 / $40.00</span>
-                    </div>
-                    <div class="w-full bg-white/5 rounded-full h-2.5 overflow-hidden border border-white/5">
-                        <div id="unified-margin-bar" class="bg-gradient-to-r from-primary to-cyberGreen h-full transition-all duration-500" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                    <span class="text-gray-400 font-mono">Uso de Alocação Máxima:</span>
-                    <span id="unified-margin-pct" class="font-mono font-bold text-white">0.0%</span>
-                </div>
-            </div>
-
-            <!-- Coluna 3: Slots Ocupados (Limite 20) -->
-            <div class="flex flex-col justify-between space-y-3 z-10 border-l border-white/5 pl-0 md:pl-6">
-                <div>
-                    <div class="flex items-center justify-between text-xs mb-2">
-                        <span class="text-gray-500 font-mono uppercase tracking-wider">Slots Simultâneos Ocupados</span>
-                        <span id="unified-slots-ratio" class="font-mono text-gray-400">0 / 20</span>
-                    </div>
-                    <!-- Visual Slots Grid -->
-                    <div id="unified-slots-grid" class="grid grid-cols-10 gap-1.5 w-full">
-                        <!-- Gerado via JS: 20 slots virtuais -->
-                    </div>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                    <span class="text-gray-400 font-mono">Slots Ocupados:</span>
-                    <div class="flex items-center gap-3">
-                        <span class="text-xs font-bold text-primary font-mono flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-primary"></span> Scalp: <span id="slots-count-scalp">0</span></span>
-                        <span class="text-xs font-bold text-cyberPurple font-mono flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyberPurple"></span> Swing: <span id="slots-count-swing">0</span></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Switch de Abas Premium & Controle de Espelho Real -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-            <div class="flex items-center gap-2 p-1.5 glass-panel rounded-2xl w-fit border border-white/5">
-                <button id="tab-btn-scalping" onclick="switchTab('scalping')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white">
-                    <span class="material-icons-round text-sm">bolt</span> Scalping Lab (Radar 1s)
-                </button>
-                <button id="tab-btn-swing" onclick="switchTab('swing')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent">
-                    <span class="material-icons-round text-sm">trending_up</span> Swing Lab (Multi-Estratégia)
-                </button>
-            </div>
-            </div>
-        </div>
-
-        <!-- Banners Explicativos Dinâmicos -->
-        <div id="banner-scalping" class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
-            <span class="material-icons-round text-primary text-3xl mt-1">science</span>
-            <div>
-                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping M1/M5)</h3>
-                <p class="text-sm text-gray-400">
-                    Executado de forma autônoma pelo motor <strong>VWAP SNIPER</strong>. Varre gráficos de 1m e 5m. Ordens com <strong>banca virtual de $10,000.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $200.00 USD por ativo</strong> (limite de 40% da banca ativa).
-                    O <strong>FlashAgent</strong> monitora o Stop Loss baseado em ATR de 1m a cada 1s.
-                    <span class="text-primary font-semibold">Sem Saídas Parciais:</span> A posição corre cheia (100% da mão com alavancagem 50x) buscando lucros explosivos rápidos até bater no Stop Loss ou Stop Gain, sem fragmentação da ordem.
-                </p>
-            </div>
-        </div>
-
-        <div id="banner-swing" class="glass-panel p-5 rounded-2xl border-l-4 border-l-cyberPurple flex items-start gap-4 hidden">
-            <span class="material-icons-round text-cyberPurple text-3xl mt-1">flash_on</span>
-            <div>
-                <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Swing Lab M30)</h3>
-                <p class="text-sm text-gray-400">
-                    Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $10,000.00 USD</strong> e margem de <strong>$200.00 USD por trade</strong> (<strong>50x leverage</strong>). 
-                    Conduzido centralizadamente pelo <strong>FlashAgent</strong> seguindo a <strong>Doutrina das Extrações</strong>. 
-                    <span class="text-cyberPurple font-semibold">Zero-Risk Stacking:</span> Abre apenas 1 ordem de Swing por vez. Uma nova posição só é disparada assim que o Stop Loss da ordem atual estiver em break-even (risco zero). Sem Saídas Parciais.
-                </p>
-            </div>
-        </div>
-
-
-        <!-- Estatísticas Gerais -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
-                <span class="text-xs text-gray-500 font-mono uppercase">Trades Totais</span>
-                <span id="stat-total" class="text-3xl font-bold text-white font-mono mt-2 stat-number">-</span>
-            </div>
-            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberOrange">
-                <span class="text-xs text-gray-500 font-mono uppercase">Em Andamento</span>
-                <span id="stat-active" class="text-3xl font-bold text-cyberOrange font-mono mt-2 stat-number">-</span>
-            </div>
-            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberGreen">
-                <span class="text-xs text-gray-500 font-mono uppercase">Win Rate</span>
-                <span id="stat-winrate" class="text-3xl font-bold text-cyberGreen font-mono mt-2 stat-number">-</span>
-            </div>
-            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-primary">
-                <span class="text-xs text-gray-500 font-mono uppercase">ROI / Saldo da Banca</span>
-                <div class="flex flex-col justify-end mt-2">
-                    <span id="stat-pnl" class="text-3xl font-bold text-white font-mono leading-none stat-number">-</span>
-                    <span id="stat-balance" class="text-xs text-gray-400 font-mono mt-1">$100.00 USD</span>
-                </div>
-            </div>
-            <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
-                <span class="text-xs text-gray-500 font-mono uppercase">Melhor Estratégia</span>
-                <span id="stat-best" class="text-lg font-bold text-primary truncate mt-2 stat-number">-</span>
-            </div>
-        </div>
-
-        <!-- ===== [V113] ANALYTICS DASHBOARD ===== -->
-        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-5" id="analytics-panel">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h3 class="text-white font-bold text-base flex items-center gap-2">
-                        <span class="material-icons-round text-cyberPurple">query_stats</span> Analytics & Distribuição de Perdas
-                    </h3>
-                    <p class="text-xs text-gray-500">Métricas de risco, distribuição de losses por hora/regime e performance por par.</p>
-                </div>
-                <span id="analytics-status" class="px-2.5 py-0.5 rounded bg-white/5 text-[10px] text-gray-400 font-mono uppercase tracking-wider">Coletando...</span>
-            </div>
-
-            <!-- Cards de Risco (Linha 1) -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <!-- R:R Ratio -->
-                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center">
-                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Risk/Reward</span>
-                    <span id="analytics-rr" class="text-2xl font-bold text-white font-mono">-</span>
-                    <span class="text-[10px] text-gray-500 mt-1">Rácio Win/Loss</span>
-                </div>
-                <!-- Win Médio -->
-                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberGreen">
-                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Win Médio</span>
-                    <span id="analytics-avg-win" class="text-2xl font-bold text-cyberGreen font-mono">-</span>
-                </div>
-                <!-- Loss Médio -->
-                <div class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberRed">
-                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Loss Médio</span>
-                    <span id="analytics-avg-loss" class="text-2xl font-bold text-cyberRed font-mono">-</span>
-                </div>
-                <!-- Zero-PnL Alert -->
-                <div id="zero-pnl-card" class="glass-panel-sm p-4 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange">
-                    <span class="text-[10px] text-gray-500 font-mono uppercase mb-1">Zero-PnL</span>
-                    <span id="analytics-zero-pct" class="text-2xl font-bold text-cyberOrange font-mono">-</span>
-                    <span class="text-[10px] text-gray-500 mt-1">fecharam no entry</span>
-                </div>
-            </div>
-
-            <!-- Zero-PnL Alert Extra (visível apenas quando >30%) -->
-            <div id="zero-pnl-alert" class="hidden">
-                <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-cyberOrange/10 border border-cyberOrange/30 alert-pulse">
-                    <span class="material-icons-round text-cyberOrange">warning_amber</span>
-                    <div class="flex-1">
-                        <span class="text-sm font-bold text-cyberOrange">Alerta de Zero-PnL Alto!</span>
-                        <span id="zero-pnl-alert-text" class="text-xs text-gray-400 ml-2"></span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Gráficos (Linha 2) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Loss por Hora -->
-                <div class="glass-panel-sm p-4 rounded-xl">
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-xs text-gray-400 font-mono uppercase">Losses por Hora UTC</span>
-                        <span class="text-[10px] text-gray-600 font-mono" id="analytics-peak-hour">-</span>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="chart-hour"></canvas>
-                    </div>
-                </div>
-                <!-- Loss por Regime -->
-                <div class="glass-panel-sm p-4 rounded-xl">
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-xs text-gray-400 font-mono uppercase">Losses por Regime</span>
-                        <span id="analytics-regime-loss-count" class="text-[10px] text-gray-600 font-mono">-</span>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="chart-regime"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Top Winners & Losers (Linha 3) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Top Winners -->
-                <div class="glass-panel-sm p-4 rounded-xl">
-                    <span class="text-xs text-cyberGreen font-mono uppercase flex items-center gap-2 mb-3">
-                        <span class="material-icons-round text-sm">trending_up</span> Top 5 Maiores Wins
-                    </span>
-                    <div id="analytics-top-winners" class="space-y-1.5 text-xs font-mono">
-                        <div class="text-gray-500">Aguardando dados...</div>
-                    </div>
-                </div>
-                <!-- Top Losers -->
-                <div class="glass-panel-sm p-4 rounded-xl">
-                    <span class="text-xs text-cyberRed font-mono uppercase flex items-center gap-2 mb-3">
-                        <span class="material-icons-round text-sm">trending_down</span> Top 5 Maiores Losses
-                    </span>
-                    <div id="analytics-top-losers" class="space-y-1.5 text-xs font-mono">
-                        <div class="text-gray-500">Aguardando dados...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Painel de Insights e Padrões -->
-        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h3 class="text-white font-bold text-base flex items-center gap-2">
-                        <span class="material-icons-round text-cyberGreen">analytics</span> Insights de Padrões e Mineração Estatística
-                    </h3>
-                    <p class="text-xs text-gray-500">Métricas de otimização extraídas dos trades simulados encerrados.</p>
-                </div>
-                <span id="patterns-status" class="px-2.5 py-0.5 rounded bg-white/5 text-[10px] text-gray-400 font-mono uppercase tracking-wider">Aguardando Amostras</span>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Direção Preferida -->
-                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
-                    <span class="text-xs text-gray-400 font-mono uppercase">Performance por Direção</span>
-                    <div class="space-y-2 font-mono text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-cyberGreen">LONG:</span>
-                            <span id="pattern-long-val" class="font-bold">-</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-cyberRed">SHORT:</span>
-                            <span id="pattern-short-val" class="font-bold">-</span>
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start w-full">
+            <!-- COLUNA 1: TELEMETRIA E RELÓGIOS (xl:col-span-3 - 25%) -->
+            <div class="xl:col-span-3 flex flex-col space-y-6 w-full">
+                <!-- Banca Consolidada -->
+                <div class="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl"></div>
+                    <div>
+                        <span class="text-xs text-gray-500 font-mono uppercase tracking-wider">Banca Simulada Consolidada</span>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="unified-balance" class="text-3xl font-extrabold text-white font-mono">$10,000.00</span>
+                            <span class="text-xs text-gray-400 font-mono">USD</span>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2 text-xs mt-2">
+                        <span class="text-gray-400 font-mono">Retorno:</span>
+                        <span id="unified-pnl-badge" class="px-2 py-0.5 rounded font-mono font-bold bg-white/5 text-white">0.00%</span>
+                        <span id="unified-pnl-usd" class="font-mono text-gray-400">($0.00)</span>
+                    </div>
                 </div>
-
-                <!-- Whitelist Sugerida -->
-                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
-                    <span class="text-xs text-cyberGreen font-mono uppercase">Pares Recomendados (Whitelist)</span>
-                    <div id="pattern-whitelist" class="space-y-1 text-xs font-mono">
-                        <div class="text-gray-500">Nenhum par qualificado ainda.</div>
+                
+                <!-- Alocação de Margem -->
+                <div class="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="text-gray-500 font-mono uppercase tracking-wider">Margem Alocada</span>
+                            <span id="unified-margin-ratio" class="font-mono text-gray-400">$0.00 / $4,000.00</span>
+                        </div>
+                        <div class="w-full bg-white/5 rounded-full h-2 overflow-hidden border border-white/5 mt-2">
+                            <div id="unified-margin-bar" class="bg-gradient-to-r from-primary to-cyberGreen h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs mt-3">
+                        <span class="text-gray-400 font-mono">Limite (40%):</span>
+                        <span id="unified-margin-pct" class="font-mono font-bold text-white">0.0%</span>
                     </div>
                 </div>
 
-                <!-- Blacklist Sugerida -->
-                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
-                    <span class="text-xs text-cyberRed font-mono uppercase">Pares Críticos (Sugerido Blacklist)</span>
-                    <div id="pattern-blacklist" class="space-y-1 text-xs font-mono">
-                        <div class="text-gray-500 font-sans">Nenhum par crítico identificado.</div>
+                <!-- Slots Ocupados -->
+                <div class="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-2">
+                            <span class="text-gray-500 font-mono uppercase tracking-wider">Slots Ocupados</span>
+                            <span id="unified-slots-ratio" class="font-mono text-gray-400">0 / 20</span>
+                        </div>
+                        <!-- Visual Slots Grid -->
+                        <div id="unified-slots-grid" class="grid grid-cols-10 gap-1 w-full my-2"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] border-t border-white/5 pt-2 mt-2">
+                        <span class="text-primary font-mono flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> Scalp: <span id="slots-count-scalp">0</span></span>
+                        <span class="text-cyberPurple font-mono flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-cyberPurple"></span> Swing: <span id="slots-count-swing">0</span></span>
+                    </div>
+                </div>
+
+                <!-- Market Sessions Clock -->
+                <div class="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col space-y-4">
+                    <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                        <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                            <span class="material-icons-round text-sm text-cyberGreen">schedule</span>
+                            Sessões de Mercado
+                        </h4>
+                        <span id="market-volatility-risk" class="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-cyberGreen/10 text-cyberGreen border border-cyberGreen/20">RISCO BAIXO</span>
+                    </div>
+                    
+                    <div class="space-y-3.5" id="market-sessions-container">
+                        <!-- Tokyo Session -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-gray-300">Tóquio & Sydney (Ásia)</span>
+                                <span id="session-status-tokyo" class="text-[9px] font-mono px-1.5 rounded bg-gray-500/20 text-gray-400">FECHADO</span>
+                            </div>
+                            <div class="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                <div id="session-progress-tokyo" class="bg-gray-500 h-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-gray-500 font-mono">
+                                <span>23:00 UTC</span>
+                                <span>08:00 UTC</span>
+                            </div>
+                        </div>
+                        
+                        <!-- London Session -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-gray-300">Londres (Europa)</span>
+                                <span id="session-status-london" class="text-[9px] font-mono px-1.5 rounded bg-gray-500/20 text-gray-400">FECHADO</span>
+                            </div>
+                            <div class="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                <div id="session-progress-london" class="bg-gray-500 h-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-gray-500 font-mono">
+                                <span>08:00 UTC</span>
+                                <span>16:30 UTC</span>
+                            </div>
+                        </div>
+                        
+                        <!-- NY Session -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-gray-300">Nova York (EUA)</span>
+                                <span id="session-status-ny" class="text-[9px] font-mono px-1.5 rounded bg-gray-500/20 text-gray-400">FECHADO</span>
+                            </div>
+                            <div class="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                <div id="session-progress-ny" class="bg-gray-500 h-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-gray-500 font-mono">
+                                <span>13:30 UTC</span>
+                                <span>20:00 UTC</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-[9px] text-gray-500 font-mono text-center pt-1 border-t border-white/5 flex items-center justify-center gap-1">
+                       <span class="material-icons-round text-[11px]">info</span>
+                       Hora UTC atual: <span id="current-utc-time" class="font-bold text-white">-</span>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Planilha de Simulações -->
-        <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
-            <div class="p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h2 class="text-white font-bold text-lg">Planilha de Ordens Simuladas</h2>
-                    <p class="text-xs text-gray-500">Histórico e atualizações de posições simuladas do Radar.</p>
+            <!-- ÁREA DIREITA: PAINEL PRINCIPAL (xl:col-span-9 - 75%) -->
+            <div class="xl:col-span-9 flex flex-col space-y-6 w-full">
+                <!-- Switch de Abas & Controle Global de Espelho -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                    <div class="flex items-center gap-2 p-1.5 glass-panel rounded-2xl w-fit border border-white/5">
+                        <button id="tab-btn-scalping" onclick="switchTab('scalping')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all bg-primary/10 border border-primary/20 text-white">
+                            <span class="material-icons-round text-sm">bolt</span> Scalping Lab (Radar 1s)
+                        </button>
+                        <button id="tab-btn-swing" onclick="switchTab('swing')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold font-display text-sm transition-all text-gray-400 hover:text-white hover:bg-white/5 border border-transparent">
+                            <span class="material-icons-round text-sm">trending_up</span> Swing Lab (Multi-Estratégia)
+                        </button>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <select id="filter-status" onchange="fetchData()" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-300 focus:outline-none focus:border-primary">
-                        <option value="all">Todos os Status</option>
-                        <option value="active">Apenas Ativos</option>
-                    </select>
-                    <button onclick="exportCSV()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-all text-xs border border-primary/20 font-medium">
-                        <span class="material-icons-round text-sm">download</span> Exportar CSV
-                    </button>
-                </div>
-            </div>
 
-            <!-- Tabela -->
-            <div class="overflow-x-auto w-full">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr id="table-header-row" class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
-                            <th class="p-4">Ativo</th>
-                            <th class="p-4">Contrato OKX</th>
-                            <th class="p-4">Estratégia</th>
-                            <th class="p-4">Direção</th>
-                            <th class="p-4">Entrada</th>
-                            <th class="p-4">Preço Atual / Saída</th>
-                            <th class="p-4">Stop Loss</th>
-                            <th class="p-4">Nível Stop</th>
-                            <th class="p-4">ROI Máx</th>
-                            <th class="p-4">ROI Atual</th>
-                            <th class="p-4">Lucro (USD)</th>
-                            <th class="p-4">Explosion</th>
-                            <th class="p-4">Fase Flash</th>
-                            <th class="p-4">Status</th>
-                            <th class="p-4 text-center">Histórico</th>
-                        </tr>
-                    </thead>
-                    <tbody id="trades-table" class="divide-y divide-white/5 text-sm">
-                    </tbody>
-                </table>
+                <!-- Banners Explicativos Dinâmicos -->
+                <div id="banner-scalping" class="glass-panel p-5 rounded-2xl border-l-4 border-l-primary flex items-start gap-4">
+                    <span class="material-icons-round text-primary text-3xl mt-1">science</span>
+                    <div>
+                        <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping M1/M5)</h3>
+                        <p class="text-sm text-gray-400">
+                            Executado de forma autônoma pelo motor <strong>VWAP SNIPER</strong>. Varre gráficos de 1m e 5m. Ordens com <strong>banca virtual de $10,000.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $200.00 USD por ativo</strong> (limite de 40% da banca ativa).
+                            O <strong>FlashAgent</strong> monitora o Stop Loss baseado em ATR de 1m a cada 1s.
+                            <span class="text-primary font-semibold">Sem Saídas Parciais:</span> A posição corre cheia (100% da mão com alavancagem 50x) buscando lucros explosivos rápidos até bater no Stop Loss ou Stop Gain, sem fragmentação da ordem.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="banner-swing" class="glass-panel p-5 rounded-2xl border-l-4 border-l-cyberPurple flex items-start gap-4 hidden">
+                    <span class="material-icons-round text-cyberPurple text-3xl mt-1">flash_on</span>
+                    <div>
+                        <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Swing Lab M30)</h3>
+                        <p class="text-sm text-gray-400">
+                            Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $10,000.00 USD</strong> e margem de <strong>$200.00 USD por trade</strong> (<strong>50x leverage</strong>). 
+                            Conduzido centralizadamente pelo <strong>FlashAgent</strong> seguindo a <strong>Doutrina das Extrações</strong>. 
+                            <span class="text-cyberPurple font-semibold">Zero-Risk Stacking:</span> Abre apenas 1 ordem de Swing por vez. Uma nova posição só é disparada assim que o Stop Loss da ordem atual estiver em break-even (risco zero). Sem Saídas Parciais.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Estatísticas Gerais -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                        <span class="text-xs text-gray-500 font-mono uppercase">Trades Totais</span>
+                        <span id="stat-total" class="text-3xl font-bold text-white font-mono mt-2 stat-number">-</span>
+                    </div>
+                    <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberOrange">
+                        <span class="text-xs text-gray-500 font-mono uppercase">Em Andamento</span>
+                        <span id="stat-active" class="text-3xl font-bold text-cyberOrange font-mono mt-2 stat-number">-</span>
+                    </div>
+                    <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-cyberGreen">
+                        <span class="text-xs text-gray-500 font-mono uppercase">Win Rate</span>
+                        <span id="stat-winrate" class="text-3xl font-bold text-cyberGreen font-mono mt-2 stat-number">-</span>
+                    </div>
+                    <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between border-l-2 border-l-primary">
+                        <span class="text-xs text-gray-500 font-mono uppercase">ROI / Saldo da Banca</span>
+                        <div class="flex flex-col justify-end mt-2">
+                            <span id="stat-pnl" class="text-3xl font-bold text-white font-mono leading-none stat-number">-</span>
+                            <span id="stat-balance" class="text-xs text-gray-400 font-mono mt-1">$10,000.00 USD</span>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-4 rounded-2xl flex flex-col justify-between">
+                        <span class="text-xs text-gray-500 font-mono uppercase">Melhor Estratégia</span>
+                        <span id="stat-best" class="text-lg font-bold text-primary truncate mt-2 stat-number">-</span>
+                    </div>
+                </div>
+
+                <!-- Sub-Grade Interna para aproveitar o monitor Wide -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+                    <!-- Coluna da Esquerda (Tabela de Ordens e Planilhas - col-span 8) -->
+                    <div class="lg:col-span-8 flex flex-col space-y-6">
+                        <!-- Planilha de Simulações -->
+                        <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
+                            <div class="p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div>
+                                    <h2 class="text-white font-bold text-lg">Planilha de Ordens Simuladas</h2>
+                                    <p class="text-xs text-gray-500">Histórico e atualizações de posições simuladas do Radar.</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <select id="filter-status" onchange="fetchData()" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-300 focus:outline-none focus:border-primary">
+                                        <option value="all">Todos os Status</option>
+                                        <option value="active">Apenas Ativos</option>
+                                    </select>
+                                    <button onclick="exportCSV()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-all text-xs border border-primary/20 font-medium">
+                                        <span class="material-icons-round text-sm">download</span> Exportar CSV
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Tabela -->
+                            <div class="overflow-x-auto w-full">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr id="table-header-row" class="border-b border-white/5 bg-white/[0.02] text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                                            <th class="p-4">Ativo</th>
+                                            <th class="p-4">Contrato OKX</th>
+                                            <th class="p-4">Estratégia</th>
+                                            <th class="p-4">Direção</th>
+                                            <th class="p-4">Entrada</th>
+                                            <th class="p-4">Preço Atual / Saída</th>
+                                            <th class="p-4">Stop Loss</th>
+                                            <th class="p-4">Nível Stop</th>
+                                            <th class="p-4">ROI Máx</th>
+                                            <th class="p-4">ROI Atual</th>
+                                            <th class="p-4">Lucro (USD)</th>
+                                            <th class="p-4">Explosion</th>
+                                            <th class="p-4">Fase Flash</th>
+                                            <th class="p-4">Status</th>
+                                            <th class="p-4 text-center">Histórico</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trades-table" class="divide-y divide-white/5 text-sm">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Painel de Insights e Padrões -->
+                        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-white font-bold text-base flex items-center gap-2">
+                                        <span class="material-icons-round text-cyberGreen">analytics</span> Insights de Padrões e Mineração Estatística
+                                    </h3>
+                                    <p class="text-xs text-gray-500">Métricas de otimização extraídas dos trades simulados encerrados.</p>
+                                </div>
+                                <span id="patterns-status" class="px-2.5 py-0.5 rounded bg-white/5 text-[10px] text-gray-400 font-mono uppercase tracking-wider">Aguardando Amostras</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <!-- Direção Preferida -->
+                                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                                    <span class="text-xs text-gray-400 font-mono uppercase">Performance por Direção</span>
+                                    <div class="space-y-2 font-mono text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-cyberGreen">LONG:</span>
+                                            <span id="pattern-long-val" class="font-bold">-</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-cyberRed">SHORT:</span>
+                                            <span id="pattern-short-val" class="font-bold">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Whitelist Sugerida -->
+                                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                                    <span class="text-xs text-cyberGreen font-mono uppercase">Pares Recomendados</span>
+                                    <div id="pattern-whitelist" class="space-y-1 text-xs font-mono">
+                                        <div class="text-gray-500">Nenhum par qualificado ainda.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Blacklist Sugerida -->
+                                <div class="bg-white/[0.01] border border-white/5 p-4 rounded-xl space-y-3">
+                                    <span class="text-xs text-cyberRed font-mono uppercase">Pares Críticos (Sugerido Blacklist)</span>
+                                    <div id="pattern-blacklist" class="space-y-1 text-xs font-mono">
+                                        <div class="text-gray-500 font-sans">Nenhum par crítico identificado.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna da Direita (Analytics & Distribuição de Perdas - col-span 4) -->
+                    <div class="lg:col-span-4 flex flex-col space-y-6">
+                        <!-- ===== [V113] ANALYTICS DASHBOARD ===== -->
+                        <div class="glass-panel p-6 rounded-2xl border border-white/5 space-y-5" id="analytics-panel">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-white font-bold text-base flex items-center gap-2">
+                                        <span class="material-icons-round text-cyberPurple">query_stats</span> Analytics
+                                    </h3>
+                                    <p class="text-[11px] text-gray-500">Distribuição de losses por hora/regime.</p>
+                                </div>
+                                <span id="analytics-status" class="px-2 py-0.5 rounded bg-white/5 text-[9px] text-gray-400 font-mono uppercase tracking-wider">Coletando...</span>
+                            </div>
+
+                            <!-- Cards de Risco -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <!-- R:R Ratio -->
+                                <div class="glass-panel-sm p-3 rounded-xl flex flex-col items-center justify-center text-center">
+                                    <span class="text-[9px] text-gray-500 font-mono uppercase mb-0.5">Risk/Reward</span>
+                                    <span id="analytics-rr" class="text-xl font-bold text-white font-mono">-</span>
+                                </div>
+                                <!-- Win Médio -->
+                                <div class="glass-panel-sm p-3 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberGreen">
+                                    <span class="text-[9px] text-gray-500 font-mono uppercase mb-0.5">Win Médio</span>
+                                    <span id="analytics-avg-win" class="text-xl font-bold text-cyberGreen font-mono">-</span>
+                                </div>
+                                <!-- Loss Médio -->
+                                <div class="glass-panel-sm p-3 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberRed">
+                                    <span class="text-[9px] text-gray-500 font-mono uppercase mb-0.5">Loss Médio</span>
+                                    <span id="analytics-avg-loss" class="text-xl font-bold text-cyberRed font-mono">-</span>
+                                </div>
+                                <!-- Zero-PnL -->
+                                <div id="zero-pnl-card" class="glass-panel-sm p-3 rounded-xl flex flex-col items-center justify-center text-center border-l-2 border-l-cyberOrange">
+                                    <span class="text-[9px] text-gray-500 font-mono uppercase mb-0.5">Zero-PnL</span>
+                                    <span id="analytics-zero-pct" class="text-xl font-bold text-cyberOrange font-mono">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Zero-PnL Alert Extra -->
+                            <div id="zero-pnl-alert" class="hidden">
+                                <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyberOrange/10 border border-cyberOrange/30 alert-pulse text-xs">
+                                    <span class="material-icons-round text-cyberOrange text-sm">warning_amber</span>
+                                    <span id="zero-pnl-alert-text" class="text-gray-400"></span>
+                                </div>
+                            </div>
+
+                            <!-- Graficos -->
+                            <div class="space-y-4">
+                                <!-- Loss por Hora -->
+                                <div class="glass-panel-sm p-3 rounded-xl">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-[10px] text-gray-400 font-mono uppercase">Losses por Hora (UTC)</span>
+                                        <span class="text-[9px] text-gray-600 font-mono" id="analytics-peak-hour">-</span>
+                                    </div>
+                                    <div class="chart-container">
+                                        <canvas id="chart-hour"></canvas>
+                                    </div>
+                                </div>
+                                <!-- Loss por Regime -->
+                                <div class="glass-panel-sm p-3 rounded-xl">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-[10px] text-gray-400 font-mono uppercase">Losses por Regime</span>
+                                        <span id="analytics-regime-loss-count" class="text-[9px] text-gray-600 font-mono">-</span>
+                                    </div>
+                                    <div class="chart-container">
+                                        <canvas id="chart-regime"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Top Winners & Losers -->
+                            <div class="space-y-3">
+                                <div class="glass-panel-sm p-3 rounded-xl">
+                                    <span class="text-[10px] text-cyberGreen font-mono uppercase flex items-center gap-1 mb-2">
+                                        <span class="material-icons-round text-xs">trending_up</span> Top 5 Maiores Wins
+                                    </span>
+                                    <div id="analytics-top-winners" class="space-y-1 text-[11px] font-mono">
+                                        <div class="text-gray-500">Aguardando dados...</div>
+                                    </div>
+                                </div>
+                                <div class="glass-panel-sm p-3 rounded-xl">
+                                    <span class="text-[10px] text-cyberRed font-mono uppercase flex items-center gap-1 mb-2">
+                                        <span class="material-icons-round text-xs">trending_down</span> Top 5 Maiores Losses
+                                    </span>
+                                    <div id="analytics-top-losers" class="space-y-1 text-[11px] font-mono">
+                                        <div class="text-gray-500">Aguardando dados...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -1358,15 +1420,87 @@
             overlay.classList.add('hidden');
         }
 
+        // ==================== MARKET SESSIONS CLOCK ====================
+        function updateMarketSessions() {
+            const now = new Date();
+            const utcHour = now.getUTCHours();
+            const utcMin = now.getUTCMinutes();
+            const utcSec = now.getUTCSeconds();
+            
+            // Horário UTC decimal (ex: 13.5 para 13:30)
+            const utcTimeDec = utcHour + utcMin/60 + utcSec/3600;
+            
+            const pad = (n) => String(n).padStart(2, '0');
+            document.getElementById('current-utc-time').innerText = `${pad(utcHour)}:${pad(utcMin)}:${pad(utcSec)} UTC`;
+            
+            // Tokyo: 23:00 às 08:00 UTC (9h de duração)
+            const isTokyoOpen = (utcTimeDec >= 23 || utcTimeDec < 8);
+            let tokyoProgress = 0;
+            if (isTokyoOpen) {
+                const elapsed = utcTimeDec >= 23 ? (utcTimeDec - 23) : (utcTimeDec + 1);
+                tokyoProgress = (elapsed / 9) * 100;
+            }
+            updateSessionUI('tokyo', isTokyoOpen, tokyoProgress);
+            
+            // London: 08:00 às 16:30 UTC (8.5h de duração)
+            const isLondonOpen = (utcTimeDec >= 8 && utcTimeDec < 16.5);
+            let londonProgress = 0;
+            if (isLondonOpen) {
+                londonProgress = ((utcTimeDec - 8) / 8.5) * 100;
+            }
+            updateSessionUI('london', isLondonOpen, londonProgress);
+            
+            // NY: 13:30 às 20:00 UTC (6.5h de duração)
+            const isNyOpen = (utcTimeDec >= 13.5 && utcTimeDec < 20);
+            let nyProgress = 0;
+            if (isNyOpen) {
+                nyProgress = ((utcTimeDec - 13.5) / 6.5) * 100;
+            }
+            updateSessionUI('ny', isNyOpen, nyProgress);
+            
+            // Lógica de Indicador de Risco de Volatilidade
+            const riskEl = document.getElementById('market-volatility-risk');
+            if (isNyOpen && (utcTimeDec < 15.5)) {
+                // Primeira 2h de NY Open (volatilidade máxima)
+                riskEl.innerText = 'VOLATILIDADE MÁXIMA';
+                riskEl.className = 'text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-cyberRed/10 text-cyberRed border border-cyberRed/20 alert-pulse';
+            } else if (isNyOpen || isLondonOpen) {
+                riskEl.innerText = 'VOLATILIDADE ATIVA';
+                riskEl.className = 'text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-cyberOrange/10 text-cyberOrange border border-cyberOrange/20';
+            } else {
+                riskEl.innerText = 'RISCO BAIXO';
+                riskEl.className = 'text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-cyberGreen/10 text-cyberGreen border border-cyberGreen/20';
+            }
+        }
+        
+        function updateSessionUI(sessionName, isOpen, progress) {
+            const statusEl = document.getElementById(`session-status-${sessionName}`);
+            const barEl = document.getElementById(`session-progress-${sessionName}`);
+            
+            if (isOpen) {
+                statusEl.innerText = 'ATIVO';
+                statusEl.className = 'text-[9px] font-mono px-1.5 rounded bg-cyberGreen/15 text-cyberGreen border border-cyberGreen/30 font-bold';
+                barEl.style.width = `${progress}%`;
+                barEl.className = 'bg-gradient-to-r from-cyberGreen to-cyan-400 h-full transition-all duration-1000';
+            } else {
+                statusEl.innerText = 'FECHADO';
+                statusEl.className = 'text-[9px] font-mono px-1.5 rounded bg-white/5 text-gray-500 border border-white/5';
+                barEl.style.width = '0%';
+                barEl.className = 'bg-gray-500 h-full';
+            }
+        }
+
         updateMirrorStatusUI();
         fetchData();
         fetchPatterns();
         fetchAnalytics();
         fetchUnifiedState();
+        updateMarketSessions();
         setInterval(fetchData, 2000);
         setInterval(fetchPatterns, 5000);
         setInterval(fetchAnalytics, 5000);
         setInterval(fetchUnifiedState, 2000);
+        setInterval(updateMarketSessions, 1000);
     </script>
 </div>
 </body>

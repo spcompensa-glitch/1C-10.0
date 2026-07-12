@@ -664,7 +664,20 @@ async def lifespan(app: FastAPI):
             
     # Start worker
     asyncio.create_task(start_services())
-    
+
+    # [V126.1] Pre-aquecer Whisper em background (não bloqueia o startup).
+    # Usado pelo endpoint /api/memory/upload-audio quando o device não tem Web Speech (ex.: iOS).
+    async def _warm_whisper():
+        try:
+            from services.whisper_service import whisper_service
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, whisper_service.initialize)
+            logger.info("✅ [WHISPER] Modelo pré-carregado e pronto para STT server-side.")
+        except Exception as e:
+            logger.warning(f"⚠️ [WHISPER] Falha ao pré-carregar modelo (lazy ainda funciona): {e}")
+
+    asyncio.create_task(_warm_whisper())
+
     yield
     
     # 🛑 [V110.176] CLEAN SHUTDOWN PROTOCOL

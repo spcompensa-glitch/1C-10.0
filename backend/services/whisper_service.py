@@ -4,20 +4,27 @@ from pathlib import Path
 
 logger = logging.getLogger("WhisperService")
 
+# Modelo padrão "base": equilíbrio entre precisão (pt-BR) e custo de CPU.
+# Sobrescrever com WHISPER_MODEL=tiny|small caso necessário (ex.: Railway 1GB apertado).
+DEFAULT_WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+
+
 class WhisperService:
     def __init__(self):
         self.model = None
         self._initialized = False
+        self.model_name = DEFAULT_WHISPER_MODEL
 
-    def initialize(self):
+    def initialize(self, model_name: str = None):
         if self._initialized:
             return
+        model_name = model_name or self.model_name
         try:
-            logger.info("Initializing local Whisper model (tiny)...")
+            logger.info(f"Initializing local Whisper model ({model_name})...")
             # Lazy import to avoid loading heavy modules at startup
             from faster_whisper import WhisperModel
-            # tiny is highly optimized, fast and small (around 75MB)
-            self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+            self.model = WhisperModel(model_name, device="cpu", compute_type="int8")
+            self.model_name = model_name
             self._initialized = True
             logger.info("Local Whisper model loaded successfully.")
         except Exception as e:

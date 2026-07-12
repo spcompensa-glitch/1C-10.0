@@ -551,6 +551,7 @@
         .input-btn.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .input-btn .material-icons-round { font-size: 18px; }
         .input-btn.recording { color: #ef4444; animation: pulse 1.5s infinite; }
+        .input-btn.transcribing { color: #f59e0b; animation: pulse 0.8s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         .input-hint {
@@ -715,6 +716,10 @@
             </button>
             <span class="material-icons-round" style="font-size:20px;color:#8b5cf6;">auto_awesome</span>
             <span style="font-size:15px;font-weight:600;color:#e2e8f0;">Hermes</span>
+            <button onclick="toggleAutoSpeak()" id="autospeak-btn" title="Hermes fala as respostas"
+                style="margin-left:auto;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;transition:all 0.2s;">
+                <span class="material-icons-round" id="autospeak-icon" style="font-size:18px;">volume_up</span>
+            </button>
         </div>
 
         <div class="chat-messages" id="chat-messages">
@@ -971,6 +976,9 @@
         const msg = input.value.trim();
         if (!msg) return;
 
+        const via = pendingVoiceTurn ? 'voice' : 'text';
+        pendingVoiceTurn = false;
+
         // Create session if needed
         if (!currentSessionId) {
             try {
@@ -1002,7 +1010,7 @@
             const r = await fetch(`${API}/api/hermes/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg, session_id: currentSessionId })
+                body: JSON.stringify({ message: msg, session_id: currentSessionId, via })
             });
             const data = await r.json();
             const response = data.response || data.detail || 'Erro ao obter resposta.';
@@ -1018,6 +1026,11 @@
 
             // Reload sessions to update title/count
             await loadSessions();
+
+            // 🔊 Auto-falar resposta quando modo voz ativo
+            if (via === 'voice') {
+                speak(response);
+            }
         } catch (e) {
             document.getElementById('typing-indicator').classList.remove('visible');
             appendMessage('assistant', 'Erro de conexão com o Hermes. Verifique o backend.');
@@ -1026,6 +1039,14 @@
 
         isSending = false;
         document.getElementById('send-btn').disabled = false;
+    }
+
+    // Envia um texto (vindo de voz) como se fosse digitado pelo usuário
+    async function sendMessageText(text) {
+        const input = document.getElementById('chat-input');
+        input.value = text;
+        pendingVoiceTurn = true;
+        await sendMessage();
     }
 
     function handleInputKey(e) {
@@ -1041,56 +1062,184 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // VOICE (Whisper)
+    // VOICE — STT híbrido (Web Speech no Android/Chrome, Whisper server no iOS)
+    // + TTS via edge-tts (qualidade pt-BR) com fallback speechSynthesis
     // ═══════════════════════════════════════════════════════════════
-    async function toggleVoice() {
+    let autoSpeak = true;          // Hermes fala as respostas
+    let pendingVoiceTurn = false;  // próximo sendMessage veio de voz
+    let audioUnlock = null;        // primeiro gesto desbloqueia áudio (iOS/Android PWA)
+    let currentAudio = null;        // áudio TTS em reprodução
+    let recognition = null;        // Web Speech recognition
+    let usingRecognition = false;
+
+    function unlockAudio() {
+        if (audioUnlock) return;
+        try {
+            audioUnlock = new Audio();
+            audioUnlock.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+            audioUnlock.play().catch(() => {});
+        } catch (e) { /* ignore */ }
+    }
+
+    function setVoiceState(state) {
         const btn = document.getElementById('voice-btn');
+        const icon = btn.querySelector('.material-icons-round');
+        btn.classList.remove('recording', 'transcribing');
+        if (state === 'listening') {
+            btn.classList.add('recording');
+            icon.textContent = 'graphic_eq';
+        } else if (state === 'transcribing') {
+            btn.classList.add('transcribing');
+            icon.textContent = 'hourglass_top';
+        } else {
+            icon.textContent = 'mic';
+        }
+    }
+
+    async function speak(text) {
+        if (!autoSpeak || !text) return;
+        stopSpeaking();
+        try {
+            unlockAudio();
+            const r = await fetch(`${API}/api/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            const ct = r.headers.get('content-type') || '';
+            if (r.ok && ct.includes('audio')) {
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = new Audio(url);
+                currentAudio = a;
+                a.onended = () => { URL.revokeObjectURL(url); currentAudio = null; };
+                await a.play();
+                return;
+            }
+            throw new Error('sem áudio do servidor');
+        } catch (e) {
+            fallbackSpeak(text);
+        }
+    }
+
+    function fallbackSpeak(text) {
+        if (!autoSpeak || !('speechSynthesis' in window)) return;
+        try {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'pt-BR';
+            const v = window.speechSynthesis.getVoices().find(x => /pt-BR/i.test(x.lang));
+            if (v) u.voice = v;
+            window.speechSynthesis.speak(u);
+        } catch (e) { /* ignore */ }
+    }
+
+    function stopSpeaking() {
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function setupRecognition() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return null;
+        const rec = new SR();
+        rec.lang = 'pt-BR';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onresult = (e) => {
+            const txt = e.results[0][0].transcript.trim();
+            if (txt) { setVoiceState('idle'); sendMessageText(txt); }
+        };
+        rec.onerror = (e) => {
+            console.warn('SpeechRecognition error:', e.error);
+            setVoiceState('idle');
+        };
+        rec.onend = () => { if (usingRecognition) setVoiceState('idle'); };
+        return rec;
+    }
+
+    async function toggleVoice() {
+        unlockAudio();
+        const btn = document.getElementById('voice-btn');
+
+        // Se já escutando via Web Speech, para
+        if (usingRecognition && recognition) {
+            recognition.stop();
+            usingRecognition = false;
+            setVoiceState('idle');
+            return;
+        }
+        // Se já gravando via MediaRecorder (fallback), para e transcreve
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
-            btn.classList.remove('recording');
-            btn.querySelector('.material-icons-round').textContent = 'mic';
             return;
         }
 
+        // 1) Tenta Web Speech API (Android/Chrome) — instantâneo e sem servidor
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SR) {
+            if (!recognition) recognition = setupRecognition();
+            if (recognition) {
+                try {
+                    usingRecognition = true;
+                    setVoiceState('listening');
+                    recognition.start();
+                    return;
+                } catch (e) {
+                    usingRecognition = false;
+                    setVoiceState('idle');
+                }
+            }
+        }
+
+        // 2) Fallback: MediaRecorder -> Whisper server (iOS/Safari)
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
-
+            setVoiceState('listening');
             mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.onstop = async () => {
                 stream.getTracks().forEach(t => t.stop());
                 const blob = new Blob(audioChunks, { type: 'audio/webm' });
                 await transcribeAudio(blob);
             };
-
             mediaRecorder.start();
-            btn.classList.add('recording');
-            btn.querySelector('.material-icons-round').textContent = 'stop';
         } catch (e) {
             console.error('Microphone error:', e);
+            setVoiceState('idle');
             alert('Não foi possível acessar o microfone.');
         }
     }
 
     async function transcribeAudio(blob) {
-        const input = document.getElementById('chat-input');
-        input.value = 'Transcrevendo áudio...';
-        input.disabled = true;
-
+        setVoiceState('transcribing');
         try {
             const formData = new FormData();
             formData.append('audio', blob, 'voice.webm');
             const r = await fetch(`${API}/api/memory/upload-audio`, { method: 'POST', body: formData });
             const data = await r.json();
-            input.value = data.text || data.transcription || '';
+            const txt = data.text || data.transcription || '';
+            if (txt) { sendMessageText(txt); return; }
         } catch (e) {
-            input.value = '';
             console.error('Transcription error:', e);
         }
+        setVoiceState('idle');
+    }
 
-        input.disabled = false;
-        input.focus();
+    function toggleAutoSpeak() {
+        autoSpeak = !autoSpeak;
+        const icon = document.getElementById('autospeak-icon');
+        const btn = document.getElementById('autospeak-btn');
+        if (autoSpeak) {
+            icon.textContent = 'volume_up';
+            btn.style.color = '#8b5cf6';
+            btn.style.background = 'rgba(139,92,246,0.15)';
+        } else {
+            icon.textContent = 'volume_off';
+            btn.style.color = '#9ca3af';
+            btn.style.background = 'rgba(255,255,255,0.05)';
+            stopSpeaking();
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

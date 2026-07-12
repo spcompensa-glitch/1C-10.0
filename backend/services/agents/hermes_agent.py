@@ -201,7 +201,7 @@ class HermesAgent(AIOSAgent):
             logger.warning(f"⚠️ Falha ao carregar memórias do Galaxy: {e}")
         return ""
 
-    def _save_chat_to_galaxy(self, user_message: str, agent_response: str):
+    def _save_chat_to_galaxy(self, user_message: str, agent_response: str, via: str = "text"):
         try:
             import datetime
             vault_dir = Path("vault_galaxy")
@@ -213,17 +213,21 @@ class HermesAgent(AIOSAgent):
             file_path = journal_dir / file_name
             
             now_time = datetime.datetime.now().strftime("%H:%M:%S")
-            dialogue_entry = f"\n\n## [{now_time}]\n**User:** {user_message}\n**Hermes:** {agent_response}"
+            is_voice = via == "voice"
+            via_tag = "🎙️ via voz" if is_voice else ""
+            dialogue_entry = f"\n\n## [{now_time}] {via_tag}\n**User:** {user_message}\n**Hermes:** {agent_response}"
             
             if not file_path.exists():
+                tags = "  - chat\n  - hermes\n"
+                if is_voice:
+                    tags += "  - voz\n"
                 header = (
                     "---\n"
                     "category: journal\n"
                     f"title: Chat com Hermes - {today_str}\n"
                     f"created_at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                     "tags:\n"
-                    "  - chat\n"
-                    "  - hermes\n"
+                    f"{tags}"
                     "---\n"
                     f"# Chat com Hermes - {today_str}\n"
                     f"Registro de interações neurais de chat com o assistente Hermes.\n\n"
@@ -502,7 +506,8 @@ class HermesAgent(AIOSAgent):
     async def handle_chat_query(
         self,
         user_message: str,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
+        via: str = "text"
     ) -> Dict[str, Any]:
         """
         Orquestra uma resposta de chat completa:
@@ -627,7 +632,7 @@ class HermesAgent(AIOSAgent):
         model_used = "nvidia" if self._nvidia and self._nvidia._initialized else "deepseek"
         
         # Centralize chat inside the memory galaxy vault
-        self._save_chat_to_galaxy(user_message, response)
+        self._save_chat_to_galaxy(user_message, response, via=via)
         
         return {
             "response": response,

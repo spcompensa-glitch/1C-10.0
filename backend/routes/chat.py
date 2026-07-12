@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import StreamingResponse
 import logging
 import time
 import re
 import json
+import os
+import uuid
+import tempfile
 from typing import Optional
 from config import settings
 
@@ -170,6 +174,7 @@ async def hermes_chat(payload: dict):
     """[HERMES] Chat com contexto completo: agentes, slots, escadinha, compliance."""
     user_msg = payload.get("message", "")
     session_id = payload.get("session_id", None)
+    via = payload.get("via", "text")
     if not user_msg:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
 
@@ -181,7 +186,7 @@ async def hermes_chat(payload: dict):
     # Tenta usar o HermesAgent.handle_chat_query (DeepSeek + compliance + wiki)
     try:
         from services.agents.hermes_agent import hermes_agent
-        result = await hermes_agent.handle_chat_query(user_msg)
+        result = await hermes_agent.handle_chat_query(user_msg, via=via)
         response_text = result.get("response", "🌐 Sinal neural instável.")
         response_text = clean_think_tags(response_text)
         context = result.get("context", {})
@@ -285,29 +290,30 @@ async def chat_with_captain(payload: dict):
     ai_service, jarvis_brain, _ = get_services()
     user_msg = payload.get("message", "")
     use_hermes = payload.get("hermes", False)
+    via = payload.get("via", "text")
     if not user_msg:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
 
     # [HERMES] Se flagged, usa HermesAgent ou fallback com system prompt completo
-    if use_hermes:
-        try:
-            from services.agents.hermes_agent import hermes_agent
-            result = await hermes_agent.handle_chat_query(user_msg)
-            return {
-                "response": result.get("response", "Interferência no sinal..."),
-                "context": result.get("context", {}),
-                "hermes": True
-            }
-        except Exception as e:
-            logger.warning(f"⚠️ Hermes chat (flag) falhou, usando fallback: {e}")
-            # Fallback direto com system prompt
-            system = HERMES_FALLBACK_PROMPT
-            response = await ai_service.generate_content(prompt=user_msg, system_instruction=system)
-            return {
-                "response": response or "Interferência no sinal...",
-                "context": {},
-                "hermes": True
-            }
+        if use_hermes:
+            try:
+                from services.agents.hermes_agent import hermes_agent
+                result = await hermes_agent.handle_chat_query(user_msg, via=via)
+                return {
+                    "response": result.get("response", "Interferência no sinal..."),
+                    "context": result.get("context", {}),
+                    "hermes": True
+                }
+            except Exception as e:
+                logger.warning(f"⚠️ Hermes chat (flag) falhou, usando fallback: {e}")
+                # Fallback direto com system prompt
+                system = HERMES_FALLBACK_PROMPT
+                response = await ai_service.generate_content(prompt=user_msg, system_instruction=system)
+                return {
+                    "response": response or "Interferência no sinal...",
+                    "context": {},
+                    "hermes": True
+                }
 
     # Standard: JarvisBrain detecta dimensões pessoais
     active_dims = jarvis_brain.detect_dimensions(user_msg)
@@ -347,13 +353,46 @@ async def get_chat_status():
     return {"status": "online", "mode": "STABLE_NEURAL"}
 
 
+# ============================================================
+# [V126.1] TTS — edge-tts (voz pt-BR neural) + cache simples
+# ============================================================
+_TTS_VOICE = "pt-BR-AntonioNeural"
+_TTS_CACHE = {}  # text_hash -> path do mp3
+
+
+async def _synthesize(text: str, voice: str = _TTS_VOICE) -> str:
+    """Sintetiza o texto em mp3 e retorna o caminho do arquivo temporário."""
+    import edge_tts
+    tmp_path = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}.mp3")
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(tmp_path)
+    return tmp_path
+
+
 @router.post("/tts", dependencies=[Depends(rate_limit)])
 async def text_to_speech(payload: dict):
     text = payload.get("text", "")
-    if not text: return {"error": "Nenhum texto"}
+    if not text:
+        return {"error": "Nenhum texto"}
     try:
-        import edge_tts
-        return {"status": "success", "message": "Voz processada localmente"}
+        # cache por hash do texto para não re-sintetizar frases repetidas
+        key = f"{_TTS_VOICE}:{text}"
+        cache_file = _TTS_CACHE.get(key)
+        if cache_file and os.path.exists(cache_file):
+            mp3_path = cache_file
+        else:
+            mp3_path = await _synthesize(text)
+            _TTS_CACHE[key] = mp3_path
+
+        def iter_file():
+            with open(mp3_path, "rb") as f:
+                yield f.read()
+
+        return StreamingResponse(
+            iter_file(),
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "attachment; filename=hermes_tts.mp3"},
+        )
     except Exception as e:
         logger.error(f"TTS Error: {e}")
         return {"error": str(e)}
@@ -361,7 +400,7 @@ async def text_to_speech(payload: dict):
 
 @router.get("/tts/voices")
 async def get_tts_voices():
-    return {"voices": [{"id": "pt-BR-AntonioNeural", "name": "Antonio", "lang": "pt-BR", "gender": "Male"}], "default": "pt-BR-AntonioNeural"}
+    return {"voices": [{"id": _TTS_VOICE, "name": "Antonio", "lang": "pt-BR", "gender": "Male"}], "default": _TTS_VOICE}
 
 
 @router.get("/logs")

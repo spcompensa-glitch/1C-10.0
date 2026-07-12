@@ -153,9 +153,12 @@ class BankrollGuardian:
         pnl = _safe_float(trade.get("pnl"), 0.0)
         roi = _safe_float(trade.get("pnl_percent") or trade.get("roi"), 0.0)
         reason = str(trade.get("close_reason") or "").upper()
+        leverage = _safe_float(trade.get("leverage"), 50.0) # Assumimos 50x se não vier preenchido (padrão)
 
         if consecutive_losses >= 2:
-            return 15 * 60  # Reduzido de 24h para 15 minutos para re-entradas rápidas
+            if leverage >= 50.0:
+                return 4 * 60 * 60  # [V126] Quarentena de 4 horas para Tilt Algorítmico em alta alavancagem
+            return 30 * 60  # 30 minutos em outras alavancagens
         if "STOP" in reason or roi <= -100.0 or pnl <= -3.0:
             return 15 * 60  # Reduzido de 6h para 15 minutos
         if roi <= -50.0 or pnl <= -1.0:

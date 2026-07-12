@@ -55,6 +55,14 @@ ORDER_STOP_LADDER_SWING: List[StopLevel] = [
     StopLevel("TRAILING",  "UNIT3_GARANTIDO",    300.0, 250.0,  "PROFIT_LOCK"),
 ]
 
+ORDER_STOP_LADDER_SWING_LATERAL: List[StopLevel] = [
+    StopLevel("ESCADINHA", "BREAKEVEN_LATERAL",   5.0,    1.5,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PRE_UNIT1_LATERAL",   15.0,   5.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",     30.0,   15.0, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADO_LATERAL",  60.0,   30.0, "PROFIT_LOCK"),
+    StopLevel("TRAILING",  "TRAILING_LATERAL",    100.0,  80.0, "PROFIT_LOCK"),
+]
+
 ORDER_STOP_LADDER_TRENDING: List[StopLevel] = [
     # [V119] Escadinha TRENDING Progressiva e Calibrada
     # O trade corre livre até +12% ROI antes de mover para break-even, evitando violinadas curtas
@@ -150,7 +158,9 @@ class OrderProjectionService:
         is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
         is_scalping = strategy_class == "VWAP SNIPER" or slot_type == "SCALPING"
         
-        if is_swing:
+        if is_swing and is_ranging:
+            ladder = list(ORDER_STOP_LADDER_SWING_LATERAL)
+        elif is_swing:
             ladder = list(ORDER_STOP_LADDER_SWING)
         elif is_scalping:
             ladder = list(ORDER_STOP_LADDER_SCALPING)

@@ -2450,6 +2450,8 @@ class CaptainAgent(AIOSAgent):
             if side_norm == "buy" and pct_change >= anchorage_threshold:
                 # [V110.132] ENHANCED Adaptive SL for Anchorage: Increased buffer for better breathing
                 sl_buffer_pct = max(0.008, min(0.020, vol_ratio * 0.6)) if atr > 0 else 0.012
+                if (signal_data and signal_data.get("leverage", 0) >= 50) or atr == 0: # [V126]
+                    sl_buffer_pct = min(sl_buffer_pct, 0.005)
                 anchor_sl = current_price * (1 - sl_buffer_pct)
                 
                 logger.info(f"⚓ [ANCORAGEM] {symbol} (LONG) estourou direto a {current_price:.6f} (+{pct_change*100:.2f}%). SL Adaptativo: {anchor_sl:.6f} (-{sl_buffer_pct*100:.1f}%)")
@@ -2463,6 +2465,8 @@ class CaptainAgent(AIOSAgent):
             elif side_norm == "sell" and pct_change <= -anchorage_threshold:
                 # [V110.132] ENHANCED Adaptive SL for Anchorage
                 sl_buffer_pct = max(0.008, min(0.020, vol_ratio * 0.6)) if atr > 0 else 0.012
+                if (signal_data and signal_data.get("leverage", 0) >= 50) or atr == 0:
+                    sl_buffer_pct = min(sl_buffer_pct, 0.005)
                 anchor_sl = current_price * (1 + sl_buffer_pct)
                 
                 logger.info(f"⚓ [ANCORAGEM] {symbol} (SHORT) derreteu direto a {current_price:.6f} ({pct_change*100:.2f}%). SL Adaptativo: {anchor_sl:.6f} (+{sl_buffer_pct*100:.1f}%)")
@@ -2496,6 +2500,8 @@ class CaptainAgent(AIOSAgent):
                         # [V110.132] Volatility-Aware SL Anchor (Increased resilience):
                         # Use a buffer that scales with ATR (min 0.8%, max 1.5%)
                         sl_buffer_pct = max(0.008, min(0.015, vol_ratio * 0.3)) if atr > 0 else 0.010
+                        if (signal_data and signal_data.get("leverage", 0) >= 50):
+                            sl_buffer_pct = min(sl_buffer_pct, 0.005)
                         sl_price = pivot_price * (1 - sl_buffer_pct) 
                         
                         logger.info(f"🎯 [BOTE TOCAIA] {symbol} LONG! Pivô em {pivot_price:.6f}. Recovery: {recovery*100:.3f}%. SL: {sl_price:.6f} (-{sl_buffer_pct*100:.2f}% do pivô).")
@@ -2515,6 +2521,8 @@ class CaptainAgent(AIOSAgent):
                         current_cvd = await redis_service.get_cvd(symbol)
                         # [V110.132] Volatility-Aware SL Anchor (Increased resilience):
                         sl_buffer_pct = max(0.008, min(0.015, vol_ratio * 0.3)) if atr > 0 else 0.010
+                        if (signal_data and signal_data.get("leverage", 0) >= 50):
+                            sl_buffer_pct = min(sl_buffer_pct, 0.005)
                         sl_price = pivot_price * (1 + sl_buffer_pct)
                         
                         logger.info(f"🎯 [BOTE TOCAIA] {symbol} SHORT! Pivô em {pivot_price:.6f}. Recovery: {recovery*100:.3f}%. SL: {sl_price:.6f} (+{sl_buffer_pct*100:.2f}% do pivô).")

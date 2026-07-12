@@ -63,6 +63,30 @@ class QuartermasterAgent(AIOSAgent):
             classification = "EXTREME"
             leverage = self.lev_extreme
 
+        # [V126] Filtro Hermes: Volatilidade M30
+        if classification == "SMOOTH":
+            try:
+                from services.okx_rest import okx_rest_service
+                # Pega as últimas 12 velas M30 para média de volatilidade
+                candles = await okx_rest_service.get_klines(symbol, interval='30', limit=12)
+                if candles and len(candles) >= 5:
+                    vols = []
+                    for c in candles:
+                        h = float(c[2] if isinstance(c, list) else c.get('high', 0))
+                        l = float(c[3] if isinstance(c, list) else c.get('low', 0))
+                        cp = float(c[4] if isinstance(c, list) else c.get('close', 1))
+                        vols.append((h - l) / cp if cp > 0 else 0)
+                    
+                    if vols:
+                        avg_vol = sum(vols) / len(vols)
+                        curr_vol = vols[-1]
+                        if avg_vol > 0 and curr_vol > (avg_vol * 1.2):
+                            logger.info(f"⚓ [QUARTERMASTER] {symbol} Volatilidade M30 explodindo ({curr_vol:.4f} > avg {avg_vol:.4f}). Rebaixado SMOOTH -> JUMPY.")
+                            classification = "JUMPY"
+                            leverage = self.lev_jumpy
+            except Exception:
+                pass
+
         # 2. Risk Equalization Multiplier
         # Based on 50x as base, margin must move inversely to leverage.
         # multiplier = base_leverage / target_leverage

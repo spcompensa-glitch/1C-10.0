@@ -832,9 +832,8 @@
 
     async function newChat() {
         currentSessionId = null;
-        document.getElementById('welcome-screen').style.display = 'flex';
-        document.getElementById('chat-messages').innerHTML = '';
-        document.getElementById('chat-messages').appendChild(document.getElementById('welcome-screen'));
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = `<div class="welcome-screen" id="welcome-screen"><div class="welcome-title">Olá, Almirante.</div><div class="welcome-sub">Como posso ajudar com a frota hoje?</div></div>`;
         renderSessions();
         document.getElementById('chat-input').focus();
     }
@@ -846,15 +845,17 @@
     }
 
     async function loadMessages(id) {
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#4b5563;font-size:13px;">Carregando conversa...</div>`;
         try {
             const r = await fetch(`${API}/api/hermes/sessions/${id}`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const data = await r.json();
             const messages = data.messages || [];
-            const container = document.getElementById('chat-messages');
             container.innerHTML = '';
 
             if (messages.length === 0) {
-                container.innerHTML = `<div class="welcome-screen"><div class="welcome-title">Olá, Almirante.</div><div class="welcome-sub">Como posso ajudar com a frota hoje?</div></div>`;
+                container.innerHTML = `<div class="welcome-screen" id="welcome-screen"><div class="welcome-title">Olá, Almirante.</div><div class="welcome-sub">Como posso ajudar com a frota hoje?</div></div>`;
                 return;
             }
 
@@ -862,6 +863,7 @@
             scrollToBottom();
         } catch (e) {
             console.error('Error loading messages:', e);
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">Erro ao carregar conversa. Tente novamente.</div>`;
         }
     }
 

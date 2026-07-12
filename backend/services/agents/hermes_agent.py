@@ -547,6 +547,33 @@ class HermesAgent(AIOSAgent):
             wiki_context += "\n" + galaxy_memories
         if arch_context:
             wiki_context = "## ARQUITETURA ATUAL DO SISTEMA (MASTER ARCHITECTURE)\n" + arch_context + "\n\n" + wiki_context
+
+        # 4b. [V126] Inject LIVE SNAPSHOT — ordens abertas em tempo real
+        try:
+            from services.sovereign_service import sovereign_service
+            live_slots = await sovereign_service.get_active_slots()
+            active_slots = [s for s in (live_slots or []) if s.get("symbol")]
+            snapshot_lines = [f"\n\n## [LIVE SNAPSHOT] Ordens Abertas em Tempo Real"]
+            snapshot_lines.append(f"Total de slots com posição aberta: **{len(active_slots)}**")
+            if active_slots:
+                for i, s in enumerate(active_slots, 1):
+                    sym = s.get("symbol", "???")
+                    side = s.get("side", "LONG")
+                    roi = float(s.get("pnl_percent") or s.get("roi") or 0)
+                    entry = float(s.get("entry_price") or 0)
+                    stop = float(s.get("current_stop") or s.get("stop_price") or 0)
+                    strategy = s.get("strategy_class") or s.get("strategy") or s.get("slot_type") or "N/A"
+                    roi_icon = "🟢" if roi >= 0 else "🔴"
+                    snapshot_lines.append(
+                        f"  Slot {i}: {roi_icon} {sym} ({side}) | ROI: {roi:.2f}% | Entry: ${entry:.4f} | SL: ${stop:.4f} | Estratégia: {strategy}"
+                    )
+            else:
+                snapshot_lines.append("  Nenhuma posição aberta no momento.")
+            wiki_context += "\n".join(snapshot_lines)
+        except Exception as e_snap:
+            logger.debug(f"Hermes: snapshot live indisponível: {e_snap}")
+            wiki_context += "\n\n## [LIVE SNAPSHOT] Ordens Abertas\nDados em tempo real temporariamente indisponíveis."
+
         
         # 5. Generate response — CASCADE: NVIDIA → DeepSeek → AIService
         response = None
@@ -666,8 +693,8 @@ class HermesAgent(AIOSAgent):
             slots = await sovereign_service.get_active_slots()
             active = [s for s in slots if s.get("symbol")]
             
-            parts = ["📊 **Status do Sistema 10D**\n"]
-            parts.append(f"⚡ Slots: {len(active)}/4 ativos")
+            parts = ["📊 **Status do Sistema 1Crypten**\n"]
+            parts.append(f"⚡ Slots com posição aberta: **{len(active)}")
             
             for s in active:
                 symbol = s.get("symbol", "???")

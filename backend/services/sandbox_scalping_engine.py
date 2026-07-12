@@ -263,6 +263,10 @@ class SandboxScalpingEngine:
             "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT",
         ])
 
+        # Filtrar blocklist
+        blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
+        watchlist = [s for s in watchlist if s not in blocklist]
+
         logger.info(
             f"[VWAP-SNIPER] Scan M1/M5 | {len(watchlist)} ativos | "
             f"Slots: {len(active_scalp)}/{_MAX_SLOTS}"
@@ -306,8 +310,15 @@ class SandboxScalpingEngine:
         try:
             from services.okx_rest import okx_rest_service
             from services.okx_ws_public import okx_ws_public_service
+            from config import settings
 
             norm = symbol.replace('.P', '').upper()
+            
+            # Filtro Blocklist
+            blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
+            if norm in blocklist:
+                return None
+
             score = 0
             log   = []
 
@@ -336,6 +347,44 @@ class SandboxScalpingEngine:
                 direction, side = 'SHORT', 'Sell'
             else:
                 return None   # ambiguo - muito proximo da EMA
+
+            # Cooldown pós-stop
+            from sqlalchemy import select, desc
+            from services.database_service import SandboxTrade
+            async with database_service.AsyncSessionLocal() as session:
+                q = select(SandboxTrade).where(
+                    SandboxTrade.symbol == norm,
+                    SandboxTrade.direction == direction,
+                    SandboxTrade.status != "ACTIVE"
+                ).order_by(desc(SandboxTrade.closed_at)).limit(1)
+                res = await session.execute(q)
+                last_closed = res.scalar_one_or_none()
+                if last_closed:
+                    if last_closed.pnl_pct <= 0:
+                        q_consec = select(SandboxTrade).where(
+                            SandboxTrade.symbol == norm,
+                            SandboxTrade.direction == direction
+                        ).order_by(desc(SandboxTrade.opened_at)).limit(5)
+                        res_consec = await session.execute(q_consec)
+                        recent_trades = res_consec.scalars().all()
+                        
+                        consec_losses = 0
+                        for rt in recent_trades:
+                            if rt.status == "ACTIVE":
+                                continue
+                            if rt.pnl_pct <= 0:
+                                consec_losses += 1
+                            else:
+                                break
+                        
+                        cooldown_secs = 3600.0 if consec_losses >= 2 else 1800.0
+                        elapsed = time.time() - (last_closed.closed_at or 0.0)
+                        if elapsed < cooldown_secs:
+                            logger.debug(
+                                f"[VWAP-SNIPER] {norm} {direction} em cooldown pós stop-out: "
+                                f"{int(cooldown_secs - elapsed)}s restantes (losses: {consec_losses})"
+                            )
+                            return None
 
             score += 30
             log.append(f"EMA200_5M:{direction}({pct_ema:+.2f}%)")

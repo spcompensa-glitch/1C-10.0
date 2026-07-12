@@ -205,6 +205,10 @@ class SandboxSwingService:
                 "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT"
             ]
 
+        # Filtro Blocklist
+        blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
+        watchlist = [s for s in watchlist if s not in blocklist]
+
         logger.info(
             f"[SWING-LAB] Scan M30 | {len(watchlist)} ativos | "
             f"BTC: {btc_dir} (ADX={btc_adx:.1f}) | "
@@ -254,6 +258,13 @@ class SandboxSwingService:
             from services.okx_ws_public import okx_ws_public_service
 
             symbol    = (signal.get("symbol") or "").replace(".P", "").upper()
+            
+            # Filtro Blocklist
+            s = _get_settings()
+            blocklist = getattr(s, 'ASSET_BLOCKLIST', set()) if s else set()
+            if symbol in blocklist:
+                return None
+
             side      = signal.get("side", "Buy")
             direction = "LONG" if side.upper() in ("BUY", "LONG") else "SHORT"
             strategy  = signal.get("strategy_class", signal.get("strategy", "VELOCITY FLOW"))
@@ -261,6 +272,44 @@ class SandboxSwingService:
 
             if not symbol:
                 return None
+
+            # Cooldown pós-stop
+            from sqlalchemy import select, desc
+            from services.database_service import SandboxSwingTrade
+            async with database_service.AsyncSessionLocal() as session:
+                q = select(SandboxSwingTrade).where(
+                    SandboxSwingTrade.symbol == symbol,
+                    SandboxSwingTrade.direction == direction,
+                    SandboxSwingTrade.status != "ACTIVE"
+                ).order_by(desc(SandboxSwingTrade.closed_at)).limit(1)
+                res = await session.execute(q)
+                last_closed = res.scalar_one_or_none()
+                if last_closed:
+                    if last_closed.pnl_pct <= 0:
+                        q_consec = select(SandboxSwingTrade).where(
+                            SandboxSwingTrade.symbol == symbol,
+                            SandboxSwingTrade.direction == direction
+                        ).order_by(desc(SandboxSwingTrade.opened_at)).limit(5)
+                        res_consec = await session.execute(q_consec)
+                        recent_trades = res_consec.scalars().all()
+                        
+                        consec_losses = 0
+                        for rt in recent_trades:
+                            if rt.status == "ACTIVE":
+                                continue
+                            if rt.pnl_pct <= 0:
+                                consec_losses += 1
+                            else:
+                                break
+                        
+                        cooldown_secs = 3600.0 if consec_losses >= 2 else 1800.0
+                        elapsed = time.time() - (last_closed.closed_at or 0.0)
+                        if elapsed < cooldown_secs:
+                            logger.info(
+                                f"[SWING-LAB] {symbol} {direction} em cooldown pós stop-out: "
+                                f"{int(cooldown_secs - elapsed)}s restantes (losses: {consec_losses})"
+                            )
+                            return None
 
             # --- Cross-Block: Scalping Lab ---
             scalp_active = await database_service.get_sandbox_trades(active_only=True)

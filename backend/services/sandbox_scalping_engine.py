@@ -40,12 +40,18 @@ _LEVERAGE           = 50.0
 _MARGIN_PER_TRADE   = 2.0
 _SCAN_INTERVAL      = 60      # segundos entre scans
 _MAX_SLOTS          = 10      # slots simultaneos maximos
-_MIN_SCORE          = 60      # score minimo para entrada
+# [V126] Score minimo aumentado de 60 para 70 para exigir Liquidity Sweep (15pts)
+# Base: 168 trades reais — WR 57.58% mas R:R 1:0.88 (loss medio > win medio)
+# Com score 70, o sinal obrigatoriamente passa pelas 3 camadas + Sweep.
+_MIN_SCORE          = 70      # score minimo para entrada (obriga Sweep)
 _MAX_STOP_ROI       = -20.0   # perda maxima em ROI (%)
 _VWAP_TOLERANCE_PCT = 0.15    # tolerancia do preco vs VWAP (%)
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
 _EMA_PERIOD         = 200
+# [V126] Filtro de ATR minimo: mercado com ATR < 0.02% do preco nao tem
+# volatilidade suficiente para o VWAP Sniper — stop ficaria micro e seria violado
+_MIN_ATR_PCT        = 0.02    # ATR minimo como % do preco
 
 
 # ── Utilitarios de Indicadores ─────────────────────────────────────────────────
@@ -381,6 +387,16 @@ class SandboxScalpingEngine:
 
             # ── Stop Loss baseado em ATR ─────────────────────────────────────────
             atr = _calculate_atr_1m(c1m_chron)
+
+            # [V126] Filtro de ATR minimo: mercado sem volatilidade gera stops
+            # microscopicos que sao violados por ruido, causando losses desnecessarios.
+            atr_pct = (atr / cur_price) * 100.0 if cur_price > 0 else 0.0
+            if atr_pct < _MIN_ATR_PCT:
+                logger.debug(
+                    f"[VWAP-SNIPER] {norm} ATR muito baixo ({atr_pct:.4f}% < {_MIN_ATR_PCT}%) — mercado sem volatilidade. Descartado."
+                )
+                return None
+
             max_dist = cur_price * (abs(_MAX_STOP_ROI) / (_LEVERAGE * 100.0))
             if atr > 0:
                 raw_stop = cur_price - atr if direction == 'LONG' else cur_price + atr

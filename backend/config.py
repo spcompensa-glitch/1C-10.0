@@ -201,19 +201,22 @@ class Settings(BaseSettings):
         "ICPUSDT", "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT"
     ]
     
-    # [V111.4] RADAR WATCHLIST REDUZIDA (36 pares)
+    # [V111.4] RADAR WATCHLIST REDUZIDA (31 pares)
     # Removidos por performance Sandbox negativa: ICPUSDT (-1475%), APTUSDT (-1078%),
     # PYTHUSDT (-977%), LDOUSDT (-734%), RENDERUSDT (-550%). Mantidos apenas pares com ROI > -600% ou WR > 48%.
+    # [V126 - Refinamento Scalping VWAP Sniper - dados de 168 trades reais]
+    # Removidos: SANDUSDT (0% WR, AvgPnL -14.9%), BCHUSDT (0% WR, AvgPnL -8.1%),
+    #            SOLUSDT (29% WR, AvgPnL -1.8%), STXUSDT (44% WR, AvgPnL -5.4%),
+    #            EGLDUSDT (44% WR, AvgPnL -6.5%)
     RADAR_WATCHLIST: list = [
         "AVAXUSDT", "OPUSDT",
         "ARBUSDT", "NEARUSDT", "INJUSDT",
         "LINKUSDT", "DOTUSDT", "ADAUSDT", "POLUSDT", "ATOMUSDT",
-        "LTCUSDT", "BCHUSDT", "XLMUSDT", "XRPUSDT",
+        "LTCUSDT", "XLMUSDT", "XRPUSDT",
         "SEIUSDT", "FILUSDT", "FTMUSDT", "ALGOUSDT",
-        "IMXUSDT", "GALAUSDT", "GRTUSDT", "EGLDUSDT",
+        "IMXUSDT", "GALAUSDT", "GRTUSDT",
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
-        "STXUSDT", "THETAUSDT", "VETUSDT", "SANDUSDT",
-        "SOLUSDT"
+        "THETAUSDT", "VETUSDT",
     ]
     
     # [V111.4] SHORT BIAS — SHORT signals outperform LONG in Sandbox
@@ -292,9 +295,16 @@ class Settings(BaseSettings):
         # [V120] NEARUSDT: 70% WR mas -25.38% PnL — losses muito grandes (-14.99% avg) destroem os wins
         'NEARUSDT',
         # [V122] Sandbox 137 trades: performance negativa consistente
-        # GMXUSDT: 50% WR, -17.7% ROI — choppy, sem tendência clara
+        # GMXUSDT: 50% WR, -17.7% ROI — choppy, sem tendencia clara
         # PYTHUSDT: 33% WR, -17.6% ROI — falsos breakouts, baixa liquidez
-        'GMXUSDT', 'PYTHUSDT'
+        'GMXUSDT', 'PYTHUSDT',
+        # [V126 - Refinamento Scalping VWAP Sniper - dados de 168 trades reais do banco]
+        # SANDUSDT: 0% WR (5 trades), AvgPnL -14.9% — blacklist definitiva
+        # BCHUSDT: 0% WR (3 trades), AvgPnL -8.1% — blacklist definitiva
+        # SOLUSDT: 29% WR (7 trades), AvgPnL -1.8% — performance inconsistente
+        # STXUSDT: 44% WR (9 trades), AvgPnL -5.4% — losses destroem wins
+        # EGLDUSDT: 44% WR (9 trades), AvgPnL -6.5% — losses destroem wins
+        'SANDUSDT', 'BCHUSDT', 'SOLUSDT', 'STXUSDT', 'EGLDUSDT',
     }
 
     # Fast API context

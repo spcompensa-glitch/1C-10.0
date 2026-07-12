@@ -336,12 +336,12 @@ class FlashAgent:
         # Calcula ROI
         roi = self._calc_roi(entry_price, current_price, side, leverage)
         
-        # Peak ROI
+        # Peak ROI — sempre respeitar o maximo historico (cache + banco)
         peak_key = f"swing_sandbox:{trade_id}"
         peak_roi = max(self._peak_roi_cache.get(peak_key, 0.0), roi, float(trade.max_roi or 0.0))
         self._peak_roi_cache[peak_key] = peak_roi
 
-        # Converte o trade em um payload compatível com o build_projection
+        # Converte o trade em um payload compativel com o build_projection
         trade_dict = {
             "symbol": symbol,
             "side": side,
@@ -359,7 +359,7 @@ class FlashAgent:
             is_ranging=False,  # Swing usa a escadinha oficial progressiva independente
         )
 
-        # Atualiza PnL e preços correntes no banco (a cada 2s)
+        # Atualiza PnL e precos correntes no banco (a cada 2s)
         now = time.time()
         last_up = self._last_pnl_update.get(trade_id, 0)
         if now - last_up >= 2.0:
@@ -371,37 +371,63 @@ class FlashAgent:
                 "max_roi": round(peak_roi, 2)
             })
 
-        # ⚡ Violação de Stop Loss
+        # ─────────────────────────────────────────────────────────────────────
+        # [FIX #1] Helper de fechamento centralizado com status CORRETO.
+        # Regra: stop em break-even ou lucro => CLOSED_TRAILING (nao CLOSED_SL).
+        # Stop abaixo do entry (loss) => CLOSED_SL.
+        # Confirmado pelo banco: ALGOUSDT fechou com stop=entry e status CLOSED_SL
+        # incorretamente, distorcendo o Win Rate do Swing Lab.
+        # ─────────────────────────────────────────────────────────────────────
+        async def _close_swing(stop_triggered: float, reason: str):
+            is_profit_stop = (
+                (side == "buy"  and stop_triggered >= entry_price) or
+                (side == "sell" and stop_triggered <= entry_price)
+            )
+            status = "CLOSED_TRAILING" if is_profit_stop else "CLOSED_SL"
+            fs = dict(trade.flash_state or {})
+            fs["history"] = fs.get("history", []) + [{
+                "ts": time.time(), "event": status, "roi": round(roi, 2),
+                "price": current_price, "stop_triggered": stop_triggered,
+                "level": fs.get("active_level", "CLOSED")
+            }]
+            await database_service.update_swing_trade(trade_id, {
+                "status": status,
+                "current_price": current_price,
+                "current_roi": round(roi, 2),
+                "pnl_pct": round(roi, 2),
+                "closed_at": time.time(),
+                "flash_state": fs
+            })
+            self._peak_roi_cache.pop(peak_key, None)
+            pnl_usd = (roi / 100.0) * margin
+            logger.warning(
+                f"[FLASH-SWING-SANDBOX] {symbol} {direction} {status} | "
+                f"Motivo={reason} | ROI={roi:.1f}% | PnL=${pnl_usd:.2f} | "
+                f"Stop=${stop_triggered:.6f} | Entry=${entry_price:.6f}"
+            )
+
+        # ─────────────────────────────────────────────────────────────────────
+        # [FIX #2] Verificacao de Stop Loss com preco conservativo.
+        # Usa get_conservative_price (bid/ask) para evitar falsos positivos
+        # mas garantir que violacoes reais sejam capturadas na janela de 1s.
+        # ─────────────────────────────────────────────────────────────────────
         if current_stop > 0:
-            stop_hit = (side == "buy" and current_price <= current_stop) or \
-                       (side == "sell" and current_price >= current_stop)
+            try:
+                conservative_price = okx_ws_public_service.get_conservative_price(symbol, side)
+                check_price = conservative_price if conservative_price > 0 else current_price
+            except Exception:
+                check_price = current_price
+
+            stop_hit = (side == "buy" and check_price <= current_stop) or \
+                       (side == "sell" and check_price >= current_stop)
             if stop_hit:
-                # O stop foi atingido no simulador
-                status = "CLOSED_TRAILING" if current_stop > entry_price or (side == "sell" and current_stop < entry_price) else "CLOSED_SL"
-                flash_state = dict(trade.flash_state or {})
-                flash_state["history"] = flash_state.get("history", []) + [{
-                    "ts": time.time(), "event": status, "roi": round(roi, 2),
-                    "price": current_price, "level": flash_state.get("active_level", "CLOSED")
-                }]
-                
-                await database_service.update_swing_trade(trade_id, {
-                    "status": status,
-                    "current_price": current_price,
-                    "current_roi": round(roi, 2),
-                    "pnl_pct": round(roi, 2),
-                    "closed_at": time.time(),
-                    "flash_state": flash_state
-                })
-                self._peak_roi_cache.pop(peak_key, None)
-                pnl_usd = (roi / 100.0) * margin
-                logger.warning(
-                    f"🛑⚡ [FLASH-SWING-SANDBOX-CLOSE] {symbol} {direction} {status} | "
-                    f"ROI={roi:.1f}% | PnL=${pnl_usd:.2f} | Stop=${current_stop:.4f}"
-                )
+                await _close_swing(current_stop, f"STOP_HIT@{check_price:.6f}")
                 return
 
-        # ─── Atualização Progressiva do Stop (Trailing / Escadinha) ───
-        # Constrói decisão com base no pico histórico
+        # ─────────────────────────────────────────────────────────────────────
+        # Atualizacao Progressiva do Stop (Trailing / Escadinha).
+        # Decisao baseada no PICO historico de ROI, nao no preco atual.
+        # ─────────────────────────────────────────────────────────────────────
         decision_projection = projection
         if peak_roi > roi + 0.1:
             decision_price = order_projection_service.raw_price_from_roi(
@@ -418,12 +444,27 @@ class FlashAgent:
             )
 
         active_level = decision_projection.get("active_level")
+
+        # ─────────────────────────────────────────────────────────────────────
+        # [FIX #3] Fallback quando active_level e None ou fase invalida.
+        # O stop do banco ainda existe e DEVE ser monitorado — nao abandonar.
+        # Sem este fix, uma falha de projecao silencia o monitoramento do stop.
+        # ─────────────────────────────────────────────────────────────────────
         if not active_level or active_level.get("phase") not in ("ESCADINHA", "TRAILING"):
+            if current_stop > 0:
+                stop_hit_fallback = (side == "buy" and current_price <= current_stop) or \
+                                    (side == "sell" and current_price >= current_stop)
+                if stop_hit_fallback:
+                    logger.warning(
+                        f"[FLASH-SWING-FALLBACK] {symbol} stop ${current_stop:.6f} atingido "
+                        f"sem escadinha ativa (peakROI={peak_roi:.1f}%). Fechando."
+                    )
+                    await _close_swing(current_stop, "FALLBACK_NO_LADDER")
             return
 
         new_stop_roi = float(active_level.get("stop_roi") or 0)
         new_stop_price = float(decision_projection.get("recommended_stop") or 0)
-        if new_stop_price <= 0 and new_stop_roi > 0:
+        if new_stop_price <= 0 and new_stop_roi != 0:
             new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
         if new_stop_price <= 0:
             return
@@ -435,8 +476,8 @@ class FlashAgent:
             flash_state["active_level"] = active_level.get("name") or "ESCADINHA"
             
             logger.info(
-                f"⚡ [FLASH-SWING-SANDBOX-TRAIL] {symbol} peakROI={peak_roi:.1f}% "
-                f"→ SL +{new_stop_roi:.0f}% (${new_stop_price:.4f}) | {flash_state['active_level']}"
+                f"[FLASH-SWING-SANDBOX-TRAIL] {symbol} peakROI={peak_roi:.1f}% "
+                f"-> SL +{new_stop_roi:.0f}% (${new_stop_price:.6f}) | {flash_state['active_level']}"
             )
             
             await database_service.update_swing_trade(trade_id, {
@@ -444,24 +485,15 @@ class FlashAgent:
                 "flash_state": flash_state
             })
 
-            # Verifica se o novo stop já foi atingido imediatamente
-            stop_hit = (side == "buy" and current_price <= new_stop_price) or \
-                       (side == "sell" and current_price >= new_stop_price)
-            if stop_hit:
-                status = "CLOSED_TRAILING"
-                flash_state["history"] = flash_state.get("history", []) + [{
-                    "ts": time.time(), "event": status, "roi": round(roi, 2),
-                    "price": current_price, "level": flash_state["active_level"]
-                }]
-                await database_service.update_swing_trade(trade_id, {
-                    "status": status,
-                    "current_price": current_price,
-                    "current_roi": round(roi, 2),
-                    "pnl_pct": round(roi, 2),
-                    "closed_at": time.time(),
-                    "flash_state": flash_state
-                })
-                self._peak_roi_cache.pop(peak_key, None)
+            # ─────────────────────────────────────────────────────────────────
+            # [FIX #4] Verificar IMEDIATAMENTE apos mover o stop (mesmo ciclo).
+            # Elimina a janela cega de 1s onde o preco poderia violar e recuperar
+            # antes da proxima iteracao do loop sem ser detectado.
+            # ─────────────────────────────────────────────────────────────────
+            stop_hit_immediate = (side == "buy" and current_price <= new_stop_price) or \
+                                 (side == "sell" and current_price >= new_stop_price)
+            if stop_hit_immediate:
+                await _close_swing(new_stop_price, "IMMEDIATE_POST_TRAIL")
 
     # =========================================================================
     # HELPERS

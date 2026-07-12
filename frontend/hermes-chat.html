@@ -186,6 +186,11 @@
             flex-direction: column;
             flex-shrink: 0;
             overflow: hidden;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-right-color 0.3s ease;
+        }
+        .chat-sidebar.collapsed {
+            width: 0px !important;
+            border-right: none !important;
         }
         .chat-sidebar-header {
             padding: 16px;
@@ -705,6 +710,9 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <main class="chat-main">
         <div class="chat-header">
+            <button onclick="toggleSidebar()" style="background:none;border:none;color:#9ca3af;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6px;border-radius:8px;transition:all 0.2s;margin-right:8px;" onmouseover="this.style.background='rgba(255,255,255,0.05)';this.style.color='#fff';" onmouseout="this.style.background='none';this.style.color='#9ca3af';" title="Retrair/Expandir Lateral">
+                <span class="material-icons-round" id="sidebar-toggle-icon" style="font-size:20px;">menu_open</span>
+            </button>
             <span class="material-icons-round" style="font-size:20px;color:#8b5cf6;">auto_awesome</span>
             <span style="font-size:15px;font-weight:600;color:#e2e8f0;">Hermes</span>
         </div>
@@ -756,6 +764,18 @@
     let isSending = false;
     let mediaRecorder = null;
     let audioChunks = [];
+
+    // SIDEBAR TOGGLE
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.chat-sidebar');
+        const icon = document.getElementById('sidebar-toggle-icon');
+        sidebar.classList.toggle('collapsed');
+        if (sidebar.classList.contains('collapsed')) {
+            icon.textContent = 'menu';
+        } else {
+            icon.textContent = 'menu_open';
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // ADM SUBMENU

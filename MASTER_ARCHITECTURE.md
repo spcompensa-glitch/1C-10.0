@@ -628,13 +628,13 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 - **Transicao Fria ADX [V119]**: Ao mudar do regime de tendência para lateral, bloqueia novos sinais laterais por 15min (900s) para estabilização de volatilidade.
 - **Espelhamento em Conta Real [V124.4]**: Se `OKX_API_KEY_MASTER` e `REAL` mode estiverem ativos, replica ordens a mercado, cruzadas e com 50x de alavancagem na OKX. O processo é auditado pelo **ExecutionAuditorAgent (Sentinel)**, que corrige chaves de preço corrompidas do webhook (ex: `entry_price_signal`), calibra quantidades segundo regras de contratos da OKX e barra ordens com margem acima do saldo da banca real, notificando no Firebase.
 
-### 15.7 Constantes do SandboxService (V120)
+### 15.7 Constantes do SandboxService (V126)
 
 | Constante | Valor | Localizacao |
 |-----------|-------|-------------|
 | Ciclo de monitoramento | 1s | `sandbox_service.py` |
-| Banca virtual | **$100.00 USD** | `routes/sandbox.py:49` (`BANCA = 100.0`) |
-| Margem media por trade | **$2.00** | `routes/sandbox.py:50` (`MARGEM_MEDIA = 2.0`) |
+| Banca virtual | **$10,000.00 USD** | `routes/sandbox.py:20` (`BANCA_BASE = 10000.0`) |
+| Margem media por trade | **$200.00** | `routes/sandbox.py:21` (`MARGEM_SCALP = 200.00`) |
 | Margem adaptativa | **$1.00-$2.50** (por win rate do par) | `sandbox_service.py:_get_adaptive_margin()` |
 | Leverage (sandbox) | 50x | `sandbox_service.py` |
 | Janela conservative price | 120s | `okx_ws_public.py:291` |
@@ -653,10 +653,12 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | [V124.6] Partial TP BLITZ_30M | +30% ROI (vs +15% scalping) | `flash_agent.py:251` |
 | Polling frontend | 2s | `sandbox.html` |
 | Polling patterns | 5s | `sandbox.html` |
-| Placeholder banca (HTML) | **$100.00 USD** | `sandbox.html:158` |
+| Placeholder banca (HTML) | **$10,000.00 USD** | `sandbox.html:429` |
 | Auto-blocklist check | 120s | `sandbox_service.py` |
 | [V118] Auto-blocklist criterio | PnL < -15% E WR < 35% apos 3+ trades | `sandbox_service.py` |
 | [V120] Static blocklist novos | ADA, GALA, ARB, OP, POL, NEAR | `config.py:ASSET_BLOCKLIST` |
+| [V126.1] Layout Panorâmico | Grade de 3 colunas laterais em resoluções Ultra-Wide | `sandbox.html` |
+| [V126.1] Market Sessions Clock | Relógios dinâmicos e nível de risco de volatilidade em tempo real (UTC) | `sandbox.html` |
 
 ### 15.8 Logs esperados no comportamento normal
 

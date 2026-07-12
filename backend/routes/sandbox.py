@@ -174,6 +174,8 @@ async def get_sandbox_stats():
             "win_rate": round(win_rate, 2),
             "average_pnl": round(avg_pnl, 2),
             "total_pnl": round(bank_pnl_percent, 2),
+            "virtual_balance": round(BANCA + total_pnl_usd, 2),
+            "banca_base": BANCA,
             "best_strategy": best_strategy,
             "strategy_breakdown": strategy_stats,
             "current_regime": current_regime

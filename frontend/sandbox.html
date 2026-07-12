@@ -115,7 +115,7 @@
                         <!-- Gerado dinamicamente via JS de acordo com a aba ativa -->
                     </div>
                     
-                    <p id="lab-sub-info" class="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-1">Forward Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x) | 40% DA BANCA (~$40.00)</p>
+                    <p id="lab-sub-info" class="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-1">Forward Testing Lab V126 | BANCA: $10,000.00 | MARGEM/TRADE: $200.00 (50x) | 40% DA BANCA (~$4,000.00)</p>
                 </div>
             </div>
         </div>
@@ -222,7 +222,7 @@
             <div>
                 <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Scalping M1/M5)</h3>
                 <p class="text-sm text-gray-400">
-                    Executado de forma autônoma pelo motor <strong>VWAP SNIPER</strong>. Varre gráficos de 1m e 5m. Ordens com <strong>banca virtual de $100.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $2.00 USD por ativo</strong> (limite de 40% da banca ativa).
+                    Executado de forma autônoma pelo motor <strong>VWAP SNIPER</strong>. Varre gráficos de 1m e 5m. Ordens com <strong>banca virtual de $10,000.00 USD</strong>, <strong>alavancagem 50x</strong> e <strong>margem de $200.00 USD por ativo</strong> (limite de 40% da banca ativa).
                     O <strong>FlashAgent</strong> monitora o Stop Loss baseado em ATR de 1m a cada 1s.
                     <span class="text-primary font-semibold">Sem Saídas Parciais:</span> A posição corre cheia (100% da mão com alavancagem 50x) buscando lucros explosivos rápidos até bater no Stop Loss ou Stop Gain, sem fragmentação da ordem.
                 </p>
@@ -234,7 +234,7 @@
             <div>
                 <h3 class="text-white font-bold text-base mb-1">Laboratório de Teste de Sinais Virtuais (Swing Lab M30)</h3>
                 <p class="text-sm text-gray-400">
-                    Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $100.00 USD</strong> e margem de <strong>$2.00 USD por trade</strong> (<strong>50x leverage</strong>). 
+                    Varredura autônoma no gráfico de M30 em busca de setups estruturais. Ordens com <strong>banca virtual de $10,000.00 USD</strong> e margem de <strong>$200.00 USD por trade</strong> (<strong>50x leverage</strong>). 
                     Conduzido centralizadamente pelo <strong>FlashAgent</strong> seguindo a <strong>Doutrina das Extrações</strong>. 
                     <span class="text-cyberPurple font-semibold">Zero-Risk Stacking:</span> Abre apenas 1 ordem de Swing por vez. Uma nova posição só é disparada assim que o Stop Loss da ordem atual estiver em break-even (risco zero). Sem Saídas Parciais.
                 </p>
@@ -441,6 +441,7 @@
                             <th class="p-4">Entrada</th>
                             <th class="p-4">Preço Atual / Saída</th>
                             <th class="p-4">Stop Loss</th>
+                            <th class="p-4">Nível Stop</th>
                             <th class="p-4">ROI Máx</th>
                             <th class="p-4">ROI Atual</th>
                             <th class="p-4">Lucro (USD)</th>
@@ -507,6 +508,7 @@
                     <th class="p-4">Entrada</th>
                     <th class="p-4">Preço Atual / Saída</th>
                     <th class="p-4">Stop Loss</th>
+                    <th class="p-4">Nível Stop</th>
                     <th class="p-4">ROI Máx</th>
                     <th class="p-4">ROI Atual</th>
                     <th class="p-4">Lucro (USD)</th>
@@ -524,6 +526,7 @@
                     <th class="p-4">Entrada</th>
                     <th class="p-4">Preço Atual / Saída</th>
                     <th class="p-4">Stop Loss</th>
+                    <th class="p-4">Nível Stop</th>
                     <th class="p-4">ROI Máx</th>
                     <th class="p-4">ROI Atual</th>
                     <th class="p-4">Lucro (USD)</th>
@@ -692,7 +695,7 @@
         }
 
         // ==================== MIRROR CONTROLS ====================
-        let currentSwingMargin = 5.0;
+        let currentSwingMargin = 200.0;
 
         async function updateMirrorStatusUI() {
             try {
@@ -704,7 +707,7 @@
                 const btn = document.getElementById('mirror-toggle-btn');
                 const ind = document.getElementById('mirror-status-indicator');
                 
-                currentSwingMargin = status.margin_per_trade || 5.0;
+                currentSwingMargin = status.margin_per_trade || 200.0;
                 
                 if (status.mirror_mode) {
                     text.innerText = 'ON';
@@ -769,7 +772,7 @@
                         regimeValue.innerText = 'MOTOR M1/M5 ATIVO';
                         
                         document.getElementById('stat-best').innerText = stats.best_strategy || 'N/A';
-                        document.getElementById('lab-sub-info').innerText = `Forward Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (50x) | 40% DA BANCA (~$40.00)`;
+                        document.getElementById('lab-sub-info').innerText = `Forward Testing Lab V126 | BANCA: $10,000.00 | MARGEM/TRADE: $200.00 (50x) | 40% DA BANCA (~$4,000.00)`;
                     } else {
                         const breakdown = stats.strategy_breakdown || {};
                         const alphaCount = breakdown['ALPHA SHIELD'] ? breakdown['ALPHA SHIELD'].total : 0;
@@ -788,7 +791,7 @@
                         regimeValue.innerText = 'M30 SWING ATIVO';
 
                         document.getElementById('stat-best').innerText = stats.best_symbol || 'N/A';
-                        document.getElementById('lab-sub-info').innerText = `Swing Testing Lab V125 | BANCA: $100.00 | MARGEM/TRADE: $2.00 (20x) | REGIME: MULTI-STRATEGY`;
+                        document.getElementById('lab-sub-info').innerText = `Swing Testing Lab V126 | BANCA: $10,000.00 | MARGEM/TRADE: $200.00 (50x) | REGIME: MULTI-STRATEGY`;
                     }
 
                     document.getElementById('stat-total').innerText = stats.total_trades;
@@ -879,9 +882,10 @@
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}<span class="text-[10px] text-gray-500 ml-1">${stopRoiText}</span></td>
+                            <td class="p-4 font-mono text-xs font-semibold text-cyberOrange">${t.flash_state?.active_level || 'INICIAL'}</td>
                             <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
-                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * 2.00).toFixed(2)} USD</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * 200.00).toFixed(2)} USD</td>
                             <td class="p-4"><span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">${t.flash_state?.phase || 'N/A'}</span></td>
                             <td class="p-4">${statusBadge}</td>
                             <td class="p-4 text-center"><button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400"><span class="material-icons-round text-sm">visibility</span></button></td>
@@ -898,6 +902,7 @@
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs font-semibold text-cyberOrange">${t.flash_state?.active_level || 'INICIAL'}</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * currentSwingMargin).toFixed(2)} USD</td>
                             <td class="p-4 font-mono text-xs">${t.cvd_value ? (t.cvd_value / 1000).toFixed(0) + 'k' : '0k'}</td>

@@ -91,9 +91,240 @@
         
         /* Animated number */
         .stat-number { transition: color 0.3s ease; }
+
+        /* NAV SIDEBAR — EXATO DO COCKPIT (app.js NavBar) */
+        .app-nav {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: 80px;
+            background: rgba(6,6,16,0.95);
+            backdrop-filter: blur(24px);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+        }
+        .nav-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .nav-logo-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(255,215,0,0.3));
+        }
+        .nav-logo-divider {
+            width: 32px;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+        .nav-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            flex: 1;
+        }
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            color: #9ca3af;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            background: none;
+            width: 56px;
+        }
+        .nav-btn:hover {
+            color: #d1d5db;
+            background: rgba(255,255,255,0.05);
+        }
+        .nav-btn .material-icons-round {
+            font-size: 24px;
+        }
+        .nav-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .nav-adm-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .nav-adm-btn.adm-open,
+        .nav-adm-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 12px rgba(34,197,94,0.15);
+        }
+        .adm-submenu {
+            position: absolute;
+            left: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10001;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(8,8,12,0.97);
+            backdrop-filter: blur(24px);
+            min-width: 180px;
+        }
+        .adm-submenu-title {
+            font-size: 8px;
+            font-weight: 900;
+            color: rgba(34,197,94,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            padding: 0 8px 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 4px;
+        }
+        .adm-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #d1d5db;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .adm-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+        .adm-item .material-icons-round {
+            font-size: 18px;
+        }
+        .adm-item-active {
+            color: #fff !important;
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .nav-bottom {
+            margin-top: auto;
+        }
+        .nav-logout-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(239,68,68,0.1);
+            color: #f87171;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-logout-btn:hover {
+            background: rgba(239,68,68,0.2);
+            color: #fca5a5;
+            border-color: rgba(239,68,68,0.3);
+        }
+        .nav-logout-btn .material-icons-round {
+            font-size: 20px;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+            margin-left: 80px;
+            min-height: 100vh;
+        }
     </style>
 </head>
-<body class="text-gray-200 font-sans min-h-screen flex flex-col">
+<body class="text-gray-200 font-sans min-h-screen flex flex-row">
+
+    <!-- SIDEBAR — MESMO DESIGN DO COCKPIT (app.js NavBar) -->
+    <nav class="app-nav" id="app-nav">
+        <!-- Logo -->
+        <div class="nav-logo">
+            <img src="/logo10DTrasp.png" alt="Logo" class="nav-logo-img" />
+            <div class="nav-logo-divider"></div>
+        </div>
+
+        <!-- 3 botões principais -->
+        <div class="nav-buttons">
+            <!-- BANCA -->
+            <a href="/" class="nav-btn" title="Banca">
+                <span class="material-icons-round">space_dashboard</span>
+                <span class="nav-label">Banca</span>
+            </a>
+
+            <!-- HERMES -->
+            <a href="/hermes" class="nav-btn" title="Hermes">
+                <span class="material-icons-round">auto_awesome</span>
+                <span class="nav-label">Hermes</span>
+            </a>
+
+            <!-- ADM (submenu) -->
+            <div class="nav-adm-wrapper">
+                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
+                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
+                    <span class="nav-label">ADM</span>
+                </button>
+                <!-- Submenu desktop (à direita) -->
+                <div id="adm-submenu" class="adm-submenu hidden">
+                    <span class="adm-submenu-title">ADM · Módulos</span>
+                    <a href="/" class="adm-item">
+                        <span class="material-icons-round">space_dashboard</span>
+                        <span>Banca</span>
+                    </a>
+                    <a href="/sandbox" class="adm-item adm-item-active">
+                        <span class="material-icons-round">science</span>
+                        <span>Sandbox</span>
+                    </a>
+                    <a href="/memory" class="adm-item">
+                        <span class="material-icons-round">auto_awesome</span>
+                        <span>Memory Galaxy</span>
+                    </a>
+                    <a href="/config" class="adm-item">
+                        <span class="material-icons-round">settings</span>
+                        <span>Config</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sair (parte inferior) -->
+        <div class="nav-bottom">
+            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair" class="nav-logout-btn">
+                <span class="material-icons-round">power_settings_new</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Overlay para fechar submenu ao clicar fora -->
+    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-content">
 
     <!-- Navbar -->
     <header class="flex-shrink-0 px-4 py-4 glass-panel border-b border-white/5 sticky top-0 z-40 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -131,10 +362,6 @@
                     LIGAR
                 </button>
             </div>
-            
-            <button onclick="window.location.href='/cockpit'" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-all text-sm border border-white/5">
-                <span class="material-icons-round text-sm">dashboard</span> Voltar ao Cockpit
-            </button>
             <button onclick="clearSandbox()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyberRed/10 hover:bg-cyberRed/20 text-cyberRed transition-all text-sm border border-cyberRed/20">
                 <span class="material-icons-round text-sm">delete_sweep</span> Limpar Testes
             </button>
@@ -1058,6 +1285,31 @@
             }
         }
 
+        // ADM SUBMENU
+        function toggleAdmSubmenu() {
+            const sub = document.getElementById('adm-submenu');
+            const btn = document.getElementById('adm-btn');
+            const overlay = document.getElementById('adm-overlay');
+            if (sub.classList.contains('hidden')) {
+                sub.classList.remove('hidden');
+                btn.classList.add('adm-open');
+                overlay.classList.remove('hidden');
+            } else {
+                sub.classList.add('hidden');
+                btn.classList.remove('adm-open');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function closeAdmSubmenu() {
+            const sub = document.getElementById('adm-submenu');
+            const btn = document.getElementById('adm-btn');
+            const overlay = document.getElementById('adm-overlay');
+            sub.classList.add('hidden');
+            btn.classList.remove('adm-open');
+            overlay.classList.add('hidden');
+        }
+
         updateMirrorStatusUI();
         fetchData();
         fetchPatterns();
@@ -1068,5 +1320,6 @@
         setInterval(fetchAnalytics, 5000);
         setInterval(fetchUnifiedState, 2000);
     </script>
+</div>
 </body>
 </html>

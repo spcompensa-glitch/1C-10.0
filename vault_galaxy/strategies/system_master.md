@@ -1,3 +1,12 @@
+---
+type: strategy
+name: "SYSTEM_MASTER"
+tags:
+  - architecture
+  - master
+  - system
+---
+
 # MASTER_ARCHITECTURE.md — 1Crypten 7.0
 
 Fonte unica de verdade arquitetural. Extraido diretamente do codigo-fonte (nao de historico de versoes).

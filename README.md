@@ -1,155 +1,77 @@
 # 1Crypten 7.0 — Elite Trading System
 
-**Estado**: OPERACIONAL (producao OKX + sandbox)
-**Ultima atualizacao**: 2026-06-24
+Sistema de trading automatizado para cripto na OKX. App FastAPI unico que roda o motor real + tres laboratorios de forward-testing (Sandbox, Swing Lab, Scalping Lab), com gestao de risco por IA e stops progressivos (escadinha).
+
+> Arquitetura completa e a fonte de verdade tecnica: **[MASTER_ARCHITECTURE.md](./MASTER_ARCHITECTURE.md)**.
 
 ---
 
 ## Quick Start
 
-### Requisitos
-- Python 3.12+
-- Node.js 18+
-- Credenciais OKX (com permissoes de trading)
+**Requisitos:** Python 3.12+ e credenciais OKX.
 
-### Setup Local
 ```bash
-# 1. Clonar repositorio
 git clone https://github.com/JonatasOliveira1983/1C-7.0.git
 cd 1C-7.0
+pip install -r requirements.txt
+cp .env .env.local   # edite com suas credenciais OKX
 
-# 2. Instalar dependencias
-pip install -r backend/requirements.txt
-npm install --prefix frontend
-
-# 3. Configurar ambiente
-cp .env.example .env
-# Editar .env com credenciais OKX
-
-# 4. Iniciar backend
-python main.py
-
-# 5. Backend serve frontend em http://localhost:8085
+# Inicia o app (entry point unico)
+uvicorn backend.main:app --host 0.0.0.0 --port 8085
 ```
 
-### Login
-- **URL**: http://localhost:8085
-- **Usuario padrao**: `admin` / `admin123`
+- **URL:** http://localhost:8085
+- **Login padrao:** `admin` / `admin123`
 
 ---
 
-## Arquitetura
+## Configuracao (variaveis criticas)
 
-### Modelo Dual-Execution
-- **Sandbox**: Todos os sinais simulados para analise estatistica
-- **Real**: Sinais aprovados executados na OKX com trading real
-- **Ambos rodam simultaneamente** com gestao de risco identica
-
-### Fluxo de Sinal
+```bash
+OKX_EXECUTION_MODE=REAL          # REAL = live | PAPER = simulado
+OKX_API_KEY_MASTER=<chave>
+OKX_API_SECRET_MASTER=<secret>
+OKX_PASSPHRASE_MASTER=<passphrase>
+OKX_TESTNET=False
+PORT=8085
+JWT_SECRET_KEY=<chave-aleatoria>
+FIREBASE_CREDENTIALS_PATH=serviceAccountKey.json   # opcional
 ```
-Sinal Gerado
-    ↓
-CaptainAgent (Quality Gate)
-    ↓
-Filtro de Regime
-    ├─→ LATERAL (ADX < 25)? Apenas DECOR SHADOW
-    └─→ TENDENCIA (ADX >= 25)? VELOCITY FLOW + ALPHA SHIELD
-    ↓
-BankrollManager (Capacidade)
-    ├─→ Sandbox: sandbox_service.simulate_order()
-    └─→ Real: okx_rest_service.place_atomic_order()
-    ↓
-FlashAgent (Gestao de Stops)
-    ├─→ Monitora posicao a cada 1s
-    ├─→ Atualiza stop em marcos de ROI
-    └─→ Fecha no stop ou T/P
-```
-
-### Gestao de Risco
-- **BankrollGuardian**: Gating por regime, limites de slots
-- **FlashAgent**: Stops progressivos por posicao
-- **ExecutionCapacityGate**: Slippage, liquidez, custos antes da entrada
-- **FleetAudit**: Reconciliacao 20s, saida emergencial
-
-### Agentes IA (18 total)
-CaptainAgent, OracleAgent, FlashAgent, BankrollGuardian, SlotOperator, BlitzSniper, AmbushAgent, WhaleTracker, OnChainWhaleWatcher, MacroAnalyst, Librarian, LibrarianAuditor, TradeAnalyst, SentimentSpecialist, Quartermaster, FleetAudit, HermesAgent, JarvisBrain
-
----
-
-## Ativos Suportados
-
-- **RADAR_WATCHLIST**: 31 pares monitorados
-- **ELITE_40_MATRIX**: 35 pares elite 50x
-- **DECOR_WATCHLIST**: 89 pares para decorrelacao
-- **Blocklist**: DYDXUSDT, FILUSDT, ALGOUSDT, LTCUSDT
-- **Memecoin Blacklist**: PEPE, DOGE, SHIB, FLOKI, BONK, WIF, MYRO, 1000SATS, ORDI, MEME, TURBO, PEOPLE
 
 ---
 
 ## Deploy
 
-### Docker
-```bash
-docker-compose up -d
-```
-
-### Railway
-- Branch: `main` → Auto-deploy
-- URL producao: https://1crypten-hermes-agent-production.up.railway.app
-
-### Monitoramento
-- **Cockpit**: http://localhost:8085/cockpit
-- **Sandbox**: http://localhost:8085/sandbox
-- **Neural Chat**: http://localhost:8085/neural-chat
+- **Plataforma:** Railway + Docker (Python 3.12-slim, PORT 8085).
+- **Entry point:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1`.
+- **Health check:** `GET /api/health`.
+- Branch `main` → auto-deploy.
 
 ---
 
-## Configuracao
-
-### Variaveis Criticas
-```bash
-# OKX Trading (REAL = live, PAPER = sandbox)
-OKX_EXECUTION_MODE=REAL
-OKX_API_KEY_MASTER=<sua-chave>
-OKX_API_SECRET_MASTER=<seu-secret>
-OKX_PASSPHRASE_MASTER=<sua-passphrase>
-OKX_TESTNET=False
-
-# Sistema
-PORT=8085
-JWT_SECRET_KEY=<chave-aleatoria>
-DATABASE_URL=sqlite:///./backend/auth.db
-
-# Firebase (opcional)
-FIREBASE_CREDENTIALS_PATH=serviceAccountKey.json
-```
-
----
-
-## Endpoints Principais
+## Endpoints principais
 
 | Rota | Metodo | Funcao |
 |------|--------|--------|
 | `/api/health` | GET | Health check |
 | `/api/slots` | GET | Slots ativos |
 | `/api/system/state` | GET | Estado do sistema |
-| `/api/radar/pulse` | GET | Sinais radar |
+| `/api/radar/pulse` | GET | Sinais do radar |
+| `/api/sandbox/stats` | GET | Estatisticas do sandbox |
+| `/api/hermes/chat` | POST | Chat IA (Hermes) |
+| `/api/auth/login` | POST | Login (JWT) |
 | `/api/admin/reset-system` | POST | Nuclear reset |
-| `/api/hermes/chat` | POST | Chat IA |
+
+Lista completa de routers/prefixos em `MASTER_ARCHITECTURE.md` (secao 10).
 
 ---
 
 ## Testes
 
 ```bash
-# Todos os testes
-pytest
-
-# Apenas unitarios rapidos
-pytest -m "not slow"
-
-# Com cobertura
-pytest --cov=backend/
+pytest                     # todos
+pytest -m "not slow"       # apenas rapidos
+pytest --cov=backend/      # com cobertura
 ```
 
 ---
@@ -158,33 +80,12 @@ pytest --cov=backend/
 
 | Problema | Causa | Solucao |
 |----------|-------|---------|
-| "Only sending to Sandbox" | `OKX_EXECUTION_MODE=PAPER` | Setar para REAL no .env |
-| Erro 429 OKX | Muitas ordens rapidas | Sistema tem OKXCommandQueue anti-429 |
-| Dashboard nao atualiza | WebSocket morto | Reiniciar backend, checar console |
-| Slots nao abrem | Regime gate bloqueando | Verificar ADX em `/api/system/state` |
+| "Only sending to Sandbox" | `OKX_EXECUTION_MODE=PAPER` | Setar `REAL` no .env |
+| Erro 429 OKX | Muitas chamadas rapidas | OKXCommandQueue (anti-429) ja ativo |
+| Dashboard nao atualiza | WebSocket morto | Reiniciar backend |
+| Slots nao abrem | Regime gate (ADX) | Verificar `/api/system/state` |
 
 ---
 
-## Metricas
-
-| Metrica | Target |
-|---------|--------|
-| Latencia dashboard | <100ms |
-| Sinal-para-execucao | <5s |
-| Uptime OKX API | 99.9% |
-| Slots ativos | 1-40 |
-
----
-
-## Contribuir
-
-1. Ler `MASTER_ARCHITECTURE.md`
-2. Criar branch: `git checkout -b feature/descricao`
-3. Commitar: `git commit -m "fix: descricao"`
-4. Push: `git push origin feature/descricao`
-5. Criar Pull Request
-
----
-
-**Mantenedor**: Jonatas Oliveira (@JonatasOliveira1983)
-**Repositorio**: https://github.com/JonatasOliveira1983/1C-7.0
+**Mantenedor:** Jonatas Oliveira (@JonatasOliveira1983)
+**Repositorio:** https://github.com/JonatasOliveira1983/1C-7.0

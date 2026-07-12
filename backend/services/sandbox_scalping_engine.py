@@ -37,9 +37,10 @@ logger = logging.getLogger("ScalpingEngine")
 
 # ── Constantes ─────────────────────────────────────────────────────────────────
 _LEVERAGE           = 50.0
-_MARGIN_PER_TRADE   = 2.0
+# [V126] Banca $10.000 | 40% = $4.000 | 20 ordens x $200 (10 Scalp + 10 Swing)
+_MARGIN_PER_TRADE   = 200.0
 _SCAN_INTERVAL      = 60      # segundos entre scans
-_MAX_SLOTS          = 10      # slots simultaneos maximos
+_MAX_SLOTS          = 10      # slots simultaneos maximos de Scalping
 # [V126] Score minimo aumentado de 60 para 70 para exigir Liquidity Sweep (15pts)
 # Base: 168 trades reais — WR 57.58% mas R:R 1:0.88 (loss medio > win medio)
 # Com score 70, o sinal obrigatoriamente passa pelas 3 camadas + Sweep.

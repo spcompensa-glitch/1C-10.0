@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/sandbox", tags=["Sandbox"])
 
 @router.get("/unified-state")
 async def get_unified_sandbox_state():
-    """Unifica a telemetria das ordens de Scalping e Swing sob a mesma banca de $100."""
+    """Unifica a telemetria das ordens de Scalping e Swing sob a mesma banca de $10.000."""
     try:
         from services.sandbox_swing_service import sandbox_swing_service
         
@@ -15,10 +15,11 @@ async def get_unified_sandbox_state():
         scalp_trades = await database_service.get_sandbox_trades(active_only=False)
         swing_trades = await database_service.get_swing_trades(active_only=False)
         
-        # 2. Configurações de banca e margem
-        BANCA_BASE = 100.0
-        MARGEM_SCALP = 2.00  # $2.00/trade fixo do Scalping
-        MARGEM_SWING = sandbox_swing_service.margin_per_trade  # $2.00/trade do Swing
+        # 2. Configuracoes de banca e margem
+        # [V126] Banca simulada de $10.000 | 40% = $4.000 | 20 ordens x $200
+        BANCA_BASE   = 10000.0
+        MARGEM_SCALP = 200.00   # $200/trade — Scalping Lab
+        MARGEM_SWING = sandbox_swing_service.margin_per_trade  # $200/trade — Swing Lab
         
         # 3. Contadores
         active_scalp = sum(1 for t in scalp_trades if t.status == "ACTIVE")
@@ -98,9 +99,10 @@ async def get_sandbox_stats():
         
         wins = 0
         losses = 0
-        total_pnl_usd = 0.0  # [V119] Lucro acumulado em USD com margem de $2.00 do Founder Vision
-        BANCA = 100.0
-        MARGEM_MEDIA = 2.00
+        total_pnl_usd = 0.0  # Lucro acumulado em USD com margem de $200 por trade
+        # [V126] Banca simulada de $10.000 | $200/trade | 10 slots Scalping
+        BANCA = 10000.0
+        MARGEM_MEDIA = 200.00
         # [V119] Inicializa preventivamente as 3 estratégias para garantir telemetria consistente na UI
         strategy_stats = {
             "ALPHA SHIELD": {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0},

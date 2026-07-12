@@ -162,15 +162,16 @@ class Settings(BaseSettings):
     # OFF = Sandbox roda autônomo (recomendado para validação)
     # ON  = Toda ordem swing aberta no Lab é espelhada na conta real
     SWING_MIRROR_MODE: str = os.getenv("SWING_MIRROR_MODE", "OFF")
-
-    # Alavancagem padrão para trades swing (20x por padrão)
-    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 20))
+    # Alavancagem padrao para trades swing (50x)
+    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 50))
 
     # Margem em USD por trade swing na conta virtual
-    SWING_MARGIN_PER_TRADE: float = float(os.getenv("SWING_MARGIN_PER_TRADE", 5.0))
+    # [V126] $200/trade | 10 slots | 40% de $10.000 = $4.000 total
+    SWING_MARGIN_PER_TRADE: float = float(os.getenv("SWING_MARGIN_PER_TRADE", 200.0))
 
     # Banca virtual do Swing Lab em USD
-    SWING_VIRTUAL_BALANCE: float = float(os.getenv("SWING_VIRTUAL_BALANCE", 100.0))
+    # [V126] Banca simulada de $10.000
+    SWING_VIRTUAL_BALANCE: float = float(os.getenv("SWING_VIRTUAL_BALANCE", 10000.0))
 
     # Intervalo entre scans do Swing Lab em segundos (padrão 5 minutos)
     SWING_SCAN_INTERVAL: int = int(os.getenv("SWING_SCAN_INTERVAL", 300))

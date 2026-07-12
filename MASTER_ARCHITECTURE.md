@@ -702,10 +702,11 @@ O metodo `_check_1m_confirmation` ainda existe no codigo mas nao e chamado no fl
 | Blitz M30 bloqueado em LATERAL (Captain gates) | V124.6 | Sinais BLITZ_30M eram barrados pelos dois gates de regime em `captain.py` (ADX < 25 bloqueava VELOCITY/ALPHA, e segundo gate TREND_FOCUS). Fix: `is_blitz` bypass nos dois gates + escadinha `ORDER_STOP_LADDER_RANGING_SWING` com gaps 2x maiores + partial TP em +30% ROI no FlashAgent por `slot_type`. |
 | BlitzSniperAgent substituido pelo SignalGenerator | V124.7 | BlitzSniperAgent removido — usava apenas SMA9/21 crossover com scoring simples (score >= 75). Substituido por `SignalGenerator.analyze_m30_swing()` que reusa toda a infraestrutura de deteccao de padroes do motor principal: DVAP/MOLA/FAS/LRT (ALPHA SHIELD), TREND (VELOCITY FLOW), DECOR (DECOR SHADOW). Score minimo reduzido para 65. Escadinha RANGING_SWING + partial TP 30% + `slot_type=BLITZ_30M` mantidos. |
 | Motor Autônomo Swing Lab V2.0 e Scalping Lab V125.3 | V125.3 | Remoção completa do `blitz_sniper.py`. Criação do `sandbox_swing_service.py` (scan M30 a cada 5min com Zero-Risk Stacking de capacidade 2) e `sandbox_scalping_engine.py` (VWAP SNIPER no gráfico M1/M5 com ATR stops e sem saídas parciais). Exclusão do boot-shield no Cockpit, criação de botão Clear All no histórico do Vault, e responsividade mobile de layouts. |
+| Bugs de Stop no Swing & Refinamentos no Scalping | V126 | Lógica de status de stop corrigida (break-even = CLOSED_TRAILING). Adicionado fallback de monitoramento de stop quando active_level é nulo. Adicionada verificação de stop imediata após mover stop (mesmo ciclo). No Scalping: score mínimo ajustado para 70 (exigindo sweep), filtro de ATR mínimo de 0.02% e banca sandbox ampliada para $10.000 (margem $200, limite 40% / $4.000). Blacklist atualizada: SANDUSDT, BCHUSDT, SOLUSDT, STXUSDT, EGLDUSDT. |
 
 ---
 
-## 16. Scalping Lab — VWAP SNIPER (V125.3)
+## 16. Scalping Lab — VWAP SNIPER (V126)
 
 O motor de scalping micro roda sob o arquivo `services/sandbox_scalping_engine.py`. É um processo autônomo paralelo de alta frequência.
 
@@ -713,16 +714,19 @@ O motor de scalping micro roda sob o arquivo `services/sandbox_scalping_engine.p
 - **Ciclo:** Varredura a cada 60 segundos (M1/M5).
 - **Filtro de Tendência (M5):** O preço deve estar acima (para LONG) ou abaixo (para SHORT) da EMA 200 no tempo gráfico de 5 minutos.
 - **Zona de Gatilho (M1):** O preço deve tocar a linha de VWAP diário no gráfico de 1 minuto.
-- **Oscilador de Entrada (M1):** Stochastic RSI no gráfico de 1 minuto deve confirmar sobrecompra/sobrevenda (<20 para LONG, >80 para SHORT).
+- **Oscilador de Entrada (M1):** Stochastic RSI no gráfico de 1 minuto deve confirmar sobrecompra/sobrevenda (<25 para LONG, >75 para SHORT).
+- **Filtro de Volatilidade ATR:** O ATR de 1 minuto deve ser de pelo menos **0.02%** do preço para evitar mercados mortos e stops curtos falsos.
 - **Liquidity Sweeps (Boost):** Varredura de liquidação no livro (+15 pontos de score de momentum).
+- **Score Mínimo:** Aumentado para **70/100** para filtrar melhor as entradas (exige Sweep para abrir).
 
 ### 16.2 Regras de Saída e Gestão de Risco
+- **Configuração de Banca:** Banca virtual consolidada de **$10.000 USD** com margem fixa de **$200.00 USD** por trade (alavancagem 50x isolada).
 - **Sem Saídas Parciais:** Para otimizar o ganho máximo no momentum imediato, as ordens de Scalping correm com **100% da mão com alavancagem de 50x** isolada até serem fechadas diretamente pelo Stop Loss ou Stop Gain.
-- **Stop Loss Baseado em Volatilidade (ATR):** O Stop Loss é calculado dinamicamente com base no ATR recente, evitando stops fixos arbitrários em momentos de alta volatilidade.
+- **Stop Loss Baseado em Volatilidade (ATR):** O Stop Loss é calculado dinamicamente com base no ATR recente, limitado a no máximo -20% ROI.
 
 ---
 
-## 17. Swing Lab — Motor Primário M30 (V125.3)
+## 17. Swing Lab — Motor Primário M30 (V126)
 
 O robô de Swing Lab funciona de forma autônoma em `services/sandbox_swing_service.py`.
 
@@ -731,13 +735,14 @@ O robô de Swing Lab funciona de forma autônoma em `services/sandbox_swing_serv
 - **Indicadores Confluentes:** Integração direta com o `SignalGenerator.analyze_m30_swing()`.
 - **Fibonacci Golden Zone:** Confluência na região de ouro da Fibonacci de M30 (+20 pontos).
 - **Price Action M30:** Padrões harmônicos e de velas de reversão em M30 (+15 pontos).
-- **Margem Dinâmica:** Alocação de margem de **$5.00 USD** por trade virtual.
+- **Banca e Margem:** Banca virtual consolidada de **$10.000 USD** com margem de **$200.00 USD** por trade virtual (alavancagem 50x).
 
 ### 17.2 Zero-Risk Stacking (Capacidade 2)
 Para limitar a exposição ao risco sistêmico de mercado, foi implementada uma trava de Stacking:
 - **Limite de Risco:** O motor permite no máximo **2 posições simultâneas expostas a risco** (onde o Stop Loss atual está abaixo do preço de entrada).
 - **Bloqueio:** Se houver 2 ordens sob risco, o ciclo de novas entradas é pausado.
 - **Desbloqueio:** Novas entradas são liberadas imediatamente quando pelo menos uma das posições existentes tem o seu Stop Loss movido para o Break-even ou superior pelo FlashAgent (garantindo risco zero na operação).
+
 
 ---
 

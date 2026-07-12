@@ -36,6 +36,14 @@ ORDER_STOP_LADDER_RANGING: List[StopLevel] = [
     StopLevel("TRAILING", "ALVO_MAXIMO_LATERAL", 50.0, 48.0, "PROFIT_LOCK"),
 ]
 
+ORDER_STOP_LADDER_SCALPING: List[StopLevel] = [
+    # [VWAP SNIPER] Scalping ultra-rápido M1 (Micro movimentos de 0.4% a 1.2% resultam em 4% a 12% ROI com 10x)
+    StopLevel("ESCADINHA", "GARANTIA_TAXAS_SCALP", 4.0, 1.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_CURTO_SCALP", 6.5, 3.5, "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_MEDIO_SCALP", 10.0, 6.0, "PROFIT_LOCK"),
+    StopLevel("TRAILING", "TRAILING_SCALP", 15.0, 11.0, "PROFIT_LOCK"),
+]
+
 # [V125] Escadinha Oficial para Swing (Doutrina das Extrações)
 # Usada de forma unificada no FlashAgent para simular stops de Swing
 ORDER_STOP_LADDER_SWING: List[StopLevel] = [
@@ -140,9 +148,12 @@ class OrderProjectionService:
     def get_stop_ladder(self, roi_percent: float = 0.0, is_ranging: bool = False, slot_type: str = "", strategy_class: str = "") -> List[StopLevel]:
         # [V125] Roteamento de escadinha para Swing Lab
         is_swing = slot_type in ("BLITZ_30M", "SWING") or strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD", "DECOR SHADOW")
+        is_scalping = strategy_class == "VWAP SNIPER" or slot_type == "SCALPING"
         
         if is_swing:
             ladder = list(ORDER_STOP_LADDER_SWING)
+        elif is_scalping:
+            ladder = list(ORDER_STOP_LADDER_SCALPING)
         elif is_ranging:
             ladder = list(ORDER_STOP_LADDER_RANGING)
         else:

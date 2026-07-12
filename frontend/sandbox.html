@@ -804,7 +804,19 @@
                 </h3>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-white transition-all">
                     <span class="material-icons-round">close</span>
-<script>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[400px] space-y-4" id="modal-content">
+            </div>
+            <div class="p-4 bg-white/[0.02] border-t border-white/5 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
         // ==================== STATE ====================
         let currentTab = 'scalping'; // 'scalping' | 'swing'
         let tradesData = [];
@@ -1138,7 +1150,7 @@
                     const bankRoi = stats.bank_roi_pct !== undefined ? stats.bank_roi_pct : (stats.total_pnl || 0);
                     document.getElementById('stat-pnl').innerText = (bankRoi > 0 ? '+' : '') + bankRoi.toFixed(2) + '%';
                     
-                    const currentBalance = stats.virtual_balance !== undefined ? stats.virtual_balance : (100.0 * (1 + bankRoi / 100.0));
+                    const currentBalance = stats.virtual_balance !== undefined ? stats.virtual_balance : (10000.0 * (1 + bankRoi / 100.0));
                     document.getElementById('stat-balance').innerText = '$' + currentBalance.toFixed(2) + ' USD';
                 }
 

@@ -578,6 +578,57 @@
             left: 30%;
             background: #06b6d4;
         }
+
+        /* ═══════════════════════════════════════════════════════════════ */
+        /* RESPONSIVIDADE PWA MOBILE                                      */
+        /* ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .app-nav {
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                height: 64px;
+                flex-direction: row;
+                justify-content: space-around;
+                padding: 0 16px;
+                border-right: none;
+                border-top: 1px solid rgba(255,255,255,0.06);
+            }
+            .nav-logo, .nav-logo-divider, .nav-bottom {
+                display: none !important;
+            }
+            .nav-buttons {
+                flex-direction: row;
+                justify-content: space-around;
+                width: 100%;
+                height: 100%;
+                align-items: center;
+                flex: none;
+            }
+            .nav-btn {
+                padding: 8px 12px;
+                width: auto;
+                flex: 1;
+                max-width: 100px;
+            }
+            .chat-sidebar {
+                margin-left: 0 !important;
+                height: calc(100vh - 64px) !important;
+            }
+            .chat-main {
+                height: calc(100vh - 64px) !important;
+            }
+            .adm-submenu {
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: calc(100% + 8px);
+                top: auto;
+                min-width: 200px;
+                box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+            }
+        }
     </style>
 </head>
 <body>

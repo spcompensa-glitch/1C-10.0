@@ -1027,10 +1027,8 @@
             // Reload sessions to update title/count
             await loadSessions();
 
-            // 🔊 Auto-falar resposta quando modo voz ativo
-            if (via === 'voice') {
-                speak(response);
-            }
+            // 🔊 Auto-falar resposta sempre que o toggle estiver ligado
+            speak(response);
         } catch (e) {
             document.getElementById('typing-indicator').classList.remove('visible');
             appendMessage('assistant', 'Erro de conexão com o Hermes. Verifique o backend.');

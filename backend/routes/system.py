@@ -106,9 +106,13 @@ async def get_banca_data(request: Request):
             except Exception as e:
                 logger.error(f"Erro ao obter saldo real em tempo real para a API: {e}")
         
-        # [V126] Se estiver em modo PAPER, injeta a banca simulada como base para o Cockpit
+        # [V127] Se estiver em modo PAPER, espelha a Banca Simulada Consolidada do Sandbox no Cockpit
         if settings.OKX_EXECUTION_MODE == "PAPER":
-            sim_balance = float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0))
+            try:
+                from services.database_service import database_service
+                sim_balance = await database_service.get_sandbox_unified_balance()
+            except Exception:
+                sim_balance = float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0))
             status["saldo_total"] = sim_balance
             status["configured_balance"] = sim_balance
             # Removemos saldo_real_okx para que a UI flutue a banca base com o PnL aberto local

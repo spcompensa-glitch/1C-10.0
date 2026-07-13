@@ -1697,19 +1697,30 @@ class BankrollManager:
                         reported_real_okx = 0.0
 
 
+                # [V127] Em PAPER, espelha a Banca Simulada Consolidada do Sandbox (Cockpit)
+                if okx_rest_service.execution_mode == "PAPER":
+                    try:
+                        sandbox_balance = await database_service.get_sandbox_unified_balance()
+                    except Exception:
+                        sandbox_balance = float(settings.OKX_SIMULATED_BALANCE)
+                else:
+                    sandbox_balance = None
+
                 update_data = {
                     "id": banca.get("id", "status"),
-                    "saldo_real_okx": reported_real_okx,
+                    # [V127] Em PAPER o espelho usa a Banca do Sandbox; zera saldo_real_okx
+                    # para o Cockpit flutuar a banca base com o PnL aberto do Sandbox.
+                    "saldo_real_okx": 0.0 if okx_rest_service.execution_mode == "PAPER" else reported_real_okx,
                     "risco_real_percent": real_risk,
                     "slots_disponiveis": available_slots_count,
                     "lucro_total_acumulado": total_pnl,
                     "lucro_ciclo": cycle_profit,
                     "vault_total": vault_total,
                     "leverage": banca.get("leverage", settings.LEVERAGE),
-                    "configured_balance": settings.OKX_SIMULATED_BALANCE if okx_rest_service.execution_mode == "PAPER" else config_bal,
-                    "saldo_total": settings.OKX_SIMULATED_BALANCE if okx_rest_service.execution_mode == "PAPER" else calculated_equity,
+                    "configured_balance": sandbox_balance if okx_rest_service.execution_mode == "PAPER" else config_bal,
+                    "saldo_total": sandbox_balance if okx_rest_service.execution_mode == "PAPER" else calculated_equity,
                     "calculated_equity": calculated_equity,
-                    "paper_equity": calculated_equity if okx_rest_service.execution_mode == "PAPER" else None,
+                    "paper_equity": sandbox_balance if okx_rest_service.execution_mode == "PAPER" else None,
                     "paper_float_pnl": float_pnl if okx_rest_service.execution_mode == "PAPER" else None,
                     "execution_mode": okx_rest_service.execution_mode,
                 }
@@ -1719,8 +1730,7 @@ class BankrollManager:
                 if firebase_service.rtdb:
                     if okx_rest_service.execution_mode == "PAPER":
                         logger.info(
-                            f"🛰️ RTDB SYNC SUCCESS: PaperEquity=${calculated_equity:.2f} | "
-                            f"BaseOperacional=${settings.OKX_SIMULATED_BALANCE:.2f} | "
+                            f"🛰️ RTDB SYNC SUCCESS: SandboxMirror=${sandbox_balance:.2f} (PaperEquity) | "
                             f"Accumulated Profit=${total_pnl:.2f}"
                         )
                     else:

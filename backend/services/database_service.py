@@ -1190,6 +1190,41 @@ class DatabaseService:
                 logger.error(f"Error clearing swing trades: {e}")
             return False
 
+    async def get_sandbox_unified_balance(self) -> float:
+        """
+        [V127] Retorna a Banca Simulada Consolidada do Sandbox (Scalping Lab + Swing Lab),
+        espelhada exatamente pelo endpoint /api/sandbox/unified-state.
+        Em PAPER mode esta deve ser a 'Banca' exibida no Cockpit.
+        """
+        from config import settings
+        try:
+            scalp = await self.get_sandbox_trades(active_only=False)
+            swing = await self.get_swing_trades(active_only=False)
+            active_scalp = [t for t in scalp if getattr(t, "status", None) == "ACTIVE"]
+            active_swing = [t for t in swing if getattr(t, "status", None) == "ACTIVE"]
+
+            BANCA_BASE = 10000.0
+            MARGEM_SCALP = 200.0
+            MARGEM_SWING = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
+
+            total_pnl_usd = 0.0
+            for t in active_scalp:
+                try:
+                    total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SCALP
+                except (TypeError, ValueError):
+                    pass
+            for t in active_swing:
+                try:
+                    total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SWING
+                except (TypeError, ValueError):
+                    pass
+
+            current_balance = BANCA_BASE + total_pnl_usd
+            return round(current_balance, 2)
+        except Exception as e:
+            logger.error(f"Error computing sandbox unified balance: {e}")
+            return 10000.0
+
     # ==================== PHASE DETECTOR HISTORY (V120) ====================
 
     async def save_phase_detector_snapshot(self, symbol: str, data_type: str, value: Any, timestamp: float):

@@ -100,6 +100,11 @@ class SandboxSwingService:
     @property
     def mirror_mode_on(self) -> bool:
         """Retorna True se SWING_MIRROR_MODE=ON (espelhar na OKX real)."""
+        # Prioriza variável de ambiente para refletir alterações em runtime imediatamente
+        import os
+        env_mode = os.environ.get("SWING_MIRROR_MODE")
+        if env_mode is not None:
+            return env_mode.strip().upper() == "ON"
         s = _get_settings()
         if not s:
             return False
@@ -467,7 +472,6 @@ class SandboxSwingService:
                 side=side,
                 signal_data=mirror_signal,
                 slot_type="BLITZ_30M",
-                strategy_class=strategy,
             )
 
             if result:

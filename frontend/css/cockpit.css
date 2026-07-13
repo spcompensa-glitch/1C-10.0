@@ -239,7 +239,7 @@ body {
     font-family: 'Inter', sans-serif;
     height: 100dvh;
     width: 100vw;
-    overflow-x: hidden;
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
     position: relative;
 }
@@ -525,10 +525,10 @@ body {
     box-shadow: 0 10px 20px rgba(0,0,0,0.4);
 }
 
-/* Firefox */
+/* Firefox — dark scrollbar matching webkit rules */
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.2);
+    scrollbar-color: rgba(255, 255, 255, 0.1) rgba(5, 5, 6, 0.5);
 }
 
 /* Premium Chart Border - Metallic Gold Pulse */
@@ -725,6 +725,12 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-track {
     background: rgba(5, 5, 6, 0.5);
+}
+
+/* Firefox — explicit for .custom-scrollbar */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) rgba(5, 5, 6, 0.5);
 }
 
 /* [V110.182.4] Eagle Vision PRO Animations */

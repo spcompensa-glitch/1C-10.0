@@ -561,7 +561,20 @@ async def lifespan(app: FastAPI):
                                     "rescue_activated": s.get("rescue_activated"),
                                     "rescue_resolved": s.get("rescue_resolved")
                                 })
-                            
+
+                            # [V127] PAPER: espelha ordens do Sandbox (Scalping + Swing) no broadcast de slots
+                            if settings.OKX_EXECUTION_MODE == "PAPER":
+                                try:
+                                    from routes.trading import _map_sandbox_trade_to_slot
+                                    scalp = await _ds.get_sandbox_trades(active_only=True)
+                                    swing = await _ds.get_swing_trades(active_only=True)
+                                    for t in scalp:
+                                        slots.append(_map_sandbox_trade_to_slot(t, "SCALPING"))
+                                    for t in swing:
+                                        slots.append(_map_sandbox_trade_to_slot(t, "SWING"))
+                                except Exception as e:
+                                    logger.warning(f"[SLOTS-MOONS-BROADCAST] Erro Sandbox PAPER: {e}")
+
                             # V110.999: Também recupera e publica as moonbags para a UI
                             db_moons = await _ds.get_moonbags()
                             moons = []

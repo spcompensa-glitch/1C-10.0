@@ -26,6 +26,39 @@ async def verify_api_key(x_api_key: str = Header(None)):
         raise HTTPException(status_code=403, detail="Acesso Proibido: Chave de API Inválida")
     return True
 
+def _map_sandbox_trade_to_slot(trade, lab_type: str) -> dict:
+    """[V127] Converte um trade do Sandbox (Scalping/Swing) em slot-like p/ Cockpit em PAPER."""
+    if not isinstance(trade, dict):
+        trade = {c.name: getattr(trade, c.name) for c in trade.__table__.columns}
+    direction = str(trade.get("direction") or "LONG").upper()
+    side = "Buy" if direction in ("LONG", "BUY") else "Sell"
+    opened = trade.get("opened_at")
+    if opened and hasattr(opened, "isoformat"):
+        opened = opened.isoformat()
+    return {
+        "id": trade.get("id"),
+        "symbol": trade.get("symbol"),
+        "side": side,
+        "qty": trade.get("qty") or 0,
+        "entry_price": trade.get("entry_price"),
+        "entry_margin": trade.get("entry_margin") or 200.0,
+        "current_stop": trade.get("stop_loss"),
+        "initial_stop": trade.get("stop_loss"),
+        "order_id": trade.get("id"),
+        "target_price": trade.get("target"),
+        "leverage": trade.get("leverage") or settings.LEVERAGE,
+        "slot_type": lab_type,
+        "status_risco": trade.get("status"),
+        "pnl_percent": trade.get("pnl_pct") or 0,
+        "strategy": trade.get("strategy"),
+        "strategy_label": trade.get("strategy"),
+        "opened_at": opened or 0,
+        "updated_at": opened or 0,
+        "direction": direction,
+        "lab": lab_type,
+    }
+
+
 @router.get("/slots")
 async def get_slots():
     """[V110.999] Rota pública — lê slots globais do Postgres. Auth removida para evitar 401 com Fortress Auth."""
@@ -77,7 +110,19 @@ async def get_slots():
                 "rescue_resolved": s.get("rescue_resolved"),
                 "projection": s.get("projection")
             })
-            
+
+        # [V127] PAPER: espelha as ordens do Sandbox (Scalping + Swing) como slots no Cockpit
+        if okx_rest_service.execution_mode == "PAPER":
+            try:
+                scalp = await _ds.get_sandbox_trades(active_only=True)
+                swing = await _ds.get_swing_trades(active_only=True)
+                for t in scalp:
+                    slots.append(_map_sandbox_trade_to_slot(t, "SCALPING"))
+                for t in swing:
+                    slots.append(_map_sandbox_trade_to_slot(t, "SWING"))
+            except Exception as e:
+                logger.error(f"[PAPER] Erro ao mesclar ordens do Sandbox nos slots: {e}")
+
         if slots:
             try:
                 resp = await okx_rest_service.get_tickers()
@@ -103,7 +148,10 @@ async def get_slots():
                     continue
 
                 if slot.get("symbol") and slot.get("entry_price", 0) > 0:
-                    slot_id = int(slot.get("id", 0))
+                    try:
+                        slot_id = int(slot.get("id", 0))
+                    except (TypeError, ValueError):
+                        slot_id = 0
                     slot["slot_type"] = slot.get("slot_type") or slot.get("strategy") or "SWING"
                     entry = float(slot.get("entry_price", 0))
                     side = slot.get("side", "Buy")

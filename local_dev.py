@@ -677,26 +677,32 @@ async def startup():
         logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")
         return
 
-    # Inicia loops de trading (captain + signal generator).
-    # O main.py raiz não dispara isso — fazemos aqui para o cockpit ter dados.
-    import asyncio as _asyncio
-    if _sig_gen is not None:
-        try:
-            _asyncio.create_task(_sig_gen._sync_radar_rtdb())
-            _asyncio.create_task(_sig_gen.monitor_and_generate())
-            _asyncio.create_task(_sig_gen.track_outcomes())
-            _asyncio.create_task(_sig_gen.radar_loop())
-            logger.info("🟢 signal_generator loops iniciados (radar/track/sync)")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha iniciando sig_gen loops: {e}")
-    if _captain_agent is not None:
-        try:
-            _asyncio.create_task(_captain_agent.monitor_signals())
-            logger.info("🟢 captain_agent.monitor_signals() iniciado — radar→slots ativo")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha iniciando captain.monitor_signals: {e}")
-    # harvester consolidated into FlashAgent
-    pass
+    # [V126] Inicia os loops de trading (captain + signal generator) em uma thread separada.
+    # Isso evita que requisições de rede bloqueantes ou timeouts dos loops de scan travem o event loop principal do FastAPI/Uvicorn.
+    def run_trading_in_thread():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        if _sig_gen is not None:
+            loop.create_task(_sig_gen._sync_radar_rtdb())
+            loop.create_task(_sig_gen.monitor_and_generate())
+            loop.create_task(_sig_gen.track_outcomes())
+            loop.create_task(_sig_gen.radar_loop())
+            logger.info("🟢 [THREAD-BACKGROUND] Loops do signal_generator iniciados com sucesso.")
+            
+        if _captain_agent is not None:
+            loop.create_task(_captain_agent.monitor_signals())
+            logger.info("🟢 [THREAD-BACKGROUND] captain_agent.monitor_signals() iniciado com sucesso.")
+            
+        loop.run_forever()
+
+    try:
+        import threading
+        trading_thread = threading.Thread(target=run_trading_in_thread, daemon=True)
+        trading_thread.start()
+        logger.info("🟢 Thread de trading em background iniciada com sucesso (Isolamento de Event Loop).")
+    except Exception as thread_err:
+        logger.error(f"❌ Falha ao iniciar a thread de trading: {thread_err}")
 
     logger.info(f"✅ Frontend: {FRONTEND}")
     logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")

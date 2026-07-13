@@ -2339,7 +2339,19 @@
                             low: parseFloat(k[3]),
                             close: parseFloat(k[4]),
                             volume: parseFloat(k[5])
-                        })).sort((a, b) => a.time - b.time);
+                        })).filter(k => 
+                            k && 
+                            !isNaN(k.time) && 
+                            !isNaN(k.open) && 
+                            !isNaN(k.high) && 
+                            !isNaN(k.low) && 
+                            !isNaN(k.close) &&
+                            k.time !== null &&
+                            k.open !== null &&
+                            k.high !== null &&
+                            k.low !== null &&
+                            k.close !== null
+                        ).sort((a, b) => a.time - b.time);
 
                         // Safety check: Ensure chart is still active before updating
                         if (!isMounted.current || !chartRef.current || !seriesRef.current) return;

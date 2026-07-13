@@ -595,7 +595,17 @@ class BankrollGuardian:
         moonbags = await self._get_moonbags()
         history = await self._get_history()
 
-        configured = _safe_float(banca.get("configured_balance"), 0.0)
+        # [V126] Se estiver em modo PAPER, força a banca simulada do settings
+        if settings.OKX_EXECUTION_MODE == "PAPER":
+            sim_balance = float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0))
+            configured = sim_balance
+            if isinstance(banca, dict):
+                banca["saldo_total"] = sim_balance
+                banca["configured_balance"] = sim_balance
+                banca["saldo_real_okx"] = sim_balance
+        else:
+            configured = _safe_float(banca.get("configured_balance"), 0.0)
+
         base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
 
         active_slots = [

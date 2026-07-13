@@ -661,14 +661,8 @@ async def startup():
     else:
         logger.info("⏭️ [HERMES DASHBOARD v2] Desabilitado via HERMES_DASHBOARD_ENABLED=false")
 
-    if not FULL_TRADING_LOOPS:
-        logger.info("LOCAL_DEV_FULL_TRADING=0 - OKX/Radar/Captain loops disabled for responsive local frontend/API testing")
-        logger.info(f"✅ Frontend: {FRONTEND}")
-        logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")
-        return
-
     # Inicializa o OKX WebSocket Public (alimenta btc_price, btc_adx, etc.)
-    # Sem isso, o BTC fica com preço 0 no cockpit mesmo com captain/slots ativos.
+    # Sem isso, o BTC fica com preço 0 no cockpit e as ordens virtuais de Swing congelam.
     try:
         from services.okx_ws_public import okx_ws_public_service
         symbols = [f"{s}.P" for s in (settings.ELITE_40_MATRIX + settings.MASTER_CONTEXT_ASSETS)]
@@ -676,6 +670,12 @@ async def startup():
         logger.info(f"🟢 OKX WebSocket Public iniciado ({len(symbols)} símbolos) — BTC price feed ativo")
     except Exception as e:
         logger.error(f"❌ Falha ao iniciar OKX WebSocket Public: {e}")
+
+    if not FULL_TRADING_LOOPS:
+        logger.info("LOCAL_DEV_FULL_TRADING=0 - OKX/Radar/Captain loops disabled for responsive local frontend/API testing")
+        logger.info(f"✅ Frontend: {FRONTEND}")
+        logger.info(f"✅ Servidor pronto em http://localhost:{PORT}")
+        return
 
     # Inicia loops de trading (captain + signal generator).
     # O main.py raiz não dispara isso — fazemos aqui para o cockpit ter dados.

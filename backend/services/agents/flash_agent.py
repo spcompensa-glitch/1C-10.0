@@ -482,7 +482,6 @@ class FlashAgent:
         new_stop_roi = float(active_level.get("stop_roi") or 0)
         
         # [V126-LOCK-IN] Protocolo Lock-In de Defesa
-        from services.database_service import database_service
         if database_service.lock_in_active:
             from config import settings
             stop_pct = getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0)

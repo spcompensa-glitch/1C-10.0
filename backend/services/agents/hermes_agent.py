@@ -579,7 +579,45 @@ class HermesAgent(AIOSAgent):
             logger.debug(f"Hermes: snapshot live indisponível: {e_snap}")
             wiki_context += "\n\n## [LIVE SNAPSHOT] Ordens Abertas\nDados em tempo real temporariamente indisponíveis."
 
-        
+        # 4c. [V126] Inject SANDBOX & SWING LAB STATUS
+        try:
+            from services.database_service import database_service
+            
+            # Puxar métricas de banca consolidada em memória
+            virtual_balance = getattr(database_service, "current_consolidated_balance", 10000.0)
+            lock_in_active = getattr(database_service, "lock_in_active", False)
+            floor_balance = getattr(database_service, "lock_in_floor_balance", 10500.0)
+            trigger_balance = getattr(database_service, "lock_in_trigger_balance", 11000.0)
+            
+            # Buscar trades ativos do simulador
+            active_scalps = await database_service.get_sandbox_trades(active_only=True)
+            active_swings = await database_service.get_swing_trades(active_only=True)
+            
+            sandbox_lines = [f"\n\n## [STATUS DO SIMULADOR — SANDBOX & SWING LAB]"]
+            sandbox_lines.append(f"  Banca Consolidada Simulador: **${virtual_balance:.2f} USD**")
+            sandbox_lines.append(f"  Protocolo Lock-In de Defesa: **{'ATIVADO' if lock_in_active else 'INATIVO'}**")
+            sandbox_lines.append(f"    - Saldo de Gatilho: ${trigger_balance:.2f} | Piso de Defesa Garantido: ${floor_balance:.2f}")
+            sandbox_lines.append(f"  Posições de Scalping Ativas: **{len(active_scalps)}**")
+            if active_scalps:
+                for i, t in enumerate(active_scalps, 1):
+                    roi = float(t.current_roi or 0)
+                    roi_icon = "🟢" if roi >= 0 else "🔴"
+                    sandbox_lines.append(
+                        f"    Scalp {i}: {roi_icon} {t.symbol} ({t.direction}) | ROI: {roi:.2f}% | Entry: ${t.entry_price:.4f} | SL: ${t.stop_loss:.4f} | Estratégia: {t.strategy or 'N/A'}"
+                    )
+            sandbox_lines.append(f"  Posições de Swing Ativas: **{len(active_swings)}**")
+            if active_swings:
+                for i, t in enumerate(active_swings, 1):
+                    roi = float(t.current_roi or 0)
+                    roi_icon = "🟢" if roi >= 0 else "🔴"
+                    sandbox_lines.append(
+                        f"    Swing {i}: {roi_icon} {t.symbol} ({t.direction}) | ROI: {roi:.2f}% | Entry: ${t.entry_price:.4f} | SL: ${t.stop_loss:.4f} | Estratégia: {t.strategy or 'N/A'}"
+                    )
+            
+            wiki_context += "\n".join(sandbox_lines)
+        except Exception as e_sand:
+            logger.debug(f"Hermes: status do sandbox indisponível: {e_sand}")
+
         # 5. Generate response — CASCADE: NVIDIA → DeepSeek → AIService
         response = None
 

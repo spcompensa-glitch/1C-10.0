@@ -3,7 +3,7 @@
 Fonte unica de verdade arquitetural. Extraido diretamente do codigo-fonte (nao de historico de versoes).
 Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros ~8000 caracteres deste arquivo em cada resposta (`hermes_agent.py:_load_architecture_context`), portanto os fatos mais criticos ficam no topo.
 
-*Verificado contra o codigo em 2026-07-12. VERSION no codigo: `backend/main.py` VERSION="V124.7" / DEPLOYMENT_ID="V124.7_M30_SWING".*
+*Verificado contra o codigo em 2026-07-13. VERSION no codigo: `backend/main.py` VERSION="V124.7" / DEPLOYMENT_ID="V124.7_M30_SWING". Refinamentos [V127] (espelho PAPER Sandbox→Cockpit: saldo + ordens) aplicados sobre o V124.7 — ver Secao 8.6.*
 
 ---
 
@@ -15,6 +15,7 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 - **Backend**: FastAPI (Python 3.12-slim)
 - **Frontend**: HTML/JS standalone (`frontend/cockpit.html`, `sandbox.html`, `hermes-chat.html`, `memory_galaxy.html`)
 - **Exchange**: OKX (SWAP / Portfolio Margin). Modo `PAPER` (simulado) ou `REAL`, via `OKX_EXECUTION_MODE`.
+- **[V127] Semantica PAPER vs REAL (espelho do Cockpit)**: Em **PAPER**, o Cockpit (`cockpit.html`) representa o **Sandbox** — tanto o *Net Worth* (Banca Simulada Consolidada) quanto o *Painel de Custodia* (ordens ativas do Scalping Lab + Swing Lab). Em **REAL**, a OKX recebe as ordens scalping/swing do Sandbox (via `SWING_MIRROR_MODE`/espelhamento) e o Cockpit representa a banca real da OKX. Ver Secao 8.6.
 - **Plataforma**: Railway + Docker
 - **Persistencia**: PostgreSQL (SSOT) + Firebase (Firestore/RTDB) + SQLite (cache de klines)
 
@@ -40,6 +41,8 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 | `DECOR_HUNTER_MAX_SLOTS` / `MIN_CONFIDENCE` / `SCAN_INTERVAL` | 8 / 70 / 30s | `config.py:152-156` |
 
 **Swing Lab (`config.py:164-177`)**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200, `SWING_VIRTUAL_BALANCE`=$10.000, `SWING_SCAN_INTERVAL`=300s, `SWING_MIRROR_MODE`=OFF.
+
+> **[V127] Saldo exibido em PAPER**: `OKX_SIMULATED_BALANCE` e a base do Guardiao/sizing em PAPER, mas o *Net Worth* do Cockpit em PAPER NAO e `OKX_SIMULATED_BALANCE` — e a **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`, `database_service.py`: `BANCA_BASE` $10.000 + Σ(pnl_pct/100 × $200) sobre TODOS os trades Scalp+Swing). Ver Secao 8.6.
 
 > Nota: `bankroll.py` le `settings.MARGIN_PER_TRADE_*` (0.50) e `settings.MAX_SLOTS_*` (16). Comentarios legados em `bankroll.py` citam "$2.00/$1.00" e "20/40" — esses valores NAO refletem o config atual.
 
@@ -137,7 +140,7 @@ Swing 30M usa `SignalGenerator.analyze_m30_swing()` (reusa DVAP/MOLA/FAS/LRT + T
 - **CaptainAgent** (`agents/captain.py`) — despachante, quality gate, consenso de frota.
 - **OracleAgent** (`agents/oracle_agent.py`) — regime de mercado (ADX), estabilizacao 150s.
 - **FlashAgent** (`agents/flash_agent.py`) — motor da escadinha, ciclo 1s.
-- **BankrollGuardian** (`agents/bankroll_guardian.py`) — autorizacao de trade.
+- **BankrollGuardian** (`agents/bankroll_guardian.py`) — autorizacao de trade. **[V127]** Em PAPER, `evaluate_bank_health` fonteia `equity`/`saldo_real_okx` a partir da **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`) — e esse `equity` e o *Net Worth* exibido no Cockpit em PAPER (ver Secao 8.6). Em REAL, `equity` vem do saldo real da OKX.
 - **SlotOperator** (`agents/slot_operator.py`) — observador/failsafe, ciclo 3s.
 - **Bankroll** (`services/bankroll.py`) — abertura/gestao de posicao real.
 
@@ -201,6 +204,20 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - **Identificação**: O stop é marcado no banco e na UI como `LOCK-IN_5%` na fase de `DEFESA`.
 - **Desativação**: O protocolo só é inativado caso a banca consolidada recue abaixo do saldo inicial de $10.000.
 
+### 8.6 Espelho PAPER → Cockpit (V127)
+
+Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, para que o operador veja a carteira simulada como se fosse a real:
+
+- **Net Worth (Banca)**: vem da **Banca Simulada Consolidada do Sandbox** calculada por `DatabaseService.get_sandbox_unified_balance()` (`services/database_service.py`): `10000 + Σ(pnl_pct/100 × 200)` sobre **TODOS** os trades (fechados + ativos) de Scalping Lab e Swing Lab. Implementacao em SQL agregado (`SUM(pnl_pct)`) para evitar leitura de ORM destacado. Igual ao `virtual_balance` de `/api/sandbox/unified-state` (Secao 8.4).
+  - Consumido por: `bankroll.update_banca_status` (`saldo_total`/`configured_balance`/`paper_equity` = saldo do Sandbox; `saldo_real_okx` forçado a `0.0` em PAPER p/ o Cockpit flutuar a base com o PnL), `system.get_banca_data` (PAPER), e `bankroll_guardian.evaluate_bank_health` (PAPER, que define o `equity` exibido como Net Worth).
+- **Painel de Custodia (Ordens)**: `GET /api/slots` (`routes/trading.py`) e o broadcast WS `live_slots` (`main.py:slots_broadcast_loop`, a cada 5s) mesclam em PAPER as ordens ativas do Sandbox como slots:
+  - Scalping Lab → `slot_type="SCALPING"`; Swing Lab → `slot_type="SWING"`.
+  - Mapeamento via `_map_sandbox_trade_to_slot` (direction→side; entry_price/stop_loss/target → entry_price/current_stop/target_price; margin $200; leverage do settings).
+  - O PnL ao vivo de cada ordem e recalculado no `GET /api/slots` via `build_projection` (preco real da OKX); o WS mantem symbol/entry entre os polls.
+- **Net Worth no frontend**: `liveEquity` (`cockpit.html:6442-6449`) usa `guardianEquity` quando `guardianReport.equity > 0` — por isso o `equity` do Guardiao (agora = saldo do Sandbox em PAPER) e a fonte do Net Worth, e nao o `saldo_total` cru.
+
+> **Caveat conhecido**: o header "Slots X/20" / `available_slots_count` ainda reflete os slots reais (0 em PAPER), nao o count do Sandbox. Apenas o Painel de Custodia (posicoes) e o Net Worth sao espelhados.
+
 ---
 
 ## 9. Watchlists (fonte: `backend/config.py`)
@@ -218,13 +235,13 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 |---|---|---|
 | `/api/auth` | `auth.py` | `/login`, `/register`, `/refresh`, `/logout`, `/me`, `/change-password`, `/users`, `/users/{id}/role`, `/users/{id}/approve`, `/users/{id}/block` |
 | `/api/admin` | `admin.py` | `/users`, `/stats`, `/user/{username}/status`, `/lockdown`, `/reset-system` |
-| `/api/sandbox` | `sandbox.py` | `/trades`, `/stats`, `/patterns`, `/analytics`, `/clear` |
+| `/api/sandbox` | `sandbox.py` | `/unified-state` (Banca Simulada Consolidada — fonte do espelho PAPER), `/trades`, `/stats`, `/patterns`, `/analytics`, `/clear`, `/swing/trades`, `/swing/stats`, `/swing/patterns`, `/swing/analytics`, `/swing/clear`, `/swing/mirror-status`, `/swing/mirror-toggle` |
 | `/api/vault` | `vault.py` | `/save`, `/status` |
 | `/api/sentinel` | `sentinel.py` | Auditoria de execucao |
 | `/api/memory` | `memory_routes.py` | Memory Galaxy |
 | `/api/account` | `tokens.py` | Credenciais OKX por usuario |
 | `/api` | `market.py` | `/elite-pairs`, `/btc/regime`, `/radar/pulse`, `/radar/grid`, `/radar/librarian`, `/radar/regimes`, `/captain/tocaias`, `/trend/{symbol}`, `/market/klines`, `/system/state`, `/market/study` |
-| `/api` | `trading.py` | `/slots` |
+| `/api` | `trading.py` | `/slots` (em PAPER mescla ordens ativas do Sandbox: Scalp→SCALPING, Swing→SWING — Secao 8.6) |
 | `/api` | `chat.py` | `/hermes/chat`, `/hermes/compliance`, `/hermes/status`, `/hermes/sessions` (GET/POST), `/hermes/sessions/{id}` (GET/DELETE/PATCH), `/chat`, `/chat/manual`, `/chat/reset`, `/chat/status`, `/tts`, `/tts/voices`, `/logs` |
 | `/api` | `system.py` | `/test`, `/debug/test`, `/health` |
 | — | `dashboard.py`, `aios.py`, `backtest_routes.py` | SPA / AIOS / backtest |
@@ -270,6 +287,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 3. `get_slot_type()` em `bankroll.py` retorna sempre "DVAP" (V110.950) — diferenciacao de tipo de slot e vestigial.
 4. `radar_pulse` nao e arquivo: e estrutura de dados em `database_service`, `firebase_service` e `websocket_service`.
 5. Comentarios legados em `bankroll.py` ($2/$1, 20/40) divergem do `config.py` atual (0.50, 16/16) — o `config.py` prevalece.
+6. **[V127] Espelho PAPER Sandbox→Cockpit** (refinamento sobre o V124.7): em PAPER o *Net Worth* e o *Painel de Custodia* do Cockpit representam o Sandbox (Banca Simulada Consolidada via `get_sandbox_unified_balance` + ordens ativas Scalp/Swing como slots). `saldo_real_okx` e forçado a `0.0` em PAPER em `update_banca_status`. `OKX_SIMULATED_BALANCE` deixa de ser o saldo exibido em PAPER (subsituido pelo saldo do Sandbox), mas segue como base de sizing/guardian. Ver Secao 8.6.
 
 ---
 

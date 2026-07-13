@@ -1200,20 +1200,18 @@ class DatabaseService:
         try:
             scalp = await self.get_sandbox_trades(active_only=False)
             swing = await self.get_swing_trades(active_only=False)
-            active_scalp = [t for t in scalp if getattr(t, "status", None) == "ACTIVE"]
-            active_swing = [t for t in swing if getattr(t, "status", None) == "ACTIVE"]
 
             BANCA_BASE = 10000.0
             MARGEM_SCALP = 200.0
             MARGEM_SWING = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
 
             total_pnl_usd = 0.0
-            for t in active_scalp:
+            for t in scalp:
                 try:
                     total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SCALP
                 except (TypeError, ValueError):
                     pass
-            for t in active_swing:
+            for t in swing:
                 try:
                     total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SWING
                 except (TypeError, ValueError):

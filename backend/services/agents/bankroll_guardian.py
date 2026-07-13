@@ -159,7 +159,7 @@ class BankrollGuardian:
             if leverage >= 50.0:
                 return 4 * 60 * 60  # [V126] Quarentena de 4 horas para Tilt Algorítmico em alta alavancagem
             return 30 * 60  # 30 minutos em outras alavancagens
-        if "STOP" in reason or roi <= -100.0 or pnl <= -3.0:
+        if "STOP" in reason or roi <= -10000.0 or pnl <= -3.0:
             return 15 * 60  # Reduzido de 6h para 15 minutos
         if roi <= -50.0 or pnl <= -1.0:
             return 10 * 60  # Reduzido de 2h para 10 minutos
@@ -290,7 +290,7 @@ class BankrollGuardian:
             if entry > 0 and qty > 0 and leverage > 0:
                 margin = (entry * qty * ct_val) / leverage
 
-        return (roi / 100.0) * margin if margin > 0 else 0.0
+        return (roi / 10000.0) * margin if margin > 0 else 0.0
 
     def _position_stop_roi(self, position: Dict[str, Any]) -> Optional[float]:
         entry = _safe_float(position.get("entry_price") or position.get("entry"), 0.0)
@@ -334,7 +334,7 @@ class BankrollGuardian:
             if entry > 0 and qty > 0 and leverage > 0:
                 margin = (entry * qty * ct_val) / leverage
 
-        return max(0.0, (stop_roi / 100.0) * margin) if margin > 0 else 0.0
+        return max(0.0, (stop_roi / 10000.0) * margin) if margin > 0 else 0.0
 
     def _realized_pnl_usd(self, history: List[Dict[str, Any]]) -> float:
         return sum(_safe_float(trade.get("pnl"), 0.0) for trade in history)
@@ -384,7 +384,7 @@ class BankrollGuardian:
     ) -> Dict[str, Any]:
         max_regime_slots = 20 if is_ranging_mode else 40
         if base_balance <= 0:
-            base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
+            base_balance = _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0), 10000.0)
 
         if self.peak_equity <= 0:
             self.peak_equity = max(equity, base_balance)
@@ -606,7 +606,7 @@ class BankrollGuardian:
         else:
             configured = _safe_float(banca.get("configured_balance"), 0.0)
 
-        base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 100.0), 100.0)
+        base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0), 10000.0)
 
         active_slots = [
             s for s in slots

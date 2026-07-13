@@ -1172,6 +1172,7 @@ class DatabaseService:
                         if hasattr(obj, k):
                             setattr(obj, k, v)
                     await session.commit()
+                    logger.info(f"⚡ [DEBUG] update_swing_trade({trade_id}) data={data}")
                     return True
             except Exception as e:
                 logger.error(f"Error updating swing trade {trade_id}: {e}")

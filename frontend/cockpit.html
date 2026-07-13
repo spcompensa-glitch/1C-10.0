@@ -2350,7 +2350,9 @@
                             k.open !== null &&
                             k.high !== null &&
                             k.low !== null &&
-                            k.close !== null
+                            k.close !== null &&
+                            k.volume !== null &&
+                            !isNaN(k.volume)
                         ).sort((a, b) => a.time - b.time);
 
                         // Safety check: Ensure chart is still active before updating

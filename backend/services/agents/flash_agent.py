@@ -315,7 +315,24 @@ class FlashAgent:
         tasks = [self._process_sandbox_swing_trade(trade) for trade in active_swings]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _process_sandbox_swing_trade(self, trade):
+    def _safe_flash_state(self, trade) -> dict:
+        import json
+        fs = trade.flash_state
+        if not fs:
+            return {}
+        if isinstance(fs, dict):
+            return dict(fs)
+        if isinstance(fs, str):
+            try:
+                # Some JSON implementations (like SQLite fallback) might return strings
+                parsed = json.loads(fs.replace("'", '"'))
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {"active_level": fs}
+        return {}
+
+    async def _process_sandbox_swing_trade(self, trade: Any):
         """Processa um trade virtual ativo do Swing Lab usando o motor unificado do FlashAgent."""
         trade_id = trade.id
         symbol = trade.symbol
@@ -384,7 +401,7 @@ class FlashAgent:
                 (side == "sell" and stop_triggered <= entry_price)
             )
             status = "CLOSED_TRAILING" if is_profit_stop else "CLOSED_SL"
-            fs = dict(trade.flash_state or {})
+            fs = self._safe_flash_state(trade)
             fs["history"] = fs.get("history", []) + [{
                 "ts": time.time(), "event": status, "roi": round(roi, 2),
                 "price": current_price, "stop_triggered": stop_triggered,
@@ -475,7 +492,7 @@ class FlashAgent:
                 active_level["name"] = "LOCK_IN_5%"
                 active_level["phase"] = "DEFESA"
                 
-                flash_state = dict(trade.flash_state or {})
+                flash_state = self._safe_flash_state(trade)
                 history = list(flash_state.get("history", []))
                 if not any("LOCK_IN" in str(h) for h in history[-2:]):
                     history.append({
@@ -497,7 +514,7 @@ class FlashAgent:
 
         stop_improved = self._stop_improves(side, current_stop, new_stop_price)
         if stop_improved:
-            flash_state = dict(trade.flash_state or {})
+            flash_state = self._safe_flash_state(trade)
             flash_state["stop_roi"] = new_stop_roi
             flash_state["active_level"] = active_level.get("name") or "ESCADINHA"
             

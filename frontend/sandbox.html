@@ -1270,6 +1270,7 @@
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${levelHtml}</td>
+                            <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * currentSwingMargin).toFixed(2)} USD</td>
                             <td class="p-4 font-mono text-xs">${t.cvd_value ? (t.cvd_value / 1000).toFixed(0) + 'k' : '0k'}</td>

@@ -425,12 +425,17 @@
                 <!-- Banca Consolidada -->
                 <div class="glass-panel p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[120px]">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl"></div>
-                    <div>
-                        <span class="text-xs text-gray-500 font-mono uppercase tracking-wider">Banca Simulada Consolidada</span>
-                        <div class="flex items-baseline gap-2 mt-1">
-                            <span id="unified-balance" class="text-3xl font-extrabold text-white font-mono">$10,000.00</span>
-                            <span class="text-xs text-gray-400 font-mono">USD</span>
+                    <div class="flex justify-between items-start w-full">
+                        <div>
+                            <span class="text-xs text-gray-500 font-mono uppercase tracking-wider">Banca Simulada Consolidada</span>
+                            <div class="flex items-baseline gap-2 mt-1">
+                                <span id="unified-balance" class="text-3xl font-extrabold text-white font-mono">$10,000.00</span>
+                                <span class="text-xs text-gray-400 font-mono">USD</span>
+                            </div>
                         </div>
+                        <span id="lock-in-badge" class="px-2 py-1 rounded text-[10px] font-mono font-bold bg-amber-500/25 text-amber-400 border border-amber-500/40 animate-pulse hidden" style="box-shadow: 0 0 10px rgba(245, 158, 11, 0.2)">
+                            🔒 LOCK-IN
+                        </span>
                     </div>
                     <div class="flex items-center gap-2 text-xs mt-2">
                         <span class="text-gray-400 font-mono">Retorno:</span>
@@ -1214,6 +1219,19 @@
                 const pnlSign = t.pnl_pct > 0 ? '+' : '';
                 const stopRoiText = t.flash_state?.stop_roi !== undefined ? ` (${t.flash_state.stop_roi >= 0 ? '+' : ''}${t.flash_state.stop_roi.toFixed(0)}%)` : '';
 
+                // LOCK-IN visual customization
+                let levelText = t.flash_state?.active_level || 'INICIAL';
+                let levelHtml = `<span class="font-semibold text-cyberOrange">${levelText}</span>`;
+                if (levelText.includes('LOCK_IN')) {
+                    levelHtml = `<span class="font-extrabold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20">🔒 LOCK-IN</span>`;
+                }
+
+                let phaseText = t.flash_state?.phase || 'N/A';
+                let phaseHtml = `<span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">${phaseText}</span>`;
+                if (phaseText === 'DEFESA' || phaseText === 'LOCK_IN') {
+                    phaseHtml = `<span class="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-mono font-bold animate-pulse">DEFESA</span>`;
+                }
+
                 if (currentTab === 'scalping') {
                     return `
                         <tr class="trade-row">
@@ -1231,11 +1249,11 @@
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}<span class="text-[10px] text-gray-500 ml-1">${stopRoiText}</span></td>
-                            <td class="p-4 font-mono text-xs font-semibold text-cyberOrange">${t.flash_state?.active_level || 'INICIAL'}</td>
+                            <td class="p-4 font-mono text-xs">${levelHtml}</td>
                             <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * 200.00).toFixed(2)} USD</td>
-                            <td class="p-4"><span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">${t.flash_state?.phase || 'N/A'}</span></td>
+                            <td class="p-4">${phaseHtml}</td>
                             <td class="p-4">${statusBadge}</td>
                             <td class="p-4 text-center"><button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400"><span class="material-icons-round text-sm">visibility</span></button></td>
                         </tr>
@@ -1251,14 +1269,14 @@
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}</td>
-                            <td class="p-4 font-mono text-xs font-semibold text-cyberOrange">${t.flash_state?.active_level || 'INICIAL'}</td>
+                            <td class="p-4 font-mono text-xs">${levelHtml}</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * currentSwingMargin).toFixed(2)} USD</td>
                             <td class="p-4 font-mono text-xs">${t.cvd_value ? (t.cvd_value / 1000).toFixed(0) + 'k' : '0k'}</td>
                             <td class="p-4 font-mono text-xs">${t.volume_ratio ? t.volume_ratio.toFixed(1) + 'x' : '1.0x'}</td>
                             <td class="p-4 font-mono text-xs text-cyberPurple">${t.strategy || 'VELOCITY FLOW'}</td>
                             <td class="p-4 font-mono text-xs">${renderExplosionBadge(t)}</td>
-                            <td class="p-4"><span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono font-bold">${t.flash_state?.phase || 'N/A'}</span></td>
+                            <td class="p-4">${phaseHtml}</td>
                             <td class="p-4">${statusBadge}</td>
                             <td class="p-4 text-center"><button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400"><span class="material-icons-round text-sm">visibility</span></button></td>
                         </tr>
@@ -1378,6 +1396,16 @@
                     pnlBadge.className = 'px-2 py-0.5 rounded font-mono font-bold bg-white/5 text-white';
                 }
                 pnlUsd.innerText = `(${sign}$${state.total_pnl_usd.toFixed(2)})`;
+
+                // Update Lock-In Status Badge
+                const lockInBadge = document.getElementById('lock-in-badge');
+                if (state.lock_in_active) {
+                    lockInBadge.classList.remove('hidden');
+                    lockInBadge.innerText = `🔒 LOCK-IN (-${state.lock_in_stop_percent}%)`;
+                    lockInBadge.title = `Gatilho: $${state.lock_in_trigger_balance.toFixed(2)} | Piso Defesa: $${state.lock_in_floor_balance.toFixed(2)}`;
+                } else {
+                    lockInBadge.classList.add('hidden');
+                }
 
                 // 2. Margem Alocada
                 document.getElementById('unified-margin-ratio').innerText = `$${state.allocated_margin_usd.toFixed(2)} / $${state.max_margin_usd.toFixed(2)}`;

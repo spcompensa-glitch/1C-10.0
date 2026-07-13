@@ -194,6 +194,13 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 ### 8.4 Constantes de banca do Sandbox UI (`routes/sandbox.py`)
 `BANCA_BASE`=$10.000 (:20) · `MARGEM_SCALP`=$200 (:21) · `MARGEM_SWING`=$200 (:22) · alocacao maxima = 40% = $4.000 (:53).
 
+### 8.5 Protocolo Lock-In (Proteção de Banca — V126)
+- **Objetivo**: Proteger o capital simulado acumulado quando a banca atinge a meta mínima de crescimento.
+- **Ativação**: Ocorre automaticamente quando o saldo consolidado (banca + PnL aberto de Scalp e Swing) cresce 10% (gatilho configurado em `SANDBOX_LOCK_IN_TRIGGER_PERCENT` padrão 10.0%, ou seja, >= $11.000).
+- **Ação**: O stop loss das ordens ativas passa a ser recalculado de forma colada a 5% de recuo da margem de entrada por trade (`SANDBOX_LOCK_IN_STOP_PERCENT` padrão 5.0%), equivalente a 5.0% de ROI ou 0.10% de oscilação do preço do ativo a partir do pico.
+- **Identificação**: O stop é marcado no banco e na UI como `LOCK-IN_5%` na fase de `DEFESA`.
+- **Desativação**: O protocolo só é inativado caso a banca consolidada recue abaixo do saldo inicial de $10.000.
+
 ---
 
 ## 9. Watchlists (fonte: `backend/config.py`)

@@ -282,6 +282,12 @@ class DatabaseService:
             self.engine, class_=AsyncSession, expire_on_commit=False
         )
         self.is_active = False
+        
+        # [V126-LOCK-IN] Controle em memória para o Protocolo de Defesa de Lucros
+        self.lock_in_active = False
+        self.lock_in_floor_balance = 10000.0
+        self.lock_in_trigger_balance = 11000.0
+        self.current_consolidated_balance = 10000.0
 
     async def initialize(self):
         """Inicializa as tabelas no banco de dados."""

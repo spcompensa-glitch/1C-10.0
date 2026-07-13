@@ -21,6 +21,10 @@ class SandboxService:
         self._process_lock = asyncio.Lock()
         self._processed_signals = set()
 
+        # [V126-LOCK-IN] Variáveis para controle local e cache de saldo consolidado
+        self.base_balance_cache = 10000.0
+        self.last_balance_recalc = 0.0
+
         # Cache de preco (fallback quando WS falha) — espelha FlashAgent
         self._last_price_cache: Dict[str, float] = {}
         self._last_price_cache_ts: Dict[str, float] = {}
@@ -1272,7 +1276,62 @@ class SandboxService:
         last_blocklist_check = 0.0
         while self.is_running:
             try:
-                active_trades = await database_service.get_sandbox_trades(active_only=True)
+                # [V126-LOCK-IN] Recalcular saldo consolidado e controlar o Protocolo Lock-In
+                now_ts = time.time()
+                from config import settings
+                
+                # A cada 10 segundos, atualiza o saldo fechado (base) do Sandbox
+                if now_ts - self.last_balance_recalc >= 10.0 or self.last_balance_recalc == 0.0:
+                    try:
+                        all_scalps = await database_service.get_sandbox_trades(active_only=False)
+                        all_swings = await database_service.get_swing_trades(active_only=False)
+                        
+                        closed_pnl_usd = 0.0
+                        for t in all_scalps:
+                            if t.status != "ACTIVE":
+                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * 200.00
+                        for t in all_swings:
+                            if t.status != "ACTIVE":
+                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * 200.00
+                                
+                        self.base_balance_cache = 10000.0 + closed_pnl_usd
+                        self.last_balance_recalc = now_ts
+                    except Exception as e:
+                        logger.error(f"[LOCK-IN] Erro ao recalcular saldo fechado base: {e}")
+                
+                # A cada segundo, adiciona o PnL aberto de todos os trades ativos (scalp + swing)
+                active_trades_for_pnl = await database_service.get_sandbox_trades(active_only=True)
+                active_pnl_usd = 0.0
+                for t in active_trades_for_pnl:
+                    active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * 200.00
+                
+                try:
+                    active_swings = await database_service.get_swing_trades(active_only=True)
+                    for t in active_swings:
+                        active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * 200.00
+                except Exception:
+                    pass
+                
+                # Saldo consolidado
+                consolidated = self.base_balance_cache + active_pnl_usd
+                database_service.current_consolidated_balance = consolidated
+                
+                # Configurar limites com base no config.py
+                trigger_pct = getattr(settings, "SANDBOX_LOCK_IN_TRIGGER_PERCENT", 10.0)
+                database_service.lock_in_trigger_balance = 10000.0 * (1 + trigger_pct / 100.0)
+                database_service.lock_in_floor_balance = 10000.0 * (1 + (trigger_pct / 2.0) / 100.0)
+                
+                # Gatilho de Ativação do Protocolo
+                if consolidated >= database_service.lock_in_trigger_balance:
+                    if not database_service.lock_in_active:
+                        database_service.lock_in_active = True
+                        logger.warning(f"🔒 [LOCK-IN-ACTIVATED] Banca consolidada atingiu ${consolidated:.2f}! Protocolo de Defesa Ativo.")
+                elif consolidated <= 10000.0:
+                    if database_service.lock_in_active:
+                        database_service.lock_in_active = False
+                        logger.info("🛡️ [LOCK-IN-DEACTIVATED] Banca recuou abaixo do valor inicial. Protocolo inativado.")
+
+                active_trades = active_trades_for_pnl
                 if not active_trades:
                     await asyncio.sleep(1.0)
                     continue
@@ -1422,6 +1481,19 @@ class SandboxService:
                 updated_phase = active_level.phase
                 history.append(f"Subiu degrau para {active_level.name} (Stop: {new_stop_roi}% ROI) no preço {current_price}")
                 logger.info(f"🧪 [SANDBOX-FLASH] {symbol} subiu para {active_level.name} (SL {new_stop_roi}% ROI)")
+
+        # [V126-LOCK-IN] Protocolo Lock-In de Defesa
+        if database_service.lock_in_active:
+            from config import settings
+            stop_pct = getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0)
+            lock_in_stop_roi = max_roi - stop_pct
+            if lock_in_stop_roi > updated_stop_roi:
+                updated_stop_roi = lock_in_stop_roi
+                updated_level_name = "LOCK_IN_5%"
+                updated_phase = "DEFESA"
+                if not any("LOCK_IN" in str(h) for h in history[-2:]):
+                    history.append(f"[LOCK-IN] Stop de Defesa ativado: stop em {lock_in_stop_roi:.1f}% ROI (-5.0% do pico de {max_roi:.1f}%)")
+                    logger.warning(f"🔒 [SANDBOX-LOCK-IN] {symbol} stop de defesa recalculado para {lock_in_stop_roi:.1f}% ROI")
 
         # 10. Stop price com tick_size rounding
         stop_price = proj_service.raw_price_from_roi(entry_price, updated_stop_roi, side, leverage)

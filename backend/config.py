@@ -176,6 +176,15 @@ class Settings(BaseSettings):
     # Intervalo entre scans do Swing Lab em segundos (padrão 5 minutos)
     SWING_SCAN_INTERVAL: int = int(os.getenv("SWING_SCAN_INTERVAL", 300))
 
+    # =========================================================================
+    # [LOCK-IN-PROTOCOL] Protocolo de Defesa de Lucros (Sandbox e Swing Lab)
+    # =========================================================================
+    # Gatilho de ativação do protocolo (crescimento da banca em %)
+    SANDBOX_LOCK_IN_TRIGGER_PERCENT: float = float(os.getenv("SANDBOX_LOCK_IN_TRIGGER_PERCENT", 10.0))
+    # Recuo de margem aceito por trade antes de fechar no stop de defesa (em %)
+    # 5% da margem ($10.00 de oscilação em trade de $200)
+    SANDBOX_LOCK_IN_STOP_PERCENT: float = float(os.getenv("SANDBOX_LOCK_IN_STOP_PERCENT", 5.0))
+
     @field_validator('SWING_MIRROR_MODE', mode='before')
     @classmethod
     def strip_swing_mirror_mode(cls, v):

@@ -41,6 +41,7 @@ async def get_unified_sandbox_state():
         allocated_margin = (active_scalp * MARGEM_SCALP) + (active_swing * MARGEM_SWING)
         allocation_pct = (allocated_margin / (BANCA_BASE * 0.40)) * 100.0 if BANCA_BASE > 0 else 0.0
         
+        from config import settings
         return {
             "virtual_balance": round(current_balance, 2),
             "total_pnl_usd": round(total_pnl_usd, 2),
@@ -51,7 +52,12 @@ async def get_unified_sandbox_state():
             "allocated_margin_usd": round(allocated_margin, 2),
             "allocation_percent": round(allocation_pct, 1),
             "max_margin_usd": round(BANCA_BASE * 0.40, 2),
-            "max_slots": 20
+            "max_slots": 20,
+            # [V126-LOCK-IN] Telemetria do Protocolo Lock-In
+            "lock_in_active": getattr(database_service, "lock_in_active", False),
+            "lock_in_trigger_balance": getattr(database_service, "lock_in_trigger_balance", 11000.0),
+            "lock_in_floor_balance": getattr(database_service, "lock_in_floor_balance", 10500.0),
+            "lock_in_stop_percent": getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao compilar telemetria unificada: {str(e)}")

@@ -463,8 +463,34 @@ class FlashAgent:
             return
 
         new_stop_roi = float(active_level.get("stop_roi") or 0)
+        
+        # [V126-LOCK-IN] Protocolo Lock-In de Defesa
+        from services.database_service import database_service
+        if database_service.lock_in_active:
+            from config import settings
+            stop_pct = getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0)
+            lock_in_stop_roi = peak_roi - stop_pct
+            if lock_in_stop_roi > new_stop_roi:
+                new_stop_roi = lock_in_stop_roi
+                active_level["name"] = "LOCK_IN_5%"
+                active_level["phase"] = "DEFESA"
+                
+                flash_state = dict(trade.flash_state or {})
+                history = list(flash_state.get("history", []))
+                if not any("LOCK_IN" in str(h) for h in history[-2:]):
+                    history.append({
+                        "ts": time.time(),
+                        "event": "LOCK_IN_DEFESA",
+                        "roi": round(roi, 2),
+                        "price": current_price,
+                        "stop_triggered": await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol),
+                        "level": "LOCK_IN_5%"
+                    })
+                    flash_state["history"] = history
+                    trade.flash_state = flash_state
+
         new_stop_price = float(decision_projection.get("recommended_stop") or 0)
-        if new_stop_price <= 0 and new_stop_roi != 0:
+        if (new_stop_price <= 0 and new_stop_roi != 0) or database_service.lock_in_active:
             new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)
         if new_stop_price <= 0:
             return

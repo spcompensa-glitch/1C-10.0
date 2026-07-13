@@ -517,11 +517,8 @@ class DatabaseService:
             obj = await session.get(BancaStatus, 1)
             if obj:
                 res = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-                # [V125 FIX] Força saldo_total e configured_balance no modo PAPER
-                from config import settings
-                if settings.OKX_EXECUTION_MODE == "PAPER":
-                    res["saldo_total"] = 100.0
-                    res["configured_balance"] = 100.0
+                # [V127] Em PAPER o saldo_total/configured_balance é definido pelo bankroll/update_banca_status
+                # (espelho da Banca do Sandbox). Não forçar valores fixos aqui.
                 return res
             return {"saldo_total": 0, "risco_real_percent": 0, "slots_disponiveis": 4, "status": "UNKNOWN"}
 
@@ -1200,6 +1197,10 @@ class DatabaseService:
         try:
             scalp = await self.get_sandbox_trades(active_only=False)
             swing = await self.get_swing_trades(active_only=False)
+            # [V127] Converte para dict IMEDIATAMENTE (padrão comprovado do merge de ordens)
+            # para evitar erros de acesso a atributos em objetos ORM destacados.
+            scalp = [self._to_dict(t) for t in scalp]
+            swing = [self._to_dict(t) for t in swing]
 
             BANCA_BASE = 10000.0
             MARGEM_SCALP = 200.0
@@ -1208,20 +1209,32 @@ class DatabaseService:
             total_pnl_usd = 0.0
             for t in scalp:
                 try:
-                    total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SCALP
+                    total_pnl_usd += (float(t.get("pnl_pct", 0) or 0) / 100.0) * MARGEM_SCALP
                 except (TypeError, ValueError):
                     pass
             for t in swing:
                 try:
-                    total_pnl_usd += (float(getattr(t, "pnl_pct", 0) or 0) / 100.0) * MARGEM_SWING
+                    total_pnl_usd += (float(t.get("pnl_pct", 0) or 0) / 100.0) * MARGEM_SWING
                 except (TypeError, ValueError):
                     pass
 
             current_balance = BANCA_BASE + total_pnl_usd
+            logger.info(f"[V127] Sandbox unified balance = {current_balance:.2f} (scalp={len(scalp)}, swing={len(swing)}, pnl_usd={total_pnl_usd:.2f})")
             return round(current_balance, 2)
         except Exception as e:
-            logger.error(f"Error computing sandbox unified balance: {e}")
+            logger.exception(f"[V127] Erro ao calcular saldo unificado do Sandbox: {e}")
             return 10000.0
+
+    @staticmethod
+    def _to_dict(obj):
+        if obj is None:
+            return {}
+        if isinstance(obj, dict):
+            return obj
+        try:
+            return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+        except Exception:
+            return {}
 
     # ==================== PHASE DETECTOR HISTORY (V120) ====================
 

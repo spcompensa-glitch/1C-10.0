@@ -30,6 +30,9 @@ def get_engine():
     global engine, SessionLocal
     if engine is None:
         db_url = settings.DATABASE_URL
+        # Converter string de conexão assíncrona para síncrona se necessário para o SQLAlchemy tradicional
+        if db_url and "sqlite+aiosqlite" in db_url:
+            db_url = db_url.replace("sqlite+aiosqlite", "sqlite")
         # Ignorar placeholders inválidos do Windows
         if db_url and "<sua_url_do_postgres>" in db_url:
             logger.warning(f"DATABASE_URL contém placeholder inválido. Usando SQLite local.")

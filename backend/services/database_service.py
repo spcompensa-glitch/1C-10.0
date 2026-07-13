@@ -1192,49 +1192,30 @@ class DatabaseService:
         [V127] Retorna a Banca Simulada Consolidada do Sandbox (Scalping Lab + Swing Lab),
         espelhada exatamente pelo endpoint /api/sandbox/unified-state.
         Em PAPER mode esta deve ser a 'Banca' exibida no Cockpit.
+        Usa agregação SQL (SUM) para evitar leitura de atributos de ORM destacado.
         """
         from config import settings
+        from sqlalchemy import select, func
         try:
-            scalp = await self.get_sandbox_trades(active_only=False)
-            swing = await self.get_swing_trades(active_only=False)
-            # [V127] Converte para dict IMEDIATAMENTE (padrão comprovado do merge de ordens)
-            # para evitar erros de acesso a atributos em objetos ORM destacados.
-            scalp = [self._to_dict(t) for t in scalp]
-            swing = [self._to_dict(t) for t in swing]
+            async with self.AsyncSessionLocal() as session:
+                scalp_sum = await session.execute(
+                    select(func.coalesce(func.sum(SandboxTrade.pnl_pct), 0.0))
+                )
+                swing_sum = await session.execute(
+                    select(func.coalesce(func.sum(SandboxSwingTrade.pnl_pct), 0.0))
+                )
+                scalp_pnl = float(scalp_sum.scalar() or 0.0)
+                swing_pnl = float(swing_sum.scalar() or 0.0)
 
-            BANCA_BASE = 10000.0
-            MARGEM_SCALP = 200.0
-            MARGEM_SWING = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
-
-            total_pnl_usd = 0.0
-            for t in scalp:
-                try:
-                    total_pnl_usd += (float(t.get("pnl_pct", 0) or 0) / 100.0) * MARGEM_SCALP
-                except (TypeError, ValueError):
-                    pass
-            for t in swing:
-                try:
-                    total_pnl_usd += (float(t.get("pnl_pct", 0) or 0) / 100.0) * MARGEM_SWING
-                except (TypeError, ValueError):
-                    pass
-
-            current_balance = BANCA_BASE + total_pnl_usd
-            logger.info(f"[V127] Sandbox unified balance = {current_balance:.2f} (scalp={len(scalp)}, swing={len(swing)}, pnl_usd={total_pnl_usd:.2f})")
+            margin_scalp = 200.0
+            margin_swing = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
+            total_pnl_usd = (scalp_pnl / 100.0) * margin_scalp + (swing_pnl / 100.0) * margin_swing
+            current_balance = 10000.0 + total_pnl_usd
+            logger.info(f"[V127] Sandbox unified balance = {current_balance:.2f} (scalp_pnl={scalp_pnl}, swing_pnl={swing_pnl})")
             return round(current_balance, 2)
         except Exception as e:
             logger.exception(f"[V127] Erro ao calcular saldo unificado do Sandbox: {e}")
             return 10000.0
-
-    @staticmethod
-    def _to_dict(obj):
-        if obj is None:
-            return {}
-        if isinstance(obj, dict):
-            return obj
-        try:
-            return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-        except Exception:
-            return {}
 
     # ==================== PHASE DETECTOR HISTORY (V120) ====================
 

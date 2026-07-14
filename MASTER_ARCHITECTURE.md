@@ -40,7 +40,7 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 | `OKX_SIMULATED_BALANCE` | $100 (padrao) | `config.py:22` |
 | `DECOR_HUNTER_MAX_SLOTS` / `MIN_CONFIDENCE` / `SCAN_INTERVAL` | 8 / 70 / 30s | `config.py:152-156` |
 
-**Swing Lab (`config.py:164-181`)**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200, `SWING_VIRTUAL_BALANCE`=$10.000, `SWING_SCAN_INTERVAL`=300s, `SWING_MIRROR_MODE`=OFF, `SWING_STOP_ROI`=10.0 (stop inicial -10% ROI = 0.2% preco com 50x).
+**Swing Lab (`config.py:164-181`)**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200, `SWING_VIRTUAL_BALANCE`=$10.000, `SWING_SCAN_INTERVAL`=300s, `SWING_MIRROR_MODE`=OFF, `SWING_STOP_ROI`=15.0 (stop inicial -15% ROI = 0.3% preco com 50x).
 
 > **[V127] Saldo exibido em PAPER**: `OKX_SIMULATED_BALANCE` e a base do Guardiao/sizing em PAPER, mas o *Net Worth* do Cockpit em PAPER NAO e `OKX_SIMULATED_BALANCE` — e a **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`, `database_service.py`: `BANCA_BASE` $10.000 + Σ(pnl_pct/100 × $200) sobre TODOS os trades Scalp+Swing). Ver Secao 8.6.
 
@@ -192,7 +192,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 ### 8.3 Swing Lab — M30 (`services/sandbox_swing_service.py`)
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
 - Banca $10.000, margem $200/trade, 50x.
-- **Stop inicial -10% ROI** (`SWING_STOP_ROI=10.0`): `stop_price = entry × (1 - 0.10/50) = entry × 0.998` (0.2% de oscilacao do preco).
+- **Stop inicial -15% ROI** (`SWING_STOP_ROI=15.0`): `stop_price = entry × (1 - 0.15/50) = entry × 0.997` (0.3% de oscilacao do preco).
 - **Breakeven +2% ROI** (V128): protecao mais cedo, stop em 0% quando trade atinge +2% ROI.
 - **Filtro de regime** (V128): bearish → so opera SHORT; bullish → so LONG.
 - **Filtro de horario** (V128): pausa 14:00-15:00 UTC (pico de losses historico).

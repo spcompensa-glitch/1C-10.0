@@ -252,7 +252,8 @@ class SandboxScalpingEngine:
         from services.database_service import database_service
         from config import settings
 
-        active_scalp = await database_service.get_sandbox_trades(active_only=True)
+        all_active = await database_service.get_sandbox_trades(active_only=True)
+        active_scalp = [t for t in all_active if t.strategy == "VWAP SNIPER"]
         if len(active_scalp) >= _MAX_SLOTS:
             logger.debug(f"[VWAP-SNIPER] Slots cheios ({len(active_scalp)}/{_MAX_SLOTS}).")
             return
@@ -292,8 +293,9 @@ class SandboxScalpingEngine:
 
         logger.info(f"[VWAP-SNIPER] {len(signals)} setup(s) qualificado(s).")
         for sig in signals:
-            fresh = await database_service.get_sandbox_trades(active_only=True)
-            if len(fresh) >= _MAX_SLOTS:
+            fresh_all = await database_service.get_sandbox_trades(active_only=True)
+            fresh_scalp = [t for t in fresh_all if t.strategy == "VWAP SNIPER"]
+            if len(fresh_scalp) >= _MAX_SLOTS:
                 break
             opened = await self._try_open_trade(sig)
             if opened:
@@ -313,10 +315,7 @@ class SandboxScalpingEngine:
 
             norm = symbol.replace('.P', '').upper()
             
-            # Filtro Blocklist
-            blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
-            if norm in blocklist:
-                return None
+            # [V128] Watchlist independente — sem blocklist do Swing
 
             score = 0
             log   = []
@@ -354,6 +353,7 @@ class SandboxScalpingEngine:
                 q = select(SandboxTrade).where(
                     SandboxTrade.symbol == norm,
                     SandboxTrade.direction == direction,
+                    SandboxTrade.strategy == "VWAP SNIPER",
                     SandboxTrade.status != "ACTIVE"
                 ).order_by(desc(SandboxTrade.closed_at)).limit(1)
                 res = await session.execute(q)
@@ -362,7 +362,8 @@ class SandboxScalpingEngine:
                     if last_closed.pnl_pct <= 0:
                         q_consec = select(SandboxTrade).where(
                             SandboxTrade.symbol == norm,
-                            SandboxTrade.direction == direction
+                            SandboxTrade.direction == direction,
+                            SandboxTrade.strategy == "VWAP SNIPER"
                         ).order_by(desc(SandboxTrade.opened_at)).limit(5)
                         res_consec = await session.execute(q_consec)
                         recent_trades = res_consec.scalars().all()
@@ -498,8 +499,9 @@ class SandboxScalpingEngine:
             direction = signal['direction']
             score     = signal['score']
 
-            # Anti-duplicata por simbolo+direcao
-            active = await database_service.get_sandbox_trades(active_only=True)
+            # Anti-duplicata por simbolo+direcao (apenas VWAP SNIPER)
+            all_active = await database_service.get_sandbox_trades(active_only=True)
+            active = [t for t in all_active if t.strategy == "VWAP SNIPER"]
             if any(t.symbol.replace('.P', '').upper() == symbol and t.direction == direction
                    for t in active):
                 return False

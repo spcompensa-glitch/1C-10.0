@@ -873,24 +873,27 @@
             } else {
                 headerRow.innerHTML = `
                     <th class="p-4">Ativo</th>
-                    <th class="p-4">Score M30</th>
+                    <th class="p-4">Score</th>
                     <th class="p-4">Fib Zone</th>
-                    <th class="p-4">SMA Cross</th>
-                    <th class="p-4">Direção</th>
+                    <th class="p-4">SMA</th>
+                    <th class="p-4">Dir</th>
                     <th class="p-4">Entrada</th>
-                    <th class="p-4">Preço Atual / Saída</th>
-                    <th class="p-4">Stop Loss</th>
-                    <th class="p-4">Nível Stop</th>
+                    <th class="p-4">Atual</th>
+                    <th class="p-4">Stop + Dist</th>
+                    <th class="p-4">Nível</th>
                     <th class="p-4">ROI Máx</th>
                     <th class="p-4">ROI Atual</th>
-                    <th class="p-4">Lucro (USD)</th>
+                    <th class="p-4">R:R</th>
+                    <th class="p-4">Lucro</th>
                     <th class="p-4">CVD</th>
-                    <th class="p-4">Vol Ratio</th>
+                    <th class="p-4">Vol</th>
                     <th class="p-4">Doutrina</th>
+                    <th class="p-4">Padrão</th>
                     <th class="p-4">Explosion</th>
-                    <th class="p-4">Fase Flash</th>
+                    <th class="p-4">Fase</th>
+                    <th class="p-4">Tempo</th>
                     <th class="p-4">Status</th>
-                    <th class="p-4 text-center">Histórico</th>
+                    <th class="p-4 text-center">Hist</th>
                 `;
             }
 
@@ -1259,25 +1262,71 @@
                         </tr>
                     `;
                 } else {
+                    // --- V127: Enhanced Swing Row ---
+                    const score = t.blitz_score || 0;
+                    const scoreColor = score >= 85 ? '#34d399' : score >= 70 ? '#fbbf24' : '#f87171';
+                    const scoreBarW = Math.min(100, Math.round(score));
+
+                    const entryPx = t.entry_price || 0;
+                    const stopPx = t.stop_loss || 0;
+                    const curPx = t.current_price || 0;
+                    const isLong = t.direction === 'LONG' || t.direction === 'Buy';
+                    const stopDistPct = entryPx > 0 && stopPx > 0 ? Math.abs(((stopPx - entryPx) / entryPx) * 100) : 0;
+                    const stopColor = stopDistPct <= 0.15 ? '#f87171' : stopDistPct <= 0.5 ? '#fbbf24' : '#34d399';
+                    const breakoutBadge = t.stop_method === 'CONFIG'
+                        ? '<span class="text-[8px] font-bold px-1 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 ml-1">5m✓</span>'
+                        : '<span class="text-[8px] font-bold px-1 py-0.5 rounded bg-white/5 border border-white/10 text-gray-500 ml-1">LEG</span>';
+
+                    const riskPct = entryPx > 0 && stopPx > 0 ? Math.abs(entryPx - stopPx) / entryPx * 100 : 0;
+                    const rewardPct = t.max_roi || 0;
+                    const rrRatio = riskPct > 0 ? (rewardPct / (riskPct * 50 || 1)).toFixed(1) : '—';
+
+                    const openedAt = t.opened_at || 0;
+                    const ageSec = openedAt > 0 ? Date.now() / 1000 - openedAt : 0;
+                    const ageMin = Math.floor(ageSec / 60);
+                    const ageH = Math.floor(ageMin / 60);
+                    const ageM = ageMin % 60;
+                    const ageStr = ageH > 0 ? `${ageH}h ${ageM}m` : `${ageM}m`;
+
+                    const paRaw = t.pa_pattern || '';
+                    const paLabel = paRaw ? paRaw.replace(/ (Bullish|Bearish|BULLISH|BEARISH)$/i, '').substring(0, 18) : '—';
+                    const paColor = paRaw.toLowerCase().includes('bullish') ? '#34d399' : paRaw.toLowerCase().includes('bearish') ? '#f87171' : '#9ca3af';
+
                     return `
                         <tr class="trade-row">
                             <td class="p-4 font-bold text-white font-mono">${t.symbol}</td>
-                            <td class="p-4 font-mono text-xs text-white font-bold">${t.blitz_score || 0}</td>
+                            <td class="p-4 font-mono text-xs">
+                                <span style="color:${scoreColor};font-weight:800">${score}</span>
+                                <div style="width:40px;height:3px;background:rgba(255,255,255,0.05);border-radius:2px;margin-top:2px">
+                                    <div style="width:${scoreBarW}%;height:100%;background:${scoreColor};border-radius:2px"></div>
+                                </div>
+                            </td>
                             <td class="p-4 font-mono text-xs text-cyan-400">${t.fib_zone || 'N/A'}</td>
                             <td class="p-4 font-mono text-xs">${t.sma_cross || 'NONE'}</td>
                             <td class="p-4">${directionBadge}</td>
-                            <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
-                            <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
-                            <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}<span class="text-[9px] ml-1 ${t.stop_method === 'CONFIG' ? 'text-cyan-400' : 'text-gray-500'}">(${t.stop_method === 'CONFIG' ? 'ROI ' + (t.stop_roi_target || 30) + '%' : 'LEG'})</span></td>
+                            <td class="p-4 font-mono text-xs">${entryPx.toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs">${curPx.toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs">
+                                <div style="display:flex;flex-direction:column;gap:1px">
+                                    <span style="color:${stopColor};font-weight:700">${stopPx.toFixed(4)}${breakoutBadge}</span>
+                                    <div style="width:60px;height:3px;background:rgba(255,255,255,0.05);border-radius:2px">
+                                        <div style="width:${Math.min(100, stopDistPct * 100)}%;height:100%;background:${stopColor};border-radius:2px"></div>
+                                    </div>
+                                    <span style="font-size:7px;color:rgba(255,255,255,0.3)">${stopDistPct.toFixed(2)}% dist</span>
+                                </div>
+                            </td>
                             <td class="p-4 font-mono text-xs">${levelHtml}</td>
                             <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>
-                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * currentSwingMargin).toFixed(2)} USD</td>
+                            <td class="p-4 font-mono text-xs" style="color:${parseFloat(rrRatio) >= 3 ? '#34d399' : parseFloat(rrRatio) >= 1 ? '#fbbf24' : '#f87171'};font-weight:700">${rrRatio}</td>
+                            <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}$${((t.pnl_pct / 100.0) * currentSwingMargin).toFixed(2)}</td>
                             <td class="p-4 font-mono text-xs">${t.cvd_value ? (t.cvd_value / 1000).toFixed(0) + 'k' : '0k'}</td>
                             <td class="p-4 font-mono text-xs">${t.volume_ratio ? t.volume_ratio.toFixed(1) + 'x' : '1.0x'}</td>
                             <td class="p-4 font-mono text-xs text-cyberPurple">${t.strategy || 'VELOCITY FLOW'}</td>
+                            <td class="p-4 font-mono text-xs" style="color:${paColor}">${paLabel}</td>
                             <td class="p-4 font-mono text-xs">${renderExplosionBadge(t)}</td>
                             <td class="p-4">${phaseHtml}</td>
+                            <td class="p-4 font-mono text-xs text-gray-400">${ageStr}</td>
                             <td class="p-4">${statusBadge}</td>
                             <td class="p-4 text-center"><button onclick="showHistory('${t.id}')" class="p-1 hover:bg-white/10 rounded text-gray-400"><span class="material-icons-round text-sm">visibility</span></button></td>
                         </tr>

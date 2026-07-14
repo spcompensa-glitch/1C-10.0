@@ -25,13 +25,18 @@ Indicadores absorvidos do BLITZ_30M:
   - Price Action patterns (Wick Reclaim, Engulf, Sweep & Reclaim)
 
 Doutrina das Extrações (step-lock de stop):
-  - Garantia Parcial: +5% ROI  → SL em -2%
-  - Break-even: +10% ROI  → SL em 0%
+  - Break-even: +2% ROI  → SL em 0% (V128: protecao mais cedo)
   - Pre-Unit1:  +60% ROI  → SL em +30%
   - Unidade 1:  +100% ROI → SL em +80% (garantido)
   - Emancipado: +150% ROI → SL em +110%
   - Unidade 2:  +200% ROI → SL em +170%
   - Unidade 3:  +300% ROI → SL em +250%
+
+[V128] Filtros adicionais:
+  - Regime filter: bearish → so SHORT; bullish → so LONG
+  - Hour filter: pausa 14:00-15:00 UTC (pico de losses)
+  - Dynamic blacklist: auto-bloqueio apos 3+ trades com WR<20%
+  - 5m breakout: score bonus (+10/+5/0) em vez de gate duro
 
 Cross-Block com SandboxService (Scalping Lab):
   - O mesmo ativo NAO pode estar ativo nas duas abas simultaneamente.
@@ -73,6 +78,9 @@ class SandboxSwingService:
         self._running = False
         self._peak_roi_cache: Dict[str, float] = {}   # { trade_id: max_roi }
         self._processed_signals: set = set()           # dedup de IDs de sinal
+        # [V128] Blacklist dinâmica por performance
+        self._pair_stats: Dict[str, Dict] = {}         # { symbol: {wins, losses, total} }
+        self._dynamic_blocklist: set = set()            # auto-bloqueio após WR<20% em 3+ trades
 
     # =========================================================================
     # PROPRIEDADES DINÂMICAS (lidas do config em runtime)
@@ -202,6 +210,16 @@ class SandboxSwingService:
         except Exception:
             pass
 
+        # [V128] Filtro de horário — evitar 14:00-15:00 UTC (pico de losses)
+        from datetime import datetime, timezone
+        current_hour = datetime.now(timezone.utc).hour
+        if current_hour in (14, 15):
+            logger.info(f"[SWING-LAB] Scan pausado (hora {current_hour}:00 UTC — alto risco historico)")
+            return
+
+        # [V128] Regime filter: bearish → so SHORT; bullish → so LONG
+        is_bearish = btc_dir == "DOWN" or (btc_adx > 0 and btc_adx < 25)
+
         # 3. Watchlist
         watchlist = getattr(settings, "RADAR_WATCHLIST", [])
         if not watchlist:
@@ -214,6 +232,9 @@ class SandboxSwingService:
         # Filtro Blocklist
         blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
         watchlist = [s for s in watchlist if s not in blocklist]
+
+        # [V128] Filtro Blocklist dinâmica (auto-bloqueio por performance)
+        watchlist = [s for s in watchlist if s not in self._dynamic_blocklist]
 
         logger.info(
             f"[SWING-LAB] Scan M30 | {len(watchlist)} ativos | "
@@ -236,7 +257,17 @@ class SandboxSwingService:
                 break
             if opened_in_cycle >= allowed_new_risk_slots:
                 break
-                
+
+            # [V128] Filtro de direção por regime
+            sig_side = sig.get("side", "Buy")
+            sig_dir = "LONG" if sig_side.upper() in ("BUY", "LONG") else "SHORT"
+            if is_bearish and sig_dir == "LONG":
+                logger.info(f"[SWING-LAB] {sig.get('symbol')} LONG descartado (regime bearish)")
+                continue
+            if not is_bearish and sig_dir == "SHORT":
+                logger.info(f"[SWING-LAB] {sig.get('symbol')} SHORT descartado (regime bullish)")
+                continue
+
             opened = await self._try_open_swing_trade(sig)
             if opened:
                 active_trades.append(opened)   # Atualiza contagem local
@@ -246,6 +277,17 @@ class SandboxSwingService:
                 if opened_in_cycle >= allowed_new_risk_slots:
                     logger.info(f"[SWING-LAB] Capacidade de risco preenchida. Interrompendo abertura de mais ordens.")
                     break
+
+        # [V128] Atualizar stats de pares com trades fechados recentemente
+        try:
+            from services.database_service import database_service
+            all_trades = await database_service.get_swing_trades(active_only=False)
+            for t in all_trades:
+                if t.status != "ACTIVE" and hasattr(t, 'pnl_pct') and t.pnl_pct is not None:
+                    pnl_usd = t.pnl_pct / 100.0 * self.margin_per_trade
+                    self._update_pair_stats(t.symbol, pnl_usd)
+        except Exception:
+            pass
 
     # =========================================================================
     # ABERTURA DE TRADE — Motor primário com mirror opcional
@@ -485,6 +527,25 @@ class SandboxSwingService:
         except Exception as e:
             logger.warning(f"[SWING-LAB] Erro ao checar 5m breakout para {symbol}: {e}")
             return 5  # Em caso de erro, bonus neutro
+
+    def _update_pair_stats(self, symbol: str, pnl: float):
+        """[V128] Rastreia performance por par. Auto-bloqueia apos 3+ trades com WR<20%."""
+        if symbol not in self._pair_stats:
+            self._pair_stats[symbol] = {"wins": 0, "losses": 0, "total": 0}
+        stats = self._pair_stats[symbol]
+        stats["total"] += 1
+        if pnl > 0:
+            stats["wins"] += 1
+        elif pnl < 0:
+            stats["losses"] += 1
+        # Auto-blocklist: 3+ trades e WR < 20%
+        if stats["total"] >= 3 and stats["wins"] / stats["total"] < 0.20:
+            if symbol not in self._dynamic_blocklist:
+                self._dynamic_blocklist.add(symbol)
+                logger.warning(
+                    f"[SWING-LAB] {symbol} AUTO-BLOQUEADO "
+                    f"(WR {stats['wins']}/{stats['total']} = {stats['wins']/stats['total']*100:.0f}%)"
+                )
 
     async def _mirror_to_real_account(
         self,

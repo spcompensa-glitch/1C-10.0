@@ -341,6 +341,12 @@ class SandboxSwingService:
             if len(self._processed_signals) > 1000:
                 self._processed_signals.clear()
 
+            # --- [V127] Confirmação 5m: breakout com volume ---
+            breakout_ok = await self._check_5m_breakout(symbol, direction)
+            if not breakout_ok:
+                logger.info(f"[SWING-LAB] {symbol} {direction} sem confirmação 5m (breakout/volume). Setup descartado.")
+                return None
+
             # --- Preço de entrada ---
             current_price = float(signal.get("entry_price_signal", 0) or 0)
             if current_price <= 0:
@@ -351,7 +357,7 @@ class SandboxSwingService:
 
             # --- Stop Loss inicial: ROI configurável (ANTES: fixo 50.0) ---
             s = _get_settings()
-            stop_roi_target = getattr(s, "SWING_STOP_ROI", 30.0) if s else 30.0
+            stop_roi_target = getattr(s, "SWING_STOP_ROI", 5.0) if s else 5.0
             if direction == "LONG":
                 stop_price = current_price * (1 - (stop_roi_target / (self.leverage * 100.0)))
             else:
@@ -435,6 +441,40 @@ class SandboxSwingService:
             logger.error(f"[SWING-LAB] Erro ao abrir trade para {signal.get('symbol')}: {e}")
             import traceback; traceback.print_exc()
             return None
+
+    async def _check_5m_breakout(self, symbol: str, direction: str) -> bool:
+        """
+        [V127] Confirma se o candle 5m mais recente fecha na direção do sinal
+        com volume >= 1.5x da média das últimas 10 velas.
+        Retorna True se breakout confirmado, False caso contrário.
+        """
+        try:
+            from services.okx_rest import okx_rest_service
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
+            if not klines or len(klines) < 6:
+                return True  # Sem dados → não bloquear
+
+            candles = list(reversed(klines))
+            closes = [float(c[4]) for c in candles]
+            volumes = [float(c[5]) if len(c) > 5 else 0.0 for c in candles]
+
+            last_close = closes[-1]
+            prev_close = closes[-2]
+            last_vol = volumes[-1]
+            avg_vol = sum(volumes[-11:-1]) / 10.0 if len(volumes) >= 11 else 1.0
+
+            volume_ok = last_vol >= avg_vol * 1.5
+
+            if direction == "LONG":
+                candle_bullish = last_close > prev_close
+                return candle_bullish and volume_ok
+            else:
+                candle_bearish = last_close < prev_close
+                return candle_bearish and volume_ok
+
+        except Exception as e:
+            logger.warning(f"[SWING-LAB] Erro ao checar 5m breakout para {symbol}: {e}")
+            return True  # Em caso de erro, não bloquear
 
     async def _mirror_to_real_account(
         self,

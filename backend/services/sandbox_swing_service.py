@@ -349,11 +349,13 @@ class SandboxSwingService:
                 logger.warning(f"[SWING-LAB] {symbol} sem preço — setup descartado.")
                 return None
 
-            # --- Stop Loss inicial: -5% no preço = -100% ROI com 20x ---
+            # --- Stop Loss inicial: ROI configurável (ANTES: fixo 50.0) ---
+            s = _get_settings()
+            stop_roi_target = getattr(s, "SWING_STOP_ROI", 30.0) if s else 30.0
             if direction == "LONG":
-                stop_price = current_price * (1 - (50.0 / (self.leverage * 100.0)))
+                stop_price = current_price * (1 - (stop_roi_target / (self.leverage * 100.0)))
             else:
-                stop_price = current_price * (1 + (50.0 / (self.leverage * 100.0)))
+                stop_price = current_price * (1 + (stop_roi_target / (self.leverage * 100.0)))
 
             # --- Extrai metadados do sinal ---
             indicators = signal.get("indicators", {})
@@ -384,11 +386,13 @@ class SandboxSwingService:
                 "flash_state": {
                     "phase":        "SWING_V2",
                     "active_level": "INICIAL",
-                    "stop_roi":     -50.0,   # Stop inicial em -50% ROI
+                    "stop_roi":     -abs(stop_roi_target),
                     "blitz_unit":   0,
                     "history":      [],
                     "mirror_mode":  "ON" if self.mirror_mode_on else "OFF",
                     "scan_source":  "AUTONOMOUS",
+                    "stop_method":  "CONFIG",
+                    "stop_roi_target": stop_roi_target,
                 },
                 "contract_meta": signal.get("contract_meta"),
                 "blitz_score":   score,
@@ -401,6 +405,8 @@ class SandboxSwingService:
                 "blitz_unit":    0,
                 "explosion_score": score,
                 "explosion_signals": signal.get("reasons", []),
+                "stop_method":   "CONFIG",
+                "stop_roi_target": stop_roi_target,
             }
 
             await database_service.save_swing_trade(trade_data)
@@ -410,6 +416,7 @@ class SandboxSwingService:
                 f"[SWING-LAB] ✅ Trade aberto: {symbol} {direction} | "
                 f"Estratégia: {strategy} | Score: {score:.0f} | "
                 f"Entrada: {current_price:.6f} | Stop: {stop_price:.6f} | "
+                f"Stop ROI: {stop_roi_target:.1f}% | "
                 f"Margem virtual: ${self.margin_per_trade:.2f}"
             )
 

@@ -3932,6 +3932,19 @@
                                                     {stopDistPct.toFixed(1)}% dist
                                                 </span>
                                             )}
+                                            {s.projection?.active_level?.name === 'INICIAL' && s.flash_state?.stop_method && (
+                                                <span style={{
+                                                    fontSize: '6px', fontWeight: 700,
+                                                    color: s.flash_state.stop_method === 'CONFIG' ? '#22d3ee' : 'rgba(255,255,255,0.25)',
+                                                    fontFamily: 'JetBrains Mono, monospace',
+                                                    padding: '1px 3px', borderRadius: '3px',
+                                                    background: s.flash_state.stop_method === 'CONFIG' ? 'rgba(34,211,238,0.1)' : 'transparent',
+                                                    border: s.flash_state.stop_method === 'CONFIG' ? '1px solid rgba(34,211,238,0.2)' : 'none',
+                                                    width: 'fit-content', marginTop: '1px'
+                                                }}>
+                                                    {s.flash_state.stop_method === 'CONFIG' ? `ROI ${s.flash_state.stop_roi_target || 30}%` : 'LEGADO'}
+                                                </span>
+                                            )}
                                         </div>
 
                                         {/* Col 7: Preço de Liquidação */}

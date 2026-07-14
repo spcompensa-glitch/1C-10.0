@@ -1268,7 +1268,7 @@
                             <td class="p-4">${directionBadge}</td>
                             <td class="p-4 font-mono text-xs">${(t.entry_price || 0).toFixed(4)}</td>
                             <td class="p-4 font-mono text-xs">${(t.current_price || 0).toFixed(4)}</td>
-                            <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}</td>
+                            <td class="p-4 font-mono text-xs text-cyberRed">${(t.stop_loss || 0).toFixed(4)}<span class="text-[9px] ml-1 ${t.stop_method === 'CONFIG' ? 'text-cyan-400' : 'text-gray-500'}">(${t.stop_method === 'CONFIG' ? 'ROI ' + (t.stop_roi_target || 30) + '%' : 'LEG'})</span></td>
                             <td class="p-4 font-mono text-xs">${levelHtml}</td>
                             <td class="p-4 font-mono text-xs text-cyberGreen">+${(t.max_roi || 0).toFixed(1)}%</td>
                             <td class="p-4 font-mono text-xs ${pnlClass}">${pnlSign}${(t.pnl_pct || 0).toFixed(1)}%</td>

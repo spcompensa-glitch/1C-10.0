@@ -47,8 +47,8 @@ _MAX_SLOTS          = 10      # slots simultaneos maximos de Scalping
 _MIN_SCORE          = 70      # score minimo para entrada (obriga Sweep)
 _MAX_STOP_ROI       = -20.0   # perda maxima em ROI (%)
 _VWAP_TOLERANCE_PCT = 0.15    # tolerancia do preco vs VWAP (%)
-_STOCH_OVERSOLD     = 20.0
-_STOCH_OVERBOUGHT   = 80.0
+_STOCH_OVERSOLD     = 25.0
+_STOCH_OVERBOUGHT   = 75.0
 _EMA_PERIOD         = 200
 # [V126] Filtro de ATR minimo: mercado com ATR < 0.02% do preco nao tem
 # volatilidade suficiente para o VWAP Sniper — stop ficaria micro e seria violado
@@ -377,7 +377,7 @@ class SandboxScalpingEngine:
                             else:
                                 break
                         
-                        cooldown_secs = 3600.0 if consec_losses >= 2 else 1800.0
+                        cooldown_secs = 900.0 if consec_losses >= 2 else 600.0  # 15min / 10min (V128: reduzido de 60/30)
                         elapsed = time.time() - (last_closed.closed_at or 0.0)
                         if elapsed < cooldown_secs:
                             logger.debug(
@@ -417,12 +417,12 @@ class SandboxScalpingEngine:
             k, d, pk, pd = stoch['k'], stoch['d'], stoch['prev_k'], stoch['prev_d']
 
             if direction == 'LONG':
-                # Filtro Hermes: Exige cruzamento forte (K cruza D para cima) com origem em sobrevenda profunda
-                if not ((pk <= pd) and (k > d) and (pk < _STOCH_OVERSOLD and k < 40.0)):
+                # Filtro Hermes: Exige cruzamento forte (K cruza D para cima) com origem em sobrevenda
+                if not ((pk <= pd) and (k > d) and (pk < _STOCH_OVERSOLD or k < _STOCH_OVERSOLD)):
                     return None
             else:
-                # Filtro Hermes: Exige cruzamento forte (K cruza D para baixo) com origem em sobrecompra extrema
-                if not ((pk >= pd) and (k < d) and (pk > _STOCH_OVERBOUGHT and k > 60.0)):
+                # Filtro Hermes: Exige cruzamento forte (K cruza D para baixo) com origem em sobrecompra
+                if not ((pk >= pd) and (k < d) and (pk > _STOCH_OVERBOUGHT or k > _STOCH_OVERBOUGHT)):
                     return None
 
             score += 30

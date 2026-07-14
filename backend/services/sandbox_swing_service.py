@@ -25,7 +25,8 @@ Indicadores absorvidos do BLITZ_30M:
   - Price Action patterns (Wick Reclaim, Engulf, Sweep & Reclaim)
 
 Doutrina das Extrações (step-lock de stop):
-  - Break-even: +30% ROI  → SL em 0%
+  - Garantia Parcial: +5% ROI  → SL em -2%
+  - Break-even: +10% ROI  → SL em 0%
   - Pre-Unit1:  +60% ROI  → SL em +30%
   - Unidade 1:  +100% ROI → SL em +80% (garantido)
   - Emancipado: +150% ROI → SL em +110%
@@ -341,11 +342,15 @@ class SandboxSwingService:
             if len(self._processed_signals) > 1000:
                 self._processed_signals.clear()
 
-            # --- [V127] Confirmação 5m: breakout com volume ---
-            breakout_ok = await self._check_5m_breakout(symbol, direction)
-            if not breakout_ok:
-                logger.info(f"[SWING-LAB] {symbol} {direction} sem confirmação 5m (breakout/volume). Setup descartado.")
-                return None
+            # --- [V127.1] Confirmação 5m: filtro SOFT (bonus de score) ---
+            breakout_bonus = await self._get_5m_breakout_score(symbol, direction)
+            score += breakout_bonus
+            if breakout_bonus >= 10:
+                logger.info(f"[SWING-LAB] {symbol} {direction} 5m breakout confirmado (direção+volume). Bonus +{breakout_bonus}")
+            elif breakout_bonus > 0:
+                logger.info(f"[SWING-LAB] {symbol} {direction} 5m parcial (direção OU volume). Bonus +{breakout_bonus}")
+            else:
+                logger.info(f"[SWING-LAB] {symbol} {direction} 5m sem confirmação. Score sem bonus.")
 
             # --- Preço de entrada ---
             current_price = float(signal.get("entry_price_signal", 0) or 0)
@@ -442,17 +447,18 @@ class SandboxSwingService:
             import traceback; traceback.print_exc()
             return None
 
-    async def _check_5m_breakout(self, symbol: str, direction: str) -> bool:
+    async def _get_5m_breakout_score(self, symbol: str, direction: str) -> int:
         """
-        [V127] Confirma se o candle 5m mais recente fecha na direção do sinal
-        com volume >= 1.5x da média das últimas 10 velas.
-        Retorna True se breakout confirmado, False caso contrário.
+        [V127.1] Filtro SOFT: retorna bonus de score baseado na confirmação 5m.
+        +10 se candle 5m fecha na direção E volume >= 1.5x média.
+        +5 se apenas um dos critérios é atendido.
+        0 se nenhum (não bloqueia, só não dá bonus).
         """
         try:
             from services.okx_rest import okx_rest_service
             klines = await okx_rest_service.get_klines(symbol=symbol, interval="5", limit=12)
             if not klines or len(klines) < 6:
-                return True  # Sem dados → não bloquear
+                return 5  # Sem dados → bonus neutro
 
             candles = list(reversed(klines))
             closes = [float(c[4]) for c in candles]
@@ -466,15 +472,19 @@ class SandboxSwingService:
             volume_ok = last_vol >= avg_vol * 1.5
 
             if direction == "LONG":
-                candle_bullish = last_close > prev_close
-                return candle_bullish and volume_ok
+                direction_ok = last_close > prev_close
             else:
-                candle_bearish = last_close < prev_close
-                return candle_bearish and volume_ok
+                direction_ok = last_close < prev_close
+
+            if direction_ok and volume_ok:
+                return 10
+            elif direction_ok or volume_ok:
+                return 5
+            return 0
 
         except Exception as e:
             logger.warning(f"[SWING-LAB] Erro ao checar 5m breakout para {symbol}: {e}")
-            return True  # Em caso de erro, não bloquear
+            return 5  # Em caso de erro, bonus neutro
 
     async def _mirror_to_real_account(
         self,

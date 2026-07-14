@@ -74,7 +74,7 @@ Acima de 20% ROI em ranging, a escada sobe dinamicamente de 1% em 1% (trailing g
 | 15% | 11% | TRAILING_SCALP |
 
 ### 3.3 `ORDER_STOP_LADDER_SWING` (swing tendencia)
-10/0 (BREAKEVEN), 60/30 (PRE_UNIT1), 100/80 (UNIT1_GARANTIDO), 150/110 (EMANCIPADO), 200/170 (UNIT2), 300/250 (UNIT3).
+5/-2 (GARANTIA_PARCIAL), 10/0 (BREAKEVEN), 60/30 (PRE_UNIT1), 100/80 (UNIT1_GARANTIDO), 150/110 (EMANCIPADO), 200/170 (UNIT2), 300/250 (UNIT3).
 
 ### 3.4 `ORDER_STOP_LADDER_SWING_LATERAL` (swing em lateral)
 5/1.5 (BREAKEVEN_LATERAL), 15/5 (PRE_UNIT1_LATERAL), 30/15 (UNIT1_GARANTIDO), 60/30 (EMANCIPADO_LATERAL), 100/80 (TRAILING_LATERAL).
@@ -193,7 +193,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
 - Banca $10.000, margem $200/trade, 50x.
 - **Stop inicial -5% ROI** (`SWING_STOP_ROI=5.0`): `stop_price = entry × (1 - 0.05/50) = entry × 0.999` (0.1% de oscilacao do preco). Antes era fixo 50.0 (1.0% / -50% ROI).
-- **Confirmação 5m breakout** (`_check_5m_breakout`): candle 5m fecha na direcao do trade + volume ≥ 1.5x media das ultimas 10 velas. Sem confirmação → descarta setup. Fallback: se erro ou sem dados → nao bloqueia.
+- **Confirmação 5m breakout** (`_get_5m_breakout_score`): filtro SOFT — retorna bonus de score (+10 ambos OK, +5 parcial, 0 nenhum). Candle 5m fecha na direcao + volume ≥ 1.5x media. Não bloqueia setups, apenas prioriza os confirmados.
 - **Zero-Risk Stacking (cap 2)**: no maximo 2 posicoes com risco de mesa (SL abaixo da entrada). Novas entradas so quando uma existente vai a break-even (`sandbox_swing_service.py:170-182`).
 - **UI Swing Table (V127)**: 22 colunas com score bar colorida (0-100), stop dist bar + 5m badge, pa_pattern, R:R estimado, tempo de posicao.
 

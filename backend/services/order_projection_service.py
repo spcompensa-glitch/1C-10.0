@@ -44,15 +44,16 @@ ORDER_STOP_LADDER_SCALPING: List[StopLevel] = [
     StopLevel("TRAILING", "TRAILING_SCALP", 15.0, 11.0, "PROFIT_LOCK"),
 ]
 
-# [V127] Escadinha Oficial para Swing (Doutrina das Extrações)
+# [V127.1] Escadinha Oficial para Swing (Doutrina das Extrações)
 # Usada de forma unificada no FlashAgent para simular stops de Swing
 ORDER_STOP_LADDER_SWING: List[StopLevel] = [
-    StopLevel("ESCADINHA", "BREAKEVEN",           10.0,   0.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PRE_UNIT1",           60.0,  30.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",    100.0,  80.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "EMANCIPADO",         150.0, 110.0,  "PROFIT_LOCK"),
-    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",    200.0, 170.0,  "PROFIT_LOCK"),
-    StopLevel("TRAILING",  "UNIT3_GARANTIDO",    300.0, 250.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "GARANTIA_PARCIAL",      5.0,   -2.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "BREAKEVEN",           10.0,    0.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PRE_UNIT1",           60.0,   30.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",    100.0,   80.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADO",         150.0,  110.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",    200.0,  170.0,  "PROFIT_LOCK"),
+    StopLevel("TRAILING",  "UNIT3_GARANTIDO",    300.0,  250.0,  "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_SWING_LATERAL: List[StopLevel] = [

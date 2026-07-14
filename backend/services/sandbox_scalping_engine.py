@@ -213,6 +213,7 @@ class SandboxScalpingEngine:
         self._scan_task: Optional[asyncio.Task] = None
         self._processed: set  = set()
         self._peak_roi_cache: Dict[str, float] = {}
+        self._last_scan: Dict[str, Any] = {}  # [V128] Diagnóstico do último scan
 
     # ── Start / Stop ────────────────────────────────────────────────────────────
 
@@ -286,6 +287,18 @@ class SandboxScalpingEngine:
                    if r and not isinstance(r, Exception)]
         signals.sort(key=lambda s: s.get('score', 0), reverse=True)
 
+        # [V128] Diagnóstico
+        rejected = [sym for sym, r in zip(watchlist, results) if r is None and not isinstance(r, Exception)]
+        errors = [f"{sym}:{r}" for sym, r in zip(watchlist, results) if isinstance(r, Exception)]
+        self._last_scan = {
+            "time": time.time(),
+            "watchlist": len(watchlist),
+            "signals": len(signals),
+            "rejected": rejected,
+            "errors": errors[:5],
+            "signal_details": [{"sym": s["symbol"], "dir": s["direction"], "score": s["score"]} for s in signals[:3]],
+        }
+
         if not signals:
             logger.info("[VWAP-SNIPER] Nenhum setup M1 qualificado neste ciclo.")
             return
@@ -347,8 +360,8 @@ class SandboxScalpingEngine:
 
             # Cooldown pós-stop
             from sqlalchemy import select, desc
-            from services.database_service import SandboxTrade
-            async with database_service.AsyncSessionLocal() as session:
+            from services.database_service import database_service as _db, SandboxTrade
+            async with _db.AsyncSessionLocal() as session:
                 q = select(SandboxTrade).where(
                     SandboxTrade.symbol == norm,
                     SandboxTrade.direction == direction,
@@ -416,13 +429,13 @@ class SandboxScalpingEngine:
             k, d, pk, pd = stoch['k'], stoch['d'], stoch['prev_k'], stoch['prev_d']
 
             if direction == 'LONG':
-                # [V128-C] Filtro relaxado: k na zona de oversold + K subindo (momentum de reversão)
-                # Não exige cruzamento K×D no instante exato (impossível capturar com scan 60s)
-                if not (k < 30.0 and k > pk):
+                # [V128-C] Filtro: k na zona de oversold (k < 35)
+                # Não exige direção do K — a reversão pode acontecer a qualquer momento
+                if not (k < 35.0):
                     return None
             else:
-                # [V128-C] Filtro relaxado: k na zona de sobrecompra + K caindo (momentum de reversão)
-                if not (k > 70.0 and k < pk):
+                # [V128-C] Filtro: k na zona de sobrecompra (k > 65)
+                if not (k > 65.0):
                     return None
 
             score += 30
@@ -484,7 +497,9 @@ class SandboxScalpingEngine:
             }
 
         except Exception as e:
+            import traceback
             logger.info(f"[VWAP-SNIPER] Erro ao analisar {symbol}: {e}")
+            logger.info(traceback.format_exc())
             return None
 
     # ── Abertura de Trade ────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@ Estrategia: VWAP SNIPER
     - Pin Bar/Hammer de rejeicao de maxima/minima anterior.
 
 Score final minimo: 60/100 para abrir posicao.
-Stop Loss: 1.0x ATR do 1m, maximo -20% ROI (= 0.4% no preco com 50x).
+Stop Loss: 1.0x ATR do 1m, maximo -15% ROI (= 0.3% no preco com 50x).
 """
 
 import asyncio
@@ -40,11 +40,11 @@ _LEVERAGE           = 50.0
 # [V126] Banca $10.000 | 40% = $4.000 | 20 ordens x $200 (10 Scalp + 10 Swing)
 _MARGIN_PER_TRADE   = 200.0
 _SCAN_INTERVAL      = 30      # segundos entre scans [V128: 60→30 para capturar mais crossovers]
-_MAX_SLOTS          = 10      # slots simultaneos maximos de Scalping
+_MAX_SLOTS          = 5       # slots simultaneos maximos de Scalping [V128: 10→5]
 # [V128] Score minimo = 70 (3 camadas = 85pts sem sweep, 100 com sweep)
 # Sweep (+15) nao e obrigatorio mas melhora qualidade
 _MIN_SCORE          = 70      # score minimo para entrada
-_MAX_STOP_ROI       = -20.0   # perda maxima em ROI (%)
+_MAX_STOP_ROI       = -15.0   # perda maxima em ROI (%) [V128: -20→-15]
 _VWAP_TOLERANCE_PCT = 0.40    # tolerancia do preco vs VWAP (%) [V128: 0.15→0.40 para capturar mais sinais]
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0

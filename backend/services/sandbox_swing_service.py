@@ -174,8 +174,8 @@ class SandboxSwingService:
         # 1. Capacidade: não abrir mais trades se limite de 10 slots de Swing ativo for alcançado
         from services.database_service import database_service
         active_trades = await database_service.get_swing_trades(active_only=True)
-        # [V126] Banca $10.000 | 10 slots Swing | $200/trade
-        max_swing_slots = 10
+        # [V128] Banca $10.000 | 15 slots Swing (2 simultâneos com risco, fila de 13) | $200/trade
+        max_swing_slots = 15
 
         if len(active_trades) >= max_swing_slots:
             logger.debug(f"[SWING-LAB] Slots Swing cheios ({len(active_trades)}/{max_swing_slots}). Pulando scan.")

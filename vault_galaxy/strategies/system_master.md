@@ -145,7 +145,7 @@ Swing 30M usa `SignalGenerator.analyze_m30_swing()` (reusa DVAP/MOLA/FAS/LRT + T
 - **Bankroll** (`services/bankroll.py`) — abertura/gestao de posicao real.
 
 ### 7.2 Sinal
-- **SandboxSwingService** (`services/sandbox_swing_service.py`) — motor Swing Lab M30 (scan 5min, Zero-Risk Stacking cap 2).
+- **SandboxSwingService** (`services/sandbox_swing_service.py`) — motor Swing Lab M30 (scan 5min, Zero-Risk Stacking cap 2, 15 slots total).
 - **SandboxScalpingEngine** (`services/sandbox_scalping_engine.py`) — motor Scalping Lab (VWAP SNIPER, scan 60s).
 - **SignalGenerator** (`services/signal_generator.py`) — motor principal de estrategias.
 - **AmbushAgent** (`agents/ambush.py`) — entrada Fibonacci (timeout 30min).
@@ -194,7 +194,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
 - Banca $10.000, margem $200/trade, 50x.
 - **Stop inicial -15% ROI** (`SWING_STOP_ROI=15.0`): `stop_price = entry × (1 - 0.15/50) = entry × 0.997` (0.3% de oscilacao do preco).
-- **Breakeven +2% ROI** (V128): protecao mais cedo, stop em 0% quando trade atinge +2% ROI.
+- **Breakeven +4% ROI** (V128): protecao mais cedo, stop em 0% quando trade atinge +4% ROI.
 - **Filtro de regime** (V128): bearish → so opera SHORT; bullish → so LONG.
 - **Filtro de horario** (V128): pausa 14:00-15:00 UTC (pico de losses historico).
 - **Blacklist dinamica** (V128): auto-bloqueio apos 3+ trades com WR<20%.

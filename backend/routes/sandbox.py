@@ -551,6 +551,8 @@ async def get_swing_trades(active_only: bool = Query(False)):
                 "blitz_unit":   getattr(t, "blitz_unit", 0) or 0,
                 "explosion_score": getattr(t, "explosion_score", 0) or 0,
                 "explosion_signals": getattr(t, "explosion_signals", []) or [],
+                "stop_method":    getattr(t, "stop_method", None),
+                "stop_roi_target": getattr(t, "stop_roi_target", None),
             })
         return result
     except Exception as e:

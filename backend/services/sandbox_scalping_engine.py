@@ -257,15 +257,14 @@ class SandboxScalpingEngine:
             logger.debug(f"[VWAP-SNIPER] Slots cheios ({len(active_scalp)}/{_MAX_SLOTS}).")
             return
 
-        watchlist = list(getattr(settings, 'RADAR_WATCHLIST', None) or [
+        watchlist = list(getattr(settings, 'SCALPING_WATCHLIST', None) or getattr(settings, 'RADAR_WATCHLIST', None) or [
             "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
             "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "ADAUSDT",
             "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT", "NEARUSDT",
         ])
 
-        # Filtrar blocklist
-        blocklist = getattr(settings, 'ASSET_BLOCKLIST', set())
-        watchlist = [s for s in watchlist if s not in blocklist]
+        # [V128] Watchlist independente — não usa blocklist do Swing
+        # A SCALPING_WATCHLIST já contém apenas pares aprovados para scalping
 
         logger.info(
             f"[VWAP-SNIPER] Scan M1/M5 | {len(watchlist)} ativos | "

@@ -187,6 +187,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 ### 8.2 Scalping Lab — VWAP SNIPER (`services/sandbox_scalping_engine.py`)
 - Scan 60s. Filtro tendencia EMA200 (M5); gatilho toque VWAP diario (M1, tol 0.15%); Stoch RSI (<25 LONG / >75 SHORT).
 - Filtro ATR minimo **0.02%** do preco; Liquidity Sweep = +15 score; **score minimo 70** (V126).
+- **Watchlist independente** (V128): `SCALPING_WATCHLIST` (20 pares) — separada da blocklist do Swing, pares bloqueados por Swing nao afetam Scalping.
 - Banca $10.000, margem $200/trade, 50x isolada, **sem saidas parciais**. Stop = 1.0x ATR, teto -20% ROI.
 
 ### 8.3 Swing Lab — M30 (`services/sandbox_swing_service.py`)

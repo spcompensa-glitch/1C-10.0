@@ -232,7 +232,16 @@ class Settings(BaseSettings):
         "ONDOUSDT", "FETUSDT", "JUPUSDT", "DYDXUSDT",
         "THETAUSDT", "VETUSDT",
     ]
-    
+
+    # [V128] Watchlist separada para Scalping (independente da blocklist do Swing)
+    SCALPING_WATCHLIST: list = [
+        "INJUSDT", "DOTUSDT", "XLMUSDT", "XRPUSDT", "ATOMUSDT",
+        "SEIUSDT", "FTMUSDT", "IMXUSDT", "GRTUSDT",
+        "FETUSDT", "THETAUSDT", "VETUSDT",
+        "AVAXUSDT", "LINKUSDT", "NEARUSDT", "OPUSDT", "ARBUSDT",
+        "ADAUSDT", "SOLUSDT", "POLUSDT",
+    ]
+
     # [V111.4] SHORT BIAS — SHORT signals outperform LONG in Sandbox
     # SHORT WR 49.12% vs LONG 47.18%, SHORT PnL -969% vs LONG -2797%
     SHORT_BIAS_ACTIVE: bool = True

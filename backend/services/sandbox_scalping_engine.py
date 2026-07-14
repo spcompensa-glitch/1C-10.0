@@ -39,14 +39,13 @@ logger = logging.getLogger("ScalpingEngine")
 _LEVERAGE           = 50.0
 # [V126] Banca $10.000 | 40% = $4.000 | 20 ordens x $200 (10 Scalp + 10 Swing)
 _MARGIN_PER_TRADE   = 200.0
-_SCAN_INTERVAL      = 60      # segundos entre scans
+_SCAN_INTERVAL      = 30      # segundos entre scans [V128: 60→30 para capturar mais crossovers]
 _MAX_SLOTS          = 10      # slots simultaneos maximos de Scalping
-# [V126] Score minimo aumentado de 60 para 70 para exigir Liquidity Sweep (15pts)
-# Base: 168 trades reais — WR 57.58% mas R:R 1:0.88 (loss medio > win medio)
-# Com score 70, o sinal obrigatoriamente passa pelas 3 camadas + Sweep.
-_MIN_SCORE          = 70      # score minimo para entrada (obriga Sweep)
+# [V128] Score minimo = 70 (3 camadas = 85pts sem sweep, 100 com sweep)
+# Sweep (+15) nao e obrigatorio mas melhora qualidade
+_MIN_SCORE          = 70      # score minimo para entrada
 _MAX_STOP_ROI       = -20.0   # perda maxima em ROI (%)
-_VWAP_TOLERANCE_PCT = 0.15    # tolerancia do preco vs VWAP (%)
+_VWAP_TOLERANCE_PCT = 0.40    # tolerancia do preco vs VWAP (%) [V128: 0.15→0.40 para capturar mais sinais]
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
 _EMA_PERIOD         = 200
@@ -417,12 +416,13 @@ class SandboxScalpingEngine:
             k, d, pk, pd = stoch['k'], stoch['d'], stoch['prev_k'], stoch['prev_d']
 
             if direction == 'LONG':
-                # Filtro Hermes: Exige cruzamento forte (K cruza D para cima) com origem em sobrevenda
-                if not ((pk <= pd) and (k > d) and (pk < _STOCH_OVERSOLD or k < _STOCH_OVERSOLD)):
+                # [V128-C] Filtro relaxado: k na zona de oversold + K subindo (momentum de reversão)
+                # Não exige cruzamento K×D no instante exato (impossível capturar com scan 60s)
+                if not (k < 30.0 and k > pk):
                     return None
             else:
-                # Filtro Hermes: Exige cruzamento forte (K cruza D para baixo) com origem em sobrecompra
-                if not ((pk >= pd) and (k < d) and (pk > _STOCH_OVERBOUGHT or k > _STOCH_OVERBOUGHT)):
+                # [V128-C] Filtro relaxado: k na zona de sobrecompra + K caindo (momentum de reversão)
+                if not (k > 70.0 and k < pk):
                     return None
 
             score += 30
@@ -484,7 +484,7 @@ class SandboxScalpingEngine:
             }
 
         except Exception as e:
-            logger.debug(f"[VWAP-SNIPER] Erro ao analisar {symbol}: {e}")
+            logger.info(f"[VWAP-SNIPER] Erro ao analisar {symbol}: {e}")
             return None
 
     # ── Abertura de Trade ────────────────────────────────────────────────────────

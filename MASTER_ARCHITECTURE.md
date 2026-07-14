@@ -40,7 +40,7 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 | `OKX_SIMULATED_BALANCE` | $100 (padrao) | `config.py:22` |
 | `DECOR_HUNTER_MAX_SLOTS` / `MIN_CONFIDENCE` / `SCAN_INTERVAL` | 8 / 70 / 30s | `config.py:152-156` |
 
-**Swing Lab (`config.py:164-177`)**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200, `SWING_VIRTUAL_BALANCE`=$10.000, `SWING_SCAN_INTERVAL`=300s, `SWING_MIRROR_MODE`=OFF.
+**Swing Lab (`config.py:164-181`)**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200, `SWING_VIRTUAL_BALANCE`=$10.000, `SWING_SCAN_INTERVAL`=300s, `SWING_MIRROR_MODE`=OFF, `SWING_STOP_ROI`=5.0 (stop inicial -5% ROI = 0.1% preco com 50x).
 
 > **[V127] Saldo exibido em PAPER**: `OKX_SIMULATED_BALANCE` e a base do Guardiao/sizing em PAPER, mas o *Net Worth* do Cockpit em PAPER NAO e `OKX_SIMULATED_BALANCE` — e a **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`, `database_service.py`: `BANCA_BASE` $10.000 + Σ(pnl_pct/100 × $200) sobre TODOS os trades Scalp+Swing). Ver Secao 8.6.
 
@@ -74,7 +74,7 @@ Acima de 20% ROI em ranging, a escada sobe dinamicamente de 1% em 1% (trailing g
 | 15% | 11% | TRAILING_SCALP |
 
 ### 3.3 `ORDER_STOP_LADDER_SWING` (swing tendencia)
-30/0 (BREAKEVEN), 60/30 (PRE_UNIT1), 100/80 (UNIT1_GARANTIDO), 150/110 (EMANCIPADO), 200/170 (UNIT2), 300/250 (UNIT3).
+10/0 (BREAKEVEN), 60/30 (PRE_UNIT1), 100/80 (UNIT1_GARANTIDO), 150/110 (EMANCIPADO), 200/170 (UNIT2), 300/250 (UNIT3).
 
 ### 3.4 `ORDER_STOP_LADDER_SWING_LATERAL` (swing em lateral)
 5/1.5 (BREAKEVEN_LATERAL), 15/5 (PRE_UNIT1_LATERAL), 30/15 (UNIT1_GARANTIDO), 60/30 (EMANCIPADO_LATERAL), 100/80 (TRAILING_LATERAL).
@@ -192,7 +192,10 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 ### 8.3 Swing Lab — M30 (`services/sandbox_swing_service.py`)
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
 - Banca $10.000, margem $200/trade, 50x.
+- **Stop inicial -5% ROI** (`SWING_STOP_ROI=5.0`): `stop_price = entry × (1 - 0.05/50) = entry × 0.999` (0.1% de oscilacao do preco). Antes era fixo 50.0 (1.0% / -50% ROI).
+- **Confirmação 5m breakout** (`_check_5m_breakout`): candle 5m fecha na direcao do trade + volume ≥ 1.5x media das ultimas 10 velas. Sem confirmação → descarta setup. Fallback: se erro ou sem dados → nao bloqueia.
 - **Zero-Risk Stacking (cap 2)**: no maximo 2 posicoes com risco de mesa (SL abaixo da entrada). Novas entradas so quando uma existente vai a break-even (`sandbox_swing_service.py:170-182`).
+- **UI Swing Table (V127)**: 22 colunas com score bar colorida (0-100), stop dist bar + 5m badge, pa_pattern, R:R estimado, tempo de posicao.
 
 ### 8.4 Constantes de banca do Sandbox UI (`routes/sandbox.py`)
 `BANCA_BASE`=$10.000 (:20) · `MARGEM_SCALP`=$200 (:21) · `MARGEM_SWING`=$200 (:22) · alocacao maxima = 40% = $4.000 (:53).
@@ -288,6 +291,7 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 4. `radar_pulse` nao e arquivo: e estrutura de dados em `database_service`, `firebase_service` e `websocket_service`.
 5. Comentarios legados em `bankroll.py` ($2/$1, 20/40) divergem do `config.py` atual (0.50, 16/16) — o `config.py` prevalece.
 6. **[V127] Espelho PAPER Sandbox→Cockpit** (refinamento sobre o V124.7): em PAPER o *Net Worth* e o *Painel de Custodia* do Cockpit representam o Sandbox (Banca Simulada Consolidada via `get_sandbox_unified_balance` + ordens ativas Scalp/Swing como slots). `saldo_real_okx` e forçado a `0.0` em PAPER em `update_banca_status`. `OKX_SIMULATED_BALANCE` deixa de ser o saldo exibido em PAPER (subsituido pelo saldo do Sandbox), mas segue como base de sizing/guardian. Ver Secao 8.6.
+7. **[V127] Swing Stop refinado**: stop inicial configuravel via `SWING_STOP_ROI` (padrao 5.0 = -5% ROI = 0.1% preco). Escadinha BREAKEVEN em +10% ROI (antes +30%). Confirmação de entry: candle 5m fecha na direcao + volume ≥ 1.5x media. Trade INJUSDT +15.7% (+$31.40) e DOTUSDT -5.3% (-$10.68) validaram o sistema (R:R 1:2.94).
 
 ---
 

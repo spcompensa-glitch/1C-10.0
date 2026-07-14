@@ -181,6 +181,9 @@ class SandboxSwingTrade(Base):
     swing_tf        = Column(String, nullable=True, default="M30")  # Timeframe do setup detectado
     explosion_score = Column(Float, default=0.0)
     explosion_signals = Column(JSON, nullable=True)
+    # [V127] Stop inicial configurável
+    stop_method     = Column(String, nullable=True)            # "CONFIG" | "LEGADO"
+    stop_roi_target = Column(Float, nullable=True)             # ROI-alvo do stop inicial (%)
 
 
 class RadarPulse(Base):
@@ -368,7 +371,9 @@ class DatabaseService:
                         ("sandbox_swing_trades", "mirror_order_id", "TEXT"),
                         ("sandbox_swing_trades", "swing_tf", "TEXT"),
                         ("sandbox_swing_trades", "explosion_score", "DOUBLE PRECISION"),
-                        ("sandbox_swing_trades", "explosion_signals", "JSONB")
+                        ("sandbox_swing_trades", "explosion_signals", "JSONB"),
+                        ("sandbox_swing_trades", "stop_method", "TEXT"),
+                        ("sandbox_swing_trades", "stop_roi_target", "DOUBLE PRECISION")
                     ]
 
 

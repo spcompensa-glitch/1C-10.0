@@ -1445,8 +1445,9 @@ class SandboxService:
             history.append(f"Garantia 5 (Risco Zero) ativada: max_roi={max_roi:.1f}% -> stop subiu para 0.0% ROI (break-even)")
             logger.info(f"🧪 [SANDBOX-FLASH] {symbol} Garantia 5 (Risco Zero): stop movido para 0.0% ROI")
 
-        ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging)
-        active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging)
+        strat_class = getattr(trade, 'strategy', '') or ''
+        ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging, strategy_class=strat_class)
+        active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging, strategy_class=strat_class)
 
         # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
         # Antes: stop fixo em +1.5% quando max_roi >= 8% → fechava em +2% mesmo com pico de +21%.

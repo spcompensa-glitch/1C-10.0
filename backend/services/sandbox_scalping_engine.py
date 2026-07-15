@@ -45,7 +45,7 @@ _MAX_SLOTS          = 5       # slots simultaneos maximos de Scalping [V128: 10�
 # Sweep (+15) nao e obrigatorio mas melhora qualidade
 _MIN_SCORE          = 70      # score minimo para entrada
 _MAX_STOP_ROI       = -15.0   # perda maxima em ROI (%) [V128: -20→-15]
-_VWAP_TOLERANCE_PCT = 0.40    # tolerancia do preco vs VWAP (%) [V128: 0.15→0.40 para capturar mais sinais]
+_VWAP_TOLERANCE_PCT = 0.20    # tolerancia do preco vs VWAP (%) [V128: sweet spot 0.05-0.10%]
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
 _EMA_PERIOD         = 200
@@ -351,9 +351,9 @@ class SandboxScalpingEngine:
                 return None
 
             pct_ema = ((cur_price - ema200) / ema200) * 100.0
-            if pct_ema > 0.05:
+            if pct_ema > 0.15:
                 direction, side = 'LONG', 'Buy'
-            elif pct_ema < -0.05:
+            elif pct_ema < -0.15:
                 direction, side = 'SHORT', 'Sell'
             else:
                 return None   # ambiguo - muito proximo da EMA
@@ -434,8 +434,8 @@ class SandboxScalpingEngine:
                 if not (k < 35.0):
                     return None
             else:
-                # [V128-C] Filtro: k na zona de sobrecompra (k > 65)
-                if not (k > 65.0):
+                # [V128-C] Filtro: k na zona de sobrecompra (k > 80) — dados mostram K>90 = 100% WR
+                if not (k > 80.0):
                     return None
 
             score += 30
@@ -520,6 +520,18 @@ class SandboxScalpingEngine:
             if any(t.symbol.replace('.P', '').upper() == symbol and t.direction == direction
                    for t in active):
                 return False
+
+            # [V128] Anti-dup: cooldown para trades FECHADOS recentemente (mesmo symbol+direcao)
+            all_closed = await database_service.get_sandbox_trades(active_only=False)
+            for t in all_closed:
+                if (t.strategy == "VWAP SNIPER"
+                    and t.symbol.replace('.P', '').upper() == symbol
+                    and t.direction == direction
+                    and t.status != "ACTIVE"
+                    and t.closed_at
+                    and (time.time() - t.closed_at) < 600):  # 10 min cooldown
+                    logger.debug(f"[VWAP-SNIPER] {symbol} {direction} em cooldown pós-trade fechado")
+                    return False
 
             # Cross-block com Swing Lab
             swing = await database_service.get_swing_trades(active_only=True)

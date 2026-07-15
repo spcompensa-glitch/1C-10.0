@@ -198,6 +198,8 @@ class Settings(BaseSettings):
     EQUITY_DEFENSE_STOP_L1: float = float(os.getenv("EQUITY_DEFENSE_STOP_L1", 7.0))  # LEVE: pico - 7%
     EQUITY_DEFENSE_STOP_L2: float = float(os.getenv("EQUITY_DEFENSE_STOP_L2", 5.0))  # MODERADO: pico - 5%
     EQUITY_DEFENSE_STOP_L3: float = float(os.getenv("EQUITY_DEFENSE_STOP_L3", 3.0))  # FORTE: pico - 3%
+    # ROI mínimo do trade para a defesa aplicar (evita fechar trades com ROI baixo)
+    EQUITY_DEFENSE_MIN_ROI: float = float(os.getenv("EQUITY_DEFENSE_MIN_ROI", 5.0))
 
     @field_validator('SWING_MIRROR_MODE', mode='before')
     @classmethod

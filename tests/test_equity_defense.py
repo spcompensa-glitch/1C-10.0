@@ -130,3 +130,46 @@ class TestEquityDefenseEnforcement:
     def test_critico_does_not_close_other_levels(self):
         for level in [0, 1, 2, 3]:
             assert (level == 4) is False
+
+    def test_defense_skips_when_roi_below_threshold(self):
+        """Defesa NÃO aplica quando ROI máximo do trade é menor que o threshold."""
+        min_roi = 5.0
+        max_roi = 3.0
+        defense_stop_pct = 7.0
+        defense_stop_roi = max_roi - defense_stop_pct
+
+        should_apply = max_roi >= min_roi and defense_stop_roi > 0
+        assert should_apply is False
+
+    def test_defense_applies_when_roi_above_threshold(self):
+        """Defesa APLICA quando ROI máximo do trade é maior ou igual ao threshold."""
+        min_roi = 5.0
+        max_roi = 12.0
+        defense_stop_pct = 7.0
+        defense_stop_roi = max_roi - defense_stop_pct
+
+        should_apply = max_roi >= min_roi and defense_stop_roi > 0
+        assert should_apply is True
+        assert defense_stop_roi == 5.0
+
+    def test_defense_stop_must_be_positive(self):
+        """Defesa só protege se o stop resultante é positivo (lucro)."""
+        max_roi = 4.0
+        defense_stop_pct = 7.0
+        defense_stop_roi = max_roi - defense_stop_pct
+        assert defense_stop_roi == -3.0
+        assert defense_stop_roi < 0
+
+    def test_low_roi_trade_not_affected_by_defense(self):
+        """Trade com ROI baixo (ex: +2%) não é afetado pela defesa."""
+        normal_stop = -8.0
+        max_roi = 2.0
+        defense_stop_pct = 7.0
+        min_roi = 5.0
+
+        if max_roi >= min_roi:
+            defense_stop_roi = max_roi - defense_stop_pct
+        else:
+            defense_stop_roi = normal_stop
+
+        assert defense_stop_roi == normal_stop

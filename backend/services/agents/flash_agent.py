@@ -526,27 +526,30 @@ class FlashAgent:
             return
 
         elif defense_level >= 1:
-            defense_stop_roi = peak_roi - defense_stop_pct
-            if defense_stop_roi > new_stop_roi:
-                new_stop_roi = defense_stop_roi
-                level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
-                active_level["name"] = level_labels.get(defense_level, "EQUITY_DEF")
-                active_level["phase"] = "DEFESA"
+            from backend.config import settings as _cfg
+            _min_roi = getattr(_cfg, "EQUITY_DEFENSE_MIN_ROI", 5.0)
+            if peak_roi >= _min_roi:
+                defense_stop_roi = peak_roi - defense_stop_pct
+                if defense_stop_roi > new_stop_roi:
+                    new_stop_roi = defense_stop_roi
+                    level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
+                    active_level["name"] = level_labels.get(defense_level, "EQUITY_DEF")
+                    active_level["phase"] = "DEFESA"
 
-                flash_state = self._safe_flash_state(trade)
-                history = list(flash_state.get("history", []))
-                if not any("EQUITY_L" in str(h) for h in history[-2:]):
-                    history.append({
-                        "ts": time.time(),
-                        "event": f"EQUITY_DEFENSE_L{defense_level}",
-                        "roi": round(roi, 2),
-                        "price": current_price,
-                        "stop_triggered": await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol),
-                        "level": active_level["name"],
-                        "defense_stop_pct": defense_stop_pct
-                    })
-                    flash_state["history"] = history
-                    trade.flash_state = flash_state
+                    flash_state = self._safe_flash_state(trade)
+                    history = list(flash_state.get("history", []))
+                    if not any("EQUITY_L" in str(h) for h in history[-2:]):
+                        history.append({
+                            "ts": time.time(),
+                            "event": f"EQUITY_DEFENSE_L{defense_level}",
+                            "roi": round(roi, 2),
+                            "price": current_price,
+                            "stop_triggered": await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol),
+                            "level": active_level["name"],
+                            "defense_stop_pct": defense_stop_pct
+                        })
+                        flash_state["history"] = history
+                        trade.flash_state = flash_state
 
         new_stop_price = float(decision_projection.get("recommended_stop") or 0)
         if (new_stop_price <= 0 and new_stop_roi != 0) or database_service.lock_in_active:

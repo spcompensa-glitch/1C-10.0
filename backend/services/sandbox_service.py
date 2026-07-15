@@ -1552,15 +1552,18 @@ class SandboxService:
             status = "CLOSED_EQUITY_DEFENSE"
 
         elif defense_level >= 1:
-            defense_stop_roi = max_roi - defense_stop_pct
-            if defense_stop_roi > updated_stop_roi:
-                updated_stop_roi = defense_stop_roi
-                level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
-                updated_level_name = level_labels.get(defense_level, "EQUITY_DEF")
-                updated_phase = "DEFESA"
-                if not any("EQUITY_L" in str(h) for h in history[-2:]):
-                    history.append(f"[EQUITY-DEFENSE L{defense_level}] Stop recalculado: {defense_stop_roi:.1f}% ROI (-{defense_stop_pct:.0f}% do pico {max_roi:.1f}%)")
-                    logger.warning(f"🛡️ [SANDBOX-EQUITY-DEF] {symbol} stop defesa L{defense_level}: {defense_stop_roi:.1f}% ROI")
+            from backend.config import settings as _cfg
+            _min_roi = getattr(_cfg, "EQUITY_DEFENSE_MIN_ROI", 5.0)
+            if max_roi >= _min_roi:
+                defense_stop_roi = max_roi - defense_stop_pct
+                if defense_stop_roi > updated_stop_roi:
+                    updated_stop_roi = defense_stop_roi
+                    level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
+                    updated_level_name = level_labels.get(defense_level, "EQUITY_DEF")
+                    updated_phase = "DEFESA"
+                    if not any("EQUITY_L" in str(h) for h in history[-2:]):
+                        history.append(f"[EQUITY-DEFENSE L{defense_level}] Stop recalculado: {defense_stop_roi:.1f}% ROI (-{defense_stop_pct:.0f}% do pico {max_roi:.1f}%)")
+                        logger.warning(f"🛡️ [SANDBOX-EQUITY-DEF] {symbol} stop defesa L{defense_level}: {defense_stop_roi:.1f}% ROI")
 
         # 10. Stop price com tick_size rounding
         stop_price = proj_service.raw_price_from_roi(entry_price, updated_stop_roi, side, leverage)

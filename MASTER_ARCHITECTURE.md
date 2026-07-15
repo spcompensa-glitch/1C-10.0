@@ -118,6 +118,7 @@ Sistema de proteção do saldo consolidado da banca Sandbox. Rastreia o pico da 
 - `EQUITY_DEFENSE_STOP_L1 = 7.0%` — L1 LEVE: stop = pico - 7%
 - `EQUITY_DEFENSE_STOP_L2 = 5.0%` — L2 MODERADO: stop = pico - 5%
 - `EQUITY_DEFENSE_STOP_L3 = 3.0%` — L3 FORTE: stop = pico - 3%
+- `EQUITY_DEFENSE_MIN_ROI = 5.0%` — ROI mínimo do trade para defesa aplicar (evita fechar trades com ROI baixo)
 
 **Níveis de defesa** (`sandbox_service.py:1333-1368`):
 
@@ -139,8 +140,9 @@ Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
 ```
 
 **Enforcement** (`sandbox_service.py:1497-1527`, `flash_agent.py:507-547`):
-- L1/L2/L3: sobe stop para `peak_roi - stop_pct` (só se maior que stop atual)
+- L1/L2/L3: sobe stop para `peak_roi - stop_pct` (só se > stop atual E max_roi >= 5%)
 - CRITICO: fecha trade imediatamente com status `CLOSED_EQUITY_DEFENSE`
+- Threshold: defesa só aplica quando ROI máximo do trade >= 5% (evita fechar trades marginais)
 - Regra "só sobe": defense_stop só aplica se > stop atual da escadinha
 
 **UI** (`sandbox.html`):

@@ -633,6 +633,16 @@
             .chat-sidebar {
                 margin-left: 0 !important;
                 height: calc(100vh - 64px) !important;
+                position: fixed !important;
+                z-index: 999;
+                top: 0;
+                left: 0;
+                width: 280px !important;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+            }
+            .chat-sidebar.collapsed {
+                width: 0px !important;
+                box-shadow: none !important;
             }
             .chat-main {
                 height: calc(100vh - 64px) !important;
@@ -781,16 +791,53 @@
     let mediaRecorder = null;
     let audioChunks = [];
 
+    // [V128] Se dentro de iframe (cockpit), esconde nav interna — evita 2 menus no mobile
+    if (window.self !== window.top) {
+        const innerNav = document.querySelector('.app-nav');
+        if (innerNav) innerNav.style.display = 'none';
+        // Ajusta margin do sidebar e padding do main para desktop sem nav
+        const sb = document.querySelector('.chat-sidebar');
+        if (sb) sb.style.marginLeft = '0';
+    }
+
+    // [V128] Sidebar fechada por padrão no mobile
+    if (window.innerWidth < 768) {
+        const sb = document.querySelector('.chat-sidebar');
+        if (sb && !sb.classList.contains('collapsed')) {
+            sb.classList.add('collapsed');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            if (icon) icon.textContent = 'menu';
+        }
+    }
+
     // SIDEBAR TOGGLE
     function toggleSidebar() {
         const sidebar = document.querySelector('.chat-sidebar');
         const icon = document.getElementById('sidebar-toggle-icon');
+        const isMobile = window.innerWidth < 768;
         sidebar.classList.toggle('collapsed');
-        if (sidebar.classList.contains('collapsed')) {
+        const collapsed = sidebar.classList.contains('collapsed');
+        if (collapsed) {
             icon.textContent = 'menu';
+            removeSidebarOverlay();
         } else {
             icon.textContent = 'menu_open';
+            if (isMobile) addSidebarOverlay();
         }
+    }
+
+    // [V128] Overlay para sidebar drawer no mobile
+    function addSidebarOverlay() {
+        if (document.getElementById('sidebar-overlay')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'sidebar-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.5);';
+        overlay.onclick = () => toggleSidebar();
+        document.body.appendChild(overlay);
+    }
+    function removeSidebarOverlay() {
+        const o = document.getElementById('sidebar-overlay');
+        if (o) o.remove();
     }
 
     // ═══════════════════════════════════════════════════════════════

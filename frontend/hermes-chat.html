@@ -588,7 +588,7 @@
         /* ═══════════════════════════════════════════════════════════════ */
         /* RESPONSIVIDADE PWA MOBILE                                      */
         /* ═══════════════════════════════════════════════════════════════ */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .app-nav {
                 top: auto;
                 bottom: 0;
@@ -801,7 +801,7 @@
     }
 
     // [V128] Sidebar fechada por padrão no mobile
-    if (window.innerWidth < 768) {
+    if (window.innerWidth < 1024) {
         const sb = document.querySelector('.chat-sidebar');
         if (sb && !sb.classList.contains('collapsed')) {
             sb.classList.add('collapsed');
@@ -814,7 +814,7 @@
     function toggleSidebar() {
         const sidebar = document.querySelector('.chat-sidebar');
         const icon = document.getElementById('sidebar-toggle-icon');
-        const isMobile = window.innerWidth < 768;
+        const isMobile = window.innerWidth < 1024;
         sidebar.classList.toggle('collapsed');
         const collapsed = sidebar.classList.contains('collapsed');
         if (collapsed) {

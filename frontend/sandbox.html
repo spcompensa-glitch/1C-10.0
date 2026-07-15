@@ -261,19 +261,22 @@
         /* ═══════════════════════════════════════════════════════════════ */
         /* RESPONSIVIDADE PWA MOBILE                                      */
         /* ═══════════════════════════════════════════════════════════════ */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .app-nav {
                 top: auto;
                 bottom: 0;
                 left: 0;
                 right: 0;
                 width: 100%;
-                height: 64px;
+                height: auto;
                 flex-direction: row;
                 justify-content: space-around;
                 padding: 0 16px;
+                padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
                 border-right: none;
                 border-top: 1px solid rgba(255,255,255,0.06);
+                background: rgba(6,6,16,0.95);
+                backdrop-filter: blur(24px);
             }
             .nav-logo, .nav-logo-divider, .nav-bottom {
                 display: none !important;
@@ -292,9 +295,20 @@
                 flex: 1;
                 max-width: 100px;
             }
+            .nav-adm-wrapper {
+                width: auto;
+                flex: 1;
+                max-width: 100px;
+                display: flex;
+                justify-content: center;
+            }
+            .nav-adm-wrapper .nav-btn {
+                width: 100%;
+                max-width: none;
+            }
             .main-content {
                 margin-left: 0 !important;
-                margin-bottom: 64px !important;
+                margin-bottom: 80px !important;
             }
             .adm-submenu {
                 left: 50%;

@@ -5929,7 +5929,7 @@
                                 </span>
                             </div>
                             
-                            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
+                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pb-4">
                                 <PositionsTable
                                     slots={slots}
                                     tickers={tickers}
@@ -5959,7 +5959,7 @@
                     </main>
 
                     {/* --- COLUNA DIREITA: PAINEL OPERACIONAL & HISTÓRICO --- */}
-                    <aside className="w-[420px] border-l border-white/5 flex flex-col bg-black/20 backdrop-blur-md z-20 overflow-y-auto no-scrollbar">
+                    <aside className="w-[420px] border-l border-white/5 flex flex-col bg-black/20 backdrop-blur-md z-20 overflow-y-auto custom-scrollbar">
                         <div className="p-6 space-y-8">
                             {/* 1. NET WORTH / BANCA */}
                             <section className="space-y-4">
@@ -6592,7 +6592,7 @@
                     </div>
 
                     {/* --- MOBILE WEALTH EDITION (ABAIXO DE LG) --- */}
-                    <div className="flex lg:hidden flex-col min-h-screen v5-bg-deep pb-28">
+                    <div className="flex lg:hidden flex-col min-h-screen v5-bg-deep pb-28 overflow-y-auto">
                         {/* SEÇÃO 1: CABEÇALHO BTC & SISTEMA */}
                         <QuantumHUD 
                             btc={btcCommandStatus} 

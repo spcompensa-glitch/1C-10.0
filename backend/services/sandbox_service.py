@@ -1432,18 +1432,18 @@ class SandboxService:
             pnl_pct = current_roi
 
         # 9. Escadinha
-        # [V126.2] Garantia 5 Risco Zero: ao atingir +5% ROI, o stop vai para 0.0% ROI (break-even).
-        # Remove a folga de -1.5% que gerava perdas acumuladas, blindando o capital a 0% de risco imediato.
+        # [V127.2] GARANTIA_5 → GARANTIA_8: ao atingir +8% ROI, o stop vai para 0.0% ROI (break-even).
+        # V128 usava +5% — restaurado para +8% para dar mais fôlego antes de travar.
         updated_stop_roi = current_stop_roi
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        if max_roi >= 5.0 and current_stop_roi < 0.0:
+        if max_roi >= 8.0 and current_stop_roi < 0.0:
             updated_stop_roi = 0.0
             updated_level_name = "RISCO_ZERO"
             updated_phase = "ESCADINHA"
-            history.append(f"Garantia 5 (Risco Zero) ativada: max_roi={max_roi:.1f}% -> stop subiu para 0.0% ROI (break-even)")
-            logger.info(f"🧪 [SANDBOX-FLASH] {symbol} Garantia 5 (Risco Zero): stop movido para 0.0% ROI")
+            history.append(f"Garantia 8 (Risco Zero) ativada: max_roi={max_roi:.1f}% -> stop subiu para 0.0% ROI (break-even)")
+            logger.info(f"🧪 [SANDBOX-FLASH] {symbol} Garantia 8 (Risco Zero): stop movido para 0.0% ROI")
 
         strat_class = getattr(trade, 'strategy', '') or ''
         ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging, strategy_class=strat_class)

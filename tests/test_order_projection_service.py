@@ -96,10 +96,12 @@ async def test_ranging_ladder_protects_earlier_than_trending():
     )
 
     assert ranging["roi_percent"] == pytest.approx(70.0)
+    # [V127.2] Dynamic trailing levels extend above static ladder; at ROI 70%,
+    # TRAIL_70 (trigger=70, stop=68) is active with ranging adaptation (stop_roi = roi - 2)
     assert ranging["active_level"]["name"] == "TRAIL_70"
-    assert ranging["active_level"]["stop_roi"] == 65.0
+    assert ranging["active_level"]["stop_roi"] == 68.0
     assert trending["active_level"]["name"] == "LUCRO_MEDIO"
-    assert trending["active_level"]["stop_roi"] == 30.0
+    assert trending["active_level"]["stop_roi"] == 40.0
 
 
 @pytest.mark.asyncio

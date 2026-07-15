@@ -348,9 +348,19 @@ class BankrollGuardian:
         history: List[Dict[str, Any]],
     ) -> Dict[str, float]:
         stored_equity = _safe_float(banca.get("saldo_total"), 0.0)
-        realized_pnl = self._realized_pnl_usd(history)
+        
+        # [V127.1] Em PAPER, o base_balance JÁ contém o PnL realizado do Sandbox
+        # (via get_sandbox_unified_balance). NÃO somar realized_pnl novamente.
+        # Em REAL, o realized_pnl vem do Firebase e deve ser somado.
+        from config import settings
+        is_paper = getattr(settings, "OKX_EXECUTION_MODE", "PAPER") == "PAPER"
+        
+        realized_pnl = self._realized_pnl_usd(history) if not is_paper else 0.0
         open_slots_pnl = sum(self._position_pnl_usd(slot) for slot in active_slots)
         open_moonbags_pnl = sum(self._position_pnl_usd(moonbag) for moonbag in active_moonbags)
+        
+        # [V127.1] Em PAPER: base_balance (realizado) + open_pnl
+        # Em REAL: base_balance + realized_pnl (Firebase) + open_pnl
         calculated_equity = base_balance + realized_pnl + open_slots_pnl + open_moonbags_pnl
 
         has_live_or_realized_pnl = any(abs(value) > 0.000001 for value in (realized_pnl, open_slots_pnl, open_moonbags_pnl))

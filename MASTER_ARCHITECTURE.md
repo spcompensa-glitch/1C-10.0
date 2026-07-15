@@ -48,7 +48,7 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 
 ---
 
-## 3. Escadinha de Stops (fonte: `backend/services/order_projection_service.py`)
+## 3. Escadinha de Stops (fonte: `backend/services/order_projection_service.py` + `sandbox_service.py` + `sandbox_swing_service.py`)
 
 Existem **5** escadas. A selecao e feita em `get_stop_ladder(roi, is_ranging, slot_type, strategy_class)`:
 - `is_swing` = `slot_type` in (BLITZ_30M, SWING) **ou** `strategy_class` in (VELOCITY FLOW, ALPHA SHIELD, DECOR SHADOW)
@@ -73,17 +73,65 @@ Acima de 20% ROI em ranging, a escada sobe dinamicamente de 1% em 1% (trailing g
 | 10% | 6% | LUCRO_MEDIO_SCALP |
 | 15% | 11% | TRAILING_SCALP |
 
-### 3.3 `ORDER_STOP_LADDER_SWING` (swing tendencia)
-2/0 (BREAKEVEN), 60/30 (PRE_UNIT1), 100/80 (UNIT1_GARANTIDO), 150/110 (EMANCIPADO), 200/170 (UNIT2), 300/250 (UNIT3).
+### 3.3 `ORDER_STOP_LADDER_SWING` (swing tendencia) [V127.2]
+| Gatilho | Stop | Nome |
+|---|---|---|
+| 10% | 0% | BREAKEVEN |
+| 20% | 5% | PROTECAO_PARCIAL_1 |
+| 60% | 30% | PRE_UNIT1 |
+| 100% | 80% | UNIT1_GARANTIDO |
+| 150% | 110% | EMANCIPADO |
+| 200% | 170% | UNIT2_GARANTIDO |
+| 300% | 250% | UNIT3_GARANTIDO |
 
 ### 3.4 `ORDER_STOP_LADDER_SWING_LATERAL` (swing em lateral)
-5/1.5 (BREAKEVEN_LATERAL), 15/5 (PRE_UNIT1_LATERAL), 30/15 (UNIT1_GARANTIDO), 60/30 (EMANCIPADO_LATERAL), 100/80 (TRAILING_LATERAL).
+| Gatilho | Stop | Nome |
+|---|---|---|
+| 5% | 1.5% | BREAKEVEN_LATERAL |
+| 15% | 5% | PRE_UNIT1_LATERAL |
+| 30% | 15% | UNIT1_GARANTIDO |
+| 60% | 30% | EMANCIPADO_LATERAL |
+| 100% | 80% | TRAILING_LATERAL |
 
 ### 3.5 `ORDER_STOP_LADDER_TRENDING` (tendencia)
 14/2, 25/10, 40/20, 60/40, 80/60, 100/80, 130/110, 150/110, 200/150, 300/220, 400/280, 500/350, 600/420, 700/500, 750/600, 800/650, 1000/800, 1200/1000.
 Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho − 200%.
 
 `ORDER_STOP_LADDER` (sem sufixo) e um alias de `TRENDING` para compatibilidade com o compliance do Hermes.
+
+### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
+
+**GARANTIA_8 — Risco Zero Imediato [V127.2]** (`sandbox_service.py:1441-1446`):
+Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital.
+
+**GARANTIA_TRAIL — Trailing Dinâmico [V122]** (`sandbox_service.py:1452-1475`):
+Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
+Exemplos: pico +21% → stop +12.6%; pico +29% → stop +17.4%.
+
+### 3.7 Stops Iniciais
+
+**Scalping Lab — VWAP SNIPER [V127.2]** (`sandbox_scalping_engine.py:47`):
+- `_MAX_STOP_ROI = -8.0%` (0.16% preço com 50x). Antes era -15% (0.3% preço).
+- Stop = 1.0x ATR do 1m, máximo -8% ROI.
+- GARANTIA_8 ativa em +8% ROI → stop vai a 0%.
+
+**Scalping Lab — Stop Adaptativo [V123]** (`sandbox_service.py:321-400`):
+- Tenta stop estrutural 30M (swing low/high + buffer) — aprovado se ROI entre -40% e -25%.
+- Fallback: -25% ROI (0.5% preço com 50x).
+- Teto rígido: -30% ROI (0.6% preço).
+
+**Swing Lab — Stop Configurável [V127.2]** (`sandbox_swing_service.py:424-431`):
+- `SWING_STOP_ROI` = 5.0% (config.py:181). Antes era 25.0%.
+- Fórmula: `stop_price = entry × (1 ± 5/(50×100))` = ±0.1% do preço.
+- Breakeven em +10% ROI (escadinha SWING).
+- Filtro de regime: bearish → SHORT; bullish → LONG.
+- Pausa 14:00-15:00 UTC.
+
+**Execution Protocol — Breakeven Adaptativo [BLITZ]** (`execution_protocol.py:430-494`):
+- DNA do ativo via Librarian: wick_multiplier e is_retest_heavy.
+- Ativo limpo: breakeven em +30% ROI.
+- Ativo instável: breakeven em +50% ROI.
+- Pavio extremo/retest: breakeven em +60% ROI.
 
 ---
 
@@ -212,19 +260,21 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - **Identificação**: O stop é marcado no banco e na UI como `LOCK-IN_5%` na fase de `DEFESA`.
 - **Desativação**: O protocolo só é inativado caso a banca consolidada recue abaixo do saldo inicial de $10.000.
 
-### 8.6 Espelho PAPER → Cockpit (V127)
+### 8.6 Espelho PAPER → Cockpit (V127 / V127.1)
 
 Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, para que o operador veja a carteira simulada como se fosse a real:
 
-- **Net Worth (Banca)**: vem da **Banca Simulada Consolidada do Sandbox** calculada por `DatabaseService.get_sandbox_unified_balance()` (`services/database_service.py`): `10000 + Σ(pnl_pct/100 × 200)` sobre **TODOS** os trades (fechados + ativos) de Scalping Lab e Swing Lab. Implementacao em SQL agregado (`SUM(pnl_pct)`) para evitar leitura de ORM destacado. Igual ao `virtual_balance` de `/api/sandbox/unified-state` (Secao 8.4).
-  - Consumido por: `bankroll.update_banca_status` (`saldo_total`/`configured_balance`/`paper_equity` = saldo do Sandbox; `saldo_real_okx` forçado a `0.0` em PAPER p/ o Cockpit flutuar a base com o PnL), `system.get_banca_data` (PAPER), e `bankroll_guardian.evaluate_bank_health` (PAPER, que define o `equity` exibido como Net Worth).
+- **Net Worth (Banca)**: vem da **Banca Simulada Realizada do Sandbox** calculada por `DatabaseService.get_sandbox_unified_balance()` (`services/database_service.py`): `10000 + Σ(pnl_pct/100 × 200)` sobre **APENAS trades FECHADOS** (status `CLOSED_SL`, `CLOSED_TRAILING` ou `EMANCIPATED`) de Scalping Lab e Swing Lab. O PnL nao realizado dos trades ativos e calculado separadamente pelo `bankroll_guardian._live_bankroll_snapshot()`.
+  - **[V127.1] Fix de dupla contagem**: Anteriormente (V127), `get_sandbox_unified_balance()` somava TODOS os trades (fechados + ativos), causando inflacao artificial do equity quando combinado com o `realized_pnl` do Guardian. Agora, o saldo realizado do Sandbox ja e o `base_balance` do Guardian, e o PnL dos slots ativos e adicionado apenas uma vez via `_live_bankroll_snapshot()`.
+  - Consumido por: `bankroll.update_banca_status` (`saldo_total`/`configured_balance`/`paper_equity` = saldo realizado do Sandbox; `saldo_real_okx` forçado a `0.0` em PAPER), `system.get_banca_data` (PAPER), e `bankroll_guardian.evaluate_bank_health` (PAPER, que define o `equity` exibido como Net Worth).
 - **Painel de Custodia (Ordens)**: `GET /api/slots` (`routes/trading.py`) e o broadcast WS `live_slots` (`main.py:slots_broadcast_loop`, a cada 5s) mesclam em PAPER as ordens ativas do Sandbox como slots:
   - Scalping Lab → `slot_type="SCALPING"`; Swing Lab → `slot_type="SWING"`.
   - Mapeamento via `_map_sandbox_trade_to_slot` (direction→side; entry_price/stop_loss/target → entry_price/current_stop/target_price; margin $200; leverage do settings).
   - O PnL ao vivo de cada ordem e recalculado no `GET /api/slots` via `build_projection` (preco real da OKX); o WS mantem symbol/entry entre os polls.
-- **Net Worth no frontend**: `liveEquity` (`cockpit.html:6442-6449`) usa `guardianEquity` quando `guardianReport.equity > 0` — por isso o `equity` do Guardiao (agora = saldo do Sandbox em PAPER) e a fonte do Net Worth, e nao o `saldo_total` cru.
+- **Net Worth no frontend**: `liveEquity` (`cockpit.html:6442-6449`) usa `guardianEquity` quando `guardianReport.equity > 0` — por isso o `equity` do Guardiao (saldo realizado + PnL slots ativos em PAPER) e a fonte do Net Worth, e nao o `saldo_total` cru.
 
 > **Caveat conhecido**: o header "Slots X/20" / `available_slots_count` ainda reflete os slots reais (0 em PAPER), nao o count do Sandbox. Apenas o Painel de Custodia (posicoes) e o Net Worth sao espelhados.
+> **Nota V127.1**: o endpoint `/api/sandbox/unified-state` continua retornando o saldo consolidado com todos os trades (fechados + ativos) para fins de monitoramento no sandbox.html. Apenas o cálculo do Guardian (que alimenta o Cockpit) usa apenas trades fechados.
 
 ---
 
@@ -298,6 +348,12 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 6. **[V127] Espelho PAPER Sandbox→Cockpit** (refinamento sobre o V124.7): em PAPER o *Net Worth* e o *Painel de Custodia* do Cockpit representam o Sandbox (Banca Simulada Consolidada via `get_sandbox_unified_balance` + ordens ativas Scalp/Swing como slots). `saldo_real_okx` e forçado a `0.0` em PAPER em `update_banca_status`. `OKX_SIMULATED_BALANCE` deixa de ser o saldo exibido em PAPER (subsituido pelo saldo do Sandbox), mas segue como base de sizing/guardian. Ver Secao 8.6.
 7. **[V127] Swing Stop refinado**: stop inicial configuravel via `SWING_STOP_ROI` (padrao 5.0 = -5% ROI = 0.1% preco). Escadinha BREAKEVEN em +10% ROI (antes +30%). Confirmação de entry: candle 5m fecha na direcao + volume ≥ 1.5x media. Trade INJUSDT +15.7% (+$31.40) e DOTUSDT -5.3% (-$10.68) validaram o sistema (R:R 1:2.94).
 8. **[V128] Swing Lab otimizado por simulacao**: STOP=10% (0.2% preco), BE=+2% (protecao rapida), regime filter (bearish→SHORT, bullish→LONG), hour filter (pausa 14-15 UTC), blacklist dinamica (auto-bloqueio apos 3+ trades com WR<20%). Simulacao mostrou que SHORTs tem 50% WR vs LONGs 10%.
+9. **[V127.1] Fix de dupla contagem de PnL**: Corrigido bug onde o equity do Guardian era inflado por somar o PnL realizado duas vezes (via `get_sandbox_unified_balance` que incluia TODOS os trades + `realized_pnl` do Firebase). Agora, `get_sandbox_unified_balance()` filtra APENAS trades fechados (`CLOSED_SL`, `CLOSED_TRAILING`, `EMANCIPATED`), e `_live_bankroll_snapshot()` em PAPER NAO soma `realized_pnl` novamente. Correções em: `database_service.py:1195-1223`, `bankroll_guardian.py:342-371`. Ver Secao 8.6.
+10. **[V128→V127.2] Swing Stop restaurado para 5% ROI (0.1% preço)**: `SWING_STOP_ROI=5.0` (config.py:181). O V128 aumentou para 25% ROI (0.5% preço), causando 100% de trades Swing em stop (-25% cada). Restaurado para 5% (0.1% preço) para dar fôlego ao trade. Breakeven restaurado de +4% para +10% ROI.
+11. **[V127.2] Scalping Stop restaurado para -8% ROI (0.16% preço)**: `_MAX_STOP_ROI=-8.0` (sandbox_scalping_engine.py:47). O V128 aumentou para -15% (0.3% preço), causando R:R 1:3 e expectancy negativa (-2.08% por trade). Restaurado para -8% (0.16% preço) para R:R ~1:1.
+12. **[V127.2] GARANTIA_8 (antes GARANTIA_5)**: Threshold de proteção subiu de +5% para +8% ROI. Stop vai a 0% quando trade atinge +8% ROI. Evita violinada em lucros marginais.
+13. **[V122] GARANTIA_TRAIL: trailing 60% do pico**: Quando max_roi >= 8% e stop < 0%, stop = max(1.5, max_roi × 0.60). Trade com pico +21% tem stop em +12.6% (não +1.5% fixo). Protege lucro sem travar cedo demais.
+14. **[V128] Breakeven adaptativo BLITZ**: Execution Protocol usa DNA do ativo (Librarian) para definir breakeven: ativo limpo +30% ROI, instável +50%, pavio extremo +60%.
 
 ---
 

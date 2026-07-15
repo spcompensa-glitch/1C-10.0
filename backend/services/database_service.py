@@ -1194,20 +1194,27 @@ class DatabaseService:
 
     async def get_sandbox_unified_balance(self) -> float:
         """
-        [V127] Retorna a Banca Simulada Consolidada do Sandbox (Scalping Lab + Swing Lab),
-        espelhada exatamente pelo endpoint /api/sandbox/unified-state.
+        [V127.1] Retorna a Banca Simulada Consolidada do Sandbox (Scalping Lab + Swing Lab).
+        Calcula APENAS o PnL REALIZADO (trades fechados) para evitar dupla contagem
+        com o PnL não realizado que é calculado separadamente pelo bankroll_guardian.
+        
         Em PAPER mode esta deve ser a 'Banca' exibida no Cockpit.
-        Usa agregação SQL (SUM) para evitar leitura de atributos de ORM destacado.
         """
         from config import settings
         from sqlalchemy import select, func
         try:
             async with self.AsyncSessionLocal() as session:
+                # [V127.1] Filtrar APENAS trades FECHADOS (realizados)
+                # Status fechados: CLOSED_SL, CLOSED_TRAILING, EMANCIPATED
                 scalp_sum = await session.execute(
-                    select(func.coalesce(func.sum(SandboxTrade.pnl_pct), 0.0))
+                    select(func.coalesce(func.sum(SandboxTrade.pnl_pct), 0.0)).where(
+                        SandboxTrade.status.in_(["CLOSED_SL", "CLOSED_TRAILING", "EMANCIPATED"])
+                    )
                 )
                 swing_sum = await session.execute(
-                    select(func.coalesce(func.sum(SandboxSwingTrade.pnl_pct), 0.0))
+                    select(func.coalesce(func.sum(SandboxSwingTrade.pnl_pct), 0.0)).where(
+                        SandboxSwingTrade.status.in_(["CLOSED_SL", "CLOSED_TRAILING", "EMANCIPATED"])
+                    )
                 )
                 scalp_pnl = float(scalp_sum.scalar() or 0.0)
                 swing_pnl = float(swing_sum.scalar() or 0.0)
@@ -1216,10 +1223,10 @@ class DatabaseService:
             margin_swing = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
             total_pnl_usd = (scalp_pnl / 100.0) * margin_scalp + (swing_pnl / 100.0) * margin_swing
             current_balance = 10000.0 + total_pnl_usd
-            logger.info(f"[V127] Sandbox unified balance = {current_balance:.2f} (scalp_pnl={scalp_pnl}, swing_pnl={swing_pnl})")
+            logger.info(f"[V127.1] Sandbox realized balance = {current_balance:.2f} (scalp_pnl={scalp_pnl:.2f}, swing_pnl={swing_pnl:.2f})")
             return round(current_balance, 2)
         except Exception as e:
-            logger.exception(f"[V127] Erro ao calcular saldo unificado do Sandbox: {e}")
+            logger.exception(f"[V127.1] Erro ao calcular saldo realizado do Sandbox: {e}")
             return 10000.0
 
     # ==================== PHASE DETECTOR HISTORY (V120) ====================

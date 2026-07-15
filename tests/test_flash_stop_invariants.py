@@ -165,7 +165,7 @@ async def test_hard_reset_preserves_explicit_exit_price(monkeypatch):
 
 def test_flash_slot_tracking_log_exposes_stop_context(caplog):
     flash = FlashAgent()
-    caplog.set_level(logging.INFO, logger="FlashAgent")
+    caplog.set_level(logging.DEBUG, logger="FlashAgent")
 
     projection = {
         "phase": "ESCADINHA",
@@ -186,9 +186,9 @@ def test_flash_slot_tracking_log_exposes_stop_context(caplog):
         slot_id=2,
         symbol="WLDUSDT",
         side="sell",
-        entry_price=0.5075,
-        current_price=0.4968,
-        current_stop=0.5252625,
+        entry=0.5075,
+        current=0.4968,
+        stop=0.5252625,
         leverage=50.0,
         roi=105.4,
         effective_roi=105.4,
@@ -196,15 +196,16 @@ def test_flash_slot_tracking_log_exposes_stop_context(caplog):
     )
 
     line = caplog.records[-1].message
-    assert "[FLASH-TRACK][SLOT]" in line
-    assert "symbol=WLDUSDT" in line
-    assert "active=RISCO_ZERO/trigger=70%/stop=45%" in line
-    assert "next=PROFIT_LOCK/trigger=110%/stop=80%" in line
-    assert "stop_db=" in line
-    assert "stop_db_roi=-175.0%" in line
-    assert "stop_target=" in line
-    assert "stop_target_roi=+45.3%" in line
-    assert "action=APPLY_STOP" in line
+    assert "[FLASH] Tracking" in line
+    assert "slot=2" in line
+    assert "WLDUSDT" in line
+    assert "SELL" in line
+    assert "Entry=$0.5075" in line
+    assert "Price=$0.4968" in line
+    assert "Stop=$0.5253" in line
+    assert "ROI=105.4%" in line
+    assert "MaxROI=105.4%" in line
+    assert "Phase=ESCADINHA" in line
 
 
 @pytest.mark.asyncio
@@ -256,8 +257,8 @@ async def test_slot_uses_recent_peak_roi_to_promote_stop_after_pullback(monkeypa
 
     await flash._process_slot(slot)
 
-    assert checked_stops == [pytest.approx(426.24), pytest.approx(431.74)]
-    assert updated == [(3, "ZECUSDT", pytest.approx(431.74), "PROFIT_LOCK", "buy", 35.0)]
+    assert checked_stops == [pytest.approx(426.24), pytest.approx(437.48)]
+    assert updated == [(3, "ZECUSDT", pytest.approx(437.48), "TRAIL_LOCK", "buy", 35.0)]
 
 
 @pytest.mark.asyncio

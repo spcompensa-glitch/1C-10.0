@@ -178,7 +178,7 @@ class Settings(BaseSettings):
 
     # ROI-alvo do stop inicial do Swing (em %)
     # 25.0 → stop a 0.5% do preço com 50x (V128: aumento de 15% para 25% para dar mais espaço a M30)
-    SWING_STOP_ROI: float = float(os.getenv("SWING_STOP_ROI", 25.0))
+    SWING_STOP_ROI: float = float(os.getenv("SWING_STOP_ROI", 5.0))
 
     # =========================================================================
     # [LOCK-IN-PROTOCOL] Protocolo de Defesa de Lucros (Sandbox e Swing Lab)

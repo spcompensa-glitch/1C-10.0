@@ -44,7 +44,7 @@ _MAX_SLOTS          = 5       # slots simultaneos maximos de Scalping [V128: 10�
 # [V128] Score minimo = 70 (3 camadas = 85pts sem sweep, 100 com sweep)
 # Sweep (+15) nao e obrigatorio mas melhora qualidade
 _MIN_SCORE          = 70      # score minimo para entrada
-_MAX_STOP_ROI       = -15.0   # perda maxima em ROI (%) [V128: -20→-15]
+_MAX_STOP_ROI       = -8.0    # perda maxima em ROI (%) [V127.2: -15→-8 para restaurar R:R ~1:1]
 _VWAP_TOLERANCE_PCT = 0.20    # tolerancia do preco vs VWAP (%) [V128: sweet spot 0.05-0.10%]
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0

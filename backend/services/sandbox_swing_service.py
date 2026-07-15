@@ -207,6 +207,18 @@ class SandboxSwingService:
             from services.okx_ws_public import okx_ws_public_service
             btc_adx = float(getattr(okx_ws_public_service, "btc_adx", 0.0))
             btc_dir = "UP" if btc_adx >= 25 else "LATERAL"
+
+            # [V128] Detectar downtrend BTC: SMA8 < SMA21 no M30 = "DOWN"
+            try:
+                btc_ohlcv = await okx_ws_public_service.get_ohlcv("BTCUSDT", "M30", limit=30)
+                if btc_ohlcv and len(btc_ohlcv) >= 21:
+                    closes = [c["c"] for c in btc_ohlcv]
+                    sma8 = sum(closes[-8:]) / 8.0
+                    sma21 = sum(closes[-21:]) / 21.0
+                    if sma8 < sma21:
+                        btc_dir = "DOWN"
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -217,8 +229,9 @@ class SandboxSwingService:
             logger.info(f"[SWING-LAB] Scan pausado (hora {current_hour}:00 UTC — alto risco historico)")
             return
 
-        # [V128] Regime filter: bearish → so SHORT; bullish → so LONG
-        is_bearish = btc_dir == "DOWN" or (btc_adx > 0 and btc_adx < 25)
+        # [V128] Regime filter: bearish → so SHORT; bullish → so LONG; lateral → ambos
+        is_bearish = btc_dir == "DOWN"
+        is_bullish = btc_dir == "UP"
 
         # 3. Watchlist
         watchlist = getattr(settings, "RADAR_WATCHLIST", [])
@@ -364,6 +377,12 @@ class SandboxSwingService:
             scalp_symbols = {t.symbol.replace(".P", "").upper() for t in scalp_active}
             if symbol in scalp_symbols:
                 logger.debug(f"[SWING-CROSS-BLOCK] {symbol} ativo no Scalping Lab. Bloqueado.")
+                return None
+
+            # [V128] Filtro volume mínimo — rejeita sinais com volume < 0.5x da média
+            vol_ratio = float(signal.get("indicators", {}).get("volume_ratio", 0) or 0)
+            if vol_ratio < 0.5:
+                logger.info(f"[SWING-LAB] {symbol} {direction} descartado: volume {vol_ratio:.2f}x < 0.5x mínimo")
                 return None
 
             # --- Anti-duplicata ---

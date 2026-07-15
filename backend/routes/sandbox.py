@@ -57,7 +57,13 @@ async def get_unified_sandbox_state():
             "lock_in_active": getattr(database_service, "lock_in_active", False),
             "lock_in_trigger_balance": getattr(database_service, "lock_in_trigger_balance", 11000.0),
             "lock_in_floor_balance": getattr(database_service, "lock_in_floor_balance", 10500.0),
-            "lock_in_stop_percent": getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0)
+            "lock_in_stop_percent": getattr(settings, "SANDBOX_LOCK_IN_STOP_PERCENT", 5.0),
+            # [V128-EQUITY-DEFENSE] Telemetria da Defesa Progressiva
+            "equity_defense_level": getattr(database_service, "equity_defense_level", 0),
+            "equity_defense_stop_pct": getattr(database_service, "equity_defense_stop_pct", 0.0),
+            "equity_peak": round(getattr(database_service, "equity_peak", 10000.0), 2),
+            "equity_floor": round(getattr(database_service, "equity_floor", 10000.0), 2),
+            "consolidated_balance": round(getattr(database_service, "current_consolidated_balance", 10000.0), 2),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao compilar telemetria unificada: {str(e)}")

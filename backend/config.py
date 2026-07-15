@@ -189,6 +189,16 @@ class Settings(BaseSettings):
     # 5% da margem ($10.00 de oscilação em trade de $200)
     SANDBOX_LOCK_IN_STOP_PERCENT: float = float(os.getenv("SANDBOX_LOCK_IN_STOP_PERCENT", 5.0))
 
+    # =========================================================================
+    # [V128-EQUITY-DEFENSE] Defesa Progressiva de Patrimônio
+    # =========================================================================
+    # Percentual de lucro protegido do pico (80% = preserva 80% do lucro máximo)
+    EQUITY_DEFENSE_LOCK_RATIO: float = float(os.getenv("EQUITY_DEFENSE_LOCK_RATIO", 0.80))
+    # Níveis de defesa: stop = pico - stop_pct (quanto menor, mais apertado)
+    EQUITY_DEFENSE_STOP_L1: float = float(os.getenv("EQUITY_DEFENSE_STOP_L1", 7.0))  # LEVE: pico - 7%
+    EQUITY_DEFENSE_STOP_L2: float = float(os.getenv("EQUITY_DEFENSE_STOP_L2", 5.0))  # MODERADO: pico - 5%
+    EQUITY_DEFENSE_STOP_L3: float = float(os.getenv("EQUITY_DEFENSE_STOP_L3", 3.0))  # FORTE: pico - 3%
+
     @field_validator('SWING_MIRROR_MODE', mode='before')
     @classmethod
     def strip_swing_mirror_mode(cls, v):

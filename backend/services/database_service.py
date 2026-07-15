@@ -292,6 +292,12 @@ class DatabaseService:
         self.lock_in_trigger_balance = 11000.0
         self.current_consolidated_balance = 10000.0
 
+        # [V128-EQUITY-DEFENSE] Defesa progressiva de patrimônio
+        self.equity_peak = 10000.0
+        self.equity_defense_level = 0  # 0=OFF, 1=LEVE, 2=MODERADO, 3=FORTE, 4=CRITICO
+        self.equity_floor = 10000.0
+        self.equity_defense_stop_pct = 5.0
+
     async def initialize(self):
         """Inicializa as tabelas no banco de dados."""
         try:

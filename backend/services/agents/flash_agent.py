@@ -505,6 +505,49 @@ class FlashAgent:
                     flash_state["history"] = history
                     trade.flash_state = flash_state
 
+        # [V128-EQUITY-DEFENSE] Defesa Progressiva de Patrimônio
+        defense_level = getattr(database_service, "equity_defense_level", 0)
+        defense_stop_pct = getattr(database_service, "equity_defense_stop_pct", 0.0)
+
+        if defense_level == 4:
+            logger.warning(f"🛡️ [EQUITY-CRITICO] {symbol} Fechando trade — piso de patrimônio violado")
+            flash_state = self._safe_flash_state(trade)
+            history = list(flash_state.get("history", []))
+            history.append({
+                "ts": time.time(),
+                "event": "EQUITY_CRITICO_CLOSE",
+                "roi": round(roi, 2),
+                "price": current_price,
+                "level": "EQUITY_CRITICO"
+            })
+            flash_state["history"] = history
+            trade.flash_state = flash_state
+            await self._close_position(slot_id, symbol, side, qty, f"EQUITY_CRITICO_{roi:.1f}%")
+            return
+
+        elif defense_level >= 1:
+            defense_stop_roi = peak_roi - defense_stop_pct
+            if defense_stop_roi > new_stop_roi:
+                new_stop_roi = defense_stop_roi
+                level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
+                active_level["name"] = level_labels.get(defense_level, "EQUITY_DEF")
+                active_level["phase"] = "DEFESA"
+
+                flash_state = self._safe_flash_state(trade)
+                history = list(flash_state.get("history", []))
+                if not any("EQUITY_L" in str(h) for h in history[-2:]):
+                    history.append({
+                        "ts": time.time(),
+                        "event": f"EQUITY_DEFENSE_L{defense_level}",
+                        "roi": round(roi, 2),
+                        "price": current_price,
+                        "stop_triggered": await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol),
+                        "level": active_level["name"],
+                        "defense_stop_pct": defense_stop_pct
+                    })
+                    flash_state["history"] = history
+                    trade.flash_state = flash_state
+
         new_stop_price = float(decision_projection.get("recommended_stop") or 0)
         if (new_stop_price <= 0 and new_stop_roi != 0) or database_service.lock_in_active:
             new_stop_price = await self._calc_stop_price(entry_price, new_stop_roi, side, leverage, symbol)

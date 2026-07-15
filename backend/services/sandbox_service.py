@@ -1331,6 +1331,48 @@ class SandboxService:
                         database_service.lock_in_active = False
                         logger.info("🛡️ [LOCK-IN-DEACTIVATED] Banca recuou abaixo do valor inicial. Protocolo inativado.")
 
+                # [V128-EQUITY-DEFENSE] Defesa Progressiva de Patrimônio
+                base = 10000.0
+                if consolidated > database_service.equity_peak:
+                    database_service.equity_peak = consolidated
+
+                peak_profit = max(0.0, database_service.equity_peak - base)
+                lock_ratio = getattr(settings, "EQUITY_DEFENSE_LOCK_RATIO", 0.80)
+                database_service.equity_floor = base + (peak_profit * lock_ratio)
+
+                profit_pct = (consolidated - base) / base * 100.0 if base > 0 else 0.0
+
+                stop_l1 = getattr(settings, "EQUITY_DEFENSE_STOP_L1", 7.0)
+                stop_l2 = getattr(settings, "EQUITY_DEFENSE_STOP_L2", 5.0)
+                stop_l3 = getattr(settings, "EQUITY_DEFENSE_STOP_L3", 3.0)
+
+                old_level = database_service.equity_defense_level
+
+                if consolidated < database_service.equity_floor and peak_profit > 0:
+                    database_service.equity_defense_level = 4
+                    database_service.equity_defense_stop_pct = 0.0
+                elif profit_pct >= 10.0:
+                    database_service.equity_defense_level = 3
+                    database_service.equity_defense_stop_pct = stop_l3
+                elif profit_pct >= 5.0:
+                    database_service.equity_defense_level = 2
+                    database_service.equity_defense_stop_pct = stop_l2
+                elif profit_pct >= 3.0:
+                    database_service.equity_defense_level = 1
+                    database_service.equity_defense_stop_pct = stop_l1
+                else:
+                    database_service.equity_defense_level = 0
+                    database_service.equity_defense_stop_pct = 0.0
+
+                if database_service.equity_defense_level != old_level:
+                    labels = {0: "OFF", 1: "L1_LEVE", 2: "L2_MODERADO", 3: "L3_FORTE", 4: "CRITICO"}
+                    label = labels.get(database_service.equity_defense_level, "?")
+                    logger.warning(
+                        f"🛡️ [EQUITY-DEFENSE] Nível mudou para {label} "
+                        f"(banca=${consolidated:.2f} pico=${database_service.equity_peak:.2f} "
+                        f"piso=${database_service.equity_floor:.2f})"
+                    )
+
                 active_trades = active_trades_for_pnl
                 if not active_trades:
                     await asyncio.sleep(1.0)
@@ -1495,6 +1537,30 @@ class SandboxService:
                 if not any("LOCK_IN" in str(h) for h in history[-2:]):
                     history.append(f"[LOCK-IN] Stop de Defesa ativado: stop em {lock_in_stop_roi:.1f}% ROI (-5.0% do pico de {max_roi:.1f}%)")
                     logger.warning(f"🔒 [SANDBOX-LOCK-IN] {symbol} stop de defesa recalculado para {lock_in_stop_roi:.1f}% ROI")
+
+        # [V128-EQUITY-DEFENSE] Defesa Progressiva de Patrimônio
+        defense_level = getattr(database_service, "equity_defense_level", 0)
+        defense_stop_pct = getattr(database_service, "equity_defense_stop_pct", 0.0)
+
+        if defense_level == 4:
+            logger.warning(f"🛡️ [EQUITY-CRITICO] {symbol} Fechando trade — piso de patrimônio violado")
+            history.append(f"[EQUITY-CRITICO] Piso violado. Fechando trade.")
+            is_closed = True
+            should_run_blocklist = True
+            exit_price = current_price
+            closed_at = time.time()
+            status = "CLOSED_EQUITY_DEFENSE"
+
+        elif defense_level >= 1:
+            defense_stop_roi = max_roi - defense_stop_pct
+            if defense_stop_roi > updated_stop_roi:
+                updated_stop_roi = defense_stop_roi
+                level_labels = {1: "EQUITY_L1", 2: "EQUITY_L2", 3: "EQUITY_L3"}
+                updated_level_name = level_labels.get(defense_level, "EQUITY_DEF")
+                updated_phase = "DEFESA"
+                if not any("EQUITY_L" in str(h) for h in history[-2:]):
+                    history.append(f"[EQUITY-DEFENSE L{defense_level}] Stop recalculado: {defense_stop_roi:.1f}% ROI (-{defense_stop_pct:.0f}% do pico {max_roi:.1f}%)")
+                    logger.warning(f"🛡️ [SANDBOX-EQUITY-DEF] {symbol} stop defesa L{defense_level}: {defense_stop_roi:.1f}% ROI")
 
         # 10. Stop price com tick_size rounding
         stop_price = proj_service.raw_price_from_roi(entry_price, updated_stop_roi, side, leverage)

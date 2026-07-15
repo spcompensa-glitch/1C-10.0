@@ -108,7 +108,48 @@ Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop vai a 0% ROI (break-eve
 Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
 Exemplos: pico +21% → stop +12.6%; pico +29% → stop +17.4%.
 
-### 3.7 Stops Iniciais
+### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
+
+Sistema de proteção do saldo consolidado da banca Sandbox. Rastreia o pico da equity e protege
+80% do lucro acumulado com stops progressivos por nível.
+
+**Config** (`config.py:193-203`):
+- `EQUITY_DEFENSE_LOCK_RATIO = 0.80` — 80% do lucro do pico é protegido
+- `EQUITY_DEFENSE_STOP_L1 = 7.0%` — L1 LEVE: stop = pico - 7%
+- `EQUITY_DEFENSE_STOP_L2 = 5.0%` — L2 MODERADO: stop = pico - 5%
+- `EQUITY_DEFENSE_STOP_L3 = 3.0%` — L3 FORTE: stop = pico - 3%
+
+**Níveis de defesa** (`sandbox_service.py:1333-1368`):
+
+| Banca (profit %) | Nível | Ação |
+|---|---|---|
+| < +3% | 0 OFF | Stop segue escadinha normal |
+| +3% a +4.9% | 1 LEVE | Stop = pico - 7% |
+| +5% a +9.9% | 2 MODERADO | Stop = pico - 5% |
+| >= +10% | 3 FORTE | Stop = pico - 3% |
+| abaixo do piso | 4 CRITICO | Fecha todos os trades |
+
+**Piso protegido** (`database_service.py:296-301`):
+```
+peak = maior saldo já visto
+peak_profit = peak - base ($10.000)
+floor = base + (peak_profit × 0.80)
+
+Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
+```
+
+**Enforcement** (`sandbox_service.py:1497-1527`, `flash_agent.py:507-547`):
+- L1/L2/L3: sobe stop para `peak_roi - stop_pct` (só se maior que stop atual)
+- CRITICO: fecha trade imediatamente com status `CLOSED_EQUITY_DEFENSE`
+- Regra "só sobe": defense_stop só aplica se > stop atual da escadinha
+
+**UI** (`sandbox.html`):
+- Badge `🛡️ DEFESA` ao lado do `🔒 LOCK-IN` no card de Banca
+- Cores: L1=azul, L2=amarelo, L3=laranja, CRITICO=vermelho+pulse
+- Trade rows: indicador `EQUITY_L1/L2/L3/CRITICO`
+- Tooltip: Pico | Piso | Banca | Stop%
+
+### 3.8 Stops Iniciais
 
 **Scalping Lab — VWAP SNIPER [V127.2]** (`sandbox_scalping_engine.py:47`):
 - `_MAX_STOP_ROI = -8.0%` (0.16% preço com 50x). Antes era -15% (0.3% preço).
@@ -354,6 +395,7 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 12. **[V127.2] GARANTIA_8 (antes GARANTIA_5)**: Threshold de proteção subiu de +5% para +8% ROI. Stop vai a 0% quando trade atinge +8% ROI. Evita violinada em lucros marginais.
 13. **[V122] GARANTIA_TRAIL: trailing 60% do pico**: Quando max_roi >= 8% e stop < 0%, stop = max(1.5, max_roi × 0.60). Trade com pico +21% tem stop em +12.6% (não +1.5% fixo). Protege lucro sem travar cedo demais.
 14. **[V128] Breakeven adaptativo BLITZ**: Execution Protocol usa DNA do ativo (Librarian) para definir breakeven: ativo limpo +30% ROI, instável +50%, pavio extremo +60%.
+15. **[V128] Equity Defense — Defesa Progressiva de Patrimônio**: Protege o saldo consolidado da banca Sandbox. Rastreia o pico (`equity_peak`) e calcula um piso protegido = base + (peak_profit × 0.80). Níveis: OFF (<3%), L1 LEVE (+3%, stop=pico-7%), L2 MODERADO (+5%, stop=pico-5%), L3 FORTE (+10%, stop=pico-3%), CRITICO (abaixo do piso, fecha tudo). Enforcement em `sandbox_service.py:1497-1527` e `flash_agent.py:507-547`. Telemetria em `GET /api/sandbox/unified-state`. Badge UI no sandbox.html.
 
 ---
 

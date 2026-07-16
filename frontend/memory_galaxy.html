@@ -33,165 +33,6 @@
             display: flex;
         }
 
-        /* ═══════════════════════════════════════════════════════════════ */
-        /* NAV SIDEBAR — EXATO DO COCKPIT (app.js NavBar)               */
-        /* ═══════════════════════════════════════════════════════════════ */
-        .app-nav {
-            position: fixed;
-            top: 0; left: 0; bottom: 0;
-            width: 80px;
-            background: rgba(6,6,16,0.95);
-            backdrop-filter: blur(24px);
-            border-right: 1px solid rgba(255,255,255,0.06);
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 24px 0;
-        }
-        .nav-logo {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 24px;
-        }
-        .nav-logo-img {
-            width: 40px;
-            height: 40px;
-            object-fit: contain;
-            filter: drop-shadow(0 0 10px rgba(255,215,0,0.3));
-        }
-        .nav-logo-divider {
-            width: 32px;
-            height: 1px;
-            background: rgba(255,255,255,0.1);
-        }
-        .nav-buttons {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
-            flex: 1;
-        }
-        .nav-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 12px 8px;
-            border-radius: 12px;
-            transition: all 0.2s;
-            color: #9ca3af;
-            text-decoration: none;
-            border: 1px solid transparent;
-            cursor: pointer;
-            background: none;
-            width: 56px;
-        }
-        .nav-btn:hover {
-            color: #d1d5db;
-            background: rgba(255,255,255,0.05);
-        }
-        .nav-btn .material-icons-round {
-            font-size: 24px;
-        }
-        .nav-label {
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-        }
-        .nav-adm-wrapper {
-            position: relative;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-        }
-        .nav-adm-btn.adm-open,
-        .nav-adm-btn:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.2);
-            box-shadow: 0 0 12px rgba(34,197,94,0.15);
-        }
-        .adm-submenu {
-            position: absolute;
-            left: calc(100% + 8px);
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 10001;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 8px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(8,8,12,0.97);
-            backdrop-filter: blur(24px);
-            min-width: 180px;
-        }
-        .adm-submenu-title {
-            font-size: 8px;
-            font-weight: 900;
-            color: rgba(34,197,94,0.6);
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-            padding: 0 8px 6px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            margin-bottom: 4px;
-        }
-        .adm-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 10px;
-            text-decoration: none;
-            color: #d1d5db;
-            font-size: 12px;
-            font-weight: 600;
-            transition: all 0.2s;
-            border: 1px solid transparent;
-            white-space: nowrap;
-        }
-        .adm-item:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.08);
-        }
-        .adm-item .material-icons-round {
-            font-size: 18px;
-        }
-        .adm-item-active {
-            color: #fff !important;
-            background: rgba(255,255,255,0.08);
-            border-color: rgba(255,255,255,0.15);
-        }
-        .nav-bottom {
-            margin-top: auto;
-        }
-        .nav-logout-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 12px;
-            border-radius: 12px;
-            background: rgba(239,68,68,0.1);
-            color: #f87171;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .nav-logout-btn:hover {
-            background: rgba(239,68,68,0.2);
-            color: #fca5a5;
-            border-color: rgba(239,68,68,0.3);
-        }
-        .nav-logout-btn .material-icons-round {
-            font-size: 20px;
-        }
-
         /* ═══════════════════════════════════════════ */
         /* MAIN CONTENT                                */
         /* ═══════════════════════════════════════════ */
@@ -201,7 +42,6 @@
             flex-direction: column;
             overflow: hidden;
             position: relative;
-            margin-left: 80px;
         }
 
         /* Background stars canvas — fills entire main area */
@@ -495,126 +335,13 @@
         /* RESPONSIVIDADE PWA MOBILE                                      */
         /* ═══════════════════════════════════════════════════════════════ */
         @media (max-width: 1024px) {
-            .app-nav {
-                top: auto;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                width: 100%;
-                height: auto;
-                flex-direction: row;
-                justify-content: space-around;
-                padding: 0 16px;
-                padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
-                border-right: none;
-                border-top: 1px solid rgba(255,255,255,0.06);
-                background: rgba(6,6,16,0.95);
-                backdrop-filter: blur(24px);
-            }
-            .nav-logo, .nav-logo-divider, .nav-bottom {
-                display: none !important;
-            }
-            .nav-buttons {
-                flex-direction: row;
-                justify-content: space-around;
-                width: 100%;
-                height: 100%;
-                align-items: center;
-                flex: none;
-            }
-            .nav-btn {
-                padding: 8px 12px;
-                width: auto;
-                flex: 1;
-                max-width: 100px;
-            }
-            .nav-adm-wrapper {
-                width: auto;
-                flex: 1;
-                max-width: 100px;
-                display: flex;
-                justify-content: center;
-            }
-            .nav-adm-wrapper .nav-btn {
-                width: 100%;
-                max-width: none;
-            }
             .main-content {
                 margin-left: 0 !important;
-                margin-bottom: 80px !important;
-            }
-            .adm-submenu {
-                left: 50%;
-                transform: translateX(-50%);
-                bottom: calc(100% + 8px);
-                top: auto;
-                min-width: 200px;
-                box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
             }
         }
     </style>
 </head>
 <body>
-
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- SIDEBAR — MESMO DESIGN DO COCKPIT (app.js NavBar)            -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <nav class="app-nav" id="app-nav">
-        <!-- Logo -->
-        <div class="nav-logo">
-            <img src="/logo10DTrasp.png" alt="Logo" class="nav-logo-img" />
-            <div class="nav-logo-divider"></div>
-        </div>
-
-        <!-- 3 botões principais -->
-        <div class="nav-buttons">
-            <!-- BANCA -->
-            <a href="/" class="nav-btn" title="Banca">
-                <span class="material-icons-round">space_dashboard</span>
-                <span class="nav-label">Banca</span>
-            </a>
-
-            <!-- HERMES -->
-            <a href="/hermes" class="nav-btn" title="Hermes">
-                <span class="material-icons-round">auto_awesome</span>
-                <span class="nav-label">Hermes</span>
-            </a>
-
-            <!-- ADM (submenu) -->
-            <div class="nav-adm-wrapper">
-                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
-                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
-                    <span class="nav-label">ADM</span>
-                </button>
-                <!-- Submenu desktop (à direita) -->
-                <div id="adm-submenu" class="adm-submenu hidden">
-                    <span class="adm-submenu-title">ADM · Módulos</span>
-                    <a href="/memory" class="adm-item adm-item-active">
-                        <span class="material-icons-round">auto_awesome</span>
-                        <span>Galaxy</span>
-                    </a>
-                    <a href="/sandbox" class="adm-item">
-                        <span class="material-icons-round">science</span>
-                        <span>Sandbox</span>
-                    </a>
-                    <a href="/config" class="adm-item">
-                        <span class="material-icons-round">settings</span>
-                        <span>Config</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sair (parte inferior) -->
-        <div class="nav-bottom">
-            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair" class="nav-logout-btn">
-                <span class="material-icons-round">power_settings_new</span>
-            </button>
-        </div>
-    </nav>
-
-    <!-- Overlay para fechar submenu ao clicar fora -->
-    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
 
     <!-- ═══════════════════════════════════════════ -->
     <!-- MAIN CONTENT AREA                           -->
@@ -1326,40 +1053,6 @@
         clearTimeout(vortexPauseTimer);
         vortexPauseTimer = setTimeout(() => { vortexActive = true; }, 3000);
     });
-
-    // ═══════════════════════════════════════════════════════════════
-    // ADM SUBMENU
-    // ═══════════════════════════════════════════════════════════════
-    let admOpen = false;
-    function toggleAdmSubmenu() {
-        admOpen = !admOpen;
-        const sub = document.getElementById('adm-submenu');
-        const btn = document.getElementById('adm-btn');
-        const icon = document.getElementById('adm-icon');
-        const overlay = document.getElementById('adm-overlay');
-        if (admOpen) {
-            sub.classList.remove('hidden');
-            btn.classList.add('adm-open');
-            icon.textContent = 'close';
-            overlay.classList.remove('hidden');
-        } else {
-            sub.classList.add('hidden');
-            btn.classList.remove('adm-open');
-            icon.textContent = 'admin_panel_settings';
-            overlay.classList.add('hidden');
-        }
-    }
-    function closeAdmSubmenu() {
-        admOpen = false;
-        const sub = document.getElementById('adm-submenu');
-        const btn = document.getElementById('adm-btn');
-        const icon = document.getElementById('adm-icon');
-        const overlay = document.getElementById('adm-overlay');
-        if (sub) sub.classList.add('hidden');
-        if (btn) btn.classList.remove('adm-open');
-        if (icon) icon.textContent = 'admin_panel_settings';
-        if (overlay) overlay.classList.add('hidden');
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // INIT

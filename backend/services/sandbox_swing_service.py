@@ -274,12 +274,25 @@ class SandboxSwingService:
             # [V128] Filtro de direção por regime
             sig_side = sig.get("side", "Buy")
             sig_dir = "LONG" if sig_side.upper() in ("BUY", "LONG") else "SHORT"
+            sig_score = float(sig.get("score", 0))
+
             if is_bearish and sig_dir == "LONG":
                 logger.info(f"[SWING-LAB] {sig.get('symbol')} LONG descartado (regime bearish)")
                 continue
-            if not is_bearish and sig_dir == "SHORT":
+            if is_bullish and sig_dir == "SHORT":
                 logger.info(f"[SWING-LAB] {sig.get('symbol')} SHORT descartado (regime bullish)")
                 continue
+
+            # [V129] Regra para Mercado LATERAL: Exigir score >= 80 e volume/gás >= 1.5x
+            if btc_dir == "LATERAL":
+                indicators = sig.get("indicators", {}) or {}
+                vol_ratio = float(indicators.get("volume_ratio", 0.0))
+                if sig_score < 80:
+                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por score baixo ({sig_score:.0f} < 80)")
+                    continue
+                if vol_ratio < 1.5:
+                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por falta de volume/gás (vol_ratio={vol_ratio:.2f} < 1.5x)")
+                    continue
 
             opened = await self._try_open_swing_trade(sig)
             if opened:

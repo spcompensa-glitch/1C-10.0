@@ -378,7 +378,7 @@ class OKXRest:
         if self.is_initialized:
             return
 
-        logger.info("OKXRest: Initializing sessions (No Bybit Fallback)...")
+        logger.info("OKXRest: Initializing sessions...")
         try:
             self.time_offset = 0
             if self.execution_mode == "PAPER":
@@ -403,7 +403,7 @@ class OKXRest:
 
     @property
     def session(self):
-        """Returns the fallback global Bybit HTTP session."""
+        """Returns the fallback global Exchange HTTP session."""
         if not self._global_session:
             self._global_session = HTTP(
                 testnet=settings.OKX_TESTNET,

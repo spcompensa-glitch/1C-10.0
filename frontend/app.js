@@ -193,7 +193,7 @@
 
         useEffect(() => {
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js?v=110.900').then(reg => {
+                navigator.serviceWorker.register('/sw.js?v=125.600').then(reg => {
                     // Detect updates
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;

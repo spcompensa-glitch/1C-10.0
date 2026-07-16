@@ -7,7 +7,7 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v110.708'; // [V110.708] UI adjustments for Radar and AI Thoughts
+const CACHE_NAME = '1crypten-sniper-v125.600'; // [V125.600] Menu padronizado BANCA/HERMES/ADM
 const OFFLINE_URL = '/offline.html';
 
 // Assets que devem estar disponíveis offline (caminhos absolutos baseados na raiz)
@@ -53,7 +53,7 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
-    console.log('[SW] V110.705 Activated (Real Mode balance fix) ✅');
+    console.log('[SW] V125.600 Activated (Menu padronizado) ✅');
     return self.clients.claim();
 });
 

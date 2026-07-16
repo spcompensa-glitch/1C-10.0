@@ -4013,20 +4013,41 @@
 
                                         {/* Col 10: Estratégia / Tempo */}
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ 
-                                                fontSize: '8px', 
-                                                fontWeight: 900, 
-                                                color: stratLabel === 'ALPHA SHIELD' ? '#10b981' : (stratLabel === 'VELOCITY FLOW' ? '#8b5cf6' : (stratLabel === 'DECOR SHADOW' ? '#22d3ee' : 'rgba(255,255,255,0.45)')), 
-                                                letterSpacing: '0.5px', 
-                                                textTransform: 'uppercase',
-                                                background: stratLabel === 'ALPHA SHIELD' ? 'rgba(16,185,129,0.15)' : (stratLabel === 'VELOCITY FLOW' ? 'rgba(139,92,246,0.15)' : (stratLabel === 'DECOR SHADOW' ? 'rgba(34,211,238,0.15)' : 'transparent')),
-                                                border: stratLabel === 'ALPHA SHIELD' ? '1px solid rgba(16,185,129,0.3)' : (stratLabel === 'VELOCITY FLOW' ? '1px solid rgba(139,92,246,0.3)' : (stratLabel === 'DECOR SHADOW' ? '1px solid rgba(34,211,238,0.3)' : 'none')),
-                                                padding: (stratLabel === 'ALPHA SHIELD' || stratLabel === 'VELOCITY FLOW' || stratLabel === 'DECOR SHADOW') ? '1px 5px' : '0px',
-                                                borderRadius: '4px',
-                                                width: 'fit-content'
-                                            }}>
-                                                {stratLabel}
-                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                                {(() => {
+                                                    const lab = (s.lab || s.slot_type || '').toUpperCase();
+                                                    const isScalp = lab.includes('SCALP') || lab.includes('SNIPER');
+                                                    const label = isScalp ? 'SCALPING' : 'SWING';
+                                                    return (
+                                                        <span style={{
+                                                            fontSize: '7px',
+                                                            fontWeight: 900,
+                                                            color: isScalp ? '#22d3ee' : '#a78bfa',
+                                                            background: isScalp ? 'rgba(34,211,238,0.12)' : 'rgba(167,139,250,0.12)',
+                                                            border: `1px solid ${isScalp ? 'rgba(34,211,238,0.25)' : 'rgba(167,139,250,0.25)'}`,
+                                                            padding: '1px 4px',
+                                                            borderRadius: '3px',
+                                                            letterSpacing: '0.5px'
+                                                        }}>
+                                                            {label}
+                                                        </span>
+                                                    );
+                                                })()}
+                                                <span style={{ 
+                                                    fontSize: '8px', 
+                                                    fontWeight: 900, 
+                                                    color: stratLabel === 'ALPHA SHIELD' ? '#10b981' : (stratLabel === 'VELOCITY FLOW' ? '#8b5cf6' : (stratLabel === 'DECOR SHADOW' ? '#22d3ee' : 'rgba(255,255,255,0.45)')), 
+                                                    letterSpacing: '0.5px', 
+                                                    textTransform: 'uppercase',
+                                                    background: stratLabel === 'ALPHA SHIELD' ? 'rgba(16,185,129,0.15)' : (stratLabel === 'VELOCITY FLOW' ? 'rgba(139,92,246,0.15)' : (stratLabel === 'DECOR SHADOW' ? 'rgba(34,211,238,0.15)' : 'transparent')),
+                                                    border: stratLabel === 'ALPHA SHIELD' ? '1px solid rgba(16,185,129,0.3)' : (stratLabel === 'VELOCITY FLOW' ? '1px solid rgba(139,92,246,0.3)' : (stratLabel === 'DECOR SHADOW' ? '1px solid rgba(34,211,238,0.3)' : 'none')),
+                                                    padding: (stratLabel === 'ALPHA SHIELD' || stratLabel === 'VELOCITY FLOW' || stratLabel === 'DECOR SHADOW') ? '1px 5px' : '0px',
+                                                    borderRadius: '4px',
+                                                    width: 'fit-content'
+                                                }}>
+                                                    {stratLabel}
+                                                </span>
+                                            </div>
                                             <span style={{ fontSize: '7px', color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
                                                 ⏱️ {ageStr}
                                             </span>

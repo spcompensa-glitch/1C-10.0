@@ -666,32 +666,46 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- NAV SIDEBAR — MESMO DO COCKPIT                               -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <nav class="app-nav">
+    <nav class="app-nav" id="app-nav">
         <div class="nav-logo">
             <img src="/logo10DTrasp.png" alt="Logo" class="nav-logo-img" />
             <div class="nav-logo-divider"></div>
         </div>
         <div class="nav-buttons">
+            <!-- BANCA -->
             <a href="/" class="nav-btn" title="Banca">
                 <span class="material-icons-round">space_dashboard</span>
                 <span class="nav-label">Banca</span>
             </a>
-            <a href="/sandbox" class="nav-btn" title="Sandbox">
-                <span class="material-icons-round">science</span>
-                <span class="nav-label">Sandbox</span>
-            </a>
+
+            <!-- HERMES (ativo) -->
             <a href="/hermes" class="nav-btn active" title="Hermes" style="color:#22c55e; border-color:rgba(34,197,94,0.4); background:rgba(34,197,94,0.15);">
                 <span class="material-icons-round">auto_awesome</span>
                 <span class="nav-label">Hermes</span>
             </a>
-            <a href="/memory" class="nav-btn" title="Galaxy">
-                <span class="material-icons-round">hub</span>
-                <span class="nav-label">Galaxy</span>
-            </a>
-            <a href="/config" class="nav-btn" title="Config">
-                <span class="material-icons-round">tune</span>
-                <span class="nav-label">Config</span>
-            </a>
+
+            <!-- ADM (submenu) -->
+            <div class="nav-adm-wrapper">
+                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
+                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
+                    <span class="nav-label">ADM</span>
+                </button>
+                <div id="adm-submenu" class="adm-submenu hidden">
+                    <span class="adm-submenu-title">ADM · Módulos</span>
+                    <a href="/memory" class="adm-item">
+                        <span class="material-icons-round">auto_awesome</span>
+                        <span>Galaxy</span>
+                    </a>
+                    <a href="/sandbox" class="adm-item">
+                        <span class="material-icons-round">science</span>
+                        <span>Sandbox</span>
+                    </a>
+                    <a href="/config" class="adm-item">
+                        <span class="material-icons-round">settings</span>
+                        <span>Config</span>
+                    </a>
+                </div>
+            </div>
         </div>
         <div class="nav-bottom">
             <button onclick="localStorage.clear();window.location.href='/login'" title="Sair do Sistema" class="nav-logout-btn">
@@ -699,6 +713,9 @@
             </button>
         </div>
     </nav>
+
+    <!-- Overlay para fechar submenu ao clicar fora -->
+    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- CHAT SIDEBAR — Conversas                                      -->
@@ -860,10 +877,38 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ADM SUBMENU (Substituído por navegação direta 5 botões)
+    // ADM SUBMENU
     // ═══════════════════════════════════════════════════════════════
-    function toggleAdmSubmenu() {}
-    function closeAdmSubmenu() {}
+    let admOpen = false;
+    function toggleAdmSubmenu() {
+        admOpen = !admOpen;
+        const sub = document.getElementById('adm-submenu');
+        const btn = document.getElementById('adm-btn');
+        const icon = document.getElementById('adm-icon');
+        const overlay = document.getElementById('adm-overlay');
+        if (admOpen) {
+            sub.classList.remove('hidden');
+            btn.classList.add('adm-open');
+            icon.textContent = 'close';
+            overlay.classList.remove('hidden');
+        } else {
+            sub.classList.add('hidden');
+            btn.classList.remove('adm-open');
+            icon.textContent = 'admin_panel_settings';
+            overlay.classList.add('hidden');
+        }
+    }
+    function closeAdmSubmenu() {
+        admOpen = false;
+        const sub = document.getElementById('adm-submenu');
+        const btn = document.getElementById('adm-btn');
+        const icon = document.getElementById('adm-icon');
+        const overlay = document.getElementById('adm-overlay');
+        if (sub) sub.classList.add('hidden');
+        if (btn) btn.classList.remove('adm-open');
+        if (icon) icon.textContent = 'admin_panel_settings';
+        if (overlay) overlay.classList.add('hidden');
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // SESSIONS

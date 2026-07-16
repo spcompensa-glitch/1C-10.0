@@ -16,10 +16,11 @@ async def get_unified_sandbox_state():
         swing_trades = await database_service.get_swing_trades(active_only=False)
         
         # 2. Configuracoes de banca e margem
-        # [V126] Banca simulada de $10.000 | 40% = $4.000 | 20 ordens x $200
+        # [V129] Banca consolidada dinâmica (Juros Compostos)
         BANCA_BASE   = 10000.0
-        MARGEM_SCALP = 200.00   # $200/trade — Scalping Lab
-        MARGEM_SWING = sandbox_swing_service.margin_per_trade  # $200/trade — Swing Lab
+        current_balance = await database_service.get_sandbox_unified_balance()
+        MARGEM_SCALP = round(current_balance * 0.02, 2)
+        MARGEM_SWING = round(current_balance * 0.02, 2)
         
         # 3. Contadores
         active_scalp = sum(1 for t in scalp_trades if t.status == "ACTIVE")
@@ -28,18 +29,27 @@ async def get_unified_sandbox_state():
         # 4. Calcular Lucro fechado + Lucro flutuante (Unrealized)
         pnl_scalp_usd = 0.0
         for t in scalp_trades:
-            pnl_scalp_usd += (t.pnl_pct / 100.0) * MARGEM_SCALP
+            margin = float((t.contract_meta or {}).get("margin", 200.0))
+            pnl_scalp_usd += (t.pnl_pct / 100.0) * margin
                 
         pnl_swing_usd = 0.0
         for t in swing_trades:
-            pnl_swing_usd += (t.pnl_pct / 100.0) * MARGEM_SWING
+            margin = float((t.contract_meta or {}).get("margin", 200.0))
+            pnl_swing_usd += (t.pnl_pct / 100.0) * margin
                 
         total_pnl_usd = pnl_scalp_usd + pnl_swing_usd
         current_balance = BANCA_BASE + total_pnl_usd
         
         # 5. Margem Alocada
-        allocated_margin = (active_scalp * MARGEM_SCALP) + (active_swing * MARGEM_SWING)
-        allocation_pct = (allocated_margin / (BANCA_BASE * 0.40)) * 100.0 if BANCA_BASE > 0 else 0.0
+        allocated_margin = 0.0
+        for t in scalp_trades:
+            if t.status == "ACTIVE":
+                allocated_margin += float((t.contract_meta or {}).get("margin", MARGEM_SCALP))
+        for t in swing_trades:
+            if t.status == "ACTIVE":
+                allocated_margin += float((t.contract_meta or {}).get("margin", MARGEM_SWING))
+                
+        allocation_pct = (allocated_margin / (current_balance * 0.40)) * 100.0 if current_balance > 0 else 0.0
         
         from config import settings
         return {
@@ -111,10 +121,9 @@ async def get_sandbox_stats():
         
         wins = 0
         losses = 0
-        total_pnl_usd = 0.0  # Lucro acumulado em USD com margem de $200 por trade
-        # [V126] Banca simulada de $10.000 | $200/trade | 10 slots Scalping
+        total_pnl_usd = 0.0
+        # [V129] Banca consolidada dinâmica (Juros Compostos)
         BANCA = 10000.0
-        MARGEM_MEDIA = 200.00
         # [V119] Inicializa preventivamente as 3 estratégias para garantir telemetria consistente na UI
         strategy_stats = {
             "ALPHA SHIELD": {"total": 0, "wins": 0, "losses": 0, "pnl": 0.0, "pnl_usd": 0.0},
@@ -123,8 +132,9 @@ async def get_sandbox_stats():
         }
 
         for t in trades:
-            # PnL USD: (ROI / 100) * $2.00 de margem do Founder Vision
-            trade_pnl_usd = (t.pnl_pct / 100.0) * MARGEM_MEDIA
+            margin = float((t.contract_meta or {}).get("margin", 200.0))
+            # PnL USD: (ROI / 100) * margem
+            trade_pnl_usd = (t.pnl_pct / 100.0) * margin
             
             # Somar no PnL total da banca
             total_pnl_usd += trade_pnl_usd
@@ -589,7 +599,8 @@ async def get_swing_stats():
             if t.status == "ACTIVE":
                 continue
             pnl = float(t.pnl_pct or 0)
-            pnl_usd = (pnl / 100.0) * MARGEM
+            margin = float((t.contract_meta or {}).get("margin", 200.0))
+            pnl_usd = (pnl / 100.0) * margin
             total_pnl_usd += pnl_usd
 
             sym = t.symbol.replace(".P", "").upper()

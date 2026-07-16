@@ -279,11 +279,11 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - Scan 60s. Filtro tendencia EMA200 (M5); gatilho toque VWAP diario (M1, tol 0.15%); Stoch RSI (<25 LONG / >75 SHORT).
 - Filtro ATR minimo **0.02%** do preco; Liquidity Sweep = +15 score; **score minimo 70** (V126).
 - **Watchlist independente** (V128): `SCALPING_WATCHLIST` (20 pares) — separada da blocklist do Swing, pares bloqueados por Swing nao afetam Scalping.
-- Banca $10.000, margem $200/trade, 50x isolada, **sem saidas parciais**. Stop = 1.0x ATR, teto -20% ROI.
+- Banca consolidada dinâmica (Juros Compostos), margem inicial $200/trade (2% da banca total recalculado no momento da entrada), 50x isolada, **sem saidas parciais**. Stop = 1.0x ATR, teto -20% ROI.
 
 ### 8.3 Swing Lab — M30 (`services/sandbox_swing_service.py`)
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
-- Banca $10.000, margem $200/trade, 50x.
+- Banca consolidada dinâmica (Juros Compostos), margem inicial $200/trade (2% da banca total recalculado dinamicamente), 50x.
 - **Stop inicial -15% ROI** (`SWING_STOP_ROI=15.0`): `stop_price = entry × (1 - 0.15/50) = entry × 0.997` (0.3% de oscilacao do preco).
 - **Breakeven +4% ROI** (V128): protecao mais cedo, stop em 0% quando trade atinge +4% ROI.
 - **Filtro de regime** (V128): bearish → so opera SHORT; bullish → so LONG.
@@ -294,20 +294,20 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - **UI Swing Table (V127)**: 22 colunas com score bar colorida (0-100), stop dist bar + 5m badge, pa_pattern, R:R estimado, tempo de posicao.
 
 ### 8.4 Constantes de banca do Sandbox UI (`routes/sandbox.py`)
-`BANCA_BASE`=$10.000 (:20) · `MARGEM_SCALP`=$200 (:21) · `MARGEM_SWING`=$200 (:22) · alocacao maxima = 40% = $4.000 (:53).
+`BANCA_BASE`=$10.000 (:20) · `MARGEM_SCALP`=dinâmica (2% da banca total) · `MARGEM_SWING`=dinâmica (2% da banca total) · alocacao maxima = 40% da banca consolidada total.
 
 ### 8.5 Protocolo Lock-In (Proteção de Banca — V126)
 - **Objetivo**: Proteger o capital simulado acumulado quando a banca atinge a meta mínima de crescimento.
-- **Ativação**: Ocorre automaticamente quando o saldo consolidado (banca + PnL aberto de Scalp e Swing) cresce 10% (gatilho configurado em `SANDBOX_LOCK_IN_TRIGGER_PERCENT` padrão 10.0%, ou seja, >= $11.000).
+- **Ativação**: Ocorre automaticamente quando o saldo consolidado (banca + PnL aberto de Scalp e Swing) grows 10% (gatilho configurado em `SANDBOX_LOCK_IN_TRIGGER_PERCENT` padrão 10.0%, ou seja, >= $11.000).
 - **Ação**: O stop loss das ordens ativas passa a ser recalculado de forma colada a 5% de recuo da margem de entrada por trade (`SANDBOX_LOCK_IN_STOP_PERCENT` padrão 5.0%), equivalente a 5.0% de ROI ou 0.10% de oscilação do preço do ativo a partir do pico.
 - **Identificação**: O stop é marcado no banco e na UI como `LOCK-IN_5%` na fase de `DEFESA`.
 - **Desativação**: O protocolo só é inativado caso a banca consolidada recue abaixo do saldo inicial de $10.000.
 
-### 8.6 Espelho PAPER → Cockpit (V127 / V127.1)
+### 8.6 Espelho PAPER → Cockpit (V127 / V127.1 / V129)
 
 Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, para que o operador veja a carteira simulada como se fosse a real:
 
-- **Net Worth (Banca)**: vem da **Banca Simulada Realizada do Sandbox** calculada por `DatabaseService.get_sandbox_unified_balance()` (`services/database_service.py`): `10000 + Σ(pnl_pct/100 × 200)` sobre **APENAS trades FECHADOS** (status `CLOSED_SL`, `CLOSED_TRAILING` ou `EMANCIPATED`) de Scalping Lab e Swing Lab. O PnL nao realizado dos trades ativos e calculado separadamente pelo `bankroll_guardian._live_bankroll_snapshot()`.
+- **Net Worth (Banca)**: vem da **Banca Simulada Realizada do Sandbox** calculada por `DatabaseService.get_sandbox_unified_balance()` (`services/database_service.py`): `10000 + Σ(pnl_pct/100 × margin_at_opening)` sobre **APENAS trades FECHADOS** (status `CLOSED_SL`, `CLOSED_TRAILING` ou `EMANCIPATED`) de Scalping Lab e Swing Lab. O PnL nao realizado dos trades ativos e calculado separadamente pelo `bankroll_guardian._live_bankroll_snapshot()`.
   - **[V127.1] Fix de dupla contagem**: Anteriormente (V127), `get_sandbox_unified_balance()` somava TODOS os trades (fechados + ativos), causando inflacao artificial do equity quando combinado com o `realized_pnl` do Guardian. Agora, o saldo realizado do Sandbox ja e o `base_balance` do Guardian, e o PnL dos slots ativos e adicionado apenas uma vez via `_live_bankroll_snapshot()`.
   - Consumido por: `bankroll.update_banca_status` (`saldo_total`/`configured_balance`/`paper_equity` = saldo realizado do Sandbox; `saldo_real_okx` forçado a `0.0` em PAPER), `system.get_banca_data` (PAPER), e `bankroll_guardian.evaluate_bank_health` (PAPER, que define o `equity` exibido como Net Worth).
 - **Painel de Custodia (Ordens)**: `GET /api/slots` (`routes/trading.py`) e o broadcast WS `live_slots` (`main.py:slots_broadcast_loop`, a cada 5s) mesclam em PAPER as ordens ativas do Sandbox como slots:

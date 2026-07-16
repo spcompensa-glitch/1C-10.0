@@ -1211,26 +1211,34 @@ class DatabaseService:
         try:
             async with self.AsyncSessionLocal() as session:
                 # [V127.1] Filtrar APENAS trades FECHADOS (realizados)
-                # Status fechados: CLOSED_SL, CLOSED_TRAILING, EMANCIPATED
-                scalp_sum = await session.execute(
-                    select(func.coalesce(func.sum(SandboxTrade.pnl_pct), 0.0)).where(
-                        SandboxTrade.status.in_(["CLOSED_SL", "CLOSED_TRAILING", "EMANCIPATED"])
+                # Status fechados: Qualquer status diferente de ACTIVE (evita ignorar CLOSED_EQUITY_DEFENSE)
+                scalp_res = await session.execute(
+                    select(SandboxTrade.pnl_pct, SandboxTrade.contract_meta).where(
+                        SandboxTrade.status != "ACTIVE"
                     )
                 )
-                swing_sum = await session.execute(
-                    select(func.coalesce(func.sum(SandboxSwingTrade.pnl_pct), 0.0)).where(
-                        SandboxSwingTrade.status.in_(["CLOSED_SL", "CLOSED_TRAILING", "EMANCIPATED"])
+                swing_res = await session.execute(
+                    select(SandboxSwingTrade.pnl_pct, SandboxSwingTrade.contract_meta).where(
+                        SandboxSwingTrade.status != "ACTIVE"
                     )
                 )
-                scalp_pnl = float(scalp_sum.scalar() or 0.0)
-                swing_pnl = float(swing_sum.scalar() or 0.0)
+                
+                total_pnl_usd = 0.0
+                for row in scalp_res.all():
+                    pnl_pct = float(row[0] or 0.0)
+                    meta = row[1] or {}
+                    margin = float(meta.get("margin", 200.0))
+                    total_pnl_usd += (pnl_pct / 100.0) * margin
+                    
+                for row in swing_res.all():
+                    pnl_pct = float(row[0] or 0.0)
+                    meta = row[1] or {}
+                    margin = float(meta.get("margin", 200.0))
+                    total_pnl_usd += (pnl_pct / 100.0) * margin
 
-            margin_scalp = 200.0
-            margin_swing = float(getattr(settings, "SWING_MARGIN_PER_TRADE", 200.0))
-            total_pnl_usd = (scalp_pnl / 100.0) * margin_scalp + (swing_pnl / 100.0) * margin_swing
-            current_balance = 10000.0 + total_pnl_usd
-            logger.info(f"[V127.1] Sandbox realized balance = {current_balance:.2f} (scalp_pnl={scalp_pnl:.2f}, swing_pnl={swing_pnl:.2f})")
-            return round(current_balance, 2)
+                current_balance = 10000.0 + total_pnl_usd
+                logger.info(f"[V127.1] Sandbox realized balance = {current_balance:.2f} (total_pnl_usd={total_pnl_usd:.2f})")
+                return round(current_balance, 2)
         except Exception as e:
             logger.exception(f"[V127.1] Erro ao calcular saldo realizado do Sandbox: {e}")
             return 10000.0

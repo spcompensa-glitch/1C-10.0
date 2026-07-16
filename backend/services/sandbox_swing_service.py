@@ -440,6 +440,15 @@ class SandboxSwingService:
 
             trade_id = f"swing_{symbol}_{int(time.time())}"
 
+            # dynamic margin calculation (2% of current total balance)
+            current_balance = await database_service.get_sandbox_unified_balance()
+            dynamic_margin = round(current_balance * 0.02, 2)
+
+            contract_meta = signal.get("contract_meta") or {}
+            if not isinstance(contract_meta, dict):
+                contract_meta = {}
+            contract_meta["margin"] = dynamic_margin
+
             trade_data = {
                 "id":            trade_id,
                 "symbol":        symbol,
@@ -460,13 +469,13 @@ class SandboxSwingService:
                     "active_level": "INICIAL",
                     "stop_roi":     -abs(stop_roi_target),
                     "blitz_unit":   0,
-                    "history":      [],
+                    "history":      [f"[INICIO] Margem Dinâmica alocada: ${dynamic_margin:.2f}"],
                     "mirror_mode":  "ON" if self.mirror_mode_on else "OFF",
                     "scan_source":  "AUTONOMOUS",
                     "stop_method":  "CONFIG",
                     "stop_roi_target": stop_roi_target,
                 },
-                "contract_meta": signal.get("contract_meta"),
+                "contract_meta": contract_meta,
                 "blitz_score":   score,
                 "fib_zone":      fib_zone_str,
                 "sma_cross":     str(indicators.get("sma_cross", indicators.get("sma_pattern", "NONE"))),
@@ -489,7 +498,7 @@ class SandboxSwingService:
                 f"Estratégia: {strategy} | Score: {score:.0f} | "
                 f"Entrada: {current_price:.6f} | Stop: {stop_price:.6f} | "
                 f"Stop ROI: {stop_roi_target:.1f}% | "
-                f"Margem virtual: ${self.margin_per_trade:.2f}"
+                f"Margem virtual: ${dynamic_margin:.2f}"
             )
 
             # --- MIRROR: espelhar na OKX real se SWING_MIRROR_MODE=ON ---

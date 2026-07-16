@@ -562,6 +562,15 @@ class SandboxScalpingEngine:
 
             trade_id = f"vwap_{symbol}_{int(time.time())}"
 
+            # dynamic margin calculation (2% of current total balance)
+            current_balance = await database_service.get_sandbox_unified_balance()
+            dynamic_margin = round(current_balance * 0.02, 2)
+
+            contract_meta = signal.get("contract_meta") or {}
+            if not isinstance(contract_meta, dict):
+                contract_meta = {}
+            contract_meta["margin"] = dynamic_margin
+
             trade_data = {
                 "id":            trade_id,
                 "symbol":        symbol,
@@ -588,10 +597,11 @@ class SandboxScalpingEngine:
                         f"VWAP={signal.get('vwap', 0):.6f} | "
                         f"EMA200_5m={signal.get('ema200_5m', 0):.6f} | "
                         f"K={signal.get('stoch_k', 0):.1f}/D={signal.get('stoch_d', 0):.1f} | "
-                        f"Sweep={'SIM' if signal.get('liquidity_sweep') else 'NAO'}"
+                        f"Sweep={'SIM' if signal.get('liquidity_sweep') else 'NAO'} | "
+                        f"MargemDinamica=${dynamic_margin:.2f}"
                     ],
                 },
-                "contract_meta":     None,
+                "contract_meta":     contract_meta,
                 "explosion_score":   score,
                 "explosion_signals": signal.get("signals", []),
             }

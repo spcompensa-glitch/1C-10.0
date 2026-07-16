@@ -208,7 +208,7 @@ async def lifespan(app: FastAPI):
             logger.info("🛡️ [V110.519] Startup Order Persistence active. Skipping DB Sanitation.")
 
             
-            logger.info("Step 2: Syncing Bybit Instruments...")
+            logger.info("Step 2: Syncing OKX Instruments...")
             # [V110.400] ALIGNED BOOTSTRAP: Start with Elite 20 + Master Context
             symbols = [f"{s}.P" for s in (settings.ELITE_40_MATRIX + settings.MASTER_CONTEXT_ASSETS)]
             try:

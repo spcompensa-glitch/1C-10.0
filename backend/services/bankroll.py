@@ -511,7 +511,7 @@ class BankrollManager:
 
     async def sync_slots_with_exchange(self):
         """
-        [V110.8] Critical Synchronization: Bybit-as-Truth Model.
+        [V110.8] Critical Synchronization: OKX-as-Truth Model.
         Reconciles Firestore slots with real/simulated exchange positions.
         """
         # [V110.25.0] Initialization Safety: Wait until OKXRest is ready (Paper/Real)
@@ -519,7 +519,7 @@ class BankrollManager:
             # logger.info("🛡️ [SYNC-GUARD] OKXRest base not ready. Postponing sync cycle.")
             return
 
-        logger.info("🛡️ [SYNC] Starting Bybit-as-Truth Synchronization...")
+        logger.info("🛡️ [SYNC] Starting OKX-as-Truth Synchronization...")
         try:
             # [V110.180] AUTO-ADOPT-DYNAMIC (Amnesia-Guard dinâmico para evitar purga fantasma)
             if okx_rest_service.execution_mode == "PAPER":

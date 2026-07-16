@@ -10,7 +10,7 @@ logger = logging.getLogger("1CRYPTEN-MARKET")
 
 def get_services():
     services = [None] * 6
-    service_names = ["BybitRest", "BybitWS", "Firebase", "SignalGen", "Captain", "Oracle"]
+    service_names = ["OKXRest", "OKXWS", "Firebase", "SignalGen", "Captain", "Oracle"]
     
     try:
         from services.okx_rest import okx_rest_service as okx_rest_service

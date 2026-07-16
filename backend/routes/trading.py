@@ -59,6 +59,41 @@ def _map_sandbox_trade_to_slot(trade, lab_type: str) -> dict:
     }
 
 
+def _map_sandbox_trade_to_history(trade, lab_type: str) -> dict:
+    """[V129] Converte um trade fechado do Sandbox em formato de histórico para o Cockpit."""
+    if not isinstance(trade, dict):
+        trade = {c.name: getattr(trade, c.name) for c in trade.__table__.columns}
+    
+    exit_t = trade.get("exit_time")
+    ts_str = exit_t.isoformat() if exit_t and hasattr(exit_t, "isoformat") else (exit_t or trade.get("opened_at") or 0)
+    
+    direction = str(trade.get("direction") or "LONG").upper()
+    side = "Buy" if direction in ("LONG", "BUY") else "Sell"
+    
+    pnl_pct = float(trade.get("pnl_pct") or 0.0)
+    margin = float(trade.get("entry_margin") or 200.0)
+    pnl_usd = (pnl_pct / 100.0) * margin
+    
+    return {
+        "id": str(trade.get("id")),
+        "symbol": trade.get("symbol"),
+        "side": side,
+        "qty": float(trade.get("qty") or 0.0),
+        "entry_price": float(trade.get("entry_price") or 0.0),
+        "exit_price": float(trade.get("exit_price") or 0.0),
+        "pnl_percent": round(pnl_pct, 2),
+        "pnl_usd": round(pnl_usd, 2),
+        "timestamp": ts_str,
+        "strategy": trade.get("strategy") or "SWING",
+        "strategy_label": trade.get("strategy") or "SWING",
+        "direction": direction,
+        "leverage": int(trade.get("leverage") or 50),
+        "execution_mode": "PAPER",
+        "lab": lab_type
+    }
+
+
+
 @router.get("/slots")
 async def get_slots():
     """[V110.999] Rota pública — lê slots globais do Postgres. Auth removida para evitar 401 com Fortress Auth."""
@@ -209,8 +244,26 @@ async def get_signals(min_score: int = 0, limit: int = 20):
 
 @router.get("/history")
 async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str = None, start_date: str = None, end_date: str = None, page: int = 1):
-    firebase_service, _, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     try:
+        # [V129] Em PAPER mode, retornar o histórico de trades do Sandbox (Postgres)
+        if okx_rest_service and okx_rest_service.execution_mode == "PAPER":
+            from services.database_service import database_service as _ds
+            scalp = await _ds.get_sandbox_trades(active_only=False)
+            swing = await _ds.get_swing_trades(active_only=False)
+            
+            closed_trades = []
+            for t in scalp:
+                if t.status != "ACTIVE":
+                    closed_trades.append(_map_sandbox_trade_to_history(t, "SCALPING"))
+            for t in swing:
+                if t.status != "ACTIVE":
+                    closed_trades.append(_map_sandbox_trade_to_history(t, "SWING"))
+                    
+            closed_trades.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+            offset = (page - 1) * limit
+            return closed_trades[offset : offset + limit]
+
         return await firebase_service.get_trade_history(
             limit=limit, 
             last_timestamp=last_timestamp,
@@ -225,8 +278,12 @@ async def get_history(limit: int = 50, last_timestamp: str = None, symbol: str =
 
 @router.delete("/history/{id}")
 async def delete_history_item(id: str):
-    firebase_service, _, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     try:
+        if okx_rest_service and okx_rest_service.execution_mode == "PAPER":
+            # Em PAPER, apenas retornar sucesso local (não há deleção individual por enquanto)
+            return {"status": "success", "message": f"Item {id} excluído com sucesso virtual (PAPER)."}
+            
         success = await firebase_service.delete_trade_history_item(id)
         if success:
             return {"status": "success", "message": f"Item {id} excluído com sucesso."}
@@ -237,8 +294,14 @@ async def delete_history_item(id: str):
 
 @router.delete("/history/clear/all")
 async def clear_all_history():
-    firebase_service, _, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     try:
+        if okx_rest_service and okx_rest_service.execution_mode == "PAPER":
+            from services.database_service import database_service as _ds
+            await _ds.clear_sandbox_trades()
+            await _ds.clear_swing_trades()
+            return {"status": "success", "message": "Histórico do Sandbox limpo com sucesso (PAPER)."}
+
         success = await firebase_service.clear_all_trade_history()
         if success:
             return {"status": "success", "message": "Histórico do Vault limpo com sucesso."}
@@ -249,8 +312,35 @@ async def clear_all_history():
 
 @router.get("/history/stats")
 async def get_history_stats(symbol: str = None, start_date: str = None, end_date: str = None):
-    firebase_service, _, _, _, _ = get_services()
+    firebase_service, okx_rest_service, _, _, _ = get_services()
     try:
+        if okx_rest_service and okx_rest_service.execution_mode == "PAPER":
+            from services.database_service import database_service as _ds
+            scalp = await _ds.get_sandbox_trades(active_only=False)
+            swing = await _ds.get_swing_trades(active_only=False)
+            
+            closed_scalps = [t for t in scalp if t.status != "ACTIVE"]
+            closed_swings = [t for t in swing if t.status != "ACTIVE"]
+            
+            total_count = len(closed_scalps) + len(closed_swings)
+            total_pnl = 0.0
+            
+            for t in closed_scalps:
+                pnl_pct = float(t.pnl_pct or 0.0)
+                margin = float(t.contract_meta.get("margin", 200.0)) if t.contract_meta else 200.0
+                total_pnl += (pnl_pct / 100.0) * margin
+                
+            for t in closed_swings:
+                pnl_pct = float(t.pnl_pct or 0.0)
+                margin = float(t.contract_meta.get("margin", 200.0)) if t.contract_meta else 200.0
+                total_pnl += (pnl_pct / 100.0) * margin
+                
+            return {
+                "total_count": total_count,
+                "total_pnl": round(total_pnl, 2),
+                "win_rate": 100.0 if total_pnl >= 0 else 0.0
+            }
+
         return await firebase_service.get_trade_history_stats(
             symbol=symbol,
             start_date=start_date,

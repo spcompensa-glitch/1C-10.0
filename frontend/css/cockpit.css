@@ -776,6 +776,20 @@ body {
 @media (max-width: 1024px) {
     html {
         font-size: 14px !important;
+        height: auto !important;
+        overflow-y: auto !important;
+    }
+    body {
+        height: auto !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        position: relative !important;
+    }
+    #root {
+        height: auto !important;
+    }
+    main {
+        height: auto !important;
     }
 
     /* Fontes ajustadas para escala Micro em Mobile */

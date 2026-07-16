@@ -351,10 +351,9 @@ class SandboxService:
             # Verificar se o ROI resultante é razoável
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
             
-            # [V123] Capping estrito de segurança de risco (Founder Vision):
-            # Limita a no máximo -30% de ROI para proteger o capital e evitar perdas volumosas
-            # 30% ROI com 50x = 0.6% no preço — mínimo 0.5% para dar espaço
-            limit_roi = -30.0
+            # [V123/V129] Capping estrito de segurança de risco (Founder Vision):
+            # Limita a no máximo -15% de ROI para proteger o capital e evitar perdas volumosas
+            limit_roi = -15.0
             if stop_roi < limit_roi:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
@@ -363,7 +362,7 @@ class SandboxService:
                 stop_roi = limit_roi
                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                 
-            if -40.0 <= stop_roi <= -25.0:
+            if -20.0 <= stop_roi <= -12.0:
                 source = "structural_30m"
                 if tick_size > 0:
                     stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
@@ -406,20 +405,20 @@ class SandboxService:
                             
                         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
                         
-                        # [V123] Trava o ROI de stop para manter consistência: mínimo -25% (0.5% no preço com 50x)
+                        # [V123/V129] Trava o ROI de stop para manter consistência: mínimo -12.0% (piso) e teto -15.0% (máximo)
                         if is_ranging:
-                            if stop_roi > -25.0:
-                                stop_roi = -25.0
+                            if stop_roi > -12.0:
+                                stop_roi = -12.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -40.0:
-                                stop_roi = -40.0
+                            elif stop_roi < -15.0:
+                                stop_roi = -15.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                         else:
-                            if stop_roi > -25.0:
-                                stop_roi = -25.0
+                            if stop_roi > -12.0:
+                                stop_roi = -12.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -40.0:
-                                stop_roi = -40.0
+                            elif stop_roi < -15.0:
+                                stop_roi = -15.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                             
                         source = "volatility_atr"

@@ -3262,22 +3262,28 @@
                                     <div className="neural-pulse-ring scale-75"></div>
                                     <h2 className="text-xl font-display font-bold text-white tracking-tighter">JARVIS MENU</h2>
                                 </div>
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-3">
                                     {[
-                                        { to: '/', icon: 'space_dashboard', label: 'Banca' },
+                                        { to: '/', icon: 'space_dashboard', label: 'Banca Principal' },
                                         { to: '/sandbox', icon: 'science', label: 'Sandbox Lab', external: true },
-                                        { to: '/memory', icon: 'auto_awesome', label: 'Memory Galaxy', external: true },
-                                        { to: '/config', icon: 'settings', label: 'Configurações' }
+                                        { to: '/hermes', icon: 'auto_awesome', label: 'Hermes Neural Chat' },
+                                        { to: '/memory', icon: 'hub', label: 'Memory Galaxy', external: true },
+                                        { to: '/config', icon: 'tune', label: 'Configurações' }
                                     ].map(item => (
                                         <button key={item.to} onClick={() => { if (item.external) { window.location.href = item.to; } else { navigate(item.to); } setIsMenuOpen(false); }}
-                                            className="flex items-center gap-4 p-4 rounded-xl hover:bg-primary/10 text-gray-300 hover:text-white transition-all group border border-transparent hover:border-primary/20">
+                                            className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-primary/10 text-gray-300 hover:text-white transition-all group border border-transparent hover:border-primary/20">
                                             <span className="material-icons-round text-2xl group-hover:scale-110 transition-transform">{item.icon}</span>
-                                            <span className="font-medium tracking-tight">{item.label}</span>
+                                            <span className="font-medium tracking-tight text-sm">{item.label}</span>
                                         </button>
                                     ))}
+                                    <button onClick={() => { localStorage.clear(); window.location.replace('/login'); }}
+                                        className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all group border border-transparent hover:border-red-500/20 mt-2">
+                                        <span className="material-icons-round text-2xl group-hover:scale-110 transition-transform">power_settings_new</span>
+                                        <span className="font-medium tracking-tight text-sm">Sair do Sistema</span>
+                                    </button>
                                 </div>
-                                <div className="mt-auto pt-8 border-t v5-border-subtle">
-                                    <p className="text-[10px] text-gray-600 uppercase tracking-[0.3em] text-center font-bold">Protocol JARVIS V125.100</p>
+                                <div className="mt-auto pt-6 border-t v5-border-subtle">
+                                    <p className="text-[10px] text-gray-600 uppercase tracking-[0.3em] text-center font-bold">Protocol JARVIS V125.400</p>
                                 </div>
                             </div>
                         </div>

@@ -3,167 +3,97 @@
     const { Link, Route, useLocation, useNavigate } = window.ReactRouterDOM;
 
     // =========================================================================
-    // NavBar — 3 botões principais: BANCA / CHAT / ADM (com submenu expansível)
+    // NavBar — 5 Botões Principais em Acesso Direto (Sem submenus expansíveis / sem popups)
     // =========================================================================
     const NavBar = ({ onLogout }) => {
         const location = useLocation();
-        const [admOpen, setAdmOpen] = useState(false);
 
-        const isAdmin = useMemo(() => {
-            try {
-                const u = JSON.parse(localStorage.getItem('user') || '{}');
-                return u.role === 'admin';
-            } catch (e) { return false; }
-        }, []);
-
-        // Fecha o submenu ADM ao navegar
-        useEffect(() => { setAdmOpen(false); }, [location.pathname]);
-
-        const isAdmActive = ['/config', '/adm', '/kanban', '/hermes'].includes(location.pathname)
-            || location.pathname.startsWith('/adm');
-
-        // [HERMES DASHBOARD v2] Sub-itens do menu ADM — Kanban substituído por Hermes
-        const admItems = [
-            { to: '/', icon: 'space_dashboard', label: 'Banca' },
-            { href: '/sandbox', icon: 'science', label: 'Sandbox', targetSelf: true },
-            { href: '/memory', icon: 'auto_awesome', label: 'Memory Galaxy', targetSelf: true },
-            { to: '/config', icon: 'settings', label: 'Config' },
-        ];
-
-        const NavBtn = ({ to, href, icon, label, isActive, external, targetSelf, onClick }) => {
-            const base = `flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition-all w-full ${
-                isActive ? 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
-                         : 'text-gray-400 hover:text-white hover:bg-white/5'}`;
+        const NavBtn = ({ to, href, icon, label, isActive, targetSelf, isSpecial }) => {
+            const base = `flex flex-col items-center justify-center gap-1 py-2 lg:py-3 px-2 rounded-xl transition-all duration-300 flex-1 lg:flex-none lg:w-full ${
+                isActive 
+                    ? (isSpecial 
+                        ? 'text-primary bg-primary/20 border border-primary/50 shadow-[0_0_15px_rgba(34,197,94,0.3)] scale-105' 
+                        : 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(255,255,255,0.1)]')
+                    : (isSpecial
+                        ? 'text-primary/80 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent')
+            }`;
             const content = (<>
-                <span className="material-icons-round" style={{ fontSize: '24px' }}>{icon}</span>
-                <span className="text-[9px] font-bold tracking-widest uppercase mt-1 hidden lg:block">{label}</span>
-                <span className="text-[8px] font-bold tracking-widest uppercase mt-0.5 lg:hidden">{label}</span>
+                <span className={`material-icons-round transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} style={{ fontSize: isSpecial ? '25px' : '22px' }}>{icon}</span>
+                <span className="text-[9px] font-black tracking-widest uppercase mt-0.5 hidden lg:block">{label}</span>
+                <span className="text-[7.5px] font-extrabold tracking-wider uppercase mt-0.5 lg:hidden">{label}</span>
             </>);
-            if (href) return <a href={href} target={targetSelf ? "_self" : "_blank"} className={base} title={label} onClick={onClick}>{content}</a>;
-            return <Link to={to} className={base} onClick={onClick}>{content}</Link>;
+            if (href) return <a href={href} target={targetSelf ? "_self" : "_blank"} className={base} title={label}>{content}</a>;
+            return <Link to={to} className={base} title={label}>{content}</Link>;
         };
 
-        // ── Submenu ADM flutuante ───────────────────────────────────────────
-        const AdmSubmenu = () => (
-            <div
-                className="absolute z-[10001] flex flex-col gap-1 p-2 rounded-2xl border border-white/10 backdrop-blur-2xl"
-                style={{ background: 'rgba(8,8,12,0.97)',
-                    /* desktop: aparece à direita da sidebar */
-                    left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)',
-                }}
-            >
-                <span className="text-[8px] font-black text-green-500/60 uppercase tracking-[0.2em] px-2 pb-1 border-b border-white/5 mb-1">ADM · Módulos</span>
-                {admItems.map(item => (
-                    <NavBtn key={item.to || item.href} {...item}
-                        isActive={item.to ? location.pathname === item.to : false}
-                        onClick={() => setAdmOpen(false)}
-                    />
-                ))}
-                <div className="border-t border-white/5 mt-1 pt-1">
-                    <button onClick={() => { setAdmOpen(false); onLogout(); }}
-                        className="flex flex-col items-center gap-1 py-3 px-2 rounded-xl w-full text-red-400 hover:bg-red-500/10 transition-all">
-                        <span className="material-icons-round" style={{ fontSize: '22px' }}>power_settings_new</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest">Sair</span>
-                    </button>
-                </div>
-            </div>
-        );
-
-        // ── Submenu mobile (acima da bottom nav) ───────────────────────────
-        const AdmSubmenuMobile = () => (
-            <div
-                className="fixed bottom-[70px] left-0 right-0 z-[10001] flex justify-center px-4"
-            >
-                <div className="flex items-end gap-2 p-3 rounded-2xl border border-white/10 backdrop-blur-2xl w-full max-w-sm"
-                     style={{ background: 'rgba(8,8,12,0.97)' }}>
-                    <span className="text-[8px] font-black text-green-500/60 uppercase tracking-[0.2em] self-center mr-1 shrink-0">ADM</span>
-                    <div className="flex gap-1 flex-wrap justify-center flex-1">
-                        {admItems.map(item => (
-                            <NavBtn key={item.to || item.href} {...item}
-                                isActive={item.to ? location.pathname === item.to : false}
-                                onClick={() => setAdmOpen(false)}
-                            />
-                        ))}
-                    </div>
-                    <button onClick={() => { setAdmOpen(false); onLogout(); }}
-                        className="flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-all shrink-0">
-                        <span className="material-icons-round" style={{ fontSize: '22px' }}>power_settings_new</span>
-                        <span className="text-[8px] font-bold uppercase tracking-widest">Sair</span>
-                    </button>
-                </div>
-            </div>
-        );
-
         return (
-            <>
-                {/* Overlay para fechar ao clicar fora */}
-                {admOpen && (
-                    <div className="fixed inset-0 z-[9999]" onClick={() => setAdmOpen(false)} />
-                )}
+            <nav className="fixed bottom-0 lg:bottom-auto lg:top-0 lg:left-0 lg:w-[80px] w-full lg:h-screen v5-bg-deep/95 backdrop-blur-xl z-[10000] pb-safe pt-2 lg:py-6 flex flex-col border-t lg:border-t-0 lg:border-r border-white/10 shadow-2xl" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
+                <div className="mx-auto flex lg:flex-col items-center px-2 lg:px-2 w-full h-full gap-1 lg:gap-4">
 
-                {/* Submenu mobile: fica acima da bottom nav */}
-                {admOpen && <div className="lg:hidden"><AdmSubmenuMobile /></div>}
-
-                <nav className="fixed bottom-0 lg:bottom-auto lg:top-0 lg:left-0 lg:w-[80px] w-full lg:h-screen v5-bg-deep/95 backdrop-blur-xl z-[10000] pb-safe pt-2 lg:py-6 flex flex-col" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
-                    <div className="mx-auto flex lg:flex-col items-center px-4 lg:px-2 w-full h-full gap-0 lg:gap-6">
-
-                        {/* Logo — desktop apenas */}
-                        <div className="hidden lg:flex flex-col items-center gap-2 mb-6">
-                            <img src="/logo10DTrasp.png?v=4" alt="Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
-                            <div className="h-[1px] w-8 bg-white/10"></div>
-                        </div>
-
-                        {/* ── 3 botões principais ───────────────────────── */}
-                        <div className="flex flex-row lg:flex-col items-center justify-around lg:justify-start gap-0 lg:gap-3 w-full flex-1">
-
-                            {/* BANCA */}
-                            <NavBtn
-                                to="/"
-                                icon="space_dashboard"
-                                label="Banca"
-                                isActive={location.pathname === '/' || location.pathname === '/10d'}
-                            />
-
-                            {/* [HERMES DASHBOARD v2] HERMES — substitui o Chat antigo */}
-                            <NavBtn
-                                to="/hermes"
-                                icon="auto_awesome"
-                                label="Hermes"
-                                isActive={location.pathname === '/hermes'}
-                            />
-
-                            {/* ADM — expande submenu */}
-                            <div className="relative w-full lg:w-full">
-                                <button
-                                    onClick={() => setAdmOpen(v => !v)}
-                                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition-all w-full ${
-                                        admOpen || isAdmActive
-                                            ? 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
-                                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    <span className="material-icons-round" style={{ fontSize: '24px' }}>
-                                        {admOpen ? 'close' : 'admin_panel_settings'}
-                                    </span>
-                                    <span className="text-[9px] font-bold tracking-widest uppercase mt-1 hidden lg:block">ADM</span>
-                                    <span className="text-[8px] font-bold tracking-widest uppercase mt-0.5 lg:hidden">ADM</span>
-                                </button>
-                                {/* Submenu desktop: aparece à direita */}
-                                {admOpen && <div className="hidden lg:block"><AdmSubmenu /></div>}
-                            </div>
-                        </div>
-
-                        {/* Sair — desktop apenas, parte inferior */}
-                        <div className="hidden lg:flex flex-col items-center gap-3 mt-auto">
-                            <button onClick={onLogout} title="Sair"
-                                className="flex items-center justify-center p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all border border-transparent hover:border-red-500/30">
-                                <span className="material-icons-round" style={{ fontSize: '20px' }}>power_settings_new</span>
-                            </button>
-                        </div>
-
+                    {/* Logo — desktop apenas */}
+                    <div className="hidden lg:flex flex-col items-center gap-2 mb-4">
+                        <img src="/logo10DTrasp.png?v=4" alt="Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
+                        <div className="h-[1px] w-8 bg-white/10"></div>
                     </div>
-                </nav>
-            </>
+
+                    {/* ── 5 Botões de Acesso Direto (Padrão Ouro de Navegabilidade Mobile) ───────────────────────── */}
+                    <div className="flex flex-row lg:flex-col items-center justify-around lg:justify-start gap-1 lg:gap-3 w-full flex-1">
+
+                        {/* BANCA */}
+                        <NavBtn
+                            to="/"
+                            icon="space_dashboard"
+                            label="Banca"
+                            isActive={location.pathname === '/' || location.pathname === '/10d'}
+                        />
+
+                        {/* SANDBOX */}
+                        <NavBtn
+                            href="/sandbox"
+                            icon="science"
+                            label="Sandbox"
+                            targetSelf={true}
+                            isActive={location.pathname === '/sandbox'}
+                        />
+
+                        {/* HERMES (Oráculo AI - Destaque Central) */}
+                        <NavBtn
+                            to="/hermes"
+                            icon="auto_awesome"
+                            label="Hermes"
+                            isActive={location.pathname === '/hermes'}
+                            isSpecial={true}
+                        />
+
+                        {/* GALAXY */}
+                        <NavBtn
+                            href="/memory"
+                            icon="hub"
+                            label="Galaxy"
+                            targetSelf={true}
+                            isActive={location.pathname === '/memory'}
+                        />
+
+                        {/* CONFIG */}
+                        <NavBtn
+                            to="/config"
+                            icon="tune"
+                            label="Config"
+                            isActive={location.pathname === '/config' || location.pathname === '/adm'}
+                        />
+                    </div>
+
+                    {/* Sair — desktop apenas, parte inferior */}
+                    <div className="hidden lg:flex flex-col items-center gap-3 mt-auto">
+                        <button onClick={onLogout} title="Sair do Sistema"
+                            className="flex items-center justify-center p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all border border-transparent hover:border-red-500/30">
+                            <span className="material-icons-round" style={{ fontSize: '20px' }}>power_settings_new</span>
+                        </button>
+                    </div>
+
+                </div>
+            </nav>
         );
     };
 

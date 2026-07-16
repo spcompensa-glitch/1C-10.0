@@ -676,31 +676,29 @@
                 <span class="material-icons-round">space_dashboard</span>
                 <span class="nav-label">Banca</span>
             </a>
-            <a href="/hermes" class="nav-btn active" title="Hermes">
+            <a href="/sandbox" class="nav-btn" title="Sandbox">
+                <span class="material-icons-round">science</span>
+                <span class="nav-label">Sandbox</span>
+            </a>
+            <a href="/hermes" class="nav-btn active" title="Hermes" style="color:#22c55e; border-color:rgba(34,197,94,0.4); background:rgba(34,197,94,0.15);">
                 <span class="material-icons-round">auto_awesome</span>
                 <span class="nav-label">Hermes</span>
             </a>
-            <div class="nav-adm-wrapper">
-                <button onclick="toggleAdmSubmenu()" id="adm-btn" class="nav-btn nav-adm-btn" title="ADM">
-                    <span class="material-icons-round" id="adm-icon">admin_panel_settings</span>
-                    <span class="nav-label">ADM</span>
-                </button>
-                <div id="adm-submenu" class="adm-submenu hidden">
-                    <span class="adm-submenu-title">ADM · Módulos</span>
-                    <a href="/" class="adm-item"><span class="material-icons-round">space_dashboard</span><span>Banca</span></a>
-                    <a href="/sandbox" class="adm-item"><span class="material-icons-round">science</span><span>Sandbox</span></a>
-                    <a href="/memory" class="adm-item"><span class="material-icons-round">auto_awesome</span><span>Memory Galaxy</span></a>
-                    <a href="/config" class="adm-item"><span class="material-icons-round">settings</span><span>Config</span></a>
-                </div>
-            </div>
+            <a href="/memory" class="nav-btn" title="Galaxy">
+                <span class="material-icons-round">hub</span>
+                <span class="nav-label">Galaxy</span>
+            </a>
+            <a href="/config" class="nav-btn" title="Config">
+                <span class="material-icons-round">tune</span>
+                <span class="nav-label">Config</span>
+            </a>
         </div>
         <div class="nav-bottom">
-            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair" class="nav-logout-btn">
+            <button onclick="localStorage.clear();window.location.href='/login'" title="Sair do Sistema" class="nav-logout-btn">
                 <span class="material-icons-round">power_settings_new</span>
             </button>
         </div>
     </nav>
-    <div id="adm-overlay" class="hidden" onclick="closeAdmSubmenu()" style="position:fixed;inset:0;z-index:9999;"></div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- CHAT SIDEBAR — Conversas                                      -->
@@ -862,23 +860,10 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ADM SUBMENU
+    // ADM SUBMENU (Substituído por navegação direta 5 botões)
     // ═══════════════════════════════════════════════════════════════
-    let admOpen = false;
-    function toggleAdmSubmenu() {
-        admOpen = !admOpen;
-        document.getElementById('adm-submenu').classList.toggle('hidden', !admOpen);
-        document.getElementById('adm-btn').classList.toggle('adm-open', admOpen);
-        document.getElementById('adm-icon').textContent = admOpen ? 'close' : 'admin_panel_settings';
-        document.getElementById('adm-overlay').classList.toggle('hidden', !admOpen);
-    }
-    function closeAdmSubmenu() {
-        admOpen = false;
-        document.getElementById('adm-submenu').classList.add('hidden');
-        document.getElementById('adm-btn').classList.remove('adm-open');
-        document.getElementById('adm-icon').textContent = 'admin_panel_settings';
-        document.getElementById('adm-overlay').classList.add('hidden');
-    }
+    function toggleAdmSubmenu() {}
+    function closeAdmSubmenu() {}
 
     // ═══════════════════════════════════════════════════════════════
     // SESSIONS

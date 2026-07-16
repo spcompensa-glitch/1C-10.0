@@ -1127,6 +1127,10 @@ class DatabaseService:
                 await session.execute(q)
                 await session.commit()
                 logger.info("🧪 Sandbox trades database table cleared.")
+                # [V129] Reset in-memory equity defense metrics to avoid false CRITICAL alert
+                self.equity_peak = 10000.0
+                self.equity_floor = 10000.0
+                self.equity_defense_level = 0
                 return True
             except Exception as e:
                 logger.error(f"Error clearing sandbox trades: {e}")
@@ -1193,6 +1197,10 @@ class DatabaseService:
                 await session.execute(q)
                 await session.commit()
                 logger.info("[SWING-LAB] Swing trades cleared.")
+                # [V129] Reset in-memory equity defense metrics to avoid false CRITICAL alert
+                self.equity_peak = 10000.0
+                self.equity_floor = 10000.0
+                self.equity_defense_level = 0
                 return True
             except Exception as e:
                 logger.error(f"Error clearing swing trades: {e}")

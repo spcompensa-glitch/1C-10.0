@@ -601,10 +601,7 @@ class BankrollGuardian:
 
     async def evaluate_bank_health(self) -> Dict[str, Any]:
         banca = await self._get_banca_status()
-        slots = await self._get_slots()
-        moonbags = await self._get_moonbags()
-        history = await self._get_history()
-
+        
         # [V127] Se estiver em modo PAPER, a 'banca' do Cockpit é o saldo consolidado do Sandbox
         if settings.OKX_EXECUTION_MODE == "PAPER":
             try:
@@ -617,9 +614,43 @@ class BankrollGuardian:
                 banca["saldo_total"] = sim_balance
                 banca["configured_balance"] = sim_balance
                 banca["saldo_real_okx"] = sim_balance
+                
+            # [V129] Em PAPER mode, mapear posições ativas do Sandbox como slots para cálculo de PnL no Guardian
+            try:
+                from services.database_service import database_service
+                sandbox_trades = await database_service.get_sandbox_trades(active_only=True)
+                swing_trades = await database_service.get_swing_trades(active_only=True)
+                
+                slots = []
+                for t in [*sandbox_trades, *swing_trades]:
+                    margin = float(t.contract_meta.get("margin", 200.0)) if t.contract_meta else 200.0
+                    roi = float(t.current_roi or 0.0)
+                    slots.append({
+                        "id": t.id,
+                        "symbol": t.symbol,
+                        "side": t.side,
+                        "entry_price": float(t.entry_price or 0.0),
+                        "current_price": float(t.current_price or 0.0),
+                        "qty": float(t.qty or 0.0),
+                        "leverage": float(t.leverage or 50.0),
+                        "entry_margin": margin,
+                        "pnl_usd": (roi / 100.0) * margin,
+                        "roi_percent": roi,
+                        "pnl_percent": roi,
+                        "opened_at": t.entry_time,
+                        "status": t.status
+                    })
+                moonbags = []
+            except Exception as e:
+                logger.error(f"[BANKROLL-GUARDIAN] Erro ao mapear slots virtuais do Sandbox: {e}")
+                slots = await self._get_slots()
+                moonbags = await self._get_moonbags()
         else:
             configured = _safe_float(banca.get("configured_balance"), 0.0)
+            slots = await self._get_slots()
+            moonbags = await self._get_moonbags()
 
+        history = await self._get_history()
         base_balance = configured or _safe_float(getattr(settings, "OKX_SIMULATED_BALANCE", 10000.0), 10000.0)
 
         active_slots = [

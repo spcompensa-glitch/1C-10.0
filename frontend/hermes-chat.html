@@ -798,6 +798,27 @@
         // Ajusta margin do sidebar e padding do main para desktop sem nav
         const sb = document.querySelector('.chat-sidebar');
         if (sb) sb.style.marginLeft = '0';
+        
+        // [V129] Se no mobile, ajusta as alturas para 100vh pois a nav interna foi escondida
+        const style = document.createElement('style');
+        style.textContent = `
+            @media (max-width: 1024px) {
+                .chat-sidebar {
+                    height: 100vh !important;
+                    height: 100dvh !important;
+                }
+                .chat-main {
+                    height: 100vh !important;
+                    height: 100dvh !important;
+                }
+                body {
+                    height: 100vh !important;
+                    height: 100dvh !important;
+                    overflow: hidden !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     // [V128] Sidebar fechada por padrão no mobile

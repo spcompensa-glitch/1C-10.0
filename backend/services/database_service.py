@@ -280,7 +280,11 @@ class DatabaseService:
             db_url = "sqlite+aiosqlite:///local_sniper.db"
             logger.warning("DATABASE_URL not found or invalid. Using local SQLite.")
 
-        self.engine = create_async_engine(db_url, echo=False)
+        # Pool maior para PostgreSQL (produção) para evitar QueuePool timeout em paralelismo do Sandbox
+        pool_kwargs = {}
+        if "postgresql" in db_url:
+            pool_kwargs = {"pool_size": 20, "max_overflow": 40}
+        self.engine = create_async_engine(db_url, echo=False, **pool_kwargs)
         self.AsyncSessionLocal = sessionmaker(
             self.engine, class_=AsyncSession, expire_on_commit=False
         )

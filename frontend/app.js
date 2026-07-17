@@ -4,127 +4,73 @@
 
     // =========================================================================
     // NavBar — 3 Botões: BANCA / HERMES / ADM (submenu: GALAXY, SANDBOX, CONFIG)
+    // Classe CSS PURO (app-nav / app-nav-btn / etc definidas em cockpit.css) — ZERO Tailwind
     // =========================================================================
     const NavBar = ({ onLogout }) => {
         const location = useLocation();
         const [admOpen, setAdmOpen] = React.useState(false);
 
-        const NavBtn = ({ to, href, icon, label, isActive, targetSelf, isSpecial }) => {
-            const base = `flex flex-col items-center justify-center gap-1 py-2 lg:py-3 px-2 rounded-xl transition-all duration-300 flex-1 lg:flex-none lg:w-full ${
-                isActive 
-                    ? (isSpecial 
-                        ? 'text-primary bg-primary/20 border border-primary/50 shadow-[0_0_15px_rgba(34,197,94,0.3)] scale-105' 
-                        : 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(255,255,255,0.1)]')
-                    : (isSpecial
-                        ? 'text-primary/80 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent')
-            }`;
-            const content = (<>
-                <span className={`material-icons-round transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} style={{ fontSize: isSpecial ? '25px' : '22px' }}>{icon}</span>
-                <span className="text-[9px] font-black tracking-widest uppercase mt-0.5 hidden lg:block">{label}</span>
-                <span className="text-[7.5px] font-extrabold tracking-wider uppercase mt-0.5 lg:hidden">{label}</span>
-            </>);
-            if (href) return <a href={href} target={targetSelf ? "_self" : "_blank"} className={base} title={label}>{content}</a>;
-            return <Link to={to} className={base} title={label}>{content}</Link>;
-        };
-
+        const isActive = (path) => location.pathname === path || (path === '/' && (location.pathname === '/10d'));
         const isAdmActive = location.pathname === '/memory' || location.pathname === '/sandbox' || location.pathname === '/config' || location.pathname === '/adm';
 
-        return (
-            <nav className="fixed bottom-0 lg:bottom-auto lg:top-0 lg:left-0 lg:w-[80px] w-full lg:h-screen v5-bg-deep/95 backdrop-blur-xl z-[10000] pb-safe pt-2 lg:py-6 flex flex-col border-t lg:border-t-0 lg:border-r border-white/10 shadow-2xl" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
-                <div className="mx-auto flex lg:flex-col items-center px-2 lg:px-2 w-full h-full gap-1 lg:gap-4">
+        const btnClass = (path, isSpecial) => {
+            const active = isActive(path);
+            let cls = 'app-nav-btn';
+            if (isSpecial) cls += ' is-special';
+            if (active) cls += ' active';
+            return cls;
+        };
 
-                    {/* Logo — desktop apenas */}
-                    <div className="hidden lg:flex flex-col items-center gap-2 mb-4">
-                        <img src="/logo10DTrasp.png?v=4" alt="Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
-                        <div className="h-[1px] w-8 bg-white/10"></div>
-                    </div>
+        const mkContent = (icon, label, isSpecial) => (
+            React.createElement(React.Fragment, null,
+                React.createElement('span', { className: 'material-icons-round', style: { fontSize: isSpecial ? '25px' : '24px' } }, icon),
+                React.createElement('span', { className: 'app-nav-label' }, label)
+            )
+        );
 
-                    {/* ── 3 Botões: BANCA / HERMES / ADM ───────────────────────── */}
-                    <div className="flex flex-row lg:flex-col items-center justify-around lg:justify-start gap-1 lg:gap-3 w-full flex-1">
-
-                        {/* BANCA */}
-                        <NavBtn
-                            to="/"
-                            icon="space_dashboard"
-                            label="Banca"
-                            isActive={location.pathname === '/' || location.pathname === '/10d'}
-                        />
-
-                        {/* HERMES (Oráculo AI - Destaque Central) */}
-                        <NavBtn
-                            to="/hermes"
-                            icon="auto_awesome"
-                            label="Hermes"
-                            isActive={location.pathname === '/hermes'}
-                            isSpecial={true}
-                        />
-
-                        {/* ADM (submenu) */}
-                        <div className="relative flex-1 lg:flex-none lg:w-full flex justify-center">
-                            <button
-                                onClick={() => setAdmOpen(!admOpen)}
-                                className={`flex flex-col items-center justify-center gap-1 py-2 lg:py-3 px-2 rounded-xl transition-all duration-300 flex-1 lg:flex-none lg:w-full ${
-                                    admOpen || isAdmActive
-                                        ? 'text-white bg-white/10 border border-white/20 shadow-[0_0_12px_rgba(255,255,255,0.1)]'
-                                        : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                                }`}
-                                title="ADM"
-                            >
-                                <span className={`material-icons-round transition-transform duration-300 ${admOpen ? 'rotate-45' : ''}`} style={{ fontSize: '22px' }}>admin_panel_settings</span>
-                                <span className="text-[9px] font-black tracking-widest uppercase mt-0.5 hidden lg:block">ADM</span>
-                                <span className="text-[7.5px] font-extrabold tracking-wider uppercase mt-0.5 lg:hidden">ADM</span>
-                            </button>
-
-                            {/* Submenu ADM — desktop: à direita / mobile: acima */}
-                            {admOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-[9999]" onClick={() => setAdmOpen(false)} />
-                                    <div className="hidden lg:flex absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 z-[10001] flex-col gap-1 p-2 rounded-2xl border border-white/10 bg-[rgba(8,8,12,0.97)] backdrop-blur-xl min-w-[180px] shadow-2xl">
-                                        <span className="text-[8px] font-black text-primary/60 uppercase tracking-[0.2em] px-2 pb-1.5 border-b border-white/5 mb-1">ADM · Módulos</span>
-                                        <a href="/memory" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/memory' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">auto_awesome</span>
-                                            <span>Galaxy</span>
-                                        </a>
-                                        <a href="/sandbox" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/sandbox' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">science</span>
-                                            <span>Sandbox</span>
-                                        </a>
-                                        <Link to="/config" onClick={() => setAdmOpen(false)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/config' || location.pathname === '/adm' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">settings</span>
-                                            <span>Config</span>
-                                        </Link>
-                                    </div>
-                                    <div className="lg:hidden fixed left-1/2 -translate-x-1/2 z-[10001] flex flex-col gap-1 p-2 rounded-2xl border border-white/10 bg-[rgba(8,8,12,0.97)] backdrop-blur-xl min-w-[200px] shadow-2xl" style={{ bottom: 'calc(100% + 8px)' }}>
-                                        <span className="text-[8px] font-black text-primary/60 uppercase tracking-[0.2em] px-2 pb-1.5 border-b border-white/5 mb-1">ADM · Módulos</span>
-                                        <a href="/memory" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/memory' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">auto_awesome</span>
-                                            <span>Galaxy</span>
-                                        </a>
-                                        <a href="/sandbox" className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/sandbox' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">science</span>
-                                            <span>Sandbox</span>
-                                        </a>
-                                        <Link to="/config" onClick={() => setAdmOpen(false)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold transition-all border border-transparent hover:bg-white/8 hover:text-white ${location.pathname === '/config' || location.pathname === '/adm' ? 'text-white bg-white/8 border-white/15' : 'text-gray-300'}`}>
-                                            <span className="material-icons-round text-[18px]">settings</span>
-                                            <span>Config</span>
-                                        </Link>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sair — desktop apenas, parte inferior */}
-                    <div className="hidden lg:flex flex-col items-center gap-3 mt-auto">
-                        <button onClick={onLogout} title="Sair do Sistema"
-                            className="flex items-center justify-center p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all border border-transparent hover:border-red-500/30">
-                            <span className="material-icons-round" style={{ fontSize: '20px' }}>power_settings_new</span>
-                        </button>
-                    </div>
-
-                </div>
-            </nav>
+        return React.createElement('nav', { className: 'app-nav' },
+            React.createElement('div', { className: 'app-nav-logo' },
+                React.createElement('img', { src: '/logo10DTrasp.png?v=4', alt: 'Logo', style: { width: '40px', height: '40px', objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(255,215,0,0.3))' } }),
+                React.createElement('div', { style: { width: '32px', height: '1px', background: 'rgba(255,255,255,0.1)' } })
+            ),
+            React.createElement('div', { className: 'app-nav-inner' },
+                React.createElement(Link, { to: '/', className: btnClass('/', false), title: 'Banca' }, mkContent('space_dashboard', 'Banca', false)),
+                React.createElement(Link, { to: '/hermes', className: btnClass('/hermes', true), title: 'Hermes' }, mkContent('auto_awesome', 'Hermes', true)),
+                React.createElement('div', { className: 'app-nav-adm-wrapper' },
+                    React.createElement('button', {
+                        onClick: () => setAdmOpen(!admOpen),
+                        className: 'app-nav-btn app-nav-adm-btn' + (admOpen || isAdmActive ? ' adm-open' : ''),
+                        title: 'ADM'
+                    }, mkContent('admin_panel_settings', 'ADM', false)),
+                    admOpen && React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'adm-overlay', style: { position: 'fixed', inset: 0, zIndex: 9999 }, onClick: () => setAdmOpen(false) }),
+                        React.createElement('div', { className: 'adm-submenu' },
+                            React.createElement('span', { className: 'adm-submenu-title' }, 'ADM \u00b7 M\u00f3dulos'),
+                            React.createElement('a', { href: '/memory', className: 'adm-item' + (location.pathname === '/memory' ? ' adm-item-active' : '') },
+                                React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'auto_awesome'),
+                                React.createElement('span', null, 'Galaxy')
+                            ),
+                            React.createElement('a', { href: '/sandbox', className: 'adm-item' + (location.pathname === '/sandbox' ? ' adm-item-active' : '') },
+                                React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'science'),
+                                React.createElement('span', null, 'Sandbox')
+                            ),
+                            React.createElement(Link, { to: '/config', onClick: () => setAdmOpen(false), className: 'adm-item' + (location.pathname === '/config' || location.pathname === '/adm' ? ' adm-item-active' : '') },
+                                React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'settings'),
+                                React.createElement('span', null, 'Config')
+                            )
+                        )
+                    )
+                )
+            ),
+            React.createElement('div', { className: 'app-nav-logout' },
+                React.createElement('button', {
+                    onClick: onLogout,
+                    title: 'Sair do Sistema',
+                    style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid transparent', cursor: 'pointer' }
+                },
+                    React.createElement('span', { className: 'material-icons-round', style: { fontSize: '20px' } }, 'power_settings_new')
+                )
+            )
         );
     };
 

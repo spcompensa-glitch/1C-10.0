@@ -131,6 +131,80 @@
         };
     </script>
     <link rel="stylesheet" href="css/cockpit.css?v=6.1">
+    <style>
+        /* NAVBAR UNIFICADA — inline garantido (fallback) */
+        .app-nav {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            z-index: 10000 !important;
+            background: rgba(6,6,8,0.95) !important;
+            backdrop-filter: blur(24px) !important;
+            -webkit-backdrop-filter: blur(24px) !important;
+            border-top: 1px solid rgba(255,255,255,0.1) !important;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.3) !important;
+            padding: 8px 16px !important;
+            padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+        }
+        .app-nav-inner {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-around !important;
+            width: 100% !important;
+            height: 100% !important;
+            gap: 4px !important;
+            flex: 1 !important;
+        }
+        .app-nav-btn {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            padding: 8px 12px !important;
+            border-radius: 12px !important;
+            transition: all 0.3s !important;
+            flex: 1 !important;
+            max-width: 100px !important;
+            color: #9ca3af !important;
+            text-decoration: none !important;
+            border: 1px solid transparent !important;
+            cursor: pointer !important;
+            background: none !important;
+        }
+        .app-nav-btn:hover { color: #fff !important; background: rgba(255,255,255,0.05) !important; }
+        .app-nav-btn.active { color: #fff !important; background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; box-shadow: 0 0 12px rgba(255,255,255,0.1) !important; }
+        .app-nav-btn.is-special { color: #22c55e !important; }
+        .app-nav-btn.is-special:hover { color: #22c55e !important; background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.2) !important; }
+        .app-nav-btn.is-special.active { color: #22c55e !important; background: rgba(34,197,94,0.2) !important; border-color: rgba(34,197,94,0.5) !important; box-shadow: 0 0 15px rgba(34,197,94,0.3) !important; transform: scale(1.05) !important; }
+        .app-nav-btn .material-icons-round { font-size: 24px !important; }
+        .app-nav-btn.is-special .material-icons-round { font-size: 25px !important; }
+        .app-nav-label { font-size: 9px !important; font-weight: 700 !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; }
+        .app-nav-logo, .app-nav-logout { display: none !important; }
+        .app-nav-adm-wrapper { position: relative !important; flex: 1 !important; max-width: 100px !important; display: flex !important; justify-content: center !important; }
+        .adm-submenu { position: absolute !important; left: 50% !important; transform: translateX(-50%) !important; bottom: calc(100% + 8px) !important; top: auto !important; z-index: 10001 !important; display: flex !important; flex-direction: column !important; gap: 4px !important; padding: 8px !important; min-width: 200px !important; border-radius: 16px !important; border: 1px solid rgba(255,255,255,0.1) !important; background: rgba(8,8,12,0.97) !important; backdrop-filter: blur(24px) !important; box-shadow: 0 -4px 24px rgba(0,0,0,0.5) !important; }
+        .adm-submenu-title { font-size: 8px !important; font-weight: 900 !important; color: rgba(34,197,94,0.6) !important; text-transform: uppercase !important; letter-spacing: 0.2em !important; padding: 0 8px 6px !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; margin-bottom: 4px !important; }
+        .adm-item { display: flex !important; align-items: center !important; gap: 8px !important; padding: 8px 12px !important; border-radius: 10px !important; text-decoration: none !important; color: #d1d5db !important; font-size: 12px !important; font-weight: 600 !important; transition: all 0.2s !important; border: 1px solid transparent !important; white-space: nowrap !important; }
+        .adm-item:hover { color: #fff !important; background: rgba(255,255,255,0.08) !important; }
+        .adm-item .material-icons-round { font-size: 18px !important; }
+        .adm-item-active { color: #fff !important; background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.15) !important; }
+        @media (min-width: 1024px) {
+            .app-nav { top: 0 !important; left: 0 !important; bottom: 0 !important; right: auto !important; width: 80px !important; height: 100vh !important; border-top: none !important; border-right: 1px solid rgba(255,255,255,0.1) !important; box-shadow: 0 10px 40px rgba(0,0,0,0.5) !important; padding: 24px 0 !important; flex-direction: column !important; }
+            .app-nav-inner { flex-direction: column !important; gap: 12px !important; padding: 0 !important; }
+            .app-nav-btn { flex: none !important; width: 56px !important; max-width: none !important; padding: 12px 8px !important; }
+            .app-nav-logo { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important; margin-bottom: 24px !important; }
+            .app-nav-logout { display: flex !important; margin-top: auto !important; }
+            .app-nav-adm-wrapper { flex: none !important; width: 100% !important; max-width: none !important; }
+            .app-nav-adm-wrapper .app-nav-btn { width: 100% !important; }
+            .adm-submenu { left: calc(100% + 8px) !important; transform: translateY(-50%) !important; top: 50% !important; bottom: auto !important; min-width: 180px !important; box-shadow: 0 10px 40px rgba(0,0,0,0.5) !important; }
+        }
+    </style>
 </head>
 
 <body>
@@ -6864,6 +6938,6 @@
     <script type="text/babel" src="components/DeepAnalysisModal.js?v=125.500"></script>
     
     <!-- Núcleo do Aplicativo -->
-    <script type="text/babel" src="app.js?v=125.500"></script>
+    <script type="text/babel" src="app.js?v=125.600"></script>
 </body>
 </html>

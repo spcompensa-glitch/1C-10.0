@@ -46,11 +46,11 @@
                         React.createElement('div', { className: 'adm-overlay', style: { position: 'fixed', inset: 0, zIndex: 9999 }, onClick: () => setAdmOpen(false) }),
                         React.createElement('div', { className: 'adm-submenu' },
                             React.createElement('span', { className: 'adm-submenu-title' }, 'ADM \u00b7 M\u00f3dulos'),
-                            React.createElement('a', { href: '/memory', className: 'adm-item' + (location.pathname === '/memory' ? ' adm-item-active' : '') },
+                            React.createElement(Link, { to: '/memory', onClick: () => setAdmOpen(false), className: 'adm-item' + (location.pathname === '/memory' ? ' adm-item-active' : '') },
                                 React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'auto_awesome'),
                                 React.createElement('span', null, 'Galaxy')
                             ),
-                            React.createElement('a', { href: '/sandbox', className: 'adm-item' + (location.pathname === '/sandbox' ? ' adm-item-active' : '') },
+                            React.createElement(Link, { to: '/sandbox', onClick: () => setAdmOpen(false), className: 'adm-item' + (location.pathname === '/sandbox' ? ' adm-item-active' : '') },
                                 React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'science'),
                                 React.createElement('span', null, 'Sandbox')
                             ),
@@ -190,6 +190,8 @@
                         <Route path="/hermes" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/hermes" className="w-full h-full border-none" title="Hermes Dashboard" /></div>} />
                         <Route path="/neural-chat" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/neural-chat.html" className="w-full h-full border-none" title="Neural Chat Interface (legado)" /></div>} />
                         <Route path="/kanban" element={<ReactRouterDOM.Navigate to="/hermes" replace />} />
+                        <Route path="/sandbox" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/sandbox" className="w-full h-full border-none" title="Sandbox Lab" /></div>} />
+                        <Route path="/memory" element={<div className="w-full h-full lg:pl-[80px] pb-[70px] lg:pb-0 overflow-hidden"><iframe src="/memory" className="w-full h-full border-none" title="Memory Galaxy" /></div>} />
                         <Route path="/config" element={<SettingsPageComponent onLogout={handleLogout} theme={theme} setTheme={setTheme} />} />
                         <Route path="/adm" element={<AdminUsersPageComponent />} />
                     </ReactRouterDOM.Routes>

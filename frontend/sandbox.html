@@ -389,7 +389,7 @@
                         <span class="material-icons-round">science</span>
                         <span>Sandbox</span>
                     </a>
-                    <a href="/config" class="adm-item">
+                    <a href="/cockpit#/config" class="adm-item">
                         <span class="material-icons-round">settings</span>
                         <span>Config</span>
                     </a>
@@ -868,6 +868,14 @@
             if (innerNav) innerNav.style.display = 'none';
             const sb = document.querySelector('.main-content');
             if (sb) sb.style.marginLeft = '0';
+            
+            const style = document.createElement('style');
+            style.textContent = `
+                @media (max-width: 1024px) {
+                    .main-content { margin-bottom: 0 !important; }
+                }
+            `;
+            document.head.appendChild(style);
         }
 
         // ==================== STATE ====================

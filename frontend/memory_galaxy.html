@@ -794,6 +794,14 @@
             if (innerNav) innerNav.style.display = 'none';
             const mc = document.querySelector('.main-content');
             if (mc) mc.style.marginLeft = '0';
+            
+            const style = document.createElement('style');
+            style.textContent = `
+                @media (max-width: 1024px) {
+                    .main-content { margin-bottom: 0 !important; }
+                }
+            `;
+            document.head.appendChild(style);
         }
 
         // ══════════════════════════════════════════════════════════════

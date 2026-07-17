@@ -720,7 +720,7 @@
                         <span class="material-icons-round">science</span>
                         <span>Sandbox</span>
                     </a>
-                    <a href="/config" class="adm-item">
+                    <a href="/cockpit#/config" class="adm-item">
                         <span class="material-icons-round">settings</span>
                         <span>Config</span>
                     </a>
@@ -834,21 +834,18 @@
         const sb = document.querySelector('.chat-sidebar');
         if (sb) sb.style.marginLeft = '0';
         
-        // [V129] Se no mobile, ajusta as alturas para 100vh pois a nav interna foi escondida
+        // [V129] Se no mobile, ajusta as alturas para 100% pois a nav interna foi escondida
         const style = document.createElement('style');
         style.textContent = `
             @media (max-width: 1024px) {
                 .chat-sidebar {
-                    height: 100vh !important;
-                    height: 100dvh !important;
+                    height: 100% !important;
                 }
                 .chat-main {
-                    height: 100vh !important;
-                    height: 100dvh !important;
+                    height: 100% !important;
                 }
-                body {
-                    height: 100vh !important;
-                    height: 100dvh !important;
+                html, body {
+                    height: 100% !important;
                     overflow: hidden !important;
                 }
             }

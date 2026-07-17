@@ -610,13 +610,26 @@ class SandboxService:
             except Exception as e:
                 logger.error(f"Error checking BTC macro trend for Sandbox: {e}")
 
-            # [V122] Sandbox: filtro LONG desativado — simulação sem risco real
-            # O sistema real (Captain) aplica V122 com pearson < 0.30 + conf >= 70 em BEAR
-            # Aqui no sandbox permitimos LONG sem restrição de decorrelação para gerar dados
-            # representativos de performance mesmo em condições adversas de mercado.
-            if direction == "LONG":
-                logger.debug(f"🧪 [SANDBOX-V122-SKIP] {symbol} LONG permitido (sandbox sem risco)")
-                decor_bypass = True
+            # [V130-FIX] Sandbox: filtro LONG seletivo por estratégia.
+            # DECOR SHADOW é estratégia de reversão em mercado lateral — entradas LONG
+            # em TRENDING sem decorrelação vão direto para stop-loss (dados confirmaram WR 46%).
+            # Por isso, DECOR SHADOW/HUNTER LONG mantém o gate de decorrelação ativo.
+            # Demais estratégias (VELOCITY FLOW, ALPHA SHIELD) podem entrar LONG sem restrição
+            # no sandbox para gerar dados representativos.
+            # [V130-FIX-DECOR-SHADOW] 2026-07-17: Bloqueio de LONG sem decorrelação para DECOR SHADOW
+            if strategy in ("DECOR SHADOW", "DECOR_HUNTER"):
+                # DECOR SHADOW mantém o gate — só entra LONG se passar no decorrelation check
+                if not decor_bypass:
+                    logger.info(
+                        f"🧪 [V130-FIX-DECOR-SHADOW] {symbol} {direction} DECOR SHADOW bloqueado — "
+                        f"correlação BTC ativa exige direção oposta para reversal"
+                    )
+                    continue
+            else:
+                # Demais estratégias: LONG liberado sem restrição (sandbox mode)
+                if direction == "LONG":
+                    logger.debug(f"🧪 [SANDBOX-V122-SKIP] {symbol} {strategy} LONG permitido (sandbox sem risco)")
+                    decor_bypass = True
 
             # [V117] Filtro de horário e ADX noturno
             # UTC 22h-08h = noite asiática/madrugada europeia — chop mesmo com ADX=TRENDING
@@ -830,6 +843,39 @@ class SandboxService:
                         }
                 except Exception as meta_err:
                     logger.debug(f"[SANDBOX] Erro ao resolver metadados extras de contrato para {symbol}: {meta_err}")
+
+            # [V130-FIX] Position sizing dinâmico por score do sinal.
+            # Diagnóstico: 60% do PnL veio de 5 trades outliers. Sinais fracos
+            # (score baixo) têm menor probabilidade de acerto — devem usar margem reduzida.
+            # Sistema:
+            #   score >= 85: 100% da margem (trades de alta convicção)
+            #   score 70-84:  60% da margem (convicção média)
+            #   score 55-69:  30% da margem (convicção baixa — exploratória)
+            #   score < 55:   bloqueado (não deve passar dos gates anteriores)
+            # O score usado é o maior entre: explosion_score, boosted_score, score do sinal
+            signal_score = max(
+                explosion_score or 0,
+                boosted_score or 0,
+                score or 0,
+                float(sig.get("score", 0))
+            )
+            current_total_balance = await database_service.get_sandbox_unified_balance()
+            base_margin = round(current_total_balance * 0.02, 2)  # 2% da banca total
+            if signal_score >= 85:
+                score_mult = 1.0
+            elif signal_score >= 70:
+                score_mult = 0.60
+            elif signal_score >= 55:
+                score_mult = 0.30
+            else:
+                score_mult = 0.0  # não deve acontecer, mas segurança
+            dynamic_margin = round(base_margin * score_mult, 2)
+            contract_meta["margin"] = dynamic_margin
+            logger.info(
+                f"🧪 [V130-POSITION-SIZING] {symbol} {strategy} score={signal_score:.0f} "
+                f"mult={score_mult:.2f} margem=${dynamic_margin:.2f} "
+                f"(base=${base_margin:.2f})"
+            )
             stop_result = await self._calculate_adaptive_stop(symbol, entry_price, side, contract_meta, is_ranging)
             stop_price = stop_result["stop_price"]
             initial_stop_roi = stop_result["stop_roi"]
@@ -1453,22 +1499,40 @@ class SandboxService:
             pass
         is_ranging = (adx_val < 25)
 
-        # 7. Partial TP — saída parcial para proteger lucro
-        # [V120] expandido: LATERAL +15% ROI (original) + TRENDING +25% ROI (novo)
-        # Motivo: apenas 1/131 trades chegou ao TRAILING. Saída parcial antecipada protege lucro.
-        if False:  # [V125.3] Saída parcial desativada a pedido do usuário para manter 50x cheios
-            partial_threshold = 15.0 if is_ranging else 25.0
-            if max_roi >= partial_threshold:
-                has_taken_partial = True
-                partial_roi = max(partial_threshold, current_roi)
-                flash_state["has_taken_partial"] = True
-                flash_state["partial_roi"] = partial_roi
-                history.append(f"Saida Parcial de 50% executada a {partial_roi:.1f}% ROI (regime={'LATERAL' if is_ranging else 'TRENDING'})")
-                logger.info(f"🧪 [SANDBOX-PARTIAL] {symbol} parcial de 50% a {partial_roi:.1f}% ROI (regime={'LATERAL' if is_ranging else 'TRENDING'})")
+        # [V130-FIX] Partial TP — saída parcial para proteger lucro e elevar mediana.
+        # Diagnóstico: 60% do PnL veio de 5 trades outliers. Mediana de $1.61/trade.
+        #   O sistema all-or-nothing transforma 81/162 trades em wins marginais,
+        #   enquanto 5 outliers carregam o resultado. Sem take-profit parcial,
+        #   trades que andam +15% e revertem viram loss ou zero.
+        # Solução V130: Partial TP de 30% em +20% ROI (qualquer regime).
+        #   - Trava $60 de lucro por trade ($200 * 20% * 30% = $12 → $200 * 20%ROI * 100% = $40 margem)
+        #   - Deixa 70% trailando para capturar outliers
+        #   - Eleva mediana sem matar os home runs
+        # Regime: aplica em LATERAL e TRENDING indiscriminadamente
+        # Ativado V130: threshold único de +20% ROI, 30% da margem realizada
+        PARTIAL_TP_THRESHOLD = 20.0
+        PARTIAL_TP_PERCENT = 0.30  # 30% da margem realizada
+        if not has_taken_partial and max_roi >= PARTIAL_TP_THRESHOLD:
+            has_taken_partial = True
+            # O lucro realizado é fixado no momento do partial TP
+            partial_roi = PARTIAL_TP_THRESHOLD
+            flash_state["has_taken_partial"] = True
+            flash_state["partial_roi"] = partial_roi
+            flash_state["partial_taken_at"] = time.time()
+            history.append(
+                f"[V130-PARTIAL-TP] Saida parcial de {PARTIAL_TP_PERCENT*100:.0f}% "
+                f"executada a {PARTIAL_TP_THRESHOLD:.0f}% ROI "
+                f"(lucro travado: ${(PARTIAL_TP_THRESHOLD/100.0)*PARTIAL_TP_PERCENT*self.dynamic_margin:.2f})"
+            )
+            logger.info(
+                f"🧪 [V130-PARTIAL-TP] {symbol} parcial de {PARTIAL_TP_PERCENT*100:.0f}% "
+                f"a {PARTIAL_TP_THRESHOLD:.0f}% ROI — lucro travado"
+            )
 
-        # 8. PnL
-        if has_taken_partial:
-            pnl_pct = (partial_roi * 0.5) + (current_roi * 0.5)
+        # [V130-FIX] PnL com partial TP: 30% do lucro travado no threshold + 70% corrente.
+        # Fórmula: pnl = (threshold * 0.30) + (current_roi * 0.70)
+        if has_taken_partial and partial_roi > 0:
+            pnl_pct = (partial_roi * PARTIAL_TP_PERCENT) + (current_roi * (1.0 - PARTIAL_TP_PERCENT))
         else:
             pnl_pct = current_roi
 

@@ -44,17 +44,27 @@ ORDER_STOP_LADDER_SCALPING: List[StopLevel] = [
     StopLevel("TRAILING", "TRAILING_SCALP", 15.0, 11.0, "PROFIT_LOCK"),
 ]
 
-# [V127.2] Escadinha Oficial para Swing (Doutrina das Extrações)
+# [V130-FIX] Escadinha Oficial para Swing (Doutrina das Extrações)
 # Usada de forma unificada no FlashAgent para simular stops de Swing
-# [V127.2] Breakeven restaurado para +10% (era +4% no V128 — muito apertado)
+#
+# [V130-FIX] Diagnóstico do R:R = 0.46:
+#   Stop inicial: -5% ROI (= 0.1% de preço com 50x).
+#   Breakeven: +10% ROI (= 0.2% de preço com 50x).
+#   Gap: 15% de ROI entre stop e breakeven — trades que andam +4% e revertem
+#        tomam loss de -5%. Isso explica R:R < 1 mesmo com WR de 78%.
+#
+# Solução V130:
+#   Breakeven antecipado de +10% → +5% (R:R 1:1 na entrada).
+#   Proteção parcial 1: de +20% → +12% (trava lucro mais cedo).
+#   Escalonamento progressivo mantido para capturar outliers.
 ORDER_STOP_LADDER_SWING: List[StopLevel] = [
-    StopLevel("ESCADINHA", "BREAKEVEN",           10.0,    0.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PROTECAO_PARCIAL_1", 20.0,    5.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PRE_UNIT1",          60.0,   30.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",   100.0,   80.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "EMANCIPADO",        150.0,  110.0,  "PROFIT_LOCK"),
-    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",   200.0,  170.0,  "PROFIT_LOCK"),
-    StopLevel("TRAILING",  "UNIT3_GARANTIDO",   300.0,  250.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "BREAKEVEN_V130",        5.0,    0.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PROTECAO_PARCIAL_1",   12.0,    3.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PRE_UNIT1",            40.0,   20.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",      80.0,   55.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADO",          120.0,   85.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",     160.0,  130.0,  "PROFIT_LOCK"),
+    StopLevel("TRAILING",  "UNIT3_GARANTIDO",     250.0,  200.0,  "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_SWING_LATERAL: List[StopLevel] = [

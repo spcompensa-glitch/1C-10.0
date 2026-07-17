@@ -35,23 +35,26 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("ScalpingEngine")
 
-# ── Constantes ─────────────────────────────────────────────────────────────────
-_LEVERAGE           = 50.0
-# [V126] Banca $10.000 | 40% = $4.000 | 20 ordens x $200 (10 Scalp + 10 Swing)
+# ── Constantes V130 — Refatoração VWAP SNIPER ──────────────────────────────────
+# [V130-FIX] Diagnóstico: WR 0% em 3 trades. Causa raiz:
+#   Leverage 50x + MAX_STOP_ROI -8% = stop a 0.16% de movimento no preço.
+#   Em altcoins voláteis, isso é ruído puro — qualquer micro-oscilação fecha o trade.
+# Solução V130:
+#   1. Leverage 50x → 10x: stop passa de 0.16% para 0.80% de movimento (5x mais espaço)
+#   2. MAX_STOP_ROI -8% → -30%: stop em 0.6% com 50x OU 3% com 10x
+#   3. VWAP_TOLERANCE 0.20% → 0.30%: mais sinais capturados com espaço para respirar
+#   4. Score mínimo 70 → 65: mais oportunidades, já que 3 camadas garantem qualidade
+_LEVERAGE           = 10.0
 _MARGIN_PER_TRADE   = 200.0
-_SCAN_INTERVAL      = 30      # segundos entre scans [V128: 60→30 para capturar mais crossovers]
-_MAX_SLOTS          = 5       # slots simultaneos maximos de Scalping [V128: 10→5]
-# [V128] Score minimo = 70 (3 camadas = 85pts sem sweep, 100 com sweep)
-# Sweep (+15) nao e obrigatorio mas melhora qualidade
-_MIN_SCORE          = 70      # score minimo para entrada
-_MAX_STOP_ROI       = -8.0    # perda maxima em ROI (%) [V127.2: -15→-8 para restaurar R:R ~1:1]
-_VWAP_TOLERANCE_PCT = 0.20    # tolerancia do preco vs VWAP (%) [V128: sweet spot 0.05-0.10%]
+_SCAN_INTERVAL      = 30
+_MAX_SLOTS          = 5
+_MIN_SCORE          = 65
+_MAX_STOP_ROI       = -30.0
+_VWAP_TOLERANCE_PCT = 0.30
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
 _EMA_PERIOD         = 200
-# [V126] Filtro de ATR minimo: mercado com ATR < 0.02% do preco nao tem
-# volatilidade suficiente para o VWAP Sniper — stop ficaria micro e seria violado
-_MIN_ATR_PCT        = 0.02    # ATR minimo como % do preco
+_MIN_ATR_PCT        = 0.02
 
 
 # ── Utilitarios de Indicadores ─────────────────────────────────────────────────
@@ -562,14 +565,30 @@ class SandboxScalpingEngine:
 
             trade_id = f"vwap_{symbol}_{int(time.time())}"
 
-            # dynamic margin calculation (2% of current total balance)
+            # [V130-FIX] Position sizing dinâmico por score do sinal (VWAP SNIPER).
+            # Base: 2% da banca total, com multiplicador por convicção:
+            #   score >= 85 → 100% da margem base
+            #   score 70-84 →  60% da margem base
+            #   score < 70 →  30% da margem base (score mínimo já é 65)
             current_balance = await database_service.get_sandbox_unified_balance()
-            dynamic_margin = round(current_balance * 0.02, 2)
+            base_margin = round(current_balance * 0.02, 2)
+            if score >= 85:
+                score_mult = 1.0
+            elif score >= 70:
+                score_mult = 0.60
+            else:
+                score_mult = 0.30
+            dynamic_margin = round(base_margin * score_mult, 2)
 
             contract_meta = signal.get("contract_meta") or {}
             if not isinstance(contract_meta, dict):
                 contract_meta = {}
             contract_meta["margin"] = dynamic_margin
+            logger.info(
+                f"[V130-POSITION-SIZING] VWAP {symbol} score={score} "
+                f"mult={score_mult:.2f} margem=${dynamic_margin:.2f} "
+                f"(base=${base_margin:.2f})"
+            )
 
             trade_data = {
                 "id":            trade_id,

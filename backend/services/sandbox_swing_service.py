@@ -24,15 +24,25 @@ Indicadores absorvidos do BLITZ_30M:
   - Fibonacci Golden Zone (0.618–0.786)
   - Price Action patterns (Wick Reclaim, Engulf, Sweep & Reclaim)
 
-Doutrina das Extrações (step-lock de stop):
-  - Break-even: +2% ROI  → SL em 0% (V128: protecao mais cedo)
-  - Pre-Unit1:  +60% ROI  → SL em +30%
-  - Unidade 1:  +100% ROI → SL em +80% (garantido)
-  - Emancipado: +150% ROI → SL em +110%
-  - Unidade 2:  +200% ROI → SL em +170%
-  - Unidade 3:  +300% ROI → SL em +250%
+[V130] Correção Estrutural do R:R (2026-07-17):
+  - Diagnóstico: R:R de 0.46 (avg win 3.6% vs avg loss 8.0%).
+    Causa: leverage 50x + stop -5% ROI = 0.1% de preço.
+    Breakeven em +10% ROI criava gap de 15% entre stop e proteção.
+  - Solução V130:
+    1. Leverage 50x → 10x (stop -5% = 0.5% de preço, 5x mais espaço)
+    2. Escadinha: breakeven +10% → +5%, gap eliminado (R:R 1:1 na entrada)
+    3. Position sizing dinâmico por score do sinal (score < 70 = 30% da margem)
 
-[V128] Filtros adicionais:
+Doutrina das Extrações V130 (step-lock de stop):
+  - Break-even: +5% ROI   → SL em 0%   (R:R 1:1 na entrada)
+  - Proteção Parcial: +12% ROI → SL em +3%
+  - Pre-Unit1:        +40% ROI → SL em +20%
+  - Unidade 1:        +80% ROI → SL em +55% (garantido)
+  - Emancipado:      +120% ROI → SL em +85%
+  - Unidade 2:       +160% ROI → SL em +130%
+  - Unidade 3:       +250% ROI → SL em +200%
+
+[V130] Filtros adicionais:
   - Regime filter: bearish → so SHORT; bullish → so LONG
   - Hour filter: pausa 14:00-15:00 UTC (pico de losses)
   - Dynamic blacklist: auto-bloqueio apos 3+ trades com WR<20%
@@ -50,10 +60,13 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("SandboxSwingService")
 
-# Constantes padrão (sobrescritas pelo config.py se disponível)
+# [V130-FIX] Constantes padrão (sobrescritas pelo config.py se disponível)
+# _DEFAULT_LEVERAGE reduzido de 50x → 10x para:
+#   - Aumentar o stop em termos de preço (0.1% → 0.5% com -5% ROI)
+#   - Melhorar R:R ratio (projetado: 0.46 → ~1.5)
 _DEFAULT_VIRTUAL_BALANCE  = 100.0
 _DEFAULT_MARGIN_PER_TRADE = 5.0
-_DEFAULT_LEVERAGE         = 50.0
+_DEFAULT_LEVERAGE         = 10.0
 _DEFAULT_SCAN_INTERVAL    = 300   # 5 minutos
 
 
@@ -453,14 +466,30 @@ class SandboxSwingService:
 
             trade_id = f"swing_{symbol}_{int(time.time())}"
 
-            # dynamic margin calculation (2% of current total balance)
+            # [V130-FIX] Position sizing dinâmico por score do sinal (Swing Lab).
+            # Base: 2% da banca total, com multiplicador por convicção:
+            #   score >= 85 → 100% da margem base
+            #   score 70-84 →  60% da margem base
+            #   score < 70 →  30% da margem base (score mínimo é ~65)
             current_balance = await database_service.get_sandbox_unified_balance()
-            dynamic_margin = round(current_balance * 0.02, 2)
+            base_margin = round(current_balance * 0.02, 2)
+            if score >= 85:
+                score_mult = 1.0
+            elif score >= 70:
+                score_mult = 0.60
+            else:
+                score_mult = 0.30
+            dynamic_margin = round(base_margin * score_mult, 2)
 
             contract_meta = signal.get("contract_meta") or {}
             if not isinstance(contract_meta, dict):
                 contract_meta = {}
             contract_meta["margin"] = dynamic_margin
+            logger.info(
+                f"[V130-POSITION-SIZING] Swing {symbol} {strategy} score={score} "
+                f"mult={score_mult:.2f} margem=${dynamic_margin:.2f} "
+                f"(base=${base_margin:.2f})"
+            )
 
             trade_data = {
                 "id":            trade_id,

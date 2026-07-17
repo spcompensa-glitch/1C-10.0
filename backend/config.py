@@ -162,8 +162,11 @@ class Settings(BaseSettings):
     # OFF = Sandbox roda autônomo (recomendado para validação)
     # ON  = Toda ordem swing aberta no Lab é espelhada na conta real
     SWING_MIRROR_MODE: str = os.getenv("SWING_MIRROR_MODE", "OFF")
-    # Alavancagem padrao para trades swing (50x)
-    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 50))
+    # [V130-FIX] Alavancagem reduzida de 50x → 10x para Swing Lab.
+    #   Diagnóstico: R:R de 0.46. Stop -5% ROI com 50x = 0.1% de preço.
+    #   Com 10x: stop -5% ROI = 0.5% de preço — 5x mais espaço para o trade respirar.
+    #   A escadinha V130 com breakeven em +5% ROI + leverage 10x projeta R:R ~1.5.
+    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 10))
 
     # Margem em USD por trade swing na conta virtual
     # [V126] $200/trade | 10 slots | 40% de $10.000 = $4.000 total

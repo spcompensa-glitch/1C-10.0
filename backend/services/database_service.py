@@ -281,13 +281,17 @@ class DatabaseService:
             logger.warning("DATABASE_URL not found or invalid. Using local SQLite.")
 
         # Pool para PostgreSQL com pre-ping + recycle para evitar dead connections
+        # Railway Postgres Hobby permite ~15 conexões simultâneas.
+        # pool_size=5 + max_overflow=3 = max 8 conexões, bem abaixo do limite.
+        # pool_timeout=10 para falhar rápido se o pool estiver cheio.
         pool_kwargs = {}
         if "postgresql" in db_url:
             pool_kwargs = {
-                "pool_size": 20,
-                "max_overflow": 10,
+                "pool_size": 5,
+                "max_overflow": 3,
                 "pool_pre_ping": True,
                 "pool_recycle": 60,
+                "pool_timeout": 10,
             }
         self.engine = create_async_engine(db_url, echo=False, **pool_kwargs)
         self.AsyncSessionLocal = sessionmaker(

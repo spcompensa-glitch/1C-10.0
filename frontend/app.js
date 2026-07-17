@@ -57,6 +57,15 @@
                             React.createElement(Link, { to: '/config', onClick: () => setAdmOpen(false), className: 'adm-item' + (location.pathname === '/config' || location.pathname === '/adm' ? ' adm-item-active' : '') },
                                 React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'settings'),
                                 React.createElement('span', null, 'Config')
+                            ),
+                            React.createElement('div', { style: { borderTop: '1px solid rgba(255,255,255,0.08)', margin: '6px 0' } }),
+                            React.createElement('button', {
+                                onClick: () => { setAdmOpen(false); onLogout(); },
+                                className: 'adm-item',
+                                style: { color: '#f87171', width: '100%', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', background: 'none', fontFamily: 'inherit' }
+                            },
+                                React.createElement('span', { className: 'material-icons-round', style: { fontSize: '18px' } }, 'power_settings_new'),
+                                React.createElement('span', null, 'Sair')
                             )
                         )
                     )

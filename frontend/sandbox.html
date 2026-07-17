@@ -835,6 +835,14 @@
     </div>
 
     <script>
+        // [V125] Se dentro de iframe (cockpit), esconde nav interna — evita 2 menus no mobile
+        if (window.self !== window.top) {
+            const innerNav = document.querySelector('.app-nav');
+            if (innerNav) innerNav.style.display = 'none';
+            const sb = document.querySelector('.main-content');
+            if (sb) sb.style.marginLeft = '0';
+        }
+
         // ==================== STATE ====================
         let currentTab = 'scalping'; // 'scalping' | 'swing'
         let tradesData = [];

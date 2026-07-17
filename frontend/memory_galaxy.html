@@ -761,8 +761,16 @@
     </div>
 
     <script>
-    // ═══════════════════════════════════════════════════════════════
-    // STATE
+        // [V125] Se dentro de iframe (cockpit), esconde nav interna — evita 2 menus no mobile
+        if (window.self !== window.top) {
+            const innerNav = document.querySelector('.app-nav');
+            if (innerNav) innerNav.style.display = 'none';
+            const mc = document.querySelector('.main-content');
+            if (mc) mc.style.marginLeft = '0';
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // STATE
     // ═══════════════════════════════════════════════════════════════
     const API = window.location.origin;
     let graph = null;

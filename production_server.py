@@ -163,6 +163,28 @@ async def serve_user():
     else:
         raise HTTPException(status_code=404, detail="User page not found")
 
+@app.get("/sandbox", response_class=FileResponse)
+async def serve_sandbox():
+    """Servir página Sandbox"""
+    sandbox_path = os.path.join(frontend_path, "sandbox.html")
+    if os.path.exists(sandbox_path):
+        logger.info(f"✅ Servindo sandbox.html de: {sandbox_path}")
+        return sandbox_path
+    else:
+        logger.error(f"❌ Arquivo não encontrado: {sandbox_path}")
+        raise HTTPException(status_code=404, detail="Sandbox page not found")
+
+@app.get("/memory", response_class=FileResponse)
+async def serve_memory():
+    """Servir página Memory Galaxy"""
+    memory_path = os.path.join(frontend_path, "memory_galaxy.html")
+    if os.path.exists(memory_path):
+        logger.info(f"✅ Servindo memory_galaxy.html de: {memory_path}")
+        return memory_path
+    else:
+        logger.error(f"❌ Arquivo não encontrado: {memory_path}")
+        raise HTTPException(status_code=404, detail="Memory Galaxy page not found")
+
 # ===== ROTAS DE API DE AUTENTICAÇÃO =====
 
 @app.post("/api/auth/login")

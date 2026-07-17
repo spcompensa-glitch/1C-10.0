@@ -280,10 +280,15 @@ class DatabaseService:
             db_url = "sqlite+aiosqlite:///local_sniper.db"
             logger.warning("DATABASE_URL not found or invalid. Using local SQLite.")
 
-        # Pool moderado para PostgreSQL (Railway tem limite de ~15 conexões)
+        # Pool para PostgreSQL com pre-ping + recycle para evitar dead connections
         pool_kwargs = {}
         if "postgresql" in db_url:
-            pool_kwargs = {"pool_size": 10, "max_overflow": 5}
+            pool_kwargs = {
+                "pool_size": 20,
+                "max_overflow": 10,
+                "pool_pre_ping": True,
+                "pool_recycle": 60,
+            }
         self.engine = create_async_engine(db_url, echo=False, **pool_kwargs)
         self.AsyncSessionLocal = sessionmaker(
             self.engine, class_=AsyncSession, expire_on_commit=False

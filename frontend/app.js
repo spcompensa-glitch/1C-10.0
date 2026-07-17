@@ -191,8 +191,8 @@
                             <Route path="/hermes" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/hermes-chat-v2.html?v=125.606" className="w-full h-full border-none" title="Hermes Dashboard" /></div>} />
                             <Route path="/neural-chat" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/neural-chat.html?v=125.606" className="w-full h-full border-none" title="Neural Chat Interface (legado)" /></div>} />
                             <Route path="/kanban" element={<ReactRouterDOM.Navigate to="/hermes" replace />} />
-                            <Route path="/sandbox" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/sandbox?v=125.606" className="w-full h-full border-none" title="Sandbox Lab" /></div>} />
-                            <Route path="/memory" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/memory?v=125.606" className="w-full h-full border-none" title="Memory Galaxy" /></div>} />
+                            <Route path="/sandbox" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/sandbox?v=125.700" className="w-full h-full border-none" title="Sandbox Lab" /></div>} />
+                            <Route path="/memory" element={<div className="absolute inset-0 lg:pl-[80px] pb-[90px] lg:pb-0"><iframe src="/memory?v=125.700" className="w-full h-full border-none" title="Memory Galaxy" /></div>} />
                             <Route path="/config" element={<SettingsPageComponent onLogout={handleLogout} theme={theme} setTheme={setTheme} />} />
                             <Route path="/adm" element={<AdminUsersPageComponent />} />
                         </ReactRouterDOM.Routes>

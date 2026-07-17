@@ -73,6 +73,14 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Falha ao iniciar VWAP SNIPER Engine: {e}")
 
+# ===== INCLUDE ROUTERS =====
+try:
+    from routes.sandbox import router as sandbox_router
+    app.include_router(sandbox_router)
+    logger.info("✅ Sandbox API routes included")
+except Exception as e:
+    logger.warning(f"⚠️ Could not include sandbox routes: {e}")
+
 # Configurar caminho do frontend
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')
 if os.path.exists(frontend_path):

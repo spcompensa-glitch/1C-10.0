@@ -17,6 +17,12 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+# Adicionar backend ao sys.path para imports de services
+ROOT = os.path.dirname(os.path.abspath(__file__))
+BACKEND = os.path.join(ROOT, 'backend')
+sys.path.insert(0, ROOT)
+sys.path.insert(0, BACKEND)
+
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ProductionServer")
@@ -36,6 +42,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ===== STARTUP EVENT - Inicializar services =====
+@app.on_event("startup")
+async def startup_event():
+    """Inicializa services necessários na inicialização"""
+    logger.info("🚀 Iniciando services de produção...")
+    
+    # Sandbox Service
+    try:
+        from services.sandbox_service import sandbox_service
+        sandbox_service.start()
+        logger.info("🟢 Sandbox Service iniciado!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar Sandbox Service: {e}")
+    
+    # Sandbox Swing Service
+    try:
+        from services.sandbox_swing_service import sandbox_swing_service
+        await sandbox_swing_service.start()
+        logger.info("🟢 Sandbox Swing Service iniciado!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar Sandbox Swing Service: {e}")
+    
+    # Sandbox Scalping Engine
+    try:
+        from services.sandbox_scalping_engine import sandbox_scalping_engine
+        await sandbox_scalping_engine.start()
+        logger.info("🟢 VWAP SNIPER Engine (Scalping M1/M5) iniciado!")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar VWAP SNIPER Engine: {e}")
 
 # Configurar caminho do frontend
 frontend_path = os.path.join(os.path.dirname(__file__), 'frontend')

@@ -86,6 +86,11 @@ class SandboxService:
         except Exception as e:
             logger.error(f"Erro ao carregar sinais existentes no Sandbox: {e}")
 
+    def reset_balance_cache(self):
+        self.base_balance_cache = 10000.0
+        self.last_balance_recalc = 0.0
+        logger.info("🧪 Sandbox Service: balance cache resetado para $10,000.")
+
     def stop(self):
         self.is_running = False
         if self._loop_task:
@@ -1393,7 +1398,10 @@ class SandboxService:
 
                 old_level = database_service.equity_defense_level
 
-                if consolidated < database_service.equity_floor and peak_profit > 0:
+                if peak_profit == 0.0:
+                    database_service.equity_defense_level = 0
+                    database_service.equity_defense_stop_pct = 0.0
+                elif consolidated < database_service.equity_floor:
                     database_service.equity_defense_level = 4
                     database_service.equity_defense_stop_pct = 0.0
                 elif profit_pct >= 10.0:

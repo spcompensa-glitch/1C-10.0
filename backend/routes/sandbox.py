@@ -522,6 +522,7 @@ async def get_sandbox_analytics():
 async def clear_sandbox():
     try:
         success = await database_service.clear_sandbox_trades()
+        sandbox_service.reset_balance_cache()
         return {"success": success, "message": "Sandbox resetado com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar sandbox: {str(e)}")
@@ -709,6 +710,7 @@ async def clear_swing_trades():
     """Limpa todos os trades do Swing Lab."""
     try:
         success = await database_service.clear_swing_trades()
+        sandbox_service.reset_balance_cache()
         return {"success": success, "message": "Swing Lab resetado com sucesso."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar Swing Lab: {str(e)}")

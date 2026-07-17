@@ -192,7 +192,7 @@
         return (
             <ReactRouterDOM.HashRouter>
                 <div className={`flex flex-col w-full h-[100dvh] overflow-hidden ${theme === 'gemini' ? 'theme-gemini' : 'theme-classic'}`}>
-                    <div className="flex-1 w-full relative">
+                    <div className="flex-1 w-full relative overflow-y-auto">
                         <ReactRouterDOM.Routes>
                             <Route path="/" element={<Page10DComponent />} />
                             <Route path="/10d" element={<Page10DComponent />} />

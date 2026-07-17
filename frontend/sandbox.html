@@ -1664,16 +1664,17 @@
         }
 
         updateMirrorStatusUI();
-        fetchData();
-        fetchPatterns();
-        fetchAnalytics();
-        fetchUnifiedState();
-        updateMarketSessions();
-        setInterval(fetchData, 2000);
-        setInterval(fetchPatterns, 5000);
-        setInterval(fetchAnalytics, 5000);
-        setInterval(fetchUnifiedState, 2000);
-        setInterval(updateMarketSessions, 1000);
+        // Stagger initial calls to avoid DB connection pool exhaustion
+        setTimeout(fetchData, 200);
+        setTimeout(fetchPatterns, 600);
+        setTimeout(fetchAnalytics, 1200);
+        setTimeout(fetchUnifiedState, 2000);
+        setTimeout(updateMarketSessions, 2500);
+        setInterval(fetchData, 5000);
+        setInterval(fetchPatterns, 8000);
+        setInterval(fetchAnalytics, 8000);
+        setInterval(fetchUnifiedState, 6000);
+        setInterval(updateMarketSessions, 3000);
     </script>
 </div>
 </body>

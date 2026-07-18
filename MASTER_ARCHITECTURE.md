@@ -65,13 +65,13 @@ Existem **5** escadas. A selecao e feita em `get_stop_ladder(roi, is_ranging, sl
 | 50% | 48% | ALVO_MAXIMO_LATERAL | PROFIT_LOCK |
 Acima de 20% ROI em ranging, a escada sobe dinamicamente de 1% em 1% (trailing gap 5%, ou 10% se `slot_type=BLITZ_30M`).
 
-### 3.2 `ORDER_STOP_LADDER_SCALPING` (VWAP SNIPER)
+### 3.2 `ORDER_STOP_LADDER_SCALPING` (VWAP SNIPER) [V132]
 | Gatilho | Stop | Nome |
 |---|---|---|
-| 4% | 1.5% | GARANTIA_TAXAS_SCALP |
-| 6.5% | 3.5% | LUCRO_CURTO_SCALP |
-| 10% | 6% | LUCRO_MEDIO_SCALP |
-| 15% | 11% | TRAILING_SCALP |
+| 6% | 1.5% | GARANTIA_TAXAS_SCALP |
+| 10% | 3.5% | LUCRO_CURTO_SCALP |
+| 15% | 8% | LUCRO_MEDIO_SCALP |
+| 22% | 15% | TRAILING_SCALP |
 
 ### 3.3 `ORDER_STOP_LADDER_SWING` (swing tendencia) [V127.2]
 | Gatilho | Stop | Nome |
@@ -101,13 +101,14 @@ Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho −
 
 ### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
 
-**GARANTIA_8 — Risco Zero Imediato [V127.2]** (`sandbox_service.py:1441-1446`):
-Quando `max_roi >= 8.0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital.
+**GARANTIA_12 — Risco Zero Imediato [V132]** (`sandbox_service.py:1571-1583`):
+Quando `max_roi >= 12.0%` no Scalping (ou `>= 8.0%` nas demais estratégias) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital com folga contra ruídos.
 
-**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX]** (`sandbox_service.py:1565-1589`):
-Quando `max_roi >= 8.0%`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
-**[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em 0% mesmo com pico de +17-19% ROI. Removida a condição — agora o trailing aplica sempre que `trail_stop_roi > updated_stop_roi`.
-Exemplos: pico +17% → stop +10.2% (antes travava em 0%); pico +21% → stop +12.6%; pico +29% → stop +17.4%.
+**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V132]** (`sandbox_service.py:1588-1615`):
+Quando `max_roi >= breakeven_trigger`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
+**[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8/12 mover o stop para 0%. Removida a condição.
+**[V132]** Trailing no Scalping só ativa a partir de +12.0% de max_roi para dar runway.
+Exemplos: pico +17% → stop +10.2%; pico +21% → stop +12.6%; pico +29% → stop +17.4%.
 
 ### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
 
@@ -154,10 +155,10 @@ Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
 
 ### 3.8 Stops Iniciais
 
-**Scalping Lab — VWAP SNIPER [V127.2]** (`sandbox_scalping_engine.py:47`):
-- `_MAX_STOP_ROI = -8.0%` (0.16% preço com 50x). Antes era -15% (0.3% preço).
+**Scalping Lab — VWAP SNIPER [V127.2 / V132]** (`sandbox_scalping_engine.py:47`):
+- `_MAX_STOP_ROI = -8.0%` (0.16% preço com 50x).
 - Stop = 1.0x ATR do 1m, máximo -8% ROI.
-- GARANTIA_8 ativa em +8% ROI → stop vai a 0%.
+- GARANTIA_12 ativa em +12% ROI → stop vai a 0%.
 
 **Scalping Lab — Stop Adaptativo [V123]** (`sandbox_service.py:321-400`):
 - Tenta stop estrutural 30M (swing low/high + buffer) — aprovado se ROI entre -40% e -25%.
@@ -410,12 +411,17 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 15. **[V128] Equity Defense — Defesa Progressiva de Patrimônio**: Protege o saldo consolidado da banca Sandbox. Rastreia o pico (`equity_peak`) e calcula um piso protegido = base + (peak_profit × 0.80). Níveis: OFF (<3%), L1 LEVE (+3%, stop=pico-7%), L2 MODERADO (+5%, stop=pico-5%), L3 FORTE (+10%, stop=pico-3%), CRITICO (abaixo do piso, fecha tudo). Enforcement em `sandbox_service.py:1497-1527` e `flash_agent.py:507-547`. Telemetria em `GET /api/sandbox/unified-state`. Badge UI no sandbox.html.
 16. **[V129] Correção do Filtro de Regime e Filtro de Gás/Volume em LATERAL**: Corrigido bug que bloqueava ordens SHORT no regime LATERAL (usava `not is_bearish` incorretamente bloqueando o SHORT). Adicionada exigência de "gás" para o regime LATERAL: novos trades Swing exigem score >= 80 e volume_ratio >= 1.5x para garantir rompimentos fortes com momentum.
 18. **[V131] Correções críticas de bugs identificados via diagnóstico do PostgreSQL Railway** (2026-07-18, banca em $9.537 = -4.63%):
-    - **Leverage/Stop inconsistentes**: `_LEVERAGE` estava em 10x (V130) mas `sandbox_service.py` monitora com 50x real — stop calculado em 0.6% de preço era interpretado como -30% ROI na alavancagem real. Restaurado: `_LEVERAGE=50.0`, `_MAX_STOP_ROI=-8.0` (0.16% de preço).
+    - **Leverage/Stop inconsistentes**: `_LEVERAGE` estava em 10x (V130) mas `sandbox_service.py` monitora com 50x real. Restaurado: `_LEVERAGE=50.0`, `_MAX_STOP_ROI=-8.0` (0.16% de preço).
     - **Hedge LONG+SHORT no mesmo par**: Detecção anti-duplicata em `_try_open_trade` bloqueava apenas mesma direção. Corrigido para bloquear qualquer trade ativo no par. Idem em `sandbox_service._process_radar_signals`.
-    - **Race condition — mais de 5 slots abertos**: Dois ciclos de scan paralelos passavam pelo check de slots e abriam 2 trades simultâneos. Resolvido com `asyncio.Lock()` (`_open_lock`) + refetch atômico dentro do lock.
-    - **Limite de slots Radar era 10 (deveria ser 5)**: `sandbox_service.py:708` usava `>= 10` enquanto `_MAX_SLOTS=5`. Corrigido para `>= 5`.
-    - **GARANTIA_TRAIL travado em 0%**: Condição `current_stop_roi < 0.0` impedia o trailing de avançar após GARANTIA_8 mover stop para 0%. Trades com pico +17-19% ficavam com stop travado em 0%. Removida a condição — trailing agora aplica sempre que `trail_stop_roi > updated_stop_roi`.
-    - **`AttributeError: self.dynamic_margin`**: Atributo inexistente em `SandboxService` causava exception silenciosa no Partial TP. Corrigido para usar `trade.contract_meta["margin"]` com fallback $200.
+    - **Race condition — mais de 5 slots abertos**: Resolvido com `asyncio.Lock()` (`_open_lock`) + refetch atômico dentro do lock.
+    - **Limite de slots Radar era 10 (deveria ser 5)**: Corrigido para `>= 5`.
+    - **GARANTIA_TRAIL travado em 0%**: Condição `current_stop_roi < 0.0` impedia o trailing de avançar após GARANTIA_8 mover stop para 0%. Removida a condição.
+    - **`AttributeError: self.dynamic_margin`**: Corrigido para usar `trade.contract_meta["margin"]` com fallback $200.
+
+19. **[V132] Otimização de R:R no Scalping Lab** (2026-07-18):
+    - **Limpeza de Base de Dados**: Encerramento manual via script SQL de dois trades travados há >8.5h (`SOLUSDT` e `VETUSDT`).
+    - **Garantia de Risco Zero a +12% ROI**: Elevação do patamar do break-even de +8% para +12% no VWAP SNIPER para dar mais runway contra ruídos de preço.
+    - **Escadinha de Scalping afrouxada**: Nova escala `ORDER_STOP_LADDER_SCALPING` configurada como (+6%/+1.5%, +10%/+3.5%, +15%/+8.0%, +22%/+15.0%) para dar distância entre o preço atual e o stop, maximizando a captura de lucros e pagando as perdas de -8% de forma estatisticamente lucrativa.
 
 ---
 

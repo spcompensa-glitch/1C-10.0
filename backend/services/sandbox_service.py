@@ -1569,19 +1569,22 @@ class SandboxService:
 
         # 9. Escadinha
         # [V127.2] GARANTIA_5 → GARANTIA_8: ao atingir +8% ROI, o stop vai para 0.0% ROI (break-even).
-        # V128 usava +5% — restaurado para +8% para dar mais fôlego antes de travar.
+        # [V132-FIX] GARANTIA_8 → GARANTIA_12 para Scalping (VWAP SNIPER). Evita stop precoce no ruído.
         updated_stop_roi = current_stop_roi
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
-        if max_roi >= 8.0 and current_stop_roi < 0.0:
+        strat_class = getattr(trade, 'strategy', '') or ''
+        is_scalping = (strat_class == "VWAP SNIPER")
+        breakeven_trigger = 12.0 if is_scalping else 8.0
+
+        if max_roi >= breakeven_trigger and current_stop_roi < 0.0:
             updated_stop_roi = 0.0
             updated_level_name = "RISCO_ZERO"
             updated_phase = "ESCADINHA"
-            history.append(f"Garantia 8 (Risco Zero) ativada: max_roi={max_roi:.1f}% -> stop subiu para 0.0% ROI (break-even)")
-            logger.info(f"🧪 [SANDBOX-FLASH] {symbol} Garantia 8 (Risco Zero): stop movido para 0.0% ROI")
+            history.append(f"Garantia {breakeven_trigger:.0f} (Risco Zero) ativada: max_roi={max_roi:.1f}% -> stop subiu para 0.0% ROI (break-even)")
+            logger.info(f"🧪 [SANDBOX-FLASH] {symbol} Garantia {breakeven_trigger:.0f} (Risco Zero): stop movido para 0.0% ROI")
 
-        strat_class = getattr(trade, 'strategy', '') or ''
         ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging, strategy_class=strat_class)
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging, strategy_class=strat_class)
 
@@ -1590,15 +1593,8 @@ class SandboxService:
         # de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em
         # 0% mesmo com pico de +17-19% ROI. Correção: trailing aplica sempre que
         # `trail_stop_roi > updated_stop_roi` (não apenas quando stop é negativo).
-        # Formula: stop = max(1.5, max_roi * 0.60)
-        #   pico  +8%  → stop  +4.8%
-        #   pico +10%  → stop  +6.0%
-        #   pico +15%  → stop  +9.0%
-        #   pico +17%  → stop +10.2%   (antes travava em 0%)
-        #   pico +19%  → stop +11.4%   (antes travava em 0%)
-        #   pico +21%  → stop +12.6%
-        #   pico +29%  → stop +17.4%
-        if max_roi >= 8.0:
+        # [V132-FIX] Só aplica trailing a partir de 12.0% para Scalping.
+        if max_roi >= breakeven_trigger:
             trail_stop_roi = max(1.5, round(max_roi * 0.60, 1))  # mínimo +1.5% (cobre taxas)
             if trail_stop_roi > updated_stop_roi:
                 updated_stop_roi = trail_stop_roi

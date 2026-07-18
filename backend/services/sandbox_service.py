@@ -705,7 +705,8 @@ class SandboxService:
             entry_price = sanitized["entry_price"]
 
             active_trades = await database_service.get_sandbox_trades(active_only=True)
-            if len(active_trades) >= 10:
+            # [V131-FIX] Limite corrigido: de 10 para 5 (consistente com _MAX_SLOTS do VWAP SNIPER)
+            if len(active_trades) >= 5:
                 logger.debug(f"🧪 [SANDBOX-SLOTS-FULL] Já existem {len(active_trades)} trades de Scalping ativos. Ignorando novos sinais.")
                 continue
 
@@ -745,6 +746,21 @@ class SandboxService:
             )
             if already_active:
                 logger.debug(f"🧪 [SANDBOX-ALREADY-ACTIVE] {symbol} {strategy} {direction} já está ativo — ignorando sinal duplicado")
+                continue
+
+            # [V131-FIX] Bloquear abertura de direção oposta no mesmo par (anti-hedge acidental)
+            # Detectado no diagnóstico: XRPUSDT LONG + XRPUSDT SHORT abertos simultaneamente
+            opposite_dir = "SHORT" if direction == "LONG" else "LONG"
+            has_opposite = any(
+                t.symbol.replace(".P", "").upper() == symbol
+                and t.direction == opposite_dir
+                for t in active_trades
+            )
+            if has_opposite:
+                logger.info(
+                    f"🧪 [SANDBOX-ANTI-HEDGE] {symbol} já tem {opposite_dir} ativo — "
+                    f"bloqueando {direction} para evitar hedge acidental."
+                )
                 continue
 
             # [V123.1] Cooldown pós stop-out POR DIREÇÃO (symbol+direction)
@@ -1527,10 +1543,17 @@ class SandboxService:
             flash_state["has_taken_partial"] = True
             flash_state["partial_roi"] = partial_roi
             flash_state["partial_taken_at"] = time.time()
+            # [V131-FIX] self.dynamic_margin não existe — usar margem do contrato ou default $200
+            _trade_margin = 200.0
+            if isinstance(trade.contract_meta, dict):
+                try:
+                    _trade_margin = float(trade.contract_meta.get("margin", 200.0) or 200.0)
+                except (ValueError, TypeError):
+                    _trade_margin = 200.0
             history.append(
-                f"[V130-PARTIAL-TP] Saida parcial de {PARTIAL_TP_PERCENT*100:.0f}% "
+                f"[V130-PARTIAL-TP] Saída parcial de {PARTIAL_TP_PERCENT*100:.0f}% "
                 f"executada a {PARTIAL_TP_THRESHOLD:.0f}% ROI "
-                f"(lucro travado: ${(PARTIAL_TP_THRESHOLD/100.0)*PARTIAL_TP_PERCENT*self.dynamic_margin:.2f})"
+                f"(lucro travado: ${(PARTIAL_TP_THRESHOLD/100.0)*PARTIAL_TP_PERCENT*_trade_margin:.2f})"
             )
             logger.info(
                 f"🧪 [V130-PARTIAL-TP] {symbol} parcial de {PARTIAL_TP_PERCENT*100:.0f}% "
@@ -1563,18 +1586,21 @@ class SandboxService:
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging, strategy_class=strat_class)
 
         # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
-        # Antes: stop fixo em +1.5% quando max_roi >= 8% → fechava em +2% mesmo com pico de +21%.
-        # Agora: stop = 60% do pico → trade com pico +21% tem stop em +12.6% (não +1.5%).
+        # [V131-FIX] Bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing
+        # de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em
+        # 0% mesmo com pico de +17-19% ROI. Correção: trailing aplica sempre que
+        # `trail_stop_roi > updated_stop_roi` (não apenas quando stop é negativo).
         # Formula: stop = max(1.5, max_roi * 0.60)
         #   pico  +8%  → stop  +4.8%
         #   pico +10%  → stop  +6.0%
         #   pico +15%  → stop  +9.0%
-        #   pico +21%  → stop +12.6%   (SEIUSDT: capturia +12.6% ao invés de +2.1%)
-        #   pico +29%  → stop +17.4%   (BCHUSDT: mantém runway até subir mais)
-        # Só aplica se ainda não passou do break-even (current_stop_roi < 0)
-        if max_roi >= 8.0 and current_stop_roi < 0.0:
+        #   pico +17%  → stop +10.2%   (antes travava em 0%)
+        #   pico +19%  → stop +11.4%   (antes travava em 0%)
+        #   pico +21%  → stop +12.6%
+        #   pico +29%  → stop +17.4%
+        if max_roi >= 8.0:
             trail_stop_roi = max(1.5, round(max_roi * 0.60, 1))  # mínimo +1.5% (cobre taxas)
-            if trail_stop_roi > current_stop_roi:
+            if trail_stop_roi > updated_stop_roi:
                 updated_stop_roi = trail_stop_roi
                 updated_level_name = "GARANTIA_TRAIL"
                 updated_phase = "ESCADINHA"

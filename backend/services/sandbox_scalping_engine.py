@@ -35,21 +35,19 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("ScalpingEngine")
 
-# ── Constantes V130 — Refatoração VWAP SNIPER ──────────────────────────────────
-# [V130-FIX] Diagnóstico: WR 0% em 3 trades. Causa raiz:
-#   Leverage 50x + MAX_STOP_ROI -8% = stop a 0.16% de movimento no preço.
-#   Em altcoins voláteis, isso é ruído puro — qualquer micro-oscilação fecha o trade.
-# Solução V130:
-#   1. Leverage 50x → 10x: stop passa de 0.16% para 0.80% de movimento (5x mais espaço)
-#   2. MAX_STOP_ROI -8% → -30%: stop em 0.6% com 50x OU 3% com 10x
-#   3. VWAP_TOLERANCE 0.20% → 0.30%: mais sinais capturados com espaço para respirar
-#   4. Score mínimo 70 → 65: mais oportunidades, já que 3 camadas garantem qualidade
-_LEVERAGE           = 10.0
+# ── Constantes V131 — Correção de Alavancagem e Stop ──────────────────────────
+# [V131-FIX] Bug crítico detectado: leverage estava em 10x mas sandbox_service
+# monitora stops com 50x real. Resultado: stop calculado em 0.6% de movimento
+# do preço, mas monitorado como -30% ROI com 50x → trades fechando com -25%/-31%.
+# Correção: reverter para 50x + stop -8% ROI (= 0.16% de movimento no preço).
+# Isso é correto para scalping M1/M5 com VWAP SNIPER.
+# [V131] Manter VWAP_TOLERANCE 0.30% e MIN_SCORE 65 (mais sinais = mais dados)
+_LEVERAGE           = 50.0   # [V131-FIX] Restaurado de 10x (V130) para 50x
 _MARGIN_PER_TRADE   = 200.0
 _SCAN_INTERVAL      = 30
 _MAX_SLOTS          = 5
 _MIN_SCORE          = 65
-_MAX_STOP_ROI       = -30.0
+_MAX_STOP_ROI       = -8.0   # [V131-FIX] Restaurado de -30% (V130) para -8% ROI = 0.16% preço
 _VWAP_TOLERANCE_PCT = 0.30
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
@@ -217,6 +215,7 @@ class SandboxScalpingEngine:
         self._processed: set  = set()
         self._peak_roi_cache: Dict[str, float] = {}
         self._last_scan: Dict[str, Any] = {}  # [V128] Diagnóstico do último scan
+        self._open_lock: asyncio.Lock = asyncio.Lock()  # [V131] Anti-race-condition
 
     # ── Start / Stop ────────────────────────────────────────────────────────────
 
@@ -308,11 +307,14 @@ class SandboxScalpingEngine:
 
         logger.info(f"[VWAP-SNIPER] {len(signals)} setup(s) qualificado(s).")
         for sig in signals:
-            fresh_all = await database_service.get_sandbox_trades(active_only=True)
-            fresh_scalp = [t for t in fresh_all if t.strategy == "VWAP SNIPER"]
-            if len(fresh_scalp) >= _MAX_SLOTS:
-                break
-            opened = await self._try_open_trade(sig)
+            # [V131] Refetch atômico dentro do lock para evitar race condition
+            # (dois ciclos de scan paralelos passando pelo check e abrindo 2 trades)
+            async with self._open_lock:
+                fresh_all = await database_service.get_sandbox_trades(active_only=True)
+                fresh_scalp = [t for t in fresh_all if t.strategy == "VWAP SNIPER"]
+                if len(fresh_scalp) >= _MAX_SLOTS:
+                    break
+                opened = await self._try_open_trade(sig)
             if opened:
                 break
 
@@ -520,8 +522,12 @@ class SandboxScalpingEngine:
             # Anti-duplicata por simbolo+direcao (apenas VWAP SNIPER)
             all_active = await database_service.get_sandbox_trades(active_only=True)
             active = [t for t in all_active if t.strategy == "VWAP SNIPER"]
-            if any(t.symbol.replace('.P', '').upper() == symbol and t.direction == direction
-                   for t in active):
+
+            # [V131-FIX] Bloquear abertura se o par já tem QUALQUER trade ativo
+            # (mesmo direção OU direção oposta). Evita hedge acidental LONG+SHORT
+            # no mesmo par que detectamos no diagnóstico (XRPUSDT, INJUSDT).
+            if any(t.symbol.replace('.P', '').upper() == symbol for t in active):
+                logger.debug(f"[VWAP-SNIPER] {symbol} já tem trade ativo — bloqueado (anti-hedge).")
                 return False
 
             # [V128] Anti-dup: cooldown para trades FECHADOS recentemente (mesmo symbol+direcao)

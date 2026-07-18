@@ -3,7 +3,7 @@
 Fonte unica de verdade arquitetural. Extraido diretamente do codigo-fonte (nao de historico de versoes).
 Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros ~8000 caracteres deste arquivo em cada resposta (`hermes_agent.py:_load_architecture_context`), portanto os fatos mais criticos ficam no topo.
 
-*Verificado contra o codigo em 2026-07-13. VERSION no codigo: `backend/main.py` VERSION="V124.7" / DEPLOYMENT_ID="V124.7_M30_SWING". Refinamentos [V127] (espelho PAPER Sandbox→Cockpit: saldo + ordens) aplicados sobre o V124.7 — ver Secao 8.6.*
+*Verificado contra o codigo em 2026-07-18. VERSION no codigo: `backend/main.py` VERSION="V131" / DEPLOYMENT_ID="V131_BUG_FIX". Correcoes criticas [V131] aplicadas sobre o V130 — ver Secao 14, item 18.*
 
 ---
 
@@ -102,11 +102,12 @@ Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho −
 ### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
 
 **GARANTIA_8 — Risco Zero Imediato [V127.2]** (`sandbox_service.py:1441-1446`):
-Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital.
+Quando `max_roi >= 8.0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital.
 
-**GARANTIA_TRAIL — Trailing Dinâmico [V122]** (`sandbox_service.py:1452-1475`):
-Quando `max_roi >= 8.0%` e `current_stop_roi < 0%`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
-Exemplos: pico +21% → stop +12.6%; pico +29% → stop +17.4%.
+**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX]** (`sandbox_service.py:1565-1589`):
+Quando `max_roi >= 8.0%`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
+**[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em 0% mesmo com pico de +17-19% ROI. Removida a condição — agora o trailing aplica sempre que `trail_stop_roi > updated_stop_roi`.
+Exemplos: pico +17% → stop +10.2% (antes travava em 0%); pico +21% → stop +12.6%; pico +29% → stop +17.4%.
 
 ### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
 
@@ -266,7 +267,7 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 
 ## 8. Laboratorios de Forward-Testing
 
-### 8.1 SandboxService (`services/sandbox_service.py`) — ciclo 1s
+### 8.1 SandboxService (`services/sandbox_service.py`) — ciclo 1s **[V131-FIX]**
 - Espelha o sistema real. Recebe sinais via `on_radar_pulse` → `_process_radar_signals`.
 - Stop adaptativo por regime (fallback): LATERAL -8% ROI / TRENDING -10% ROI; capping -10%.
 - Margem adaptativa por win rate do par: $1.00–$2.50 (`_get_adaptive_margin`).
@@ -274,12 +275,21 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - Cooldown de transicao fria (tendencia→lateral): **900s** (`:551`).
 - Confirmacao 5M (2/3 candles alinhados), Entry Sanity Check (70% do stop), auto-blocklist (PnL<-15% E WR<35% apos 3+ trades).
 - Espelhamento real (V124.4): se `OKX_API_KEY_MASTER` + modo REAL, replica ordens; auditado pelo ExecutionAuditorAgent.
+- **[V131-FIX] Limite de slots corrigido de 10 para 5** (`sandbox_service.py:709`): o limite do Radar estava em `>= 10` enquanto o VWAP SNIPER usa `_MAX_SLOTS=5`. Agora consistentes.
+- **[V131-FIX] Anti-hedge via Radar** (`sandbox_service.py:751`): bloqueado trade em direção oposta se o par já tem trade ativo. Evita LONG+SHORT simultâneos no mesmo par.
+- **[V131-FIX] GARANTIA_TRAIL desbloqueado** (`sandbox_service.py:1571`): removida condição `current_stop_roi < 0.0` que travava o trailing em 0% após GARANTIA_8 ativar.
+- **[V131-FIX] `AttributeError: self.dynamic_margin` corrigido** (`sandbox_service.py:1546`): atributo inexistente substituído por leitura dinâmica de `trade.contract_meta["margin"]` com fallback $200.
 
-### 8.2 Scalping Lab — VWAP SNIPER (`services/sandbox_scalping_engine.py`)
-- Scan 60s. Filtro tendencia EMA200 (M5); gatilho toque VWAP diario (M1, tol 0.15%); Stoch RSI (<25 LONG / >75 SHORT).
-- Filtro ATR minimo **0.02%** do preco; Liquidity Sweep = +15 score; **score minimo 70** (V126).
-- **Watchlist independente** (V128): `SCALPING_WATCHLIST` (20 pares) — separada da blocklist do Swing, pares bloqueados por Swing nao afetam Scalping.
-- Banca consolidada dinâmica (Juros Compostos), margem inicial $200/trade (2% da banca total recalculado no momento da entrada), 50x isolada, **sem saidas parciais**. Stop = 1.0x ATR, teto -20% ROI.
+### 8.2 Scalping Lab — VWAP SNIPER (`services/sandbox_scalping_engine.py`) **[V131-FIX]**
+- Scan 30s. Filtro tendência EMA200 (M5); gatilho toque VWAP diário (M1, tol 0.30%); Stoch RSI (K<35 LONG / K>80 SHORT).
+- Filtro ATR mínimo **0.02%** do preço; Liquidity Sweep = +15 score; **score mínimo 65**.
+- **[V131-FIX] Leverage restaurado para 50x** (`_LEVERAGE=50.0`): o V130 havia mudado para 10x, mas o `sandbox_service.py` monitora stops com 50x real — incompatibilidade causava stops em -25%/-31% ao invés de -8%.
+- **[V131-FIX] Stop restaurado para -8% ROI** (`_MAX_STOP_ROI=-8.0`): o V130 havia mudado para -30%, que correspondia a 0.6% de movimento de preço com 10x ou era incorretamente interpretado como -30% ROI pelo monitor com 50x.
+- **[V131-FIX] Anti-hedge por par** (`_try_open_trade`): bloqueado trade se o par já tem QUALQUER trade ativo (mesma direção OU oposta). Antes bloqueava apenas mesma direção, permitindo LONG+SHORT simultâneos no mesmo par.
+- **[V131-FIX] Lock anti-race-condition** (`_run_scan_cycle`): adicionado `asyncio.Lock()` (`_open_lock`) no loop de abertura com refetch atômico do count de slots. Evitava que dois ciclos de scan paralelos passassem pelo check e abrissem 2 trades simultâneos.
+- **Watchlist independente** (V128): `SCALPING_WATCHLIST` (20 pares) — separada da blocklist do Swing.
+- Banca consolidada dinâmica (Juros Compostos), margem inicial $200/trade (2% da banca total), 50x isolada, sem saídas parciais. Stop = 1.0x ATR, teto -8% ROI.
+- **Máximo 5 trades simultâneos** (`_MAX_SLOTS=5`).
 
 ### 8.3 Swing Lab — M30 (`services/sandbox_swing_service.py`)
 - Scan a cada 5min no M30 via `SignalGenerator.analyze_m30_swing()`.
@@ -399,7 +409,13 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 14. **[V128] Breakeven adaptativo BLITZ**: Execution Protocol usa DNA do ativo (Librarian) para definir breakeven: ativo limpo +30% ROI, instável +50%, pavio extremo +60%.
 15. **[V128] Equity Defense — Defesa Progressiva de Patrimônio**: Protege o saldo consolidado da banca Sandbox. Rastreia o pico (`equity_peak`) e calcula um piso protegido = base + (peak_profit × 0.80). Níveis: OFF (<3%), L1 LEVE (+3%, stop=pico-7%), L2 MODERADO (+5%, stop=pico-5%), L3 FORTE (+10%, stop=pico-3%), CRITICO (abaixo do piso, fecha tudo). Enforcement em `sandbox_service.py:1497-1527` e `flash_agent.py:507-547`. Telemetria em `GET /api/sandbox/unified-state`. Badge UI no sandbox.html.
 16. **[V129] Correção do Filtro de Regime e Filtro de Gás/Volume em LATERAL**: Corrigido bug que bloqueava ordens SHORT no regime LATERAL (usava `not is_bearish` incorretamente bloqueando o SHORT). Adicionada exigência de "gás" para o regime LATERAL: novos trades Swing exigem score >= 80 e volume_ratio >= 1.5x para garantir rompimentos fortes com momentum.
-17. **[V130] DB Pool reduzido para Railway Postgres Hobby**: Railway Hobby Postgres limita a ~15 conexões simultâneas. O pool estava configurado com `pool_size=20, max_overflow=10` (max 30), causando `QueuePool limit` errors. Reduzido para `pool_size=5, max_overflow=3, pool_timeout=10` (max 8 conexões, bem abaixo do limite). Config em `backend/services/database_service.py:284-291`. `pool_pre_ping=True` + `pool_recycle=60` mantidos para detecção de conexões mortas.
+18. **[V131] Correções críticas de bugs identificados via diagnóstico do PostgreSQL Railway** (2026-07-18, banca em $9.537 = -4.63%):
+    - **Leverage/Stop inconsistentes**: `_LEVERAGE` estava em 10x (V130) mas `sandbox_service.py` monitora com 50x real — stop calculado em 0.6% de preço era interpretado como -30% ROI na alavancagem real. Restaurado: `_LEVERAGE=50.0`, `_MAX_STOP_ROI=-8.0` (0.16% de preço).
+    - **Hedge LONG+SHORT no mesmo par**: Detecção anti-duplicata em `_try_open_trade` bloqueava apenas mesma direção. Corrigido para bloquear qualquer trade ativo no par. Idem em `sandbox_service._process_radar_signals`.
+    - **Race condition — mais de 5 slots abertos**: Dois ciclos de scan paralelos passavam pelo check de slots e abriam 2 trades simultâneos. Resolvido com `asyncio.Lock()` (`_open_lock`) + refetch atômico dentro do lock.
+    - **Limite de slots Radar era 10 (deveria ser 5)**: `sandbox_service.py:708` usava `>= 10` enquanto `_MAX_SLOTS=5`. Corrigido para `>= 5`.
+    - **GARANTIA_TRAIL travado em 0%**: Condição `current_stop_roi < 0.0` impedia o trailing de avançar após GARANTIA_8 mover stop para 0%. Trades com pico +17-19% ficavam com stop travado em 0%. Removida a condição — trailing agora aplica sempre que `trail_stop_roi > updated_stop_roi`.
+    - **`AttributeError: self.dynamic_margin`**: Atributo inexistente em `SandboxService` causava exception silenciosa no Partial TP. Corrigido para usar `trade.contract_meta["margin"]` com fallback $200.
 
 ---
 

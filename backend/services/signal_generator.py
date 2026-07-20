@@ -4281,7 +4281,8 @@ class SignalGenerator:
             from services.okx_rest import okx_rest_service
             from services.okx_ws_public import okx_ws_public_service
 
-            klines = await okx_rest_service.get_klines(symbol=symbol, interval="30", limit=100)
+            # [V132-SWING-2H] Buscar klines no timeframe de 2H (120m)
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="120", limit=100)
             if not klines or len(klines) < 30:
                 return None
 
@@ -4300,6 +4301,26 @@ class SignalGenerator:
             sma21_now = sma21[-1] if sma21[-1] is not None else current_close
             sma8_prev = sma8[-2] if len(sma8) >= 2 and sma8[-2] is not None else sma8_now
             sma21_prev = sma21[-2] if len(sma21) >= 2 and sma21[-2] is not None else sma21_now
+
+            # ── MICRO-GATILHO DE PRECISÃO (15m Stochastic RSI) ──────────────────
+            # Valida se a tendência imediata do 15m está alinhada para evitar entrar contra o movimento rápido
+            try:
+                klines_15m = await okx_rest_service.get_klines(symbol=symbol, interval="15", limit=40)
+                if klines_15m and len(klines_15m) >= 20:
+                    c15m_chron = list(reversed(klines_15m))
+                    closes_15m = [float(c[4]) for c in c15m_chron]
+                    
+                    # Calcular Stochastic RSI 15m
+                    from services.sandbox_scalping_engine import _calculate_stoch_rsi
+                    stoch_15m = _calculate_stoch_rsi(closes_15m)
+                    k_15m, d_15m = stoch_15m.get("k", 50.0), stoch_15m.get("d", 50.0)
+                    
+                    # Decidir direção recomendada baseada no cruzamento de 15m
+                    is_15m_long = k_15m > d_15m and k_15m < 75.0
+                    is_15m_short = k_15m < d_15m and k_15m > 25.0
+            except Exception as micro_err:
+                logger.error(f"[M30-SWING] Erro no micro-gatilho 15m: {micro_err}")
+                is_15m_long, is_15m_short = True, True # Fallback permissivo em caso de falha de dados
 
             rsi_vals = self.calculate_rsi(closes, 14)
             rsi_now = rsi_vals[-1] if rsi_vals else 50.0
@@ -4510,6 +4531,14 @@ class SignalGenerator:
                     return None
                 if btc_direction == "DOWN" and side == "Buy":
                     return None
+
+            # [V132-SWING-2H] Aplicar micro-gatilho de precisão de 15m
+            if side == "Buy" and not is_15m_long:
+                logger.debug(f"[M30-SWING] {symbol} Buy descartado: sem confirmação de momentum de alta no 15m")
+                return None
+            if side == "Sell" and not is_15m_short:
+                logger.debug(f"[M30-SWING] {symbol} Sell descartado: sem confirmação de momentum de baixa no 15m")
+                return None
 
             # Obtém preço atual para entry_price_signal
             entry_px = 0.0

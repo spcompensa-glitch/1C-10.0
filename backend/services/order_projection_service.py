@@ -57,14 +57,15 @@ ORDER_STOP_LADDER_SCALPING: List[StopLevel] = [
 #   Breakeven antecipado de +10% → +5% (R:R 1:1 na entrada).
 #   Proteção parcial 1: de +20% → +12% (trava lucro mais cedo).
 #   Escalonamento progressivo mantido para capturar outliers.
+# [V132-SWING-2H] Escadinha Oficial para Swing 2H com alavancagem de 50x
+# Desenvolvida para dar runway a operações de longo prazo com gatilho de break-even e travas parciais
 ORDER_STOP_LADDER_SWING: List[StopLevel] = [
-    StopLevel("ESCADINHA", "BREAKEVEN_V130",        5.0,    0.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PROTECAO_PARCIAL_1",   12.0,    3.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "PRE_UNIT1",            40.0,   20.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "UNIT1_GARANTIDO",      80.0,   55.0,  "RISCO_ZERO"),
-    StopLevel("ESCADINHA", "EMANCIPADO",          120.0,   85.0,  "PROFIT_LOCK"),
-    StopLevel("ESCADINHA", "UNIT2_GARANTIDO",     160.0,  130.0,  "PROFIT_LOCK"),
-    StopLevel("TRAILING",  "UNIT3_GARANTIDO",     250.0,  200.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "BREAKEVEN_2H",         15.0,    0.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "PROTECAO_PARCIAL",    35.0,   10.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "LUCRO_MEDIO_2H",      70.0,   35.0,  "RISCO_ZERO"),
+    StopLevel("ESCADINHA", "EMANCIPADO_2H",      120.0,   80.0,  "PROFIT_LOCK"),
+    StopLevel("ESCADINHA", "SUPER_TENDENCIA",    200.0,  150.0,  "PROFIT_LOCK"),
+    StopLevel("TRAILING",  "ALVO_ESTENDIDO_2H",  350.0,  280.0,  "PROFIT_LOCK"),
 ]
 
 ORDER_STOP_LADDER_SWING_LATERAL: List[StopLevel] = [

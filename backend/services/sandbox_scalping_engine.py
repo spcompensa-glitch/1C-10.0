@@ -363,6 +363,41 @@ class SandboxScalpingEngine:
             else:
                 return None   # ambiguo - muito proximo da EMA
 
+            # ── NOVO FILTRO: Bias do BTC 15m (Trend Bias) ───────────────────────
+            # Evita entrar contra a direção imediata do mercado macro/BTC
+            try:
+                btc_c15m = await okx_rest_service.get_klines("BTC-USDT", interval='15', limit=5)
+                if btc_c15m and len(btc_c15m) >= 2:
+                    btc_chron = list(reversed(btc_c15m))
+                    btc_open = _parse_close(btc_chron[-2])
+                    btc_curr = _parse_close(btc_chron[-1])
+                    if btc_open > 0:
+                        btc_var_pct = ((btc_curr - btc_open) / btc_open) * 100.0
+                        if direction == 'LONG' and btc_var_pct < -0.40:
+                            logger.debug(f"[VWAP-SNIPER] {norm} LONG descartado: BTC caindo forte ({btc_var_pct:.2f}%)")
+                            return None
+                        if direction == 'SHORT' and btc_var_pct > 0.40:
+                            logger.debug(f"[VWAP-SNIPER] {norm} SHORT descartado: BTC subindo forte ({btc_var_pct:.2f}%)")
+                            return None
+            except Exception as btc_err:
+                logger.error(f"[VWAP-SNIPER] Erro ao buscar bias do BTC: {btc_err}")
+
+            # ── NOVO FILTRO: Volume Relativo de 5m ──────────────────────────────
+            # Exige que o volume do candle de 5m recente seja >= 1.1x da média de 20 períodos
+            try:
+                volumes_5m = []
+                for c in c5m_chron[-20:]:
+                    vol = float(c[5] if isinstance(c, list) else c.get('volume', c[5] if isinstance(c, list) else 0)) or 0.0
+                    volumes_5m.append(vol)
+                if len(volumes_5m) >= 10:
+                    avg_vol = sum(volumes_5m[:-1]) / (len(volumes_5m) - 1)
+                    last_vol = volumes_5m[-1]
+                    if avg_vol > 0 and last_vol < (avg_vol * 1.1):
+                        logger.debug(f"[VWAP-SNIPER] {norm} descartado por baixo volume relativo (Vol={last_vol:.1f} vs Avg={avg_vol:.1f})")
+                        return None
+            except Exception as vol_err:
+                logger.error(f"[VWAP-SNIPER] Erro ao calcular volume relativo de 5m: {vol_err}")
+
             # Cooldown pós-stop
             from sqlalchemy import select, desc
             from services.database_service import database_service as _db, SandboxTrade
@@ -433,14 +468,14 @@ class SandboxScalpingEngine:
             stoch = _calculate_stoch_rsi(closes_1m)
             k, d, pk, pd = stoch['k'], stoch['d'], stoch['prev_k'], stoch['prev_d']
 
+            # [REFINADO] Cruzamento real do Stochastic RSI
+            # LONG: K cruza D de baixo para cima (pk <= pd e k > d) estando na sobrevenda (k < 35)
+            # SHORT: K cruza D de cima para baixo (pk >= pd e k < d) estando na sobrecompra (k > 80)
             if direction == 'LONG':
-                # [V128-C] Filtro: k na zona de oversold (k < 35)
-                # Não exige direção do K — a reversão pode acontecer a qualquer momento
-                if not (k < 35.0):
+                if not (k < 35.0 and pk <= pd and k > d):
                     return None
             else:
-                # [V128-C] Filtro: k na zona de sobrecompra (k > 80) — dados mostram K>90 = 100% WR
-                if not (k > 80.0):
+                if not (k > 80.0 and pk >= pd and k < d):
                     return None
 
             score += 30

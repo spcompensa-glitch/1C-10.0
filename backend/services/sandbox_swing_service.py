@@ -66,8 +66,8 @@ logger = logging.getLogger("SandboxSwingService")
 #   - Melhorar R:R ratio (projetado: 0.46 → ~1.5)
 _DEFAULT_VIRTUAL_BALANCE  = 100.0
 _DEFAULT_MARGIN_PER_TRADE = 5.0
-_DEFAULT_LEVERAGE         = 10.0
-_DEFAULT_SCAN_INTERVAL    = 300   # 5 minutos
+_DEFAULT_LEVERAGE         = 50.0   # [V132-SWING-2H] Alavancagem forçada a 50x
+_DEFAULT_SCAN_INTERVAL    = 1800   # [V132-SWING-2H] Intervalo de scan de 30min para coincidir com 2H
 
 
 def _get_settings():
@@ -447,9 +447,8 @@ class SandboxSwingService:
                 logger.warning(f"[SWING-LAB] {symbol} sem preço — setup descartado.")
                 return None
 
-            # --- Stop Loss inicial: ROI configurável (ANTES: fixo 50.0) ---
-            s = _get_settings()
-            stop_roi_target = getattr(s, "SWING_STOP_ROI", 5.0) if s else 5.0
+            # [V132-SWING-2H] Stop Loss inicial rígido em -35% ROI para 50x de alavancagem (0.7% no preço)
+            stop_roi_target = 35.0
             if direction == "LONG":
                 stop_price = current_price * (1 - (stop_roi_target / (self.leverage * 100.0)))
             else:

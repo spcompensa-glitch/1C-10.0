@@ -343,6 +343,11 @@ class Settings(BaseSettings):
         # STXUSDT: 44% WR (9 trades), AvgPnL -5.4% — losses destroem wins
         # EGLDUSDT: 44% WR (9 trades), AvgPnL -6.5% — losses destroem wins
         'SANDUSDT', 'BCHUSDT', 'SOLUSDT', 'STXUSDT', 'EGLDUSDT',
+        # [V133] Swing Lab: Pares com múltiplos losses -35% em Swing 2H
+        # INJUSDT: 50% WR (8 trades), losses -35% — stop inicial agressivo demais
+        # XLMUSDT: 28.6% WR (7 trades), losses -25% a -50% — performance terrível
+        # GRTUSDT: múltiplos losses -35% em Swing LONG
+        'INJUSDT', 'XLMUSDT', 'GRTUSDT',
     }
 
     # Fast API context

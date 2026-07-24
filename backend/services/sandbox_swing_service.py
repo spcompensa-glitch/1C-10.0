@@ -219,7 +219,9 @@ class SandboxSwingService:
         try:
             from services.okx_ws_public import okx_ws_public_service
             btc_adx = float(getattr(okx_ws_public_service, "btc_adx", 0.0))
-            btc_dir = "UP" if btc_adx >= 25 else "LATERAL"
+            # [V133-SWING] ADX mínimo elevado de 25 para 30 para Swing Lab
+            # Swing opera em 2H, precisa de tendência mais forte para confirmar
+            btc_dir = "UP" if btc_adx >= 30 else "LATERAL"
 
             # [V128] Detectar downtrend BTC: SMA8 < SMA21 no M30 = "DOWN"
             try:
@@ -447,8 +449,9 @@ class SandboxSwingService:
                 logger.warning(f"[SWING-LAB] {symbol} sem preço — setup descartado.")
                 return None
 
-            # [V132-SWING-2H] Stop Loss inicial rígido em -35% ROI para 50x de alavancagem (0.7% no preço)
-            stop_roi_target = 35.0
+            # [V133-SWING] Stop Loss inicial reduzido de -35% para -20% ROI (0.4% no preço com 50x)
+            # Trade-off: menos runway (0.4% vs 0.7%), mas R:R muito melhor (1:2+ vs 1:0.28)
+            stop_roi_target = 20.0
             if direction == "LONG":
                 stop_price = current_price * (1 - (stop_roi_target / (self.leverage * 100.0)))
             else:

@@ -47,7 +47,10 @@ _MARGIN_PER_TRADE   = 200.0
 _SCAN_INTERVAL      = 30
 _MAX_SLOTS          = 5
 _MIN_SCORE          = 65
-_MAX_STOP_ROI       = -8.0   # [V131-FIX] Restaurado de -30% (V130) para -8% ROI = 0.16% preço
+# [V133] Stop máximo aumentado de -8% para -12% ROI (0.24% de preço com 50x)
+# Trade-off: mais runway para respirar, mas R:R pode piorar se win não compensar
+# Com GARANTIA_TRAIL em +8%, o stop sobe rapidamente para breakeven
+_MAX_STOP_ROI       = -12.0
 _VWAP_TOLERANCE_PCT = 0.30
 _STOCH_OVERSOLD     = 25.0
 _STOCH_OVERBOUGHT   = 75.0
@@ -603,6 +606,23 @@ class SandboxScalpingEngine:
             if stop <= 0:
                 dist = cur_price * (abs(_MAX_STOP_ROI) / (_LEVERAGE * 100.0))
                 stop = (cur_price - dist) if direction == 'LONG' else (cur_price + dist)
+
+            # [V133] Filtro R:R mínimo — rejeita trades com Risk/Reward < 1.5
+            # Risk = distância entry→stop em preço (em termos de ROI)
+            # Target projetado = 3x o risco (R:R 1:3 mínimo para scalping)
+            risk_pct = abs(cur_price - stop) / cur_price * 100.0  # % do preço
+            risk_roi = risk_pct * _LEVERAGE  # ROI do stop (ex: 0.24% × 50 = 12%)
+            target_roi = risk_roi * 3.0  # Target = 3x o risco
+            # Garantir target mínimo de +15% ROI para scalping
+            target_roi = max(target_roi, 15.0)
+            # R:R projetado = target / risk (mínimo 1.5)
+            projected_rr = target_roi / risk_roi if risk_roi > 0 else 0
+            if projected_rr < 1.5:
+                logger.info(
+                    f"[VWAP-SNIPER] {symbol} {direction} rejeitado: R:R projetado {projected_rr:.2f} < 1.5 "
+                    f"(risk={risk_roi:.1f}% ROI, target={target_roi:.1f}% ROI)"
+                )
+                return False
 
             trade_id = f"vwap_{symbol}_{int(time.time())}"
 

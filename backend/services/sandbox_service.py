@@ -1576,7 +1576,10 @@ class SandboxService:
 
         strat_class = getattr(trade, 'strategy', '') or ''
         is_scalping = (strat_class == "VWAP SNIPER")
-        breakeven_trigger = 12.0 if is_scalping else 8.0
+        # [V133] GARANTIA_TRAIL ativado mais cedo: 12% → 8% para Scalping
+        # Trade-off: trailing começa mais cedo, mas protege lucro mais rápido
+        # Para Scalping M1/M5, 8% é suficiente para confirmar momentum
+        breakeven_trigger = 8.0 if is_scalping else 8.0
 
         if max_roi >= breakeven_trigger and current_stop_roi < 0.0:
             updated_stop_roi = 0.0

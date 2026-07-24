@@ -65,8 +65,8 @@ asyncio.get_event_loop().set_default_executor(executor)
 # V5.2.4.8 Cloud Run Startup Optimization - Infrastructure Protocol
 # V90.3: PROTOCOLO COCKPIT - FIM DO CACHE
 # V110.40.0: PROTOCOLO COMMAND CENTER PRO - ALMIRANTE ELITE
-VERSION = "V124.7"
-DEPLOYMENT_ID = "V124.7_M30_SWING"
+VERSION = "V133"
+DEPLOYMENT_ID = "V133_OPTIMIZATIONS"
 
 # Global Directory Configurations - Hardened for Docker/Cloud Run
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

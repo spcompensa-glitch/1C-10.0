@@ -3,7 +3,7 @@
 Fonte unica de verdade arquitetural. Extraido diretamente do codigo-fonte (nao de historico de versoes).
 Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros ~8000 caracteres deste arquivo em cada resposta (`hermes_agent.py:_load_architecture_context`), portanto os fatos mais criticos ficam no topo.
 
-*Verificado contra o codigo em 2026-07-18. VERSION no codigo: `backend/main.py` VERSION="V131" / DEPLOYMENT_ID="V131_BUG_FIX". Correcoes criticas [V131] aplicadas sobre o V130 — ver Secao 14, item 18.*
+*Verificado contra o codigo em 2026-07-24. VERSION no codigo: `backend/main.py` VERSION="V133" / DEPLOYMENT_ID="V133_OPTIMIZATIONS". Otimizacoes V133 aplicadas sobre o V132 — ver Secao 14, item 21.*
 
 ---
 
@@ -39,10 +39,10 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 | `ADX_STRONG_TREND_THRESHOLD` | 30 | `config.py:146` |
 | `OKX_SIMULATED_BALANCE` | $100 (padrao) | `config.py:22` |
 | `DECOR_HUNTER_MAX_SLOTS` / `MIN_CONFIDENCE` / `SCAN_INTERVAL` | 8 / 70 / 30s | `config.py:152-156` |
-| `SWING_LEVERAGE` / `SWING_STOP_ROI` | 50x / -35.0% ROI | [V132-SWING-2H] |
+| `SWING_LEVERAGE` / `SWING_STOP_ROI` | 50x / -20.0% ROI | [V133-OPTIMIZATIONS] |
 | `SWING_SCAN_INTERVAL` | 1800s (30m) | [V132-SWING-2H] |
 
-**Swing Lab [V132-SWING-2H]**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200 (2% da banca consolidada), `SWING_SCAN_INTERVAL`=1800s, `SWING_STOP_ROI`=35.0 (stop inicial -35% ROI = 0.7% preco com 50x). Análise baseada no timeframe de **2H (120m)** com confirmação de micro-gatilho de precisão no **15m Stochastic RSI**.
+**Swing Lab [V133-OPTIMIZATIONS]**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200 (2% da banca consolidada), `SWING_SCAN_INTERVAL`=1800s, `SWING_STOP_ROI`=20.0 (stop inicial -20% ROI = 0.4% preco com 50x). **[V133]** Stop reduzido de -35% para -20% para melhorar R:R (1:2+ vs 1:0.28). ADX threshold elevado de 25 para 30 para confirmar tendencia forte. Análise baseada no timeframe de **2H (120m)** com confirmação de micro-gatilho de precisão no **15m Stochastic RSI**.
 
 > **[V127] Saldo exibido em PAPER**: `OKX_SIMULATED_BALANCE` e a base do Guardiao/sizing em PAPER, mas o *Net Worth* do Cockpit em PAPER NAO e `OKX_SIMULATED_BALANCE` — e a **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`, `database_service.py`: `BANCA_BASE` $10.000 + Σ(pnl_pct/100 × $200) sobre TODOS os trades Scalp+Swing). Ver Secao 8.6.
 
@@ -102,13 +102,13 @@ Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho −
 
 ### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
 
-**GARANTIA_12 — Risco Zero Imediato [V132]** (`sandbox_service.py:1571-1583`):
-Quando `max_roi >= 12.0%` no Scalping (ou `>= 8.0%` nas demais estratégias) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). Proteção imediata do capital com folga contra ruídos.
+**GARANTIA_8 — Risco Zero Imediato [V133]** (`sandbox_service.py:1571-1583`):
+Quando `max_roi >= 8.0%` em ambos modos (Scalping e Swing) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). **[V133]** Breakeven igualado para 8% em ambos modos (antes 12% no Scalping, 8% no Swing).
 
-**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V132]** (`sandbox_service.py:1588-1615`):
-Quando `max_roi >= breakeven_trigger`, stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
-**[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8/12 mover o stop para 0%. Removida a condição.
-**[V132]** Trailing no Scalping só ativa a partir de +12.0% de max_roi para dar runway.
+**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V133]** (`sandbox_service.py:1588-1615`):
+Quando `max_roi >= breakeven_trigger` (agora 8% em ambos modos), stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
+**[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8 mover o stop para 0%. Removida a condição.
+**[V133]** Breakeven de ativação igualado para 8% em ambos modos — antes 12% no Scalping, 8% no Swing.
 Exemplos: pico +17% → stop +10.2%; pico +21% → stop +12.6%; pico +29% → stop +17.4%.
 
 ### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
@@ -156,18 +156,19 @@ Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
 
 ### 3.8 Stops Iniciais
 
-**Scalping Lab — VWAP SNIPER [V127.2 / V132]** (`sandbox_scalping_engine.py:47`):
-- `_MAX_STOP_ROI = -8.0%` (0.16% preço com 50x).
-- Stop = 1.0x ATR do 1m, máximo -8% ROI.
-- GARANTIA_12 ativa em +12% ROI → stop vai a 0%.
+**Scalping Lab — VWAP SNIPER [V127.2 / V132 / V133]** (`sandbox_scalping_engine.py:47`):
+- `_MAX_STOP_ROI = -12.0%` (0.24% preço com 50x). **[V133]** Aumentado de -8% para -12% para dar mais runway ao trade.
+- **[V133]** **Filtro de R:R Mínimo**: trades com `projected_rr < 1.5` são rejeitados (target = 3x risk, mínimo 15% ROI).
+- GARANTIA_8 ativa em +8% ROI → stop vai a 0%. **[V133]** Breakeven igualado para 8% (antes 12%).
 
 **Scalping Lab — Stop Adaptativo [V123]** (`sandbox_service.py:321-400`):
 - Tenta stop estrutural 30M (swing low/high + buffer) — aprovado se ROI entre -40% e -25%.
 - Fallback: -25% ROI (0.5% preço com 50x).
 - Teto rígido: -30% ROI (0.6% preço).
 
-**Swing Lab — Stop Configurável e Micro-Gatilho [V132-SWING-2H]** (`sandbox_swing_service.py`):
-- Alavancagem padrão de 50x com stop inicial rígido de **-35% ROI** (equivalente a 0.7% no preço).
+**Swing Lab — Stop Configurável e Micro-Gatilho [V133]** (`sandbox_swing_service.py`):
+- Alavancagem padrão de 50x com stop inicial rígido de **-20% ROI** (equivalente a 0.4% no preço). **[V133]** Reduzido de -35% para -20% para melhorar R:R (1:2+ vs 1:0.28).
+- **[V133]** Threshold ADX elevado de 25 para 30 — exige confirmação de tendência mais forte antes de abrir trade.
 - Análise baseada inteiramente no timeframe de **2H (120m)** com scan a cada 30 minutos (1800s).
 - **Filtro de Entrada de Alta Precisão (15m):** Os sinais de 2H só iniciam o trade se o Stochastic RSI no gráfico de 15m estiver alinhado com a direção do trade.
 - Zero-Risk Stacking regulado para no máximo 2 posições sob risco de mesa simultâneas.
@@ -281,18 +282,20 @@ Iniciados no startup (`backend/main.py`): phase_detector, okx_ws_public/service,
 - **[V131-FIX] GARANTIA_TRAIL desbloqueado** (`sandbox_service.py:1571`): removida condição `current_stop_roi < 0.0` que travava o trailing em 0% após GARANTIA_8 ativar.
 - **[V131-FIX] `AttributeError: self.dynamic_margin` corrigido** (`sandbox_service.py:1546`): atributo inexistente substituído por leitura dinâmica de `trade.contract_meta["margin"]` com fallback $200.
 
-### 8.2 Scalping Lab — VWAP SNIPER (`services/sandbox_scalping_engine.py`) **[V132-REFINADO]**
+### 8.2 Scalping Lab — VWAP SNIPER (`services/sandbox_scalping_engine.py`) **[V133]**
 - Scan 30s. Filtro tendência EMA200 (M5); toque no VWAP diário (M1, tol 0.30%).
 - **[V132-REFINADO] Gatilhos e confluência:**
     *   **BTC Trend Bias (15m):** Bloqueia LONGs se variação de 15m do BTC for < -0.40% e SHORTs se for > 0.40% (evita entrar contra fluxo).
     *   **Stochastic RSI (1m):** Exige cruzamento real de linhas: %K cruza acima de %D (LONG, k<35) ou cruzamento abaixo (SHORT, k>80).
     *   **Volume Relativo de 5m:** Rejeita novas entradas se o volume de 5m estiver < 1.1x acima da média simples de 20 períodos (evita mercados estagnados).
-- **Leverage/Stops:** 50x isolada, margem dinâmica baseada em score (30%, 60% ou 100% da margem base de 2% da banca consolidada), stop inicial em -8% ROI.
+- **[V133] Filtro de R:R Mínimo:** Trades com `projected_rr < 1.5` são rejeitados. Target = 3x risk (mínimo 15% ROI). Garante que cada trade tenha potencial de lucro significativamente maior que o risco.
+- **Leverage/Stops:** 50x isolada, margem dinâmica baseada em score (30%, 60% ou 100% da margem base de 2% da banca consolidada), stop inicial em **-12% ROI** (aumentado de -8% para dar mais runway).
 
-### 8.3 Swing Lab — 2H (`services/sandbox_swing_service.py`) **[V132-SWING-2H]**
+### 8.3 Swing Lab — 2H (`services/sandbox_swing_service.py`) **[V133]**
 - Scan a cada 30min no timeframe de **2H (120m)** via `SignalGenerator.analyze_m30_swing()`.
 - Banca consolidada dinâmica (Juros Compostos), margem inicial $200/trade (2% da banca total recalculado dinamicamente), 50x.
-- **Stop inicial -35% ROI** (`SWING_STOP_ROI=35.0`): `stop_price = entry × (1 - 0.35/50) = entry × 0.993` (0.7% de oscilacao do preco).
+- **[V133] Stop inicial -20% ROI** (`SWING_STOP_ROI=20.0`): `stop_price = entry × (1 - 0.20/50) = entry × 0.996` (0.4% de oscilacao do preco). Reduzido de -35% para -20% para melhorar R:R.
+- **[V133] ADX Threshold elevado de 25 para 30:** Exige confirmação de tendência mais forte antes de abrir trade, filtrando sinais em mercados laterais ou fracos.
 - **Filtro de Entrada de Alta Precisão (15m):** Setup de 2H só entra se o Stochastic RSI no gráfico de 15m confirmar a direção do momentum (LONG `k_15m > d_15m`, SHORT `k_15m < d_15m`).
 - **Zero-Risk Stacking (cap 2):** Permite no máximo 2 posições sob risco de mesa ao mesmo tempo. Novas entradas exigem que pelo menos uma das ordens ativas já tenha atingido o break-even (risco zero).
 
@@ -329,7 +332,7 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 - **ELITE_40_MATRIX** (`:194`) — **35** pares elegiveis 50x OKX.
 - **RADAR_WATCHLIST** (`:212`) — **26** pares (V126 removeu SAND, BCH, SOL, STX, EGLD).
 - **DECOR_WATCHLIST** (`:233`) — **89** pares para o DECOR_HUNTER.
-- **ASSET_BLOCKLIST** (`:266`) — set com ~55 simbolos bloqueados (inclui BTC/ETH como monitor-only, memecoins, stablecoins, metais, e pares de performance negativa no sandbox: AAVE, CRV, SUI, TRX, TIA, LINK, AVAX, SOL, JUP, ONDO, etc.).
+- **ASSET_BLOCKLIST** (`:266`) — set com ~58 simbolos bloqueados (inclui BTC/ETH como monitor-only, memecoins, stablecoins, metais, e pares de performance negativa no sandbox: AAVE, CRV, SUI, TRX, TIA, LINK, AVAX, SOL, JUP, ONDO, INJ, XLM, GRT, etc.). **[V133]** Adicionados INJUSDT, XLMUSDT, GRTUSDT.
 
 ---
 
@@ -420,6 +423,13 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
     - **Micro-Gatilho de Precisão (15m):** As ordens de 2H do Swing Lab agora são filtradas na entrada pelo alinhamento do Stochastic RSI no tempo menor de 15m.
     - **Escadinha de Swing 2H 50x:** Atualizada a escala `ORDER_STOP_LADDER_SWING` para gatilho de break-even a +15% ROI, e níveis escalonados (+35%/+10%, +70%/+35%, +120%/+80%, +200%/+150%, +350%/+280% de lucro).
     - **Risco de mesa do Swing:** Mantido limite rígido de no máximo 2 posições sob risco de mesa simultâneas.
+21. **[V133] Otimizações de R:R e Risco — Sandbox** (2026-07-24):
+    - **Swing Lab — Stop reduzido:** `SWING_STOP_ROI` de -35% para **-20% ROI** (0.4% preço com 50x). Melhora R:R de 1:0.28 para 1:2+.
+    - **Swing Lab — ADX elevado:** Threshold de `btc_adx >= 25` para `>= 30`. Exige confirmação de tendência mais forte, filtrando mercados laterais.
+    - **Scalping Lab — Stop aumentado:** `_MAX_STOP_ROI` de -8% para **-12% ROI** (0.24% preço com 50x). Dá mais runway ao trade contra ruídos.
+    - **Scalping Lab — Filtro de R:R:** Novo filtro rejeita trades com `projected_rr < 1.5` (target = 3x risk, mínimo 15% ROI). Garante potencial de lucro significativamente maior que o risco.
+    - **GARANTIA_TRAIL — Breakeven igualado:** `GARANTIA_TRAIL_THRESHOLD` elevado para 8% em ambos modos (Scalping e Swing). Antes 12% no Scalping, 8% no Swing.
+    - **Blocklist expandida:** Adicionados INJUSDT, XLMUSDT, GRTUSDT ao `ASSET_BLOCKLIST`.
 
 ---
 

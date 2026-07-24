@@ -38,6 +38,13 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
+    <!-- PWA Service Worker — early registration for fast cached loads -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js?v=133').catch(() => {});
+        }
+    </script>
+
     <script>
         // [V110.380] SILENCE PROTOCOL 2.0: Suppress redundant production warnings early
         (function() {
@@ -210,7 +217,43 @@
 <body>
     <div class="aura aura-cyan"></div>
     <div class="aura aura-violet"></div>
-    <!-- V110.100: ULTIMATE CACHE BREAKER BANNER -->
+
+    <div id="boot-shield">
+        <div class="boot-logo-container">
+            <div class="boot-ring"></div>
+            <div class="boot-ring"></div>
+            <div class="boot-ring"></div>
+            <div class="boot-scanner"></div>
+            <img src="/logo10DTrasp.png?v=4" class="boot-logo" alt="10D Logo">
+        </div>
+        
+        <div style="color:#ffffff; font-size:14px; font-weight:900; letter-spacing:8px; text-transform:uppercase; font-family:'JetBrains Mono', monospace; text-shadow: 0 0 10px rgba(255,255,255,0.5);">
+            NEURAL INTERFACE
+        </div>
+
+        <div class="boot-progress-container">
+            <div id="boot-progress" class="boot-progress-bar"></div>
+        </div>
+
+        <button id="boot-bypass" onclick="document.getElementById('boot-shield').remove()" 
+                style="display:none; margin-top: 40px; padding: 8px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #64748b; font-size: 10px; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px;">
+            Force Reset Link
+        </button>
+        <script>
+            setTimeout(() => {
+                const btn = document.getElementById('boot-bypass');
+                if (btn) btn.style.display = 'block';
+            }, 10000);
+        </script>
+        </div>
+
+        <div style="color:rgba(255,255,255,0.5); font-size:9px; margin-top:16px; font-family:'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 2px;"
+            id="boot-status">Initializing System Core...</div>
+            
+        <div style="position: absolute; bottom: 40px; color: rgba(255,255,255,0.2); font-size:8px; letter-spacing: 4px; text-transform: uppercase;">
+            Protocol V133 • Secure Connection Active
+        </div>
+    </div>
 
     <div id="root"></div>
     <div class="stars-bg"></div>

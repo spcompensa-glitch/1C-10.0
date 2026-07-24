@@ -120,23 +120,14 @@
         }
     </style>
     <script>
-        // Limpeza imediata de todos os Service Workers e Cache Storage
+        // Registra Service Worker cedo para acelerar carregamento via cache
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (let registration of registrations) {
-                    registration.unregister();
-                }
-            }).catch(err => console.error('Erro ao limpar SW:', err));
-        }
-        if (window.caches) {
-            caches.keys().then(keys => {
-                keys.forEach(key => caches.delete(key));
-            }).catch(err => console.error('Erro ao limpar Caches:', err));
+            navigator.serviceWorker.register('/sw.js?v=133').catch(() => {});
         }
 
-        // Aguarda 3 segundos exibindo a animação completa antes de ir para a caixa de login (com cache buster)
+        // Aguarda 3 segundos exibindo a animação completa antes de ir para a caixa de login
         setTimeout(() => {
-            window.location.replace('/login?t=' + Date.now());
+            window.location.replace('/login');
         }, 3000);
     </script>
 </head>

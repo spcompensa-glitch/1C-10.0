@@ -7,7 +7,7 @@
  * - Stale-While-Revalidate: Manifest & CDNs
  */
 
-const CACHE_NAME = '1crypten-sniper-v125.600'; // [V125.600] Menu padronizado BANCA/HERMES/ADM
+const CACHE_NAME = '1crypten-sniper-v133.0'; // [V133] PWA fix: boot shield restored, SW destruction removed
 const OFFLINE_URL = '/offline.html';
 
 // Assets que devem estar disponíveis offline (caminhos absolutos baseados na raiz)

@@ -193,6 +193,25 @@ class Settings(BaseSettings):
     SANDBOX_LOCK_IN_STOP_PERCENT: float = float(os.getenv("SANDBOX_LOCK_IN_STOP_PERCENT", 5.0))
 
     # =========================================================================
+    # =========================================================================
+    # [KRONOS] Kronos Conviction Scorer — Previsão de séries temporais
+    # =========================================================================
+    # Habilita/desabilita o scorer (pode ser desligado via env var)
+    KRONOS_ENABLED: bool = True
+    # Modelo Kronos a ser usado (mini | small | base)
+    KRONOS_MODEL_NAME: str = os.getenv("KRONOS_MODEL_NAME", "NeoQuasar/Kronos-mini")
+    # Peso do score Kronos no unified_confidence do Captain (0.0 a 1.0)
+    KRONOS_SCORE_WEIGHT: float = float(os.getenv("KRONOS_SCORE_WEIGHT", 0.18))
+    # Timeframe das velas para análise ("5" = 5m, "15" = 15m, "60" = 1h)
+    KRONOS_INTERVAL: str = os.getenv("KRONOS_INTERVAL", "5")
+    # Cache TTL em segundos
+    KRONOS_CACHE_TTL: int = int(os.getenv("KRONOS_CACHE_TTL", 60))
+    # Timeout da predição em segundos
+    KRONOS_TIMEOUT: float = float(os.getenv("KRONOS_TIMEOUT", 5.0))
+    # Score fallback se Kronos falhar
+    KRONOS_FALLBACK_SCORE: int = int(os.getenv("KRONOS_FALLBACK_SCORE", 50))
+
+    # =========================================================================
     # [V128-EQUITY-DEFENSE] Defesa Progressiva de Patrimônio
     # =========================================================================
     # Percentual de lucro protegido do pico (80% = preserva 80% do lucro máximo)

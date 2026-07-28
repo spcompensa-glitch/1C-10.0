@@ -266,7 +266,7 @@ class VaultService:
     async def recalculate_cycle_bankroll(self):
         """
         V9.0: Recalcula a banca após completar 10 trades (Compound).
-        V15.8 FIX: Prioriza configured_balance do Almirante em vez do Bybit real.
+        Prioriza configured_balance do Almirante em vez do saldo real da exchange.
         """
         try:
             # [V15.8 FIX] Fetch the configured balance first
@@ -297,7 +297,7 @@ class VaultService:
             await asyncio.to_thread(_update)
             
             emoji = "🚀" if profit_pct > 0 else "⚠️"
-            logger.info(f"V9.0 Compound: Recálculo completo. Nova banca: ${new_balance:.2f} (Real Bybit: ${real_balance:.2f})")
+            logger.info(f"Compound: Recálculo completo. Nova banca: ${new_balance:.2f} (Real OKX: ${real_balance:.2f})")
             await firebase_service.log_event("VAULT", f"{emoji} V9.0 COMPOUND RECALCULADO: ${old_bankroll:.2f} → ${new_balance:.2f}. Nova entrada: ${new_entry:.2f}", "SUCCESS")
             
             # [V15.0] Sync to RTDB

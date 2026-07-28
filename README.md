@@ -66,12 +66,38 @@ Lista completa de routers/prefixos em `MASTER_ARCHITECTURE.md` (secao 10).
 
 ---
 
+## 🔮 Kronos Conviction Scorer (V134)
+
+O 1C-7.0 agora conta com um **scorer de convicção baseado em séries temporais** usando o Kronos-mini (4.1M params, AAAI 2026).
+
+### Modos de Operação
+
+| Modo | Requisito | Descrição |
+|------|-----------|----------|
+| **REAL** 🚀 | `pip install kronos-forecast torch` | Inferência com Kronos-mini (CPU, ~200MB RAM, ~1-2s por predição) |
+| **FALLBACK** 🛡️ | Nenhum (padrão) | Regressão linear simples — leve, rápido, sempre disponível |
+
+O Kronos adiciona uma **5ª dimensão** ao consenso de frota do CaptainAgent, com peso de 18% no unified_score.
+
+**Configuração** (via `.env`):
+```bash
+KRONOS_ENABLED=true
+KRONOS_SCORE_WEIGHT=0.18
+KRONOS_INTERVAL=5
+KRONOS_TIMEOUT=5.0
+```
+
+**Testes**: `cd backend && pytest tests/test_kronos_scorer.py -v` (24 testes)
+
+---
+
 ## Testes
 
 ```bash
-pytest                     # todos
-pytest -m "not slow"       # apenas rapidos
-pytest --cov=backend/      # com cobertura
+cd backend && pytest                           # todos os testes
+cd backend && pytest tests/test_kronos_scorer.py -v  # testes do Kronos (24)
+pytest -m "not slow"                            # apenas rapidos
+pytest --cov=backend/                           # com cobertura
 ```
 
 ---
@@ -86,6 +112,14 @@ pytest --cov=backend/      # com cobertura
 | Slots nao abrem | Regime gate (ADX) | Verificar `/api/system/state` |
 
 ---
+
+## Changelog (V134)
+
+- **[KRONOS]** Novo serviço de scoring de convicção via séries temporais (`backend/services/kronos_scorer.py`)
+- **[CAPTAIN]** Kronos integrado como 5ª dimensão no consenso de frota (peso 18% no unified_score)
+- **[CONFIG]** 7 novas configurações: `KRONOS_ENABLED`, `KRONOS_MODEL_NAME`, `KRONOS_SCORE_WEIGHT`, etc.
+- **[CLEANUP]** Remoção completa do legado Bybit (26 arquivos, `pybit` removido do requirements)
+- **[TESTS]** 24 novos testes para o KronosScorer (24/24 passando)
 
 **Mantenedor:** Jonatas Oliveira (@JonatasOliveira1983)
 **Repositorio:** https://github.com/JonatasOliveira1983/1C-7.0

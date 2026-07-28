@@ -17,7 +17,7 @@ logger = logging.getLogger("OKXService")
 class OKXService:
     @staticmethod
     def to_okx_inst_id(symbol: str) -> str:
-        """Converte símbolo legacy Bybit (ex: AVAXUSDT ou AVAXUSDT.P) para formato OKX nativo (ex: AVAX-USDT-SWAP)."""
+        """Converte símbolo interno (ex: AVAXUSDT) para formato OKX (ex: AVAX-USDT-SWAP)."""
         if not symbol:
             return ""
         norm = symbol.strip().upper()
@@ -35,7 +35,7 @@ class OKXService:
 
     @staticmethod
     def from_okx_inst_id(symbol: str) -> str:
-        """Converte símbolo OKX nativo (ex: AVAX-USDT-SWAP) para formato legacy com sufixo .P (ex: AVAXUSDT.P) usado em chaves de cache interno."""
+        """Converte símbolo OKX (ex: AVAX-USDT-SWAP) para formato interno (ex: AVAXUSDT) usado em chaves de cache."""
         if not symbol:
             return ""
         norm = symbol.strip().upper()
@@ -341,7 +341,7 @@ class OKXService:
         inst_id = self.to_okx_inst_id(symbol)
         
         # Converte o lado (side)
-        # Bybit: Buy/Sell ➔ OKX: buy/sell
+        # Normaliza side: OKX usa lowercase
         side_okx = side.strip().lower()
         
         # Determina a direção da posição (posSide) para modo Hedge:
@@ -549,7 +549,7 @@ class OKXService:
     async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20) -> List[List[Any]]:
         """
         Busca velas históricas (Klines) públicas na OKX.
-        Retorna uma lista de velas no formato da Bybit: [start_time, open, high, low, close]
+        Retorna uma lista de velas: [start_time, open, high, low, close]
         """
         # Se for OKX Testnet, apenas BTC e ETH têm cobertura garantida. Altcoins dão Instrument ID doesn't exist
         clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
@@ -559,7 +559,7 @@ class OKXService:
 
         inst_id = self.to_okx_inst_id(symbol)
         
-        # Mapeamento de intervalos Bybit -> OKX
+        # Mapeamento de intervalos para OKX
         interval_map = {
             "1": "1m",
             "3": "3m",
@@ -604,7 +604,7 @@ class OKXService:
                     if data.get("code") == "0" and data.get("data"):
                         okx_candles = data.get("data", [])
                         # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
-                        # Bybit espera: [start_time, open, high, low, close]
+                        # Formato esperado: [start_time, open, high, low, close]
                         formatted = []
                         for c in okx_candles:
                             if len(c) >= 5:
@@ -752,7 +752,7 @@ class OKXService:
     async def get_klines(self, symbol: str, interval: str = "60", limit: int = 20) -> List[List[Any]]:
         """
         Busca velas históricas (Klines) públicas na OKX.
-        Retorna uma lista de velas no formato da Bybit: [start_time, open, high, low, close]
+        Retorna uma lista de velas: [start_time, open, high, low, close]
         """
         # Se for OKX Testnet, apenas BTC e ETH têm cobertura garantida. Altcoins dão Instrument ID doesn't exist
         clean_sym = symbol.replace(".P", "").replace(".p", "").upper()
@@ -762,7 +762,7 @@ class OKXService:
 
         inst_id = self.to_okx_inst_id(symbol)
         
-        # Mapeamento de intervalos Bybit -> OKX
+        # Mapeamento de intervalos para OKX
         interval_map = {
             "1": "1m",
             "3": "3m",
@@ -807,7 +807,7 @@ class OKXService:
                     if data.get("code") == "0" and data.get("data"):
                         okx_candles = data.get("data", [])
                         # OKX retorna: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
-                        # Bybit espera: [start_time, open, high, low, close]
+                        # Formato esperado: [start_time, open, high, low, close]
                         formatted = []
                         for c in okx_candles:
                             if len(c) >= 5:

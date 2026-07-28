@@ -187,7 +187,7 @@ Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
 Sinal (SignalGenerator / DECOR_HUNTER / Swing Lab / Scalping Lab)
     v
 CaptainAgent (captain.py) — Quality gate + regime gating + consenso de frota
-    | Consenso: Macro 15% + Whale 25% + SMC 30% + OnChain 30%
+    | Consenso: Macro 15% + Whale 25% + SMC 30% + OnChain 30% + Kronos 18%
     | Quartermaster classifica o wick -> leverage
     v
 BankrollGuardian (bankroll_guardian.py) — autorizacao
@@ -255,6 +255,11 @@ Swing 2H usa `SignalGenerator.analyze_m30_swing()` (reusa DVAP/MOLA/FAS/LRT + TR
 
 ### 7.4 Infra
 - **FleetAudit** (`agents/fleet_audit.py`) — reconciliacao 20s, Early ROI Panic (-80% em <300s).
+- **KronosScorer** (`services/kronos_scorer.py`) — **[V134-NOVO]** Servico de scoring de conviccao via series temporais. Usa Kronos-mini (4.1M params, CPU, contexto 2048) da Microsoft/Tsinghua (AAAI 2026). Funciona como uma 5a dimensao no consenso de frota do CaptainAgent, com peso de 18% no unified_score. Opera em dois modos:
+  - **Modo REAL** (com `pip install kronos-forecast torch`): inferencia com Kronos-mini, preve direcao das proximas 12 velas, calcula conviccao baseada em alinhamento de direcao + dispersao entre trajetorias.
+  - **Modo FALLBACK** (sem PyTorch): usa regressao linear simples nos closes — leve, rapido, sempre disponivel.
+  - Cache por simbolo com TTL 60s. Timeout de 5s por predicao. Fallback automatico para score=50 se falhar.
+  - Config: `KRONOS_ENABLED`, `KRONOS_MODEL_NAME`, `KRONOS_SCORE_WEIGHT` (0.18), `KRONOS_INTERVAL` ("5"), `KRONOS_CACHE_TTL`(60), `KRONOS_TIMEOUT`(5.0), `KRONOS_FALLBACK_SCORE`(50).
 - **Quartermaster** (`agents/quartermaster.py`) — leverage por wick: SMOOTH(<0.45,50x) / JUMPY(0.45–0.70,20x) / EXTREME(>0.70,10x).
 - **HermesAgent** (`agents/hermes_agent.py`) — compliance/telemetria/chat; le este arquivo + `vault_galaxy/`.
 - **JarvisBrain** (`agents/jarvis_brain.py`) — chat multi-dimensao (10 dimensoes).
@@ -390,7 +395,7 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
 ## 14. Observacoes Tecnicas Conhecidas
 
 1. Multiplas versoes coexistem nos cabecalhos (V20.5 captain, V110.x services, V124–V126 features). O DEPLOYMENT_ID oficial e `V124.7`.
-2. Referencias Bybit legadas: `market.py` ainda usa nomes `BybitRest`/`BybitWS` apesar de operar so na OKX.
+2. **[V134-CLEANUP]** Referencias Bybit removidas de 26 arquivos. `from pybit.unified_trading import HTTP` removido. `okx_rest.py` agora usa `okx_service` nativo em vez de sessao pybit. `pybit==5.8.0` removido do `requirements.txt`.
 3. `get_slot_type()` em `bankroll.py` retorna sempre "DVAP" (V110.950) — diferenciacao de tipo de slot e vestigial.
 4. `radar_pulse` nao e arquivo: e estrutura de dados em `database_service`, `firebase_service` e `websocket_service`.
 5. Comentarios legados em `bankroll.py` ($2/$1, 20/40) divergem do `config.py` atual (0.50, 16/16) — o `config.py` prevalece.

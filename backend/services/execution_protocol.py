@@ -328,7 +328,7 @@ class ExecutionProtocol:
         slot_id = slot_data.get("id", 0)
 
         # 🛑 [V62.0 MAESTRIA] HARD STOP LOSS — Rede de Segurança Máxima
-        # Se Bybit falhou em pegar o SL estrutural, matamos aqui em -60%.
+        # Se o SL estrutural falhou, stop de segurança em -60% ROI.
         if roi <= HARD_STOP_ROI:
             logger.warning(f"🛑 [V62.0 MAESTRIA] HARD STOP FINAL: {symbol} ROI={roi:.1f}% (threshold={HARD_STOP_ROI}%)")
             return True, f"SNIPER_SL_HARD_STOP ({roi:.1f}%)", None
@@ -423,7 +423,7 @@ class ExecutionProtocol:
 
         # ⚡ [V110.137 BLITZ DOUTRINA DAS 10] — Slots 1 e 2 Exclusivos
         # Step-Lock por Unidade (meta diaria = 10 unidades x 100% ROI)
-        # UNIT 1: >= 100% ROI -> SL em +95%  (buffer 5% para taxas Bybit)
+        # UNIT 1: >= 100% ROI -> SL em +95% (buffer 5% para taxas)
         # UNIT 2: >= 200% ROI -> SL em +180% (buffer 20%)
         # UNIT 3: >= 300% ROI -> SL em +270% + Moonbag Condicional via Ceifeiro
         # Breakeven Adaptativo: RETEST_HEAVY/EXTREME wick -> mais folego antes do BE

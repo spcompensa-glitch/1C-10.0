@@ -36,7 +36,7 @@ class SignalGenerator:
         self.scan_interval = 5.0 # Reduced from 15s to 5s for V7.0 High-Precision Reactivity
         self.signal_queue = asyncio.PriorityQueue() # ⚡ V110.116: PriorityQueue for Elite Signals
         self._signal_counter = 0  # [V110.118] Tie-breaker para evitar TypeError ao comparar dicionários com mesmo score
-        self._api_semaphore = asyncio.Semaphore(5) # V15.1.3: Limit concurrent Bybit REST calls
+        self._api_semaphore = asyncio.Semaphore(5) # Limita chamadas REST concorrentes
         self.exhaustion_level = 0.0
         self.last_context_update = 0  # V5.1.0: Context Sync
         self.last_radar_sync = 0      # V32.0: Periodic Dashboard Sync
@@ -168,7 +168,7 @@ class SignalGenerator:
             if not klines or len(klines) < 10:
                 return {'has_trigger': False, 'trigger_type': None, 'confidence': 0, 'funding_rate': 0, 'volume_confirmed': False}
             
-            # Bybit returns newest first — reverse for chronological order
+            # Reverse for chronological order (API returns newest first)
             candles = klines[::-1]
             closes = [float(c[4]) for c in candles]
             highs = [float(c[2]) for c in candles]
@@ -546,7 +546,7 @@ class SignalGenerator:
                 if not symbol: continue
                 
                 # [V46.0] Real-time Pressure Injection for Radar
-                # We fetch live metrics from BybitWS to override staleFirestore data
+                # We fetch live metrics from WebSocket to override stale Firestore data
                 cvd_5m = okx_ws_public_service.get_cvd_score_time(symbol, 300)
                 cvd_total = okx_ws_public_service.get_cvd_score(symbol)
                 
@@ -2272,7 +2272,7 @@ class SignalGenerator:
                 return {'trend': 'sideways', 'pattern': 'unknown', 'trend_strength': 0}
             
             candles = klines
-            # Bybit returns newest first, so reverse for chronological order
+            # Reverse for chronological order (API returns newest first)
             candles = candles[::-1]
             
             # Extract close prices
@@ -3995,7 +3995,7 @@ class SignalGenerator:
                 else:
                     # V15.7.5: Increased frequency (30s) and added more detail for empty batches
                     if time.time() - getattr(self, '_last_radar_empty_log', 0) > 30:
-                        logger.warning(f"⚠️ [RADAR-RT] Batch is EMPTY. Active symbols: {len(active_symbols)}. Check BybitWS connection.")
+                        logger.warning(f"⚠️ [RADAR-RT] Batch is EMPTY. Active symbols: {len(active_symbols)}. Check WebSocket connection.")
                         self._last_radar_empty_log = time.time()
                 
                 await asyncio.sleep(self.radar_interval)

@@ -26,6 +26,7 @@ from services.agents.librarian import librarian_agent # [V2.0] Librarian DNA Pro
 from services.agents.quartermaster import quartermaster_agent # [V110.135]
 from services.redis_service import redis_service
 from services.signal_generator import signal_generator
+from services.kronos_scorer import kronos_scorer  # [KRONOS] Conviction Scorer
 try:
     from duckduckgo_search import DDGS
 except ImportError:
@@ -397,16 +398,38 @@ class CaptainAgent(AIOSAgent):
             on_chain_score = sentiment.get("data", {}).get("onchain_score", 50) if sentiment else 50
             on_chain_summary = sentiment.get("data", {}).get("onchain_summary", "Scan Global: Sem anomalias") if sentiment else "N/A"
             
+            # [KRONOS] Forecast Score — previsão de direção via séries temporais
+            kronos_score = settings.KRONOS_FALLBACK_SCORE
+            kronos_data = {}
+            kronos_weight = settings.KRONOS_SCORE_WEIGHT
+            if settings.KRONOS_ENABLED:
+                try:
+                    kronos_result = await asyncio.wait_for(
+                        kronos_scorer.score_signal(symbol, side, interval=settings.KRONOS_INTERVAL),
+                        timeout=settings.KRONOS_TIMEOUT + 1.0
+                    )
+                    kronos_score = kronos_result.get("conviction", settings.KRONOS_FALLBACK_SCORE)
+                    kronos_data = kronos_result
+                    logger.info(f"🔮 [KRONOS] {symbol} {side.upper()}: conviction={kronos_score} | dir={kronos_data.get('prediction_direction','?')} | src={kronos_data.get('source','?')}")
+                except asyncio.TimeoutError:
+                    logger.debug(f"⏱️ [KRONOS-TIMEOUT] {symbol} — ignorando, usando fallback.")
+                except Exception as e:
+                    logger.debug(f"[KRONOS-ERROR] {symbol}: {e} — ignorando, usando fallback.")
+            
             # [V110.28.1] DYNAMIC WEIGHTS BASED ON ADX
             # Se ADX > 40 (Tendência Forte), aumentamos o peso das Baleias (Micro) para 40%.
+            # Kronos recebe peso fixo configurável (padrão 18%).
             ad_val = regime_data.get("adx", 0)
+            remaining_weight = 1.0 - kronos_weight  # Peso restante para os 4 scores tradicionais
             if ad_val >= 40:
-                # Micro (40%) + SMC (15%) + On-Chain (30%) + Macro (15%)
-                unified_score = (macro_score * 0.15) + (micro_score * 0.40) + (smc_score * 0.15) + (on_chain_score * 0.30)
+                # Micro (40%) + SMC (15%) + On-Chain (30%) + Macro (15%) = 100% ajustado ao remaining_weight
+                base_score = (macro_score * 0.15) + (micro_score * 0.40) + (smc_score * 0.15) + (on_chain_score * 0.30)
+                unified_score = base_score * remaining_weight + kronos_score * kronos_weight
                 logger.info(f"🐋 [WHALE-DOMINANCE] {symbol} ADX={ad_val:.1f} detectado. Peso institucional elevado para 40%.")
             else:
-                # Padrão: Macro (15%) + Micro (25%) + SMC (30%) + On-Chain (30%)
-                unified_score = (macro_score * 0.15) + (micro_score * 0.25) + (smc_score * 0.30) + (on_chain_score * 0.30)
+                # Padrão: Macro (15%) + Micro (25%) + SMC (30%) + On-Chain (30%) = 100% ajustado ao remaining_weight
+                base_score = (macro_score * 0.15) + (micro_score * 0.25) + (smc_score * 0.30) + (on_chain_score * 0.30)
+                unified_score = base_score * remaining_weight + kronos_score * kronos_weight
             
             # [V89.0] WHALE-FOLLOW BONUS: Se as baleias estão junto, impulsiona o score!
             if micro_score >= 80:
@@ -533,6 +556,8 @@ class CaptainAgent(AIOSAgent):
                             "micro_score": micro_score,
                             "smc_score": smc_score,
                             "onchain_score": on_chain_score,
+                            "kronos_score": kronos_score,
+                            "kronos_data": kronos_data,
                             "macro": macro_score,
                             "micro": micro_score,
                             "smc": smc_score,
@@ -563,6 +588,9 @@ class CaptainAgent(AIOSAgent):
                     "micro_score": micro_score,
                     "smc_score": smc_score,
                     "onchain_score": on_chain_score,
+                    # [KRONOS] Forecast Score
+                    "kronos_score": kronos_score,
+                    "kronos_data": kronos_data,
                     # Shorthand for frontend compatibility [V56.0]
                     "macro": macro_score,
                     "micro": micro_score,

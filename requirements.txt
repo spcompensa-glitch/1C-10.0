@@ -10,7 +10,7 @@ websockets==12.0
 google-generativeai==0.7.2
 pandas==2.2.0
 numpy==1.26.3
-pybit==5.8.0
+# pybit removido — OKX nativo via okx_service
 urllib3<2.0.0
 requests>=2.31.0
 google-auth>=2.23.0
@@ -66,3 +66,9 @@ mypy==1.6.1
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
 protobuf==4.25.3
+
+# [KRONOS] Kronos Forecast Scorer — Foundation Model for Time Series
+# ATENÇÃO: kronos-forecast requer torch (1-2GB de instalação).
+# Se não instalado, o KronosScorer opera em modo FALLBACK (regressão linear).
+# kronos-forecast>=0.1.0
+# torch>=2.0.0

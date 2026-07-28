@@ -8,7 +8,6 @@ import httpx
 from datetime import datetime, timezone
 from services.time_utils import get_br_iso_str
 from typing import List, Dict, Any, Optional
-from pybit.unified_trading import HTTP
 from config import settings
 from services.resilience import with_circuit_breaker
 
@@ -20,15 +19,14 @@ _GLOBAL_KLINES_CACHE = {}
 class OKXRest:
     def __init__(self):
         self._global_session = None # Sessão padrão do admin (legado/fallback)
-        self._user_sessions = {} # Cache de sessões: {username: HTTP_Session}
-        self.category = "linear"  # TODO: substituir por OKX instType='SWAP' quando pybit for removido (dead code path)
+        self._user_sessions = {} # Cache de sessões: {username: session}
         self.time_offset = 0
         self.is_initialized = False
         
         # Paper Trading State
         self.execution_mode = settings.OKX_EXECUTION_MODE # "REAL" or "PAPER"
         self.paper_balance = settings.OKX_SIMULATED_BALANCE
-        self.paper_positions = [] # List of dicts matching Bybit schema
+        self.paper_positions = [] # Lista de posições paper
         self.paper_moonbags = [] # [V110.0] List of emancipated trades in Paper Mode
         self.paper_orders_history = [] 
         self._paper_engine_task = None
@@ -50,8 +48,6 @@ class OKXRest:
         from services.redis_service import redis_service
         self.redis = redis_service
         
-        # [V43.0] Position Mode Cache (Hedge vs One-Way)
-        self._position_mode_cache = {} # { symbol: mode_int }
         self.emancipating_symbols = set() # { symbol }
         self._http_semaphore = asyncio.Semaphore(80) # Internal/private calls keep their own guard.
         self._public_http_semaphore = asyncio.Semaphore(int(os.getenv("OKX_PUBLIC_MAX_CONCURRENCY", "4")))
@@ -137,7 +133,7 @@ class OKXRest:
 
             if data:
                 self.paper_positions = data.get("positions", [])
-                # [V125 Sem BTC] Purga qualquer resíduo de BTCUSDT da memória Paper
+                # Purga qualquer resíduo de BTCUSDT da memória Paper
                 self.paper_positions = [p for p in self.paper_positions if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
                 self.paper_moonbags = data.get("moonbags", [])
                 self.paper_moonbags = [p for p in self.paper_moonbags if (p.get("symbol") or "").upper().replace(".P", "") != "BTCUSDT"]
@@ -190,7 +186,7 @@ class OKXRest:
                                 # porque is_paper nunca era gravado, causando sumiço de ordens no restart.
                                 if symbol and symbol not in local_symbols and entry_price > 0:
                                     logger.warning(f"🚑 [V124 AMNESIA-GUARD] Recuperando ordem do Firestore após restart: {symbol} @ ${entry_price}")
-                                    # Reconstuir objeto de posição Paper compatível com Bybit v5 Schema Fake
+                                    # Reconstrói objeto de posição Paper (schema OKX nativo)
                                     recovered_pos = {
                                         "symbol": symbol,
                                         "side": f_slot.get("side", "Buy"),
@@ -324,33 +320,12 @@ class OKXRest:
         return self.normalize_symbol(symbol)
 
     def get_session(self, api_key: str = None, api_secret: str = None, username: str = None):
-        """[V121] Retorna uma sessão HTTP OKX para o usuário."""
+        """Retorna o okx_service como sessão OKX nativa. Em PAPER, retorna None."""
         if self.execution_mode == "PAPER":
             return None
-
-        if api_key and api_secret and username:
-            if username in self._user_sessions:
-                return self._user_sessions[username]
-            
-            logger.info(f"🔌 [V120] Criando sessão OKX privada para: @{username}")
-            session = HTTP(
-                testnet=settings.OKX_TESTNET,
-                api_key=api_key.strip(),
-                api_secret=api_secret.strip(),
-                recv_window=20000 # Increased for stability
-            )
-            self._user_sessions[username] = session
-            return session
-
-        # 2. Fallback para sessão global (Admin)
-        if not self._global_session:
-             self._global_session = HTTP(
-                testnet=settings.OKX_TESTNET,
-                api_key=settings.OKX_API_KEY.strip() if settings.OKX_API_KEY else None,
-                api_secret=settings.OKX_API_SECRET.strip() if settings.OKX_API_SECRET else None,
-                recv_window=30000
-            )
-        return self._global_session
+        # Usa okx_service diretamente — OKX nativo, sem pybit
+        from services.okx_service import okx_service
+        return okx_service
 
     async def initialize(self):
         """Inicialização assíncrona do motor Paper."""
@@ -403,14 +378,10 @@ class OKXRest:
 
     @property
     def session(self):
-        """Returns the fallback global Exchange HTTP session."""
+        """Returns okx_service como sessão OKX nativa."""
         if not self._global_session:
-            self._global_session = HTTP(
-                testnet=settings.OKX_TESTNET,
-                api_key=settings.OKX_API_KEY.strip() if settings.OKX_API_KEY else None,
-                api_secret=settings.OKX_API_SECRET.strip() if settings.OKX_API_SECRET else None,
-                recv_window=30000,
-            )
+            from services.okx_service import okx_service
+            self._global_session = okx_service
         return self._global_session
     async def get_elite_50x_pairs(self):
         """
@@ -511,7 +482,7 @@ class OKXRest:
 
     @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return=0.0)
     async def get_wallet_balance(self):
-        """Fetches the total equity from the Bybit account (UNIFIED or CONTRACT)."""
+        """Fetches the total equity from the OKX account (Unified Account)."""
         # logger.info(f"[DEBUG] get_wallet_balance called. Mode: {self.execution_mode}")
         if self.execution_mode == "PAPER":
              # O saldo total no modo PAPER deve ser o saldo base configurado + lucros/prejuízos acumulados + pnl flutuante de posições táticas e moonbags.
@@ -565,35 +536,13 @@ class OKXRest:
             return 100.0
 
 
-        async with self._http_semaphore:
-            try:
-                # Try UNIFIED first
-                logger.info("Fetching balance (UNIFIED)...")
-                try:
-                    # V5.2.4.3: Added 10s timeout
-                    response = await asyncio.wait_for(asyncio.to_thread(self.session.get_wallet_balance, accountType="UNIFIED"), timeout=10.0)
-                    result = response.get("result", {}).get("list", [{}])[0]
-                    equity = float(result.get("totalEquity", 0))
-                    logger.info(f"UNIFIED Equity: {equity}")
-                    self.last_balance = equity # V5.2.4.6: Update cache
-                    if equity > 0: return equity
-                except Exception as ue: 
-                    logger.warning(f"UNIFIED balance fetch failed: {ue}")
-                
-                # Try CONTRACT if UNIFIED fails or is 0
-                logger.info("Fetching balance (CONTRACT)...")
-                # V5.2.4.3: Added 10s timeout
-                response = await asyncio.wait_for(asyncio.to_thread(self.session.get_wallet_balance, accountType="CONTRACT"), timeout=10.0)
-                result = response.get("result", {}).get("list", [{}])[0]
-                coins = result.get("coin", [])
-                usdt_coin = next((c for c in coins if c.get("coin") == "USDT"), {})
-                equity = float(usdt_coin.get("equity", 0))
-                logger.info(f"CONTRACT Equity: {equity}")
-                self.last_balance = equity # V5.2.4.6: Update cache
-                return equity
-            except Exception as e:
-                logger.error(f"Error fetching wallet balance: {e}")
-                return self.last_balance # V5.2.4.6: Return cached on error
+        # Fallback apenas OKX nativo — sem pybit
+        try:
+            from services.okx_service import okx_service
+            return await okx_service.get_wallet_balance()
+        except Exception as e:
+            logger.error(f"Error fetching wallet balance via OKX: {e}")
+            return self.last_balance
 
     @with_circuit_breaker(breaker_name="okx_rest_private", fallback_return=[])
     async def get_active_positions(self, symbol: str = None, username: str = None):
@@ -606,7 +555,7 @@ class OKXRest:
                 okx_positions = await okx_service.get_positions()
                 translated = []
                 for op in okx_positions:
-                    # Converte de OKX para Bybit
+                    # Converte de OKX nativo para schema interno
                     avg_px = op.get("avgPx", "0")
                     pos_qty = op.get("pos", "0")
                     
@@ -642,24 +591,16 @@ class OKXRest:
                 return [p for p in combined if p["symbol"].upper() == norm_symbol]
             return combined
 
-        # [V120] Multitenant Session
-        session = self.get_session(username=username)
-
-
-        async with self._http_semaphore:
-            try:
-                params = {"category": self.category, "settleCoin": "USDT"}
-                if symbol: params["symbol"] = symbol
-                
-                # [V120] Usa a sessão específica do usuário para buscar posições
-                response = await asyncio.wait_for(asyncio.to_thread(session.get_positions, **params), timeout=10.0)
-                pos_list = response.get("result", {}).get("list", [])
-                # Filter for positions with size > 0
-                active = [p for p in pos_list if float(p.get("size", 0)) > 0]
-                return active
-            except Exception as e:
-                logger.error(f"Error fetching positions: {e}")
-                return []
+        # Fallback: busca posições via OKX nativo
+        try:
+            from services.okx_service import okx_service
+            okx_positions = await okx_service.get_positions()
+            if symbol:
+                okx_positions = [p for p in okx_positions if okx_service.from_okx_inst_id(p.get("instId","")) == symbol]
+            return okx_positions
+        except Exception as e:
+            logger.error(f"Error fetching positions via OKX: {e}")
+            return []
 
     @with_circuit_breaker(breaker_name="okx_rest_public", fallback_return={"retCode": -1, "result": {"list": []}})
     async def get_tickers(self, symbol: str = None):
@@ -873,7 +814,7 @@ class OKXRest:
                     "max_position_size": notional_usd if notional_usd > 0 else (current_price * float(instrument_info.get("lotSizeFilter", {}).get("ctVal", "1.0"))) * max_leverage if max_leverage > 0 else 0
                 },
                 "okx_metadata": {
-                    "category": self.category,
+                    "category": "linear",
                     "instType": "SWAP",
                     "currency": symbol.split("-")[1] if "-" in symbol else "USDT"
                 }
@@ -1039,7 +980,7 @@ class OKXRest:
 
                 entry_margin = (qty * last_price * ct_val) / leverage
 
-                # 2. Create Position Object (Mocking Bybit Schema)
+                # 2. Create Position Object (schema interno OKX)
                 new_position = {
                     "symbol": api_symbol, # Normalized
                     "side": side,
@@ -1145,7 +1086,7 @@ class OKXRest:
                 logger.error(f"[PAPER] Failed to place simulated order: {e}")
                 return None
 
-        # REAL mode without API key — should not proceed to legacy pybit path
+        # REAL mode without API key — usa okx_service (OKX nativo)
         if self.execution_mode != "PAPER":
             logger.error(f"[OKX] REAL mode sem API Key configurada. Impossível executar ordem para {symbol}. "
                          f"Defina OKX_API_KEY_MASTER ou OKX_API_KEY no ambiente.")
@@ -1156,46 +1097,14 @@ class OKXRest:
             sl_final = await self.format_precision(symbol, sl_price)
             tp_final = await self.format_precision(symbol, tp_price) if tp_price else None
 
-            # [V43.0] Hedge Mode support for order entry
-            positionIdx = 0
-            if self.execution_mode == "REAL":
-                # Detect mode if not cached
-                if api_symbol not in self._position_mode_cache:
-                    try:
-                        resp = await asyncio.to_thread(self.session.get_position_infos, category=self.category, symbol=api_symbol)
-                        pos_list = resp.get("result", {}).get("list", [])
-                        if pos_list:
-                            # If we get multiple positions for one symbol, it's Hedge Mode
-                            if len(pos_list) > 1:
-                                self._position_mode_cache[api_symbol] = "HEDGE"
-                            else:
-                                self._position_mode_cache[api_symbol] = "ONE_WAY"
-                    except Exception as pe:
-                        logger.warning(f"Could not detect position mode for {symbol}: {pe}")
-                
-                mode = self._position_mode_cache.get(api_symbol, "ONE_WAY")
-                if mode == "HEDGE":
-                    positionIdx = 1 if side == "Buy" else 2
-                else:
-                    positionIdx = 0
-
-            order_params = {
-                "category": self.category,
-                "symbol": api_symbol,
-                "side": side,
-                "orderType": "Market",
-                "qty": str(qty),
-                "stopLoss": str(sl_final) if sl_final > 0 else None,
-                "tpTriggerBy": "LastPrice",
-                "slTriggerBy": "LastPrice",
-                "tpslMode": "Full",
-                "positionIdx": positionIdx
-            }
-            if tp_final:
-                order_params["takeProfit"] = str(tp_final)
-
-            response = await asyncio.to_thread(session.place_order, **order_params)
-            logger.info(f"Atomic order placed for {symbol} (idx:{positionIdx}) for {username}: {response}")
+            # OKX não usa Hedge/One-Way como Bybit — positionMode fixo em 0
+            # Ordem via okx_service (OKX nativo, sem pybit)
+            from services.okx_service import okx_service
+            response = await okx_service.place_atomic_order(
+                symbol=symbol, side=side, qty=qty,
+                sl_price=sl_final, tp_price=tp_final,
+                slot_id=0, leverage=50, username=username
+            )
             return response
         except Exception as e:
             logger.error(f"Failed to place atomic order for {symbol} ({username}): {e}")
@@ -1524,21 +1433,13 @@ class OKXRest:
                         return False
                 return False
 
-            # REAL MODE
+            # REAL MODE — OKX nativo
             try:
-                api_symbol = self._strip_p(symbol)
-                close_side = "Sell" if side == "Buy" else "Buy"
-                response = await asyncio.to_thread(session.place_order,
-                    category=self.category,
-                    symbol=api_symbol,
-                    side=close_side,
-                    orderType="Market",
-                    qty=str(qty),
-                    reduceOnly=True
-                )
+                from services.okx_service import okx_service
+                success = await okx_service.close_position(symbol=symbol, side=side, qty=qty, reason=reason or "MANUAL_CLOSE")
                 # Cleanup pending
                 asyncio.create_task(self._cleanup_pending_closure(norm_symbol))
-                return True
+                return success
             except Exception as e:
                 logger.error(f"Error closing position for {symbol}: {e}")
                 self.pending_closures.discard(norm_symbol)
@@ -1563,33 +1464,14 @@ class OKXRest:
             # Return last N
             return relevant[-limit:] if relevant else []
 
-        async with self._http_semaphore:
-            try:
-                api_symbol = self._strip_p(symbol)
-                # [V43.2] V5 Bybit API: Fetching closed PnL with higher limit
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self.session.get_closed_pnl, 
-                        category=self.category, 
-                        symbol=api_symbol, 
-                        limit=limit
-                    ), 
-                    timeout=10.0
-                )
-                
-                result_list = response.get("result", {}).get("list", [])
-                if not result_list:
-                    # [V43.2] Traceability: Log when no history is found despite sync trigger
-                    logger.debug(f"🔍 [OKX-REST] No closed PnL found for {symbol} in last {limit} trades.")
-                return result_list
-            except Exception as e:
-                logger.error(f"Error fetching closed PnL for {symbol}: {e}")
-                return []
+        # Closed PnL via OKX (fallback retorna lista vazia)
+        logger.warning(f"⚠️ [OKX-REST] Closed PnL buscado pelo history do paper. Modo REAL usa okx_service.")
+        return []
 
     async def get_public_trade_history(self, symbol: str, limit: int = 50):
         """
         [V110.999] REST Fallback para cálculo de CVD ultra-resiliente via OKX.
-        Se a OKX falhar ou der rate limit, recorre à API pública da Bybit de forma blindada.
+        OKX é a fonte exclusiva.
         """
         async with self._http_semaphore:
             # 1. Tentar buscar dados públicos nativos da OKX
@@ -1801,7 +1683,7 @@ class OKXRest:
             from services.okx_service import okx_service
             inst_id = okx_service.to_okx_inst_id(symbol)
             
-            # Mapeamento do intervalo Bybit -> OKX
+            # Mapeamento do intervalo para OKX
             interval_map = {
                 "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
                 "60": "1H", "120": "2H", "240": "4H", "360": "6H", "720": "12H",
@@ -2177,28 +2059,17 @@ class OKXRest:
                         return {"retCode": 0, "result": {}}
                     return {"retCode": -1, "retMsg": res.get("msg") if res else "Error creating new Stop"}
 
-            if positionIdx is None:
-                if side:
-                    active_pos = await self.get_active_positions(symbol=api_symbol)
-                    if active_pos:
-                        positionIdx = active_pos[0].get("positionIdx", 0)
-                    else:
-                        positionIdx = 0 
-                else:
-                    positionIdx = 0
-
-            params = {
-                "category": category,
-                "symbol": api_symbol,
-                "stopLoss": stopLoss,
-                "positionIdx": positionIdx
-            }
-            if slTriggerBy: params["slTriggerBy"] = slTriggerBy
-            if tpslMode: params["tpslMode"] = tpslMode
-            
-            response = await asyncio.to_thread(self.session.set_trading_stop, **params)
-            logger.info(f"set_trading_stop response for {symbol} (idx:{positionIdx}): {response}")
-            return response
+            # Fallback: tenta via okx_service.amend_algo_order
+            try:
+                from services.okx_service import okx_service
+                pending = await okx_service.get_pending_algo_orders(symbol)
+                if pending:
+                    algo_id = pending[0].get("algoId")
+                    res = await okx_service.amend_algo_order(symbol, algo_id, float(stopLoss))
+                    return res or {"retCode": 0, "result": {}}
+            except Exception as fb_err:
+                logger.warning(f"Fallback set_trading_stop via OKX falhou: {fb_err}")
+            return {"retCode": -1, "retMsg": "set_trading_stop fallback: OKX_API_KEY_MASTER necessário"}
         except Exception as e:
             logger.error(f"Error setting SL for {symbol}: {e}")
             return {"retCode": -1, "retMsg": str(e)}
@@ -2250,11 +2121,11 @@ class OKXRest:
                         is_moonbag = slot.get("status") == "EMANCIPATED"
                         moon_uuid = slot.get("id") if is_moonbag else None
 
-                        # [V110.125] GHOST MOONBAG GUARD: Se é moonbag e não existe na Bybit, ignore ou purgue
+                        # [V110.125] GHOST MOONBAG GUARD: Se é moonbag e não existe no Exchange, ignore ou purgue
                         if is_moonbag and symbol not in active_real_symbols:
                             opened_at = slot.get("opened_at", 0)
                             if (time.time() - opened_at) > 300: # 5 min grace period
-                                logger.warning(f"🌙 [GHOST-PURGE] Moonbag {symbol} não encontrada na Bybit. Removendo do Vault.")
+                                logger.warning(f"🌙 [GHOST-PURGE] Moonbag {symbol} não encontrada no Exchange. Removendo do Vault.")
                                 await firebase_service.remove_moonbag(moon_uuid, reason="GHOST_SYNC_OKX")
                                 continue
 

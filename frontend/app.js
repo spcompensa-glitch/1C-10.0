@@ -142,25 +142,36 @@
             }
         }, []);
 
-        // [V110.150] PWA Registration & Update Protocol
+        // [FIX-V134] PWA Update Protocol — sem double registration
         const [showUpdate, setShowUpdate] = useState(false);
         const [waitingWorker, setWaitingWorker] = useState(null);
 
         useEffect(() => {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js?v=125.600').then(reg => {
-                    // Detect updates
-                    reg.addEventListener('updatefound', () => {
-                        const newWorker = reg.installing;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                setWaitingWorker(newWorker);
-                                setShowUpdate(true);
-                            }
-                        });
+            if (!('serviceWorker' in navigator)) return;
+
+            // Não registra de novo — o index.html já registrou.
+            // Apenas escuta atualizações no registro existente.
+            navigator.serviceWorker.ready.then(reg => {
+                // Detecta novas versões sendo instaladas
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            setWaitingWorker(newWorker);
+                            setShowUpdate(true);
+                        }
                     });
                 });
-            }
+            });
+
+            // Auto-reload quando um novo SW assume o controle
+            let reloading = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (reloading) return;
+                reloading = true;
+                window.location.reload();
+            });
         }, []);
 
         const updateApp = () => {
@@ -168,6 +179,7 @@
                 waitingWorker.postMessage({ type: 'SKIP_WAITING' });
             }
             setShowUpdate(false);
+            // A página será recarregada automaticamente pelo evento controllerchange
         };
 
         const handleLogout = () => {

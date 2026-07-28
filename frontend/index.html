@@ -120,9 +120,9 @@
         }
     </style>
     <script>
-        // Registra Service Worker cedo para acelerar carregamento via cache
+        // [V134] Registra Service Worker cedo — cache buster removido (versão única via CACHE_NAME em sw.js)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js?v=133').catch(() => {});
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
         }
 
         // Aguarda 3 segundos exibindo a animação completa antes de ir para a caixa de login

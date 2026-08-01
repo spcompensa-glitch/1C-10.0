@@ -341,10 +341,11 @@ class SandboxService:
           { "stop_price": float, "stop_roi": float, "source": str }
         """
         leverage = 50.0
-        # [V123] Stops otimizados com distância mínima de 0.5% no preço
-        # 0.5% no preço com 50x = -25% ROI — dá espaço para o preço respirar
-        # Antes: LATERAL -8% (0.16% preço), TRENDING -10% (0.20% preço) — muito apertado
-        fallback_roi = -25.0
+        # [V135-RR] Stop inicial capado em -12% ROI (0.24% preço com 50x) para todos os
+        # motores do sandbox (VELOCITY FLOW / ALPHA SHIELD / DECOR SHADOW / radar).
+        # Diagnóstico V135: stop de -25% causava avg loss -19.4% vs avg win +7.2% → R:R invertido.
+        # Com cap -12%, avg loss cai para ~-12% e a expectancy fica positiva (WR 70% sustenta).
+        fallback_roi = -12.0
         tick_size = 0.0
         if isinstance(contract_meta, dict):
             tick_size = float(contract_meta.get("tickSize", 0) or 0)
@@ -357,8 +358,9 @@ class SandboxService:
             stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
             
             # [V123/V129] Capping estrito de segurança de risco (Founder Vision):
-            # Limita a no máximo -15% de ROI para proteger o capital e evitar perdas volumosas
-            limit_roi = -15.0
+            # Limita a no máximo -12% de ROI para proteger o capital e evitar perdas volumosas
+            # [V135-RR] Reduzido de -15% para -12% (mesmo teto do fallback) para consistência
+            limit_roi = -12.0
             if stop_roi < limit_roi:
                 logger.info(
                     f"🧪 [SANDBOX-V119] {symbol} stop estrutural de {stop_roi:.1f}% excedeu o limite máximo. "
@@ -367,7 +369,9 @@ class SandboxService:
                 stop_roi = limit_roi
                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                 
-            if -20.0 <= stop_roi <= -12.0:
+            # [V135-RR] Aceita stops estruturais mais APERTADOS que o cap (melhor R:R),
+            # e o cap -12% já limita os mais largos. Antes aceitava até -20%.
+            if -12.0 <= stop_roi <= -6.0:
                 source = "structural_30m"
                 if tick_size > 0:
                     stop_price = self._round_stop_to_tick(stop_price, tick_size, side, stop_roi)
@@ -379,7 +383,7 @@ class SandboxService:
             else:
                 logger.info(
                     f"🧪 [SANDBOX-V123] {symbol} stop estrutural 30M rejeitado: "
-                    f"ROI={stop_roi:.1f}% fora do range [-40%, -25%] — usando fallback"
+                    f"ROI={stop_roi:.1f}% fora do range [-12%, -6%] — usando fallback"
                 )
 
         # 2. [V119] Tentar fallback dinâmico por volatilidade ATR de 30M em mercado lateral
@@ -410,20 +414,20 @@ class SandboxService:
                             
                         stop_roi = proj_service.calculate_roi(entry_price, stop_price, side, leverage)
                         
-                        # [V123/V129] Trava o ROI de stop para manter consistência: mínimo -12.0% (piso) e teto -15.0% (máximo)
+                        # [V135-RR] Trava o ROI de stop: piso -8% (mínimo, não apertar demais) e teto -12% (máximo de risco)
                         if is_ranging:
-                            if stop_roi > -12.0:
-                                stop_roi = -12.0
+                            if stop_roi > -8.0:
+                                stop_roi = -8.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -15.0:
-                                stop_roi = -15.0
+                            elif stop_roi < -12.0:
+                                stop_roi = -12.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                         else:
-                            if stop_roi > -12.0:
-                                stop_roi = -12.0
+                            if stop_roi > -8.0:
+                                stop_roi = -8.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
-                            elif stop_roi < -15.0:
-                                stop_roi = -15.0
+                            elif stop_roi < -12.0:
+                                stop_roi = -12.0
                                 stop_price = proj_service.raw_price_from_roi(entry_price, stop_roi, side, leverage)
                             
                         source = "volatility_atr"
@@ -1568,18 +1572,18 @@ class SandboxService:
             pnl_pct = current_roi
 
         # 9. Escadinha
-        # [V127.2] GARANTIA_5 → GARANTIA_8: ao atingir +8% ROI, o stop vai para 0.0% ROI (break-even).
-        # [V132-FIX] GARANTIA_8 → GARANTIA_12 para Scalping (VWAP SNIPER). Evita stop precoce no ruído.
+        # [V135-RR] GARANTIA_8 → GARANTIA_4: breakeven antecipado de +8% para +4% ROI.
+        # Diagnóstico V135: 55% dos stops (24/44) estiveram no lucro (+1% a +8%) e devolveram
+        # tudo até o stop. Antecipar o breakeven protege esses trades na virada.
         updated_stop_roi = current_stop_roi
         updated_level_name = active_level_name
         updated_phase = flash_state.get("phase", "ESCADINHA")
 
         strat_class = getattr(trade, 'strategy', '') or ''
         is_scalping = (strat_class == "VWAP SNIPER")
-        # [V133] GARANTIA_TRAIL ativado mais cedo: 12% → 8% para Scalping
-        # Trade-off: trailing começa mais cedo, mas protege lucro mais rápido
-        # Para Scalping M1/M5, 8% é suficiente para confirmar momentum
-        breakeven_trigger = 8.0 if is_scalping else 8.0
+        # [V135-RR] Breakeven +4% para ambos os modos (era +8%).
+        # Para scalping M1/M5, +4% é suficiente para confirmar momentum e protege a virada.
+        breakeven_trigger = 4.0
 
         if max_roi >= breakeven_trigger and current_stop_roi < 0.0:
             updated_stop_roi = 0.0
@@ -1592,20 +1596,23 @@ class SandboxService:
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging, strategy_class=strat_class)
 
         # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
+        # [V135-RR] Trailing apertado de 60% → 75% do pico (mínimo +1.5%).
+        # Diagnóstico V135: avg give-back era 4.0pp (fechava +7.1% quando pico +11.1%).
+        # 75% do pico trava mais lucro nas costas do trade sem matar os home runs.
         # [V131-FIX] Bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing
         # de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em
         # 0% mesmo com pico de +17-19% ROI. Correção: trailing aplica sempre que
         # `trail_stop_roi > updated_stop_roi` (não apenas quando stop é negativo).
         # [V132-FIX] Só aplica trailing a partir de 12.0% para Scalping.
         if max_roi >= breakeven_trigger:
-            trail_stop_roi = max(1.5, round(max_roi * 0.60, 1))  # mínimo +1.5% (cobre taxas)
+            trail_stop_roi = max(1.5, round(max_roi * 0.75, 1))  # mínimo +1.5% (cobre taxas)
             if trail_stop_roi > updated_stop_roi:
                 updated_stop_roi = trail_stop_roi
                 updated_level_name = "GARANTIA_TRAIL"
                 updated_phase = "ESCADINHA"
                 history.append(
-                    f"[V122] GARANTIA_TRAIL: trailing ativado a {max_roi:.1f}% pico "
-                    f"— stop → {trail_stop_roi:.1f}% ROI (60% do pico)"
+                    f"[V135-RR] GARANTIA_TRAIL: trailing ativado a {max_roi:.1f}% pico "
+                    f"— stop → {trail_stop_roi:.1f}% ROI (75% do pico)"
                 )
                 logger.info(
                     f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TRAIL ativado "

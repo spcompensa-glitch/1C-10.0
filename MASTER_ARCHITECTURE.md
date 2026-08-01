@@ -102,14 +102,14 @@ Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho −
 
 ### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
 
-**GARANTIA_8 — Risco Zero Imediato [V133]** (`sandbox_service.py:1571-1583`):
-Quando `max_roi >= 8.0%` em ambos modos (Scalping e Swing) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). **[V133]** Breakeven igualado para 8% em ambos modos (antes 12% no Scalping, 8% no Swing).
+**GARANTIA_4 — Risco Zero Imediato [V133 / V135-RR]** (`sandbox_service.py:1571-1583`):
+Quando `max_roi >= 4.0%` em ambos modos (Scalping e Swing) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). **[V135-RR]** Breakeven antecipado de 8% para **4%** (antes: 12% no Scalping, 8% no Swing, unificado em 8% no V133). Diagnóstico V135: 55% dos stops (24/44) estiveram no lucro (+1% a +8%) e devolveram tudo até o stop — antecipar o breakeven protege esses trades na virada.
 
-**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V133]** (`sandbox_service.py:1588-1615`):
-Quando `max_roi >= breakeven_trigger` (agora 8% em ambos modos), stop = `max(1.5, max_roi × 0.60)` (60% do pico, mínimo +1.5%).
+**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V133 / V135-RR]** (`sandbox_service.py:1588-1615`):
+Quando `max_roi >= breakeven_trigger` (agora **4%** em ambos modos), stop = `max(1.5, max_roi × 0.75)` (**75%** do pico, mínimo +1.5%). **[V135-RR]** Apertado de 60% para 75% do pico — avg give-back era 4.0pp (fechava +7.1% quando pico +11.1%); 75% trava mais lucro sem matar os home runs.
 **[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8 mover o stop para 0%. Removida a condição.
-**[V133]** Breakeven de ativação igualado para 8% em ambos modos — antes 12% no Scalping, 8% no Swing.
-Exemplos: pico +17% → stop +10.2%; pico +21% → stop +12.6%; pico +29% → stop +17.4%.
+**[V133]** Breakeven de ativação igualado para 8% em ambos modos — antes 12% no Scalping, 8% no Swing. **[V135-RR]** Reduzido para 4%.
+Exemplos (V135-RR): pico +17% → stop +12.8%; pico +21% → stop +15.8%; pico +29% → stop +21.8%.
 
 ### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
 
@@ -159,12 +159,13 @@ Exemplo: peak $10.900 → floor = $10.000 + ($900 × 0.80) = $10.720
 **Scalping Lab — VWAP SNIPER [V127.2 / V132 / V133]** (`sandbox_scalping_engine.py:47`):
 - `_MAX_STOP_ROI = -12.0%` (0.24% preço com 50x). **[V133]** Aumentado de -8% para -12% para dar mais runway ao trade.
 - **[V133]** **Filtro de R:R Mínimo**: trades com `projected_rr < 1.5` são rejeitados (target = 3x risk, mínimo 15% ROI).
-- GARANTIA_8 ativa em +8% ROI → stop vai a 0%. **[V133]** Breakeven igualado para 8% (antes 12%).
+- GARANTIA_4 ativa em +4% ROI → stop vai a 0%. **[V135-RR]** Antecipado de 8% para 4%.
 
-**Scalping Lab — Stop Adaptativo [V123]** (`sandbox_service.py:321-400`):
-- Tenta stop estrutural 30M (swing low/high + buffer) — aprovado se ROI entre -40% e -25%.
-- Fallback: -25% ROI (0.5% preço com 50x).
-- Teto rígido: -30% ROI (0.6% preço).
+**Scalping Lab — Stop Adaptativo [V123 / V135-RR]** (`sandbox_service.py:321-400`):
+- Tenta stop estrutural 30M (swing low/high + buffer) — aprovado se ROI entre **-12% e -6%** (mais apertado = melhor R:R). **[V135-RR]** Antes aceitava -40% a -25%.
+- Fallback: **-12% ROI** (0.24% preço com 50x). **[V135-RR]** Antes -25% (0.5% preço) — era a causa do avg loss -19.4% vs avg win +7.2%.
+- Teto rígido: **-12% ROI** (0.24% preço). **[V135-RR]** Antes -30%.
+- Fallback ATR (ranging): clamp entre **-8% e -12%**. **[V135-RR]** Antes -12% a -15%.
 
 **Swing Lab — Stop Configurável e Micro-Gatilho [V133]** (`sandbox_swing_service.py`):
 - Alavancagem padrão de 50x com stop inicial rígido de **-20% ROI** (equivalente a 0.4% no preço). **[V133]** Reduzido de -35% para -20% para melhorar R:R (1:2+ vs 1:0.28).
@@ -435,6 +436,14 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
     - **Scalping Lab — Filtro de R:R:** Novo filtro rejeita trades com `projected_rr < 1.5` (target = 3x risk, mínimo 15% ROI). Garante potencial de lucro significativamente maior que o risco.
     - **GARANTIA_TRAIL — Breakeven igualado:** `GARANTIA_TRAIL_THRESHOLD` elevado para 8% em ambos modos (Scalping e Swing). Antes 12% no Scalping, 8% no Swing.
     - **Blocklist expandida:** Adicionados INJUSDT, XLMUSDT, GRTUSDT ao `ASSET_BLOCKLIST`.
+
+22. **[V135-RR] Correção de R:R no Scalping Lab — Stop Cap, Breakeven e Trailing** (2026-08-01):
+    - **Diagnóstico (Postgres Railway, 150 trades fechados 28/07–01/08):** WR 70.7%, avg win +7.17%, avg loss **−19.41%** → expectancy **−0.62%/trade** (soma −93.6%). Causa raiz: **55% dos stops (24/44) estiveram no lucro (+1% a +8%) e caíram até −25%**; VELOCITY FLOW −98%; LONGs −127% vs SHORTs +33.6%.
+    - **Simulação `sim_rr.py` sobre os 150 trades reais:** Cenário A (breakeven +4%, trailing 75%, stop −12%) → **expectancy +3.23%/trade, +487.7pp, WR 76.2%**, avg loss −12%. Atual = −1.02%/trade.
+    - **Breakeven antecipado** (`sandbox_service.py:1586`): GARANTIA_8 → **GARANTIA_4**, stop vai a 0% ROI em **+4%** (ambos modos). Protege os 55% de trades que atingiam +1~+8% e revertiam.
+    - **Trailing apertado** (`sandbox_service.py:1608`): 60% → **75% do pico** (`max(1.5, max_roi × 0.75)`). Trava mais lucro nas costas do trade sem matar home runs.
+    - **Stop inicial capado em −12%** (`sandbox_service.py`): fallback `−25%` → **−12%**, teto estrutural `−15%` → **−12%**, range estrutural `[−40,−25]` → **[−12,−6]**, clamp ATR `[−12,−15]` → **[−8,−12]**.
+    - **Resultado esperado:** avg loss −19.4% → ~−12%, expectancy negativa → **+3.2%/trade** em PAPER (validado pela simulação sobre os trades reais).
 
 ---
 

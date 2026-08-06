@@ -145,12 +145,16 @@ class FlashAgent:
             is_ranging=is_ranging,
         )
         roi = float(projection.get("roi_percent") or 0)
-        peak_price = self._get_peak_price(symbol, side, current_price)
+        # [FIX] peak_roi NÃO usa _get_peak_price() — preços WS de 120s podem ter spikes/stale
+        # que inflam max_roi permanentemente. Usar APENAS current_price para ROI.
+        peak_price = current_price
         peak_roi = self._calc_roi(entry_price, peak_price, side, leverage) if peak_price > 0 else roi
         slot_key = slot.get("genesis_id") or f"slot:{slot_id}"
         cached_peak = float(self._peak_roi_cache.get(slot_key, 0.0) or 0.0)
         stored_peak = float(slot.get("pnl_percent") or 0.0)
         effective_roi = max(roi, peak_roi, cached_peak, stored_peak)
+        # [FIX] Sanity cap: com 50x, 300% ROI = 6% de variação. Acima disso é spike/stale data.
+        effective_roi = min(effective_roi, 300.0)
         self._peak_roi_cache[slot_key] = effective_roi
 
         # ─── Saída Parcial (Partial TP) ───
@@ -357,6 +361,8 @@ class FlashAgent:
         # Peak ROI — sempre respeitar o maximo historico (cache + banco)
         peak_key = f"swing_sandbox:{trade_id}"
         peak_roi = max(self._peak_roi_cache.get(peak_key, 0.0), roi, float(trade.max_roi or 0.0))
+        # [FIX] Sanity cap: com 50x, 300% ROI = 6% de variação. Acima disso é spike/stale data.
+        peak_roi = min(peak_roi, 300.0)
         self._peak_roi_cache[peak_key] = peak_roi
 
         # Converte o trade em um payload compativel com o build_projection

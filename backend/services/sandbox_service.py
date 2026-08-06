@@ -1359,10 +1359,12 @@ class SandboxService:
                         closed_pnl_usd = 0.0
                         for t in all_scalps:
                             if t.status != "ACTIVE":
-                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * 200.00
+                                _m = float((t.contract_meta or {}).get("margin", 200.0))
+                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * _m
                         for t in all_swings:
                             if t.status != "ACTIVE":
-                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * 200.00
+                                _m = float((t.contract_meta or {}).get("margin", 200.0))
+                                closed_pnl_usd += (float(t.pnl_pct or 0.0) / 100.0) * _m
                                 
                         self.base_balance_cache = 10000.0 + closed_pnl_usd
                         self.last_balance_recalc = now_ts
@@ -1373,12 +1375,14 @@ class SandboxService:
                 active_trades_for_pnl = await database_service.get_sandbox_trades(active_only=True)
                 active_pnl_usd = 0.0
                 for t in active_trades_for_pnl:
-                    active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * 200.00
+                    _m = float((t.contract_meta or {}).get("margin", 200.0))
+                    active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * _m
                 
                 try:
                     active_swings = await database_service.get_swing_trades(active_only=True)
                     for t in active_swings:
-                        active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * 200.00
+                        _m = float((t.contract_meta or {}).get("margin", 200.0))
+                        active_pnl_usd += (float(t.current_roi or 0.0) / 100.0) * _m
                 except Exception:
                     pass
                 
@@ -1505,6 +1509,8 @@ class SandboxService:
         cached_peak = float(self._peak_roi_cache.get(trade_key, 0.0) or 0.0)
         stored_peak = float(trade.max_roi or 0.0)
         effective_roi = max(current_roi, cached_peak, stored_peak)
+        # [FIX] Sanity cap: com 50x, 300% ROI = 6% de variação. Acima disso é spike/stale data.
+        effective_roi = min(effective_roi, 300.0)
         self._peak_roi_cache[trade_key] = effective_roi
         max_roi = effective_roi
 

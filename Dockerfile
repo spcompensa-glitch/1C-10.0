@@ -1,5 +1,5 @@
 # Use official Python runtime as a parent image
-# Build trigger: 2026-07-01 (V120.1 Phase Detector + OKX Historical Data)
+# Build trigger: 2026-08-06 (V136-SWING + FIX captain settings)
 FROM python:3.12-slim
 
 # Set environment variables

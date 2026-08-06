@@ -1219,11 +1219,18 @@ class CaptainAgent(AIOSAgent):
             "macro": macro_trend
         }
 
+        is_decor_hunter = (
+            "DECOR" in str(best_signal.get("radar_mode", "")).upper()
+            or "DECOR" in str(best_signal.get("strategy", "")).upper()
+            or "DECOR" in str(best_signal.get("slot_type", "")).upper()
+        )
+
         # 1. Filtro por regime de volatilidade (LATERAL vs TRENDING)
         # [V112.12] DECOR_SHADOW agora permitido em TRENDING se descolado do BTC
         # [V124.6] BLITZ liberado em LATERAL — swing 30M precisa entrar antes do ADX subir
+        # DECOR_HUNTER é imune ao filtro de regime (opera em qualquer mercado)
         is_blitz = best_signal.get("is_blitz", False)
-        if current_regime == "LATERAL":
+        if current_regime == "LATERAL" and not is_decor_hunter:
             if strategy_class in ("VELOCITY FLOW", "ALPHA SHIELD") and not is_blitz:
                 logger.warning(f"🚫 [CAPTAIN-REGIME-BLOCK] {symbol} {strategy_class} rejeitado em mercado LATERAL.")
                 return

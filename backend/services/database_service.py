@@ -524,6 +524,7 @@ class DatabaseService:
     async def update_banca_status(self, data: dict):
         async with self.AsyncSessionLocal() as session:
             try:
+                data.pop("id", None)  # Remove id do dict para evitar conflito
                 # Sempre ID 1 para banca única
                 obj = await session.get(BancaStatus, 1)
                 if not obj:

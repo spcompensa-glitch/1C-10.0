@@ -797,7 +797,7 @@ class CaptainAgent(AIOSAgent):
                 
                 logger.info(f"🎯 [PRIORITY-GET] Processing score {best_signal.get('score')} for {symbol} (Priority: {-_priority})")
                 logger.info(f"🎯 [V36.4] START TOCAIA: {symbol} | Score: {best_signal.get('score')}")
-                asyncio.create_task(self._process_single_signal(best_signal))
+                asyncio.create_task(self._safe_process_single_signal(best_signal))
                 
                 await asyncio.sleep(0.1)
                 
@@ -1171,6 +1171,18 @@ class CaptainAgent(AIOSAgent):
         except Exception as e:
             logger.error(f"Error finding stagnant slot: {e}")
             return None
+
+    async def _safe_process_single_signal(self, best_signal: dict):
+        """Wrapper seguro que captura qualquer exceção silenciosa do asyncio.create_task."""
+        try:
+            await self._process_single_signal(best_signal)
+        except Exception as e:
+            symbol = best_signal.get("symbol", "?")
+            logger.error(f"❌ [CAPTAIN-TASK-CRASH] {symbol} _process_single_signal falhou: {e}", exc_info=True)
+        finally:
+            symbol = best_signal.get("symbol", "")
+            if symbol:
+                self.active_tocaias.discard(symbol)
 
     async def _process_single_signal(self, best_signal: dict):
         """

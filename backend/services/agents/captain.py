@@ -476,7 +476,6 @@ class CaptainAgent(AIOSAgent):
 
             if "TRAP" in nectar_seal:
                 # [V110.999] Permite bypass do Trap Shield em modo PAPER ou para Sinais de Elite (SMC Score >= 95)
-                from config import settings
                 is_paper = settings.OKX_EXECUTION_MODE == "PAPER"
                 if is_paper or smc_score >= 95:
                     logger.info(f"⚡ [LIBRARIAN-TRAP-BYPASS] {symbol} (SMC={smc_score}) ignorou Trap Shield (Paper={is_paper} | Elite={smc_score>=95}).")
@@ -830,7 +829,6 @@ class CaptainAgent(AIOSAgent):
           4. Gera sinal com radar_mode="DECOR_HUNTER" e timestamp para TTL
           5. Injeta na fila com prioridade (-score)
         """
-        from config import settings
         from services.agents.oracle_agent import oracle_agent as oracle_ref
         from services.okx_rest import okx_rest_service
 
@@ -1282,7 +1280,6 @@ class CaptainAgent(AIOSAgent):
             logger.info(f"🔓 [CAPTAIN-MACRO-PASS] {symbol} {strategy_class} {side} liberado (D.S={is_decor_shadow}, Regime={current_regime}).")
         
         # [MASTER BYPASS] - Roteia o sinal para execucao (REAL ou PAPER).
-        from config import settings
         should_bypass = (
             settings.OKX_API_KEY_MASTER
             or settings.OKX_EXECUTION_MODE == "PAPER"
@@ -1369,7 +1366,6 @@ class CaptainAgent(AIOSAgent):
 
     async def _run_user_execution_logic(self, username: str, credentials: dict, best_signal: dict):
         """Lógica de filtragem e execução original do Captain adaptada para o usuário."""
-        from config import settings
         symbol = str(best_signal.get("symbol", ""))
         score = float(best_signal.get("score", 0) or 0) if best_signal.get("score") is not None else 0
         side = best_signal.get("side", "Buy")
@@ -1717,15 +1713,14 @@ class CaptainAgent(AIOSAgent):
                 consensus["approved"] = True # Override approval for the pivot trade
             
             # [SANDBOX] Whitelist Global & Filtro de Regime Lateral
-            from config import settings as temp_settings
             clean_sym = symbol.replace(".P", "").upper()
             
             # Se for estratégia de descolamento, a whitelist correta é a DECOR_WATCHLIST (94 pares)
             is_decor_strategy = strategy in ("DECOR_HUNTER", "DECOR SHADOW")
             if is_decor_strategy:
-                whitelist = getattr(temp_settings, 'DECOR_WATCHLIST', [])
+                whitelist = getattr(settings, 'DECOR_WATCHLIST', [])
             else:
-                whitelist = getattr(temp_settings, 'RADAR_WATCHLIST', [])
+                whitelist = getattr(settings, 'RADAR_WATCHLIST', [])
                 
             if not whitelist:
                 whitelist = [

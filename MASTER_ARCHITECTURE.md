@@ -3,13 +3,13 @@
 Fonte unica de verdade arquitetural. Extraido diretamente do codigo-fonte (nao de historico de versoes).
 Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros ~8000 caracteres deste arquivo em cada resposta (`hermes_agent.py:_load_architecture_context`), portanto os fatos mais criticos ficam no topo.
 
-*Verificado contra o codigo em 2026-07-24. VERSION no codigo: `backend/main.py` VERSION="V133" / DEPLOYMENT_ID="V133_OPTIMIZATIONS". Otimizacoes V133 aplicadas sobre o V132 — ver Secao 14, item 21.*
+*Verificado contra o codigo em 2026-08-06. VERSION no codigo: `backend/main.py` VERSION="V136-SWING" / DEPLOYMENT_ID="V136_SWING_PATTERNS". Otimizacoes V136-SWING aplicadas sobre o V135-RR — ver Secao 14, item 23.*
 
 ---
 
 ## 1. Visao Geral
 
-1Crypten e um sistema de trading automatizado para criptomoedas na OKX. Roda um app FastAPI unico (`backend.main:app`) que executa em paralelo o motor real e tres laboratorios de forward-testing (Sandbox, Swing Lab, Scalping Lab).
+1Crypten e um sistema de trading automatizado para criptomoedas na OKX. Roda um app FastAPI unico (`backend.main:app`) que executa em paralelo o motor real e dois laboratorios de forward-testing (Scalping Lab e Swing Lab).
 
 - **Entry point (unico)**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` (Procfile / railway.json / Dockerfile). **Nao existe `main.py` na raiz.**
 - **Backend**: FastAPI (Python 3.12-slim)
@@ -41,8 +41,11 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 | `DECOR_HUNTER_MAX_SLOTS` / `MIN_CONFIDENCE` / `SCAN_INTERVAL` | 8 / 70 / 30s | `config.py:152-156` |
 | `SWING_LEVERAGE` / `SWING_STOP_ROI` | 50x / -20.0% ROI | [V133-OPTIMIZATIONS] |
 | `SWING_SCAN_INTERVAL` | 1800s (30m) | [V132-SWING-2H] |
+| `SWING_TP_ENABLED` | True | [V136-SWING] |
+| `SWING_TP_MIN_DISTANCE` | 5.0% | [V136-SWING] |
+| `SWING_TP_MAX_DISTANCE` | 100.0% | [V136-SWING] |
 
-**Swing Lab [V133-OPTIMIZATIONS]**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200 (2% da banca consolidada), `SWING_SCAN_INTERVAL`=1800s, `SWING_STOP_ROI`=20.0 (stop inicial -20% ROI = 0.4% preco com 50x). **[V133]** Stop reduzido de -35% para -20% para melhorar R:R (1:2+ vs 1:0.28). ADX threshold elevado de 25 para 30 para confirmar tendencia forte. Análise baseada no timeframe de **2H (120m)** com confirmação de micro-gatilho de precisão no **15m Stochastic RSI**.
+**Swing Lab [V136-SWING]**: `SWING_LEVERAGE`=50x, `SWING_MARGIN_PER_TRADE`=$200 (2% da banca consolidada), `SWING_SCAN_INTERVAL`=1800s, `SWING_STOP_ROI`=20.0 (stop inicial -20% ROI = 0.4% preco com 50x). **[V136-SWING]** Trailing suave 50% (era 75%), Breakeven +12% (era +4%), TP baseado em S/R, padrões gráficos (triângulos, duplos, H&S) com boost +10-25pts. Trades duram 1-7 dias. Análise baseada no timeframe de **2H (120m)** com confirmação de micro-gatilho de precisão no **15m Stochastic RSI**.
 
 > **[V127] Saldo exibido em PAPER**: `OKX_SIMULATED_BALANCE` e a base do Guardiao/sizing em PAPER, mas o *Net Worth* do Cockpit em PAPER NAO e `OKX_SIMULATED_BALANCE` — e a **Banca Simulada Consolidada do Sandbox** (`get_sandbox_unified_balance`, `database_service.py`: `BANCA_BASE` $10.000 + Σ(pnl_pct/100 × $200) sobre TODOS os trades Scalp+Swing). Ver Secao 8.6.
 
@@ -102,14 +105,18 @@ Acima de 1200% ROI (APEX): niveis `ULTRA_*` a cada +200% ROI, stop = gatilho −
 
 ### 3.6 Proteções Adicionais (Scalping/Swing Sandbox)
 
-**GARANTIA_4 — Risco Zero Imediato [V133 / V135-RR]** (`sandbox_service.py:1571-1583`):
-Quando `max_roi >= 4.0%` em ambos modos (Scalping e Swing) e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even). **[V135-RR]** Breakeven antecipado de 8% para **4%** (antes: 12% no Scalping, 8% no Swing, unificado em 8% no V133). Diagnóstico V135: 55% dos stops (24/44) estiveram no lucro (+1% a +8%) e devolveram tudo até o stop — antecipar o breakeven protege esses trades na virada.
+**GARANTIA_4 — Risco Zero Imediato [V133 / V135-RR / V136-SWING]** (`sandbox_service.py:1571-1583`):
+Quando `max_roi >= threshold` e `current_stop_roi < 0%`, stop vai a 0% ROI (break-even).
+- **Scalping**: threshold = **+4%** (V135-RR). Diagnóstico: 55% dos stops estiveram no lucro e revertiam.
+- **Swing**: threshold = **+12%** (V136-SWING). Breakeven mais alto para dar fôlego ao trade de médio prazo.
 
-**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V133 / V135-RR]** (`sandbox_service.py:1588-1615`):
-Quando `max_roi >= breakeven_trigger` (agora **4%** em ambos modos), stop = `max(1.5, max_roi × 0.75)` (**75%** do pico, mínimo +1.5%). **[V135-RR]** Apertado de 60% para 75% do pico — avg give-back era 4.0pp (fechava +7.1% quando pico +11.1%); 75% trava mais lucro sem matar os home runs.
+**GARANTIA_TRAIL — Trailing Dinâmico [V122 / V131-FIX / V133 / V135-RR / V136-SWING]** (`sandbox_service.py:1588-1615`):
+**[V136-SWING]** Split por tipo de trade:
+- **Swing**: `max_roi >= 12%` → stop = `max(3.0, max_roi × 0.50)` (**50%** do pico, mínimo +3%). Trades duram mais sem dar lucro embora.
+- **Scalping**: `max_roi >= 4%` → stop = `max(1.5, max_roi × 0.75)` (**75%** do pico, mínimo +1.5%). Inalterado.
+**[V135-RR]** Apertado de 60% para 75% do pico (Scalping) — avg give-back era 4.0pp.
 **[V131-FIX]** Correção de bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing de avançar após a GARANTIA_8 mover o stop para 0%. Removida a condição.
-**[V133]** Breakeven de ativação igualado para 8% em ambos modos — antes 12% no Scalping, 8% no Swing. **[V135-RR]** Reduzido para 4%.
-Exemplos (V135-RR): pico +17% → stop +12.8%; pico +21% → stop +15.8%; pico +29% → stop +21.8%.
+**[V133]** Breakeven de ativação igualado para 8% em ambos modos — antes 12% no Scalping, 8% no Swing. **[V135-RR]** Reduzido para 4% (Scalping). **[V136-SWING]** Swing elevado para 12%.
 
 ### 3.7 Equity Defense — Defesa Progressiva de Patrimônio [V128]
 
@@ -444,6 +451,14 @@ Em modo `PAPER`, o Cockpit (`cockpit.html`) espelha o Sandbox integralmente, par
     - **Trailing apertado** (`sandbox_service.py:1608`): 60% → **75% do pico** (`max(1.5, max_roi × 0.75)`). Trava mais lucro nas costas do trade sem matar home runs.
     - **Stop inicial capado em −12%** (`sandbox_service.py`): fallback `−25%` → **−12%**, teto estrutural `−15%` → **−12%**, range estrutural `[−40,−25]` → **[−12,−6]**, clamp ATR `[−12,−15]` → **[−8,−12]**.
     - **Resultado esperado:** avg loss −19.4% → ~−12%, expectancy negativa → **+3.2%/trade** em PAPER (validado pela simulação sobre os trades reais).
+
+23. **[V136-SWING] Swing Lab — Trades de 1-7 dias, TP por S/R e Padrões Gráficos** (2026-08-06):
+    - **Trailing suave Swing** (`sandbox_service.py:1582-1620`): GARANTIA_TRAIL agora aplica **50% do pico** para Swing (era 75%统一). Breakeven antecipado de +4% para **+12%** no Swing. Min trail +3% (era +1.5%). Scalping inalterado (75%/+4%/+1.5%).
+    - **Fix leverage** (`config.py:175`): `SWING_LEVERAGE=50` (era 10, conflito com `sandbox_service.py` que usava 50).
+    - **Janela preço 30min** (`okx_ws_public.py`): Nova função `get_conservative_price_swing()` usa janela de 1800s (30min) — evita fechar em wicks de 2min. FlashAgent rota Swing para esta função.
+    - **Take Profit baseado em S/R** (`sandbox_swing_service.py:549-633`): `_calculate_swing_tp()` detecta resistências acima (LONG) ou suportes abaixo (SHORT) e cria stop ratchet progressivo. Configs: `SWING_TP_ENABLED=True`, `SWING_TP_MIN_DISTANCE=5%`, `SWING_TP_MAX_DISTANCE=100%`.
+    - **Detecção de padrões gráficos** (`backend/services/patterns/`): Triângulos (simétrico/ascendente/descendente), Topo/Fundo Duplo, Head & Shoulders. PatternDetector unificado com boost +10 a +25 pontos no score do sinal.
+    - **Resultado esperado:** Trades Swing duram 1-7 dias (não fecham prematuramente), TP alvo em S/R, score boostado por padrões gráficos confirmados.
 
 ---
 

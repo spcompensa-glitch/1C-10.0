@@ -1581,9 +1581,15 @@ class SandboxService:
 
         strat_class = getattr(trade, 'strategy', '') or ''
         is_scalping = (strat_class == "VWAP SNIPER")
-        # [V135-RR] Breakeven +4% para ambos os modos (era +8%).
-        # Para scalping M1/M5, +4% é suficiente para confirmar momentum e protege a virada.
-        breakeven_trigger = 4.0
+        # [V136-SWING] Detecta se é trade Swing (slot_type ou strategy class)
+        slot_type = getattr(trade, 'slot_type', '') or ''
+        is_swing = (slot_type == 'SWING' or strat_class in ('VELOCITY FLOW', 'ALPHA SHIELD', 'DECOR SHADOW'))
+
+        # [V136-SWING] Breakeven separado: Swing +12% (espaço para 1-7 dias), Scalping +4%
+        if is_swing:
+            breakeven_trigger = 12.0  # Swing: mais espaço para trade se desenvolver
+        else:
+            breakeven_trigger = 4.0   # Scalping: proteção rápida
 
         if max_roi >= breakeven_trigger and current_stop_roi < 0.0:
             updated_stop_roi = 0.0
@@ -1595,27 +1601,32 @@ class SandboxService:
         ladder = proj_service.get_stop_ladder(max_roi, is_ranging=is_ranging, strategy_class=strat_class)
         active_level = proj_service.get_active_level(max_roi, ladder, is_ranging=is_ranging, strategy_class=strat_class)
 
-        # [V122] GARANTIA_TRAIL — trailing dinâmico baseado no pico de ROI.
-        # [V135-RR] Trailing apertado de 60% → 75% do pico (mínimo +1.5%).
-        # Diagnóstico V135: avg give-back era 4.0pp (fechava +7.1% quando pico +11.1%).
-        # 75% do pico trava mais lucro nas costas do trade sem matar os home runs.
+        # [V136-SWING] GARANTIA_TRAIL — trailing separado por tipo de trade.
+        # Scalping: 75% do pico (mínimo +1.5%) — trava lucro rápido em M1/M5.
+        # Swing: 50% do pico (mínimo +3.0%) — mais suave para trades de 1-7 dias.
         # [V131-FIX] Bug crítico: a condição `current_stop_roi < 0.0` impedia o trailing
-        # de avançar após a GARANTIA_8 mover o stop para 0%. Trades ficavam travados em
-        # 0% mesmo com pico de +17-19% ROI. Correção: trailing aplica sempre que
-        # `trail_stop_roi > updated_stop_roi` (não apenas quando stop é negativo).
-        # [V132-FIX] Só aplica trailing a partir de 12.0% para Scalping.
+        # de avançar após a GARANTIA_8 mover o stop para 0%. Correção: trailing aplica
+        # sempre que `trail_stop_roi > updated_stop_roi`.
         if max_roi >= breakeven_trigger:
-            trail_stop_roi = max(1.5, round(max_roi * 0.75, 1))  # mínimo +1.5% (cobre taxas)
+            if is_swing:
+                # Swing: trailing suave — 50% do pico, mínimo +3%
+                trail_stop_roi = max(3.0, round(max_roi * 0.50, 1))
+                trail_pct_label = "50%"
+            else:
+                # Scalping: trailing apertado — 75% do pico, mínimo +1.5%
+                trail_stop_roi = max(1.5, round(max_roi * 0.75, 1))
+                trail_pct_label = "75%"
+
             if trail_stop_roi > updated_stop_roi:
                 updated_stop_roi = trail_stop_roi
                 updated_level_name = "GARANTIA_TRAIL"
                 updated_phase = "ESCADINHA"
                 history.append(
-                    f"[V135-RR] GARANTIA_TRAIL: trailing ativado a {max_roi:.1f}% pico "
-                    f"— stop → {trail_stop_roi:.1f}% ROI (75% do pico)"
+                    f"GARANTIA_TRAIL [{trail_pct_label}]: trailing ativado a {max_roi:.1f}% pico "
+                    f"— stop → {trail_stop_roi:.1f}% ROI ({trail_pct_label} do pico)"
                 )
                 logger.info(
-                    f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TRAIL ativado "
+                    f"🧪 [SANDBOX-FLASH] {symbol} GARANTIA_TRAIL [{trail_pct_label}] ativado "
                     f"(max_roi={max_roi:.1f}%) — stop agora em {trail_stop_roi:.1f}% ROI"
                 )
 

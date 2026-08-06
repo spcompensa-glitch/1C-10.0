@@ -340,7 +340,8 @@ class FlashAgent:
         current_stop = float(trade.stop_loss or 0)
         direction = trade.direction
         side = "buy" if direction == "LONG" else "sell"
-        
+        is_swing_trade = True  # [V136-SWING] Todos os trades deste método são Swing
+
         # A alavancagem para o Swing Sandbox é lida dinamicamente do config ou sandbox_swing_service
         from services.sandbox_swing_service import sandbox_swing_service
         leverage = float(sandbox_swing_service.leverage)
@@ -425,12 +426,16 @@ class FlashAgent:
 
         # ─────────────────────────────────────────────────────────────────────
         # [FIX #2] Verificacao de Stop Loss com preco conservativo.
-        # Usa get_conservative_price (bid/ask) para evitar falsos positivos
-        # mas garantir que violacoes reais sejam capturadas na janela de 1s.
+        # [V136-SWING] Swing usa janela de 30min (nao 120s) para evitar
+        # fechamento em wicks normais de velas de 2H.
         # ─────────────────────────────────────────────────────────────────────
         if current_stop > 0:
             try:
-                conservative_price = okx_ws_public_service.get_conservative_price(symbol, side)
+                # Swing: janela 30min | Scalping: janela 120s
+                if is_swing_trade:
+                    conservative_price = okx_ws_public_service.get_conservative_price_swing(symbol, side)
+                else:
+                    conservative_price = okx_ws_public_service.get_conservative_price(symbol, side)
                 check_price = conservative_price if conservative_price > 0 else current_price
             except Exception:
                 check_price = current_price
@@ -439,6 +444,24 @@ class FlashAgent:
                        (side == "sell" and check_price >= current_stop)
             if stop_hit:
                 await _close_swing(current_stop, f"STOP_HIT@{check_price:.6f}")
+                return
+
+        # ─────────────────────────────────────────────────────────────────────
+        # [V136-SWING] Take Profit por S/R — fecha quando atinge resistência/suporte.
+        # Verifica se o trade tem TP definido e se o preço atingiu.
+        # ─────────────────────────────────────────────────────────────────────
+        take_profit = getattr(trade, 'take_profit', None) or \
+                      (trade.flash_state or {}).get("take_profit") if isinstance(trade.flash_state, dict) else None
+        if take_profit and take_profit > 0:
+            tp_hit = (side == "buy" and current_price >= take_profit) or \
+                     (side == "sell" and current_price <= take_profit)
+            if tp_hit:
+                tp_type = (trade.flash_state or {}).get("tp_type", "S/R_LEVEL") if isinstance(trade.flash_state, dict) else "S/R_LEVEL"
+                logger.info(
+                    f"🎯 [FLASH-SWING-TP] {symbol} Take Profit {tp_type} atingido: "
+                    f"{current_price:.6f} >= TP {take_profit:.6f}. Fechando."
+                )
+                await _close_swing(take_profit, f"TP_HIT_{tp_type}@{current_price:.6f}")
                 return
 
         # ─────────────────────────────────────────────────────────────────────

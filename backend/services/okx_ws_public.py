@@ -335,6 +335,29 @@ class OKXWSPublic:
 
         return current
 
+    def get_conservative_price_swing(self, symbol: str, side: str) -> float:
+        """
+        [V136-SWING] Janela de 30 minutos para trades Swing (2H).
+        Trades Swing não devem ser fechados por wicks de 2 minutos —
+        wicks de 0.5-1% são normais em velas de 2H e recuperam em minutos.
+        Usa janela de 1800s (30min) para filtrar ruído intraday.
+        """
+        norm_sym = symbol.replace(".P", "").upper()
+        current = self.prices.get(norm_sym, 0.0)
+        now = time.time()
+        window = 1800  # 30 minutos
+
+        if side.lower() == "buy":
+            low_data = self.low_prices.get(norm_sym)
+            if low_data and (now - low_data["ts"]) <= window:
+                return min(current, low_data["low"])
+        else:
+            high_data = self.high_prices.get(norm_sym)
+            if high_data and (now - high_data["ts"]) <= window:
+                return max(current, high_data["high"])
+
+        return current
+
     def get_correlation(self, symbol_a: str, symbol_b: str) -> float:
         """
         [V110.62] Calcula a correlação de Pearson entre dois ativos.

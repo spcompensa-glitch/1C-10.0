@@ -1,6 +1,6 @@
 # 1Crypten 7.0 — Elite Trading System
 
-Sistema de trading automatizado para cripto na OKX. App FastAPI unico que roda o motor real + tres laboratorios de forward-testing (Sandbox, Swing Lab, Scalping Lab), com gestao de risco por IA e stops progressivos (escadinha).
+Sistema de trading automatizado para cripto na OKX. App FastAPI unico que roda o motor real + dois laboratorios de forward-testing (Scalping Lab e Swing Lab), com gestao de risco por IA e stops progressivos (escadinha).
 
 > Arquitetura completa e a fonte de verdade tecnica: **[MASTER_ARCHITECTURE.md](./MASTER_ARCHITECTURE.md)**.
 
@@ -110,6 +110,38 @@ pytest --cov=backend/                           # com cobertura
 | Erro 429 OKX | Muitas chamadas rapidas | OKXCommandQueue (anti-429) ja ativo |
 | Dashboard nao atualiza | WebSocket morto | Reiniciar backend |
 | Slots nao abrem | Regime gate (ADX) | Verificar `/api/system/state` |
+
+---
+
+## Changelog (V136-SWING)
+
+### Swing Lab — Trades de 1-7 dias com stops progressivos e TP baseado em S/R
+
+- **[SWING-TRAILING]** Trailing suave 50% (era 75%) + Breakeven +12% (era +4%) — trades duram mais sem dar lucro embora
+- **[SWING-LEVERAGE]** Fix leverage: `SWING_LEVERAGE=50` (era 10, conflito com código que usava 50)
+- **[SWING-PRICE-WINDOW]** Janela de preço 30min (1800s) para Swing — evita fechar em wicks de 2min
+- **[SWING-GARANTIA]** GARANTIA_TRAIL split: 50% Swing / 75% Scalping (antes统一 75%)
+- **[SWING-TP]** Take Profit baseado em S/R — detecta resistências acima e cria stop ratchet progressivo
+- **[SWING-PATTERNS]** Detecção de padrões gráficos: Triângulos, Topo/Fundo Duplo, Head & Shoulders
+- **[SWING-PATTERN-BOOST]** Padrões gráficos boostam score do sinal (+10 a +25 pontos)
+
+### Arquivos modificados
+| Arquivo | Mudança |
+|---------|---------|
+| `backend/services/sandbox_service.py` | GARANTIA_TRAIL split 50%/75%, Breakeven +12% Swing |
+| `backend/services/sandbox_swing_service.py` | TP S/R integration, pattern detection boost |
+| `backend/services/okx_ws_public.py` | `get_conservative_price_swing()` 30min window |
+| `backend/services/agents/flash_agent.py` | TP hit check, swing price window |
+| `backend/config.py` | `SWING_LEVERAGE=50`, `SWING_TP_*` configs |
+
+### Arquivos criados
+| Arquivo | Função |
+|---------|--------|
+| `backend/services/patterns/__init__.py` | Package init |
+| `backend/services/patterns/triangle_detector.py` | Triângulos (simétrico/ascendente/descendente) |
+| `backend/services/patterns/double_detector.py` | Topo/Fundo Duplo |
+| `backend/services/patterns/hs_detector.py` | Head & Shoulders / Inverse H&S |
+| `backend/services/pattern_detector.py` | PatternDetector unificado |
 
 ---
 

@@ -162,11 +162,10 @@ class Settings(BaseSettings):
     # OFF = Sandbox roda autônomo (recomendado para validação)
     # ON  = Toda ordem swing aberta no Lab é espelhada na conta real
     SWING_MIRROR_MODE: str = os.getenv("SWING_MIRROR_MODE", "OFF")
-    # [V130-FIX] Alavancagem reduzida de 50x → 10x para Swing Lab.
-    #   Diagnóstico: R:R de 0.46. Stop -5% ROI com 50x = 0.1% de preço.
-    #   Com 10x: stop -5% ROI = 0.5% de preço — 5x mais espaço para o trade respirar.
-    #   A escadinha V130 com breakeven em +5% ROI + leverage 10x projeta R:R ~1.5.
-    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 10))
+    # [V136-SWING] Alavancagem restaurada para 50x para Swing Lab 2H.
+    #   Stop -20% ROI com 50x = 0.4% de preço (adequado para 2H).
+    #   Trailing suave 50% + breakeven +12% dão espaço para trades de 1-7 dias.
+    SWING_LEVERAGE: int = int(os.getenv("SWING_LEVERAGE", 50))
 
     # Margem em USD por trade swing na conta virtual
     # [V126] $200/trade | 10 slots | 40% de $10.000 = $4.000 total
@@ -182,6 +181,16 @@ class Settings(BaseSettings):
     # ROI-alvo do stop inicial do Swing (em %)
     # 25.0 → stop a 0.5% do preço com 50x (V128: aumento de 15% para 25% para dar mais espaço a M30)
     SWING_STOP_ROI: float = float(os.getenv("SWING_STOP_ROI", 5.0))
+
+    # =========================================================================
+    # [V136-SWING] Swing Lab — Take Profit Baseado em S/R
+    # =========================================================================
+    # Habilita/desabilita cálculo de TP por resistência/suporte
+    SWING_TP_ENABLED: bool = True
+    # Distância mínima (em %) da entrada para usar TP fixo (evita TP muito perto)
+    SWING_TP_MIN_DISTANCE: float = float(os.getenv("SWING_TP_MIN_DISTANCE", 5.0))
+    # Distância máxima (em %) — além disso usa trailing puro (TP muito distante não faz sentido)
+    SWING_TP_MAX_DISTANCE: float = float(os.getenv("SWING_TP_MAX_DISTANCE", 100.0))
 
     # =========================================================================
     # [LOCK-IN-PROTOCOL] Protocolo de Defesa de Lucros (Sandbox e Swing Lab)

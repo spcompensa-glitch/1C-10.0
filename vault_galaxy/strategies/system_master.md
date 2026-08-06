@@ -9,7 +9,7 @@ Este e o unico documento de arquitetura do projeto — o Hermes le os primeiros 
 
 ## 1. Visao Geral
 
-1Crypten e um sistema de trading automatizado para criptomoedas na OKX. Roda um app FastAPI unico (`backend.main:app`) que executa em paralelo o motor real e tres laboratorios de forward-testing (Sandbox, Swing Lab, Scalping Lab).
+1Crypten e um sistema de trading automatizado para criptomoedas na OKX. Roda um app FastAPI unico (`backend.main:app`) que executa em paralelo o motor real e dois laboratorios de forward-testing (Scalping Lab e Swing Lab).
 
 - **Entry point (unico)**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` (Procfile / railway.json / Dockerfile). **Nao existe `main.py` na raiz.**
 - **Backend**: FastAPI (Python 3.12-slim)

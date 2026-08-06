@@ -60,13 +60,10 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("SandboxSwingService")
 
-# [V130-FIX] Constantes padrão (sobrescritas pelo config.py se disponível)
-# _DEFAULT_LEVERAGE reduzido de 50x → 10x para:
-#   - Aumentar o stop em termos de preço (0.1% → 0.5% com -5% ROI)
-#   - Melhorar R:R ratio (projetado: 0.46 → ~1.5)
+# [V136-SWING] Constantes padrão (sobrescritas pelo config.py se disponível)
 _DEFAULT_VIRTUAL_BALANCE  = 100.0
 _DEFAULT_MARGIN_PER_TRADE = 5.0
-_DEFAULT_LEVERAGE         = 50.0   # [V132-SWING-2H] Alavancagem forçada a 50x
+_DEFAULT_LEVERAGE         = 50.0   # [V136-SWING] 50x — stop -20% ROI = 0.4% preço (2H)
 _DEFAULT_SCAN_INTERVAL    = 1800   # [V132-SWING-2H] Intervalo de scan de 30min para coincidir com 2H
 
 
@@ -277,6 +274,41 @@ class SandboxSwingService:
         if not signals:
             logger.info("[SWING-LAB] Nenhum setup M30 qualificado neste ciclo.")
             return
+
+        # [V136-SWING] Boost de padrões gráficos — detecta triângulos, duplos, H&S
+        try:
+            from services.pattern_detector import PatternDetector
+            pattern_detector = PatternDetector()
+            for sig in signals:
+                sym = sig.get("symbol", "")
+                sig_side = sig.get("side", "Buy")
+                sig_dir = "LONG" if sig_side.upper() in ("BUY", "LONG") else "SHORT"
+                
+                # Busca klines 2H para detecção de padrões
+                try:
+                    from services.okx_rest import okx_rest_service
+                    klines_2h = await okx_rest_service.get_klines(symbol=sym, interval="2H", limit=50)
+                    if klines_2h and len(klines_2h) >= 20:
+                        patterns = pattern_detector.detect_from_klines(klines_2h, timeframe="2H")
+                        pattern_boost = pattern_detector.get_pattern_boost(patterns, sig_dir)
+                        
+                        if pattern_boost > 0:
+                            old_score = float(sig.get("score", 0))
+                            sig["score"] = old_score + pattern_boost
+                            reasons = sig.get("reasons", [])
+                            for p in patterns:
+                                if (sig_dir == "LONG" and p.direction == "BULLISH") or \
+                                   (sig_dir == "SHORT" and p.direction == "BEARISH"):
+                                    reasons.append(f"PADRAO_{p.pattern_type}_{p.direction}")
+                            sig["reasons"] = reasons
+                            logger.info(
+                                f"[SWING-LAB] {sym} Boost padrão gráfico: +{pattern_boost} pts "
+                                f"({old_score:.0f} → {sig['score']:.0f}) — {patterns[0].pattern_type}"
+                            )
+                except Exception as pk_err:
+                    logger.debug(f"[SWING-LAB] Erro pattern detection para {sym}: {pk_err}")
+        except ImportError:
+            logger.debug("[SWING-LAB] PatternDetector não disponível — sem boost de padrões")
 
         logger.info(f"[SWING-LAB] {len(signals)} setup(s) qualificado(s). Processando...")
         opened_in_cycle = 0
@@ -493,6 +525,13 @@ class SandboxSwingService:
                 f"(base=${base_margin:.2f})"
             )
 
+            # [V136-SWING] Calcula TP baseado em S/R
+            tp_price = await self._calculate_swing_tp(symbol, current_price, direction)
+            tp_type = "S/R_LEVEL" if tp_price else "TRAILING_ONLY"
+            if tp_price:
+                tp_roi = abs(tp_price - current_price) / current_price * self.leverage * 100
+                logger.info(f"[SWING-LAB] {symbol} TP calculado: {tp_price:.6f} (ROI ~{tp_roi:.0f}%)")
+
             trade_data = {
                 "id":            trade_id,
                 "symbol":        symbol,
@@ -501,7 +540,9 @@ class SandboxSwingService:
                 "entry_price":   current_price,
                 "current_price": current_price,
                 "stop_loss":     stop_price,
-                "target":        None,
+                "take_profit":   tp_price,  # [V136-SWING] TP baseado em S/R
+                "tp_type":       tp_type,   # [V136-SWING] Tipo do TP
+                "target":        tp_price,  # Compatibilidade com código legado
                 "max_roi":       0.0,
                 "current_roi":   0.0,
                 "pnl_pct":       0.0,
@@ -518,6 +559,8 @@ class SandboxSwingService:
                     "scan_source":  "AUTONOMOUS",
                     "stop_method":  "CONFIG",
                     "stop_roi_target": stop_roi_target,
+                    "take_profit":  tp_price,  # [V136-SWING] TP no flash_state
+                    "tp_type":      tp_type,
                 },
                 "contract_meta": contract_meta,
                 "blitz_score":   score,
@@ -560,6 +603,79 @@ class SandboxSwingService:
             logger.error(f"[SWING-LAB] Erro ao abrir trade para {signal.get('symbol')}: {e}")
             import traceback; traceback.print_exc()
             return None
+
+    # =========================================================================
+    # TAKE PROFIT BASEADO EM S/R (V136-SWING)
+    # =========================================================================
+
+    async def _calculate_swing_tp(self, symbol: str, entry_price: float, direction: str) -> Optional[float]:
+        """
+        [V136-SWING] Calcula Take Profit baseado na resistência/suporte mais próxima.
+        LONG: TP = primeira resistência acima com distância >= min_distance%
+        SHORT: TP = primeiro suporte abaixo com distância >= min_distance%
+        Retorna None se não encontrar S/R adequado (usa trailing puro).
+        """
+        try:
+            from config import settings
+            tp_enabled = getattr(settings, "SWING_TP_ENABLED", True)
+            if not tp_enabled:
+                return None
+
+            min_dist = getattr(settings, "SWING_TP_MIN_DISTANCE", 5.0) / 100.0
+            max_dist = getattr(settings, "SWING_TP_MAX_DISTANCE", 100.0) / 100.0
+
+            # Busca klines de 2H (últimas 50 velas)
+            from services.okx_rest import okx_rest_service
+            klines = await okx_rest_service.get_klines(symbol=symbol, interval="2H", limit=50)
+            if not klines or len(klines) < 10:
+                return None
+
+            # Extrai high/low das velas
+            highs = [float(k[2]) for k in klines]  # high
+            lows = [float(k[3]) for k in klines]   # low
+
+            # Encontra pivôs (máximas e mínimas locais)
+            resistances = self._find_pivot_highs(highs, window=3)
+            supports = self._find_pivot_lows(lows, window=3)
+
+            if direction == "LONG":
+                # TP = primeira resistência acima da entrada
+                for r in sorted(resistances):
+                    dist = (r - entry_price) / entry_price
+                    if min_dist <= dist <= max_dist:
+                        logger.info(f"[SWING-LAB] {symbol} TP por S/R: resistência em {r:.6f} ({dist*100:.1f}% acima)")
+                        return r
+            else:
+                # TP = primeiro suporte abaixo da entrada
+                for s in sorted(supports, reverse=True):
+                    dist = (entry_price - s) / entry_price
+                    if min_dist <= dist <= max_dist:
+                        logger.info(f"[SWING-LAB] {symbol} TP por S/R: suporte em {s:.6f} ({dist*100:.1f}% abaixo)")
+                        return s
+
+            return None  # Sem S/R adequado — usa trailing puro
+
+        except Exception as e:
+            logger.warning(f"[SWING-LAB] Erro ao calcular TP para {symbol}: {e}")
+            return None
+
+    def _find_pivot_highs(self, highs: list, window: int = 3) -> list:
+        """Encontra máximas locais (pivôs de alta) com janela指定ida."""
+        pivots = []
+        for i in range(window, len(highs) - window):
+            if all(highs[i] >= highs[i-j] for j in range(1, window+1)) and \
+               all(highs[i] >= highs[i+j] for j in range(1, window+1)):
+                pivots.append(highs[i])
+        return pivots
+
+    def _find_pivot_lows(self, lows: list, window: int = 3) -> list:
+        """Encontra mínimas locais (pivôs de baixa) com janela指定ida."""
+        pivots = []
+        for i in range(window, len(lows) - window):
+            if all(lows[i] <= lows[i-j] for j in range(1, window+1)) and \
+               all(lows[i] <= lows[i+j] for j in range(1, window+1)):
+                pivots.append(lows[i])
+        return pivots
 
     async def _get_5m_breakout_score(self, symbol: str, direction: str) -> int:
         """

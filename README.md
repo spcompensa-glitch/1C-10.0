@@ -11,7 +11,7 @@ Sistema de trading automatizado para cripto na OKX. App FastAPI unico que roda o
 **Requisitos:** Python 3.12+ e credenciais OKX.
 
 ```bash
-git clone https://github.com/JonatasOliveira1983/1C-7.0.git
+git clone https://github.com/spcompensa-glitch/1C-10.0.git
 cd 1C-7.0
 pip install -r requirements.txt
 cp .env .env.local   # edite com suas credenciais OKX
@@ -46,6 +46,40 @@ FIREBASE_CREDENTIALS_PATH=serviceAccountKey.json   # opcional
 - **Entry point:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1`.
 - **Health check:** `GET /api/health`.
 - Branch `main` → auto-deploy.
+- **Repo:** `spcompensa-glitch/1C-10.0`
+
+### Railway CLI
+
+```bash
+# Token de acesso (variavel de ambiente)
+$env:RAILWAY_TOKEN="46dfd90f-61af-4990-992c-976cfe4984cc"
+
+# IDs do projeto
+Project ID:  34576d19-f534-443e-8813-969e758efa3a
+Environment: 733c8dac-c62a-4832-ad75-1f8525f28caf
+Service:     eceff4c8-6aa6-4183-acc9-cc930d8440b5 (1C-10.0)
+
+# Comandos uteis
+railway logs -p <PROJECT> -e <ENV> -s "1C-10.0"          # ver logs
+railway redeploy --project <PROJECT> --environment <ENV> --service <SVC> --yes  # forcar deploy
+railway service list --json                               # listar servicos
+```
+
+### Variaveis de Ambiente (Railway)
+
+| Variavel | Valor | Observacao |
+|----------|-------|------------|
+| `DATABASE_URL` | `postgresql://postgres:...@mainline.proxy.rlwy.net:22832/railway` | Postgres Railway |
+| `JWT_SECRET_KEY` | `1crypten-railway-secret-2026-prod` | Chave JWT |
+| `OKX_EXECUTION_MODE` | `PAPER` | Modo simulado |
+| `PORT` | `8085` | Porta do app |
+
+### Dominios
+
+| Dominio | Tipo |
+|---------|------|
+| `1crypten.space` | Custom domain |
+| `1c-100-production.up.railway.app` | Railway default |
 
 ---
 
@@ -145,6 +179,51 @@ pytest --cov=backend/                           # com cobertura
 
 ---
 
+## Changelog (V136.1 — Fixes Criticos)
+
+### Bugs corrigidos nesta sessao
+
+#### 1. ROI Inflado (IMX +4066%, XRP +316%)
+- **Causa:** `_get_peak_price()` usava preços WS de 120s que tinham spikes/stale data, inflando `max_roi` permanentemente
+- **Fix:** Removido `_get_peak_price()` do calculo de ROI em `flash_agent.py`. Agora usa apenas `current_price`
+- **Fix:** Sanity cap `min(roi, 300.0)` em 3 pontos — 300% = 6% variacao com 50x leverage
+- **Arquivos:** `flash_agent.py:148-156`, `flash_agent.py:362-366`, `sandbox_service.py:1507-1514`
+
+#### 2. Banca Nao Atualiza ($10,000.00 com 0% retorno)
+- **Causa 1:** Hardcoded `$200.00` em 4 lugares no `sandbox_service.py` em vez de ler `contract_meta.margin`
+- **Causa 2:** `update_banca_status()` falhava com `BancaStatus() got multiple values for keyword argument 'id'`
+- **Fix:** Substituido `* 200.00` por `(t.contract_meta or {}).get("margin", 200.0)` em todas as contas de PnL
+- **Fix:** `data.pop("id", None)` antes de criar `BancaStatus(id=1, **data)` em `database_service.py:527`
+- **Arquivos:** `sandbox_service.py:1359-1383`, `database_service.py:524-530`
+
+#### 3. Captain Silenciosamente Crashando
+- **Causa:** `asyncio.create_task(_process_single_signal)` — erros eram engolidos silenciosamente
+- **Fix:** Wrapper `_safe_process_single_signal()` com try/except + finally que sempre limpa `active_tocaias`
+- **Arquivo:** `captain.py:1175-1186`
+
+#### 4. DECOR-HUNTER Bloqueado em LATERAL
+- **Causa:** Sinais DECOR-HUNTER nao tinham `strategy_class`, caiam no default `"VELOCITY FLOW"`, eram bloqueados pelo filtro de regime
+- **Fix:** Check `is_decor_hunter` por `radar_mode/strategy/slot_type` contendo "DECOR" — imune ao filtro LATERAL
+- **Arquivo:** `captain.py:1219-1228`
+
+### Comandos de manutencao
+
+```bash
+# Limpar trades sandbox (reseta banca para $10,000)
+POST /api/sandbox/clear       # Scalping Lab
+POST /api/sandbox/swing/clear # Swing Lab
+
+# Reset nuclear do sistema
+POST /api/admin/reset-system  # Limpa tudo: positions, slots, locks, Firebase
+
+# Verificar estado
+GET /api/sandbox/unified-state  # Banca consolidada
+GET /api/sandbox/trades?active_only=true  # Trades ativos
+GET /api/system/state           # Estado geral do sistema
+```
+
+---
+
 ## Changelog (V134)
 
 - **[KRONOS]** Novo serviço de scoring de convicção via séries temporais (`backend/services/kronos_scorer.py`)
@@ -153,5 +232,5 @@ pytest --cov=backend/                           # com cobertura
 - **[CLEANUP]** Remoção completa do legado Bybit (26 arquivos, `pybit` removido do requirements)
 - **[TESTS]** 24 novos testes para o KronosScorer (24/24 passando)
 
-**Mantenedor:** Jonatas Oliveira (@JonatasOliveira1983)
-**Repositorio:** https://github.com/JonatasOliveira1983/1C-7.0
+**Mantenedor:** Pedro Kalelivia
+**Repositorio:** https://github.com/spcompensa-glitch/1C-10.0

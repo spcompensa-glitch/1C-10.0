@@ -150,6 +150,13 @@ async def lifespan(app: FastAPI):
                 from database.database_service_secure import init_db as init_auth_db
                 init_auth_db()
                 logger.info("✅ Auth DB tables initialized.")
+                
+                # [V136-AUTH] Create admin user if not exists
+                try:
+                    from database.migrations.create_auth_tables import create_admin_user
+                    create_admin_user()
+                except Exception as admin_err:
+                    logger.warning(f"⚠️ Admin user creation skipped: {admin_err}")
             except Exception as e:
                 logger.error(f"⚠️ Failed to init Auth DB: {e}")
 

@@ -193,19 +193,23 @@ class SandboxSwingService:
 
         # 1.5. Regra Risco Zero (Zero-Risk Stacking) - 2 Slots de Risco
         # Permite no máximo 2 posições simultâneas com risco de mesa.
+        # [V136.2] Trades com stop_loss=None (STOP_AUSENTE) não consomem slot de risco
+        # pois estão num estado inválido — devem ser corrigidos pelo FlashAgent, não bloquear entradas.
         trades_with_risk = 0
         for t in active_trades:
+            if t.stop_loss is None:
+                continue  # [V136.2] Stop ausente não conta como risco
             is_long = t.direction.upper() in ("LONG", "BUY")
             if is_long:
-                if t.stop_loss is None or t.stop_loss < t.entry_price:
+                if t.stop_loss < t.entry_price:
                     trades_with_risk += 1
             else:
-                if t.stop_loss is None or t.stop_loss > t.entry_price:
+                if t.stop_loss > t.entry_price:
                     trades_with_risk += 1
 
         allowed_new_risk_slots = 2 - trades_with_risk
         if allowed_new_risk_slots <= 0:
-            logger.info(f"[SWING-LAB] O limite de 2 ordens com risco simultâneo foi atingido. Aguardando pelo menos uma atingir risco zero (break-even).")
+            logger.info(f"[SWING-LAB] O limite de 2 ordens com risco simultâneo foi atingido ({trades_with_risk}/2). Aguardando pelo menos uma atingir risco zero (break-even).")
             return
 
 
@@ -330,15 +334,16 @@ class SandboxSwingService:
                 logger.info(f"[SWING-LAB] {sig.get('symbol')} SHORT descartado (regime bullish)")
                 continue
 
-            # [V129] Regra para Mercado LATERAL: Exigir score >= 80 e volume/gás >= 1.5x
+            # [V136.2] Regra para Mercado LATERAL: score >= 70 e volume/gás >= 1.2x
+            # [V129] Original: score >= 80 e volume >= 1.5x — muito restritivo, bloqueava quase tudo
             if btc_dir == "LATERAL":
                 indicators = sig.get("indicators", {}) or {}
                 vol_ratio = float(indicators.get("volume_ratio", 0.0))
-                if sig_score < 80:
-                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por score baixo ({sig_score:.0f} < 80)")
+                if sig_score < 70:
+                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por score baixo ({sig_score:.0f} < 70)")
                     continue
-                if vol_ratio < 1.5:
-                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por falta de volume/gás (vol_ratio={vol_ratio:.2f} < 1.5x)")
+                if vol_ratio < 1.2:
+                    logger.info(f"[SWING-LAB] {sig.get('symbol')} {sig_dir} descartado em LATERAL por falta de volume/gás (vol_ratio={vol_ratio:.2f} < 1.2x)")
                     continue
 
             opened = await self._try_open_swing_trade(sig)

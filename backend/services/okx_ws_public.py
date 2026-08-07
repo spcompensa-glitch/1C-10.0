@@ -22,6 +22,7 @@ class OKXWSPublic:
         # CVD storage: {symbol: {timestamp: delta}}
         self.cvd_data = {} 
         self.prices = {} # {symbol: last_price}
+        self.prices_ts = {} # {symbol: timestamp_of_last_price} — [V136.2] TTL tracking
 
         # Rolling 120s extreme prices (for FlashAgent conservative stop checks)
         # V110.xxx: Aumentado de 30s para 120s para evitar que spikes rápidos
@@ -104,6 +105,7 @@ class OKXWSPublic:
                 if price == 0: price = self.prices.get(norm_sym, 0)
                 else:
                     self.prices[norm_sym] = price # Update last known price from trade event
+                    self.prices_ts[norm_sym] = time.time()  # [V136.2] Track freshness
                     self._update_extreme_price(norm_sym, price)  # Track low/high for FlashAgent
 
                 delta = (size * price) if side == "Buy" else -(size * price)
@@ -183,6 +185,7 @@ class OKXWSPublic:
                 norm_sym = symbol.replace(".P", "").upper()
                 price = float(okx_ticker.get("last", 0))
                 self.prices[norm_sym] = price
+                self.prices_ts[norm_sym] = time.time()  # [V136.2] Track freshness
                 self._update_extreme_price(norm_sym, price)  # Track low/high for FlashAgent
                 vol_ccy_24h = okx_ticker.get("volCcy24h")
                 if vol_ccy_24h is not None:
@@ -240,10 +243,18 @@ class OKXWSPublic:
         except Exception as e:
             logger.error(f"Error processing instrument message: {e}")
 
-    def get_current_price(self, symbol: str) -> float:
-        """[V5.2.5] Returns the last known price for a symbol."""
+    def get_current_price(self, symbol: str, max_age_seconds: float = 30.0) -> float:
+        """[V136.2] Returns the last known price for a symbol. Returns 0.0 if price is stale (>max_age_seconds)."""
         norm_sym = symbol.replace(".P", "").upper()
-        return self.prices.get(norm_sym, 0.0)
+        price = self.prices.get(norm_sym, 0.0)
+        if price <= 0:
+            return 0.0
+        # [V136.2] Freshness check — reject stale WS prices
+        ts = self.prices_ts.get(norm_sym, 0.0)
+        if ts > 0 and (time.time() - ts) > max_age_seconds:
+            logger.warning(f"[WS-STALE] {norm_sym} preço descartado: {(time.time()-ts):.0f}s > {max_age_seconds:.0f}s threshold")
+            return 0.0
+        return price
 
     def get_cvd_score(self, symbol: str) -> float:
         """Returns the current cumulative delta for the stored history."""
@@ -317,21 +328,34 @@ class OKXWSPublic:
         polling do FlashAgent (1s) + cache de moonbags (3s). Um spike rápido pode
         acontecer e o preço voltar antes da próxima verificação; a janela de 120s
         garante que o stop hit não seja perdido.
+        [V136.2] Rejects stale prices (>30s old) to prevent phantom spikes.
         """
         norm_sym = symbol.replace(".P", "").upper()
         current = self.prices.get(norm_sym, 0.0)
         now = time.time()
+
+        # [V136.2] Freshness gate — reject stale price
+        price_ts = self.prices_ts.get(norm_sym, 0.0)
+        if price_ts > 0 and (now - price_ts) > 30.0:
+            current = 0.0  # Stale — force fallback to extremes or 0
 
         # Janela de 120 segundos (vs 30s original) para capturar spikes
         # que acontecem entre ciclos de polling do FlashAgent
         if side.lower() == "buy":
             low_data = self.low_prices.get(norm_sym)
             if low_data and (now - low_data["ts"]) <= 120:
-                return min(current, low_data["low"])
+                low_val = low_data["low"]
+                # [V136.2] Also check freshness of extreme price
+                if current > 0:
+                    return min(current, low_val)
+                return low_val
         else:
             high_data = self.high_prices.get(norm_sym)
             if high_data and (now - high_data["ts"]) <= 120:
-                return max(current, high_data["high"])
+                high_val = high_data["high"]
+                if current > 0:
+                    return max(current, high_val)
+                return high_val
 
         return current
 
@@ -341,20 +365,32 @@ class OKXWSPublic:
         Trades Swing não devem ser fechados por wicks de 2 minutos —
         wicks de 0.5-1% são normais em velas de 2H e recuperam em minutos.
         Usa janela de 1800s (30min) para filtrar ruído intraday.
+        [V136.2] Rejects stale prices (>30s old) to prevent phantom spikes.
         """
         norm_sym = symbol.replace(".P", "").upper()
         current = self.prices.get(norm_sym, 0.0)
         now = time.time()
         window = 1800  # 30 minutos
 
+        # [V136.2] Freshness gate — reject stale price
+        price_ts = self.prices_ts.get(norm_sym, 0.0)
+        if price_ts > 0 and (now - price_ts) > 30.0:
+            current = 0.0  # Stale — force fallback to extremes or 0
+
         if side.lower() == "buy":
             low_data = self.low_prices.get(norm_sym)
             if low_data and (now - low_data["ts"]) <= window:
-                return min(current, low_data["low"])
+                low_val = low_data["low"]
+                if current > 0:
+                    return min(current, low_val)
+                return low_val
         else:
             high_data = self.high_prices.get(norm_sym)
             if high_data and (now - high_data["ts"]) <= window:
-                return max(current, high_data["high"])
+                high_val = high_data["high"]
+                if current > 0:
+                    return max(current, high_val)
+                return high_val
 
         return current
 
@@ -728,6 +764,12 @@ class OKXWSPublic:
                     {"channel": "tickers", "instId": inst_id},
                     {"channel": "books5", "instId": inst_id}
                 ])
+                # [V136.2] Clean up stale price data for unsubscribed symbols
+                norm_s = s.replace(".P", "").upper()
+                self.prices.pop(norm_s, None)
+                self.prices_ts.pop(norm_s, None)
+                self.low_prices.pop(norm_s, None)
+                self.high_prices.pop(norm_s, None)
             try:
                 await self._okx_ws.send(json.dumps({"op": "unsubscribe", "args": args_unsub}))
             except Exception as e:

@@ -145,6 +145,8 @@ class FlashAgent:
             is_ranging=is_ranging,
         )
         roi = float(projection.get("roi_percent") or 0)
+        # [V136.2] Sanity cap on current ROI
+        roi = min(roi, 300.0)
         # [FIX] peak_roi NÃO usa _get_peak_price() — preços WS de 120s podem ter spikes/stale
         # que inflam max_roi permanentemente. Usar APENAS current_price para ROI.
         peak_price = current_price
@@ -357,6 +359,8 @@ class FlashAgent:
 
         # Calcula ROI
         roi = self._calc_roi(entry_price, current_price, side, leverage)
+        # [V136.2] Sanity cap: com 50x, 300% ROI = 6% de variação. Acima disso é spike/stale data.
+        roi = min(roi, 300.0)
         
         # Peak ROI — sempre respeitar o maximo historico (cache + banco)
         peak_key = f"swing_sandbox:{trade_id}"

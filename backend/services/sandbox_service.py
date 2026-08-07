@@ -117,6 +117,7 @@ class SandboxService:
         Resolução de preço em cascata: WS → REST → cache local.
         Espelha FlashAgent._get_current_price para garantir que o stop
         nunca seja perdido por falha temporária do WebSocket.
+        [V136.2] WS price freshness check (30s max age) to prevent stale spikes.
         """
         # 1. Tenta WebSocket
         try:
@@ -135,10 +136,10 @@ class SandboxService:
             self._last_price_cache_ts[symbol] = time.time()
             return rest_price
 
-        # 3. Cache local (ate 60s de idade)
+        # 3. Cache local (ate 30s de idade — [V136.2] reduzido de 60s)
         last_price = self._last_price_cache.get(symbol, 0.0)
         last_ts = self._last_price_cache_ts.get(symbol, 0.0)
-        if last_price > 0 and (time.time() - last_ts) < 60.0:
+        if last_price > 0 and (time.time() - last_ts) < 30.0:
             return last_price
 
         return 0.0
@@ -1493,6 +1494,15 @@ class SandboxService:
             )
             return
 
+        # [V136.2] Price sanity check — reject if price is >15% from entry (stale/spike data)
+        price_drift_pct = abs(current_price - entry_price) / entry_price * 100.0
+        if price_drift_pct > 15.0:
+            logger.warning(
+                f"[SANDBOX-PRICE-SPIKE] {symbol} | Entry={entry_price:.4f} Current={current_price:.4f} | "
+                f"Drift={price_drift_pct:.1f}% > 15% — provavel preco stale/spike, ignorando tick"
+            )
+            return
+
         # 2. Leverage e side
         leverage = 50.0
         if isinstance(trade.contract_meta, dict):
@@ -1503,6 +1513,8 @@ class SandboxService:
 
         # 3. Calcular ROI
         current_roi = proj_service.calculate_roi(entry_price, current_price, side, leverage)
+        # [V136.2] Sanity cap: com 50x, 300% ROI = 6% de variação. Acima disso é spike/stale data.
+        current_roi = min(current_roi, 300.0)
 
         # 4. Peak ROI (cache + persistido)
         trade_key = trade.id
